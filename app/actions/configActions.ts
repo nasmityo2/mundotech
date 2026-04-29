@@ -10,7 +10,7 @@ const EXCHANGE_RATE_KEY = 'exchange_rate_usd_bs';
 const DEFAULT_RATE      = 36.5;
 
 const exchangeRateSchema = z
-  .number({ invalid_type_error: 'La tasa debe ser un número.' })
+  .number({ error: 'La tasa debe ser un número.' })
   .positive('La tasa debe ser mayor que cero.')
   .finite()
   .max(100_000, 'Tasa fuera de rango razonable.');
