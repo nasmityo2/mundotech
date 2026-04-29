@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useTransition, useCallback } from 'react';
+import { useEffect, useState, useRef, useTransition, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { PlusCircle, Trash2, Edit, Upload, Check, X, Search, ChevronDown } from 'lucide-react';
@@ -50,7 +50,7 @@ function StockBadge({ stock }: { stock: number }) {
   return <span className="text-xs text-gray-600 tabular-nums">{stock}</span>;
 }
 
-export default function AdminProductsPage() {
+function AdminProductsContent() {
   const [products, setProducts]           = useState<Product[]>([]);
   const [categories, setCategories]       = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen]     = useState(false);
@@ -425,5 +425,32 @@ export default function AdminProductsPage() {
 
       <AddProductModal isOpen={isModalOpen} onClose={handleClose} product={editingProduct} />
     </div>
+  );
+}
+
+function ProductsLoadingSkeleton() {
+  return (
+    <div className="animate-pulse space-y-3">
+      <div className="flex items-center justify-between mb-4">
+        <div className="space-y-1.5">
+          <div className="h-5 w-32 bg-gray-200 rounded" />
+          <div className="h-3 w-24 bg-gray-100 rounded" />
+        </div>
+        <div className="flex gap-2">
+          <div className="h-8 w-16 bg-gray-200 rounded-lg" />
+          <div className="h-8 w-20 bg-gray-200 rounded-lg" />
+        </div>
+      </div>
+      <div className="h-12 bg-gray-200 rounded-xl" />
+      <div className="h-64 bg-gray-200 rounded-xl" />
+    </div>
+  );
+}
+
+export default function AdminProductsPage() {
+  return (
+    <Suspense fallback={<ProductsLoadingSkeleton />}>
+      <AdminProductsContent />
+    </Suspense>
   );
 }
