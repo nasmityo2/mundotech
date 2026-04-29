@@ -34,7 +34,7 @@ export async function updateExchangeRate(rate: unknown) {
 
   const parsed = exchangeRateSchema.safeParse(rate);
   if (!parsed.success) {
-    return { success: false, message: parsed.error.errors[0]?.message ?? 'Tasa inválida.' };
+    return { success: false, message: parsed.error.issues[0]?.message ?? 'Tasa inválida.' };
   }
 
   await prisma.appConfig.upsert({
