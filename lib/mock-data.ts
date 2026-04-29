@@ -1,0 +1,101 @@
+import { Order } from './definitions';
+
+export const mockOrders: Order[] = [
+  {
+    id: 'ORD-001',
+    createdAt: '2023-10-26T10:00:00Z',
+    customerId: 'CUST-123',
+    customerName: 'Ana García',
+    items: [
+      { productId: 'prod-001', productName: 'Laptop Pro', quantity: 1, price: 1200 },
+      { productId: 'prod-002', productName: 'Mouse Inalámbrico', quantity: 1, price: 25 },
+    ],
+    total: 1225,
+    status: 'Pendiente',
+    shippingDetails: {
+      address: 'Calle Falsa 123',
+      city: 'Ciudad Capital',
+      state: 'Distrito Capital',
+      zipCode: '1010',
+      country: 'Venezuela',
+    },
+    paymentMethod: 'Pago Móvil',
+  },
+  {
+    id: 'ORD-002',
+    createdAt: '2023-10-25T14:30:00Z',
+    customerId: 'CUST-124',
+    customerName: 'Carlos Rodríguez',
+    items: [
+      { productId: 'prod-003', productName: 'Teclado Mecánico', quantity: 1, price: 150 },
+    ],
+    total: 150,
+    status: 'Enviado',
+    shippingDetails: {
+      address: 'Avenida Principal 45',
+      city: 'Valencia',
+      state: 'Carabobo',
+      zipCode: '2001',
+      country: 'Venezuela',
+    },
+    paymentMethod: 'Transferencia Bancaria',
+  },
+  {
+    id: 'ORD-003',
+    createdAt: '2023-10-24T09:00:00Z',
+    customerId: 'CUST-125',
+    customerName: 'Sofía Martínez',
+    items: [
+      { productId: 'prod-004', productName: 'Monitor 27 pulgadas', quantity: 2, price: 300 },
+    ],
+    total: 600,
+    status: 'Entregado',
+    shippingDetails: {
+      address: 'Plaza Central, Edificio B, Apto 5',
+      city: 'Maracaibo',
+      state: 'Zulia',
+      zipCode: '4001',
+      country: 'Venezuela',
+    },
+    paymentMethod: 'Pago Móvil',
+  },
+    {
+    id: 'ORD-004',
+    createdAt: '2023-10-23T11:00:00Z',
+    customerId: 'CUST-126',
+    customerName: 'Luis Hernandez',
+    items: [
+      { productId: 'prod-005', productName: 'Webcam HD', quantity: 1, price: 80 },
+    ],
+    total: 80,
+    status: 'Cancelado',
+    shippingDetails: {
+      address: 'Calle 8, con carrera 15',
+      city: 'Barquisimeto',
+      state: 'Lara',
+      zipCode: '3001',
+      country: 'Venezuela',
+    },
+    paymentMethod: 'Transferencia Bancaria',
+  },
+  {
+    id: 'ORD-005',
+    createdAt: '2023-10-22T16:45:00Z',
+    customerId: 'CUST-127',
+    customerName: 'Gabriela Perez',
+    items: [
+      { productId: 'prod-001', productName: 'Laptop Pro', quantity: 1, price: 1200 },
+      { productId: 'prod-006', productName: 'Funda para Laptop', quantity: 1, price: 30 },
+    ],
+    total: 1230,
+    status: 'En Proceso',
+    shippingDetails: {
+      address: 'Urbanización El Sol, Casa 25',
+      city: 'Maturín',
+      state: 'Monagas',
+      zipCode: '6201',
+      country: 'Venezuela',
+    },
+    paymentMethod: 'Pago Móvil',
+  },
+];

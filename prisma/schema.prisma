@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────
+// CATÁLOGO
+// ─────────────────────────────────────────────────────────────
+enum ProductMediaType {
+  IMAGE
+  VIDEO
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String?  @unique
+  sku           String?  @unique
+  description   String?
+  price         Float
+  originalPrice Float?
+  stock         Int      @default(0)
+  category      String
+  brand         String?
+  images        String[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  views         ProductView[]
+  media         ProductMedia[]
+
+  @@index([slug])
+  @@index([category])
+  @@index([sku])
+}
+
+/// Medios de galería: imágenes (p. ej. Cloudinary) o vídeo embebido Bunny Stream (URL del iframe).
+model ProductMedia {
+  id         String           @id @default(cuid())
+  productId  String
+  product    Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type       ProductMediaType
+  /// IMAGE: URL de imagen. VIDEO: URL base del iframe Bunny (`iframe.mediadelivery.net/embed/...`).
+  url        String
+  /// Miniatura / LCP fallback para VIDEO (p. ej. Cloudinary).
+  posterUrl  String?
+  sortOrder  Int              @default(0)
+
+  @@index([productId, sortOrder])
+}
+
+model Category {
+  id         String   @id @default(cuid())
+  name       String   @unique
+  slug       String   @unique
+  imageUrl   String?
+  isFeatured Boolean  @default(false)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([isFeatured])
+}
+
+model Promotion {
+  id           String   @id @default(cuid())
+  title        String
+  subtitle     String?
+  discountText String?
+  imageUrl     String?
+  bgColor      String   @default("#FFD700")
+  link         String   @default("/productos")
+  active       Boolean  @default(true)
+  order        Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([active, order])
+}
+
+model Banner {
+  id        String   @id @default(cuid())
+  type      String
+  imageUrl  String
+  title     String?
+  subtitle  String?
+  label     String?   // badge/eyebrow text (hero slides, ad boxes)
+  ctaText   String?   // CTA button label
+  tagText   String?   // small floating tag
+  link      String?  @default("/productos")
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type, active])
+}
+
+// ─────────────────────────────────────────────────────────────
+// USUARIOS
+// ─────────────────────────────────────────────────────────────
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("client")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders    Order[]
+}
+
+// ─────────────────────────────────────────────────────────────
+// PEDIDOS — fuente única de verdad (migrado desde db.json)
+// ─────────────────────────────────────────────────────────────
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     Int         @default(autoincrement()) @unique
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  customerId      String?
+  customer        User?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName    String
+  customerEmail   String?
+  customerPhone   String?
+
+  items           OrderItem[]
+
+  total           Float
+  status          String      @default("Pendiente")
+  paymentMethod   String
+
+  shippingAddress String
+  shippingCity    String
+  shippingState   String
+  shippingZipCode String      @default("N/A")
+  shippingCountry String      @default("Venezuela")
+
+  customerIdNumber    String?
+
+  paymentBank         String?
+  paymentHolderIdNumber String?
+  paymentHolderPhone  String?
+  paymentReference    String?
+  paymentProofUrl     String?
+
+  notes           String?
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId   String
+  productName String
+  quantity    Int
+  price       Float
+  imageUrl    String?
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONFIGURACIÓN GLOBAL (tasa FX, ajustes tienda)
+// ─────────────────────────────────────────────────────────────
+model AppConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+// ─────────────────────────────────────────────────────────────
+// ANALYTICS — vistas de producto (server-side)
+// ─────────────────────────────────────────────────────────────
+model ProductView {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sessionId String?
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([createdAt])
+}
