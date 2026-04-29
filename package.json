@@ -40,7 +40,6 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@next/swc-win32-x64-msvc": "^16.2.4",
     "@types/node": "^20.11.20",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^18.2.57",
@@ -53,5 +52,11 @@
     "prisma": "^7.8.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
+  },
+  "optionalDependencies": {
+    "@next/swc-linux-x64-gnu": "^16.2.4",
+    "@next/swc-win32-x64-msvc": "^16.2.4",
+    "@next/swc-darwin-x64": "^16.2.4",
+    "@next/swc-darwin-arm64": "^16.2.4"
   }
 }
