@@ -11,7 +11,7 @@ const ProductList = () => {
   const { products } = useProducts();
   const [searchQuery, setSearchQuery] = useState('');
 
-  const handleDelete = (productId: number) => {
+  const handleDelete = (productId: string) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar este producto?')) {
       // Aquí iría la llamada a deleteProduct(productId) del contexto
       console.log('Eliminar producto', productId);

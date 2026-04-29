@@ -51,7 +51,7 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
 
   useEffect(() => {
     if (!formRef.current) return;
-    const el = formRef.current.elements as Record<string, HTMLInputElement | HTMLTextAreaElement>;
+    const el = formRef.current.elements as unknown as Record<string, HTMLInputElement | HTMLTextAreaElement>;
     if (product) {
       el.name.value        = product.name;
       el.description.value = product.description;

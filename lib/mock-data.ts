@@ -3,6 +3,7 @@ import { Order } from './definitions';
 export const mockOrders: Order[] = [
   {
     id: 'ORD-001',
+    orderNumber: 1,
     createdAt: '2023-10-26T10:00:00Z',
     customerId: 'CUST-123',
     customerName: 'Ana García',
@@ -23,6 +24,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: 'ORD-002',
+    orderNumber: 2,
     createdAt: '2023-10-25T14:30:00Z',
     customerId: 'CUST-124',
     customerName: 'Carlos Rodríguez',
@@ -42,6 +44,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: 'ORD-003',
+    orderNumber: 3,
     createdAt: '2023-10-24T09:00:00Z',
     customerId: 'CUST-125',
     customerName: 'Sofía Martínez',
@@ -61,6 +64,7 @@ export const mockOrders: Order[] = [
   },
     {
     id: 'ORD-004',
+    orderNumber: 4,
     createdAt: '2023-10-23T11:00:00Z',
     customerId: 'CUST-126',
     customerName: 'Luis Hernandez',
@@ -80,6 +84,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: 'ORD-005',
+    orderNumber: 5,
     createdAt: '2023-10-22T16:45:00Z',
     customerId: 'CUST-127',
     customerName: 'Gabriela Perez',
