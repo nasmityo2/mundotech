@@ -15,7 +15,7 @@ const EditProductPage = () => {
     return <div>Cargando...</div>;
   }
 
-  const productToEdit = getProductById(Number(id));
+  const productToEdit = getProductById(Array.isArray(id) ? id[0] : id);
 
   if (!productToEdit) {
     return <div>Producto no encontrado</div>;
