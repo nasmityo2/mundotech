@@ -1,12 +1,25 @@
 import NextAuth, { type AuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import GoogleProvider from 'next-auth/providers/google';
+import { randomBytes } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import type { JWT } from 'next-auth/jwt';
 import type { Session } from 'next-auth';
 
+const googleId     = process.env.GOOGLE_CLIENT_ID;
+const googleSecret = process.env.GOOGLE_CLIENT_SECRET;
+
 export const authOptions: AuthOptions = {
   providers: [
+    ...(googleId && googleSecret
+      ? [
+          GoogleProvider({
+            clientId:     googleId,
+            clientSecret: googleSecret,
+          }),
+        ]
+      : []),
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
@@ -38,8 +51,29 @@ export const authOptions: AuthOptions = {
     strategy: 'jwt',
   },
   callbacks: {
-    async jwt({ token, user }: { token: JWT; user?: { id?: string; role?: string } | null }) {
-      if (user) {
+    async jwt({
+      token,
+      user,
+      account,
+    }: {
+      token: JWT;
+      user?: { id?: string; role?: string; email?: string | null; name?: string | null } | null;
+      account?: { provider?: string } | null;
+    }) {
+      if (user?.email && account?.provider === 'google') {
+        const dbUser = await prisma.user.upsert({
+          where:  { email: user.email },
+          update: { name: user.name ?? undefined },
+          create: {
+            email:    user.email,
+            name:     user.name ?? null,
+            password: await bcrypt.hash(randomBytes(32).toString('hex'), 10),
+            role:     'client',
+          },
+        });
+        token.id   = dbUser.id;
+        token.role = dbUser.role;
+      } else if (user) {
         token.id   = user.id;
         token.role = user.role;
       }

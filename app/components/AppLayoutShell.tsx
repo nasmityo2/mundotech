@@ -20,9 +20,18 @@ export default function AppLayoutShell({
 }) {
   const pathname = usePathname() ?? '';
   const isAdmin = pathname.startsWith('/admin');
+  const isLoginSplash = pathname === '/login';
 
   if (isAdmin) {
     return <>{children}</>;
+  }
+
+  if (isLoginSplash) {
+    return (
+      <main className="flex min-h-[100dvh] flex-1 flex-col w-full max-w-full overflow-x-hidden bg-[#121212]">
+        {children}
+      </main>
+    );
   }
 
   return (
