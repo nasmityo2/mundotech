@@ -4,8 +4,11 @@ import {
   MapPin, Phone, Mail, Clock, ShieldCheck,
   Truck, RefreshCcw, Star, ArrowRight, Navigation,
 } from 'lucide-react';
+import { googleMapsBusinessUrl, googleMapsEmbedUrl } from '@/lib/google-maps';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const MAP_OPEN_URL = googleMapsBusinessUrl();
+const MAP_EMBED_SRC = googleMapsEmbedUrl();
 const PAGE_URL = `${SITE_URL}/tienda-barquisimeto`;
 
 // ── Metadata On-Page optimizada para SEO local ─────────────────────────────
@@ -77,7 +80,7 @@ const localBusinessSchema = {
     latitude: 10.068287498832946,
     longitude: -69.3120556394341,
   },
-  hasMap: 'https://maps.app.goo.gl/GcDJWF54nFUseByNA',
+  hasMap: MAP_OPEN_URL,
   openingHoursSpecification: [
     {
       '@type': 'OpeningHoursSpecification',
@@ -209,7 +212,7 @@ export default function TiendaBarquisimetoPage() {
               Ver catálogo <ArrowRight size={16} />
             </Link>
             <a
-              href="https://maps.app.goo.gl/GcDJWF54nFUseByNA"
+              href={MAP_OPEN_URL}
               target="_blank"
               rel="noreferrer noopener"
               className="inline-flex items-center gap-2 min-h-[48px] px-6 rounded-xl border border-white/25 bg-white/10 text-white text-sm font-semibold hover:bg-white/20 transition-colors backdrop-blur-sm"
@@ -315,7 +318,7 @@ export default function TiendaBarquisimetoPage() {
           <section className="rounded-2xl overflow-hidden border border-slate-200/80 shadow-soft min-h-[360px] lg:min-h-0">
             <iframe
               title="Ubicación Mundo Tech en Barquisimeto"
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3928.0!2d-69.31205!3d10.06829!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMTDCsDA0JzA2LjAiTiA2OcKwMTgnNDMuNCJX!5e0!3m2!1ses!2sve!4v1"
+              src={MAP_EMBED_SRC}
               width="100%"
               height="100%"
               style={{ border: 0, minHeight: '360px' }}
@@ -428,7 +431,7 @@ export default function TiendaBarquisimetoPage() {
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <a
-              href="https://maps.app.goo.gl/GcDJWF54nFUseByNA"
+              href={MAP_OPEN_URL}
               target="_blank"
               rel="noreferrer noopener"
               className="inline-flex items-center gap-2 min-h-[48px] px-6 rounded-xl bg-[#FFD700] text-navy text-sm font-black border border-[#E6C200] hover:bg-[#FFE03A] transition-colors shadow-md"

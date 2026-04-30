@@ -10,6 +10,7 @@
  */
 
 import { slugify } from '@/lib/slugify';
+import { googleMapsBusinessUrl } from '@/lib/google-maps';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
 
@@ -212,7 +213,7 @@ export default function ProductJsonLd({ product }: Props) {
       latitude: 10.068287498832946,
       longitude: -69.3120556394341,
     },
-    hasMap: 'https://maps.app.goo.gl/GcDJWF54nFUseByNA',
+    hasMap: googleMapsBusinessUrl(),
     openingHoursSpecification: [
     {
       '@type': 'OpeningHoursSpecification',
