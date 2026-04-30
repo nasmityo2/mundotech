@@ -171,9 +171,9 @@ const Footer = () => {
         <div className="mt-12 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[12px] text-white/45">
           <p>© {new Date().getFullYear()} MundoTech — Barquisimeto, Venezuela. Todos los derechos reservados.</p>
           <div className="flex items-center gap-5">
-            <Link href="#" className="hover:text-brand-yellow transition-colors">Términos</Link>
-            <Link href="#" className="hover:text-brand-yellow transition-colors">Privacidad</Link>
-            <Link href="#" className="hover:text-brand-yellow transition-colors">Cookies</Link>
+            <Link href="/terms-of-service" className="hover:text-brand-yellow transition-colors">Términos</Link>
+            <Link href="/privacy-policy" className="hover:text-brand-yellow transition-colors">Privacidad</Link>
+            <Link href="/privacy-policy#cookies" className="hover:text-brand-yellow transition-colors">Cookies</Link>
           </div>
         </div>
       </div>
