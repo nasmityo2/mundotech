@@ -3,6 +3,13 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { prismaOrderToOrder, type OrderStatus } from '@/lib/definitions';
+import { sendShippingEmail } from '@/lib/resend';
+
+function firstNameFromCustomerName(displayName: string): string {
+  const t = displayName.trim();
+  if (!t) return 'Cliente';
+  return t.split(/\s+/)[0] ?? t;
+}
 
 const VALID_STATUSES: OrderStatus[] = ['Pendiente', 'En Proceso', 'Enviado', 'Entregado', 'Cancelado'];
 
@@ -35,7 +42,7 @@ export async function PUT(
 
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { status: true, shippedAt: true },
+    select: { status: true, shippedAt: true, trackingNumber: true },
   });
 
   if (!existing) {
@@ -75,6 +82,24 @@ export async function PUT(
     },
     include: { items: true },
   });
+
+  const newTracking = (updated.trackingNumber ?? '').trim();
+  const prevTracking = (existing.trackingNumber ?? '').trim();
+  const customerEmail = updated.customerEmail?.trim();
+  const transitionedToShipped = existing.status !== 'Enviado' && status === 'Enviado';
+  const shouldSendShippingEmail =
+    status === 'Enviado' &&
+    newTracking &&
+    customerEmail &&
+    (transitionedToShipped || newTracking !== prevTracking);
+
+  if (shouldSendShippingEmail) {
+    await sendShippingEmail(
+      customerEmail,
+      firstNameFromCustomerName(updated.customerName),
+      newTracking
+    );
+  }
 
   return NextResponse.json(prismaOrderToOrder(updated));
 }
