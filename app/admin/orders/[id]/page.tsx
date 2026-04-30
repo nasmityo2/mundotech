@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Order, OrderStatus } from '@/lib/definitions';
 import { StatusUpdateMenu } from '@/app/components/admin/StatusUpdateMenu';
-import { ArrowLeft, Package, MapPin, CreditCard, Clock, ShieldCheck, Loader2 } from 'lucide-react';
+import { ArrowLeft, Package, MapPin, CreditCard, Clock, Copy, Check, Hash } from 'lucide-react';
 
 const BINANCE_VERIFY = 'Pendiente verificación Binance' as const;
 
@@ -30,9 +30,16 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VES' }).format(amount);
 };
 
+/** ID de base de datos (CUID): muestra acortado; el completo va al portapapeles. */
+function formatInternalId(id: string) {
+  if (id.length <= 20) return id;
+  return `${id.slice(0, 10)}…${id.slice(-8)}`;
+}
+
 export default function AdminOrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [idCopied, setIdCopied] = useState(false);
   const params = useParams();
   const router = useRouter();
   const { id } = params;
@@ -71,6 +78,16 @@ export default function AdminOrderDetailPage() {
 
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
+  const copyOrderId = async () => {
+    try {
+      await navigator.clipboard.writeText(order.id);
+      setIdCopied(true);
+      window.setTimeout(() => setIdCopied(false), 2000);
+    } catch {
+      alert('No se pudo copiar al portapapeles.');
+    }
+  };
+
   return (
     <div>
       {/* Encabezado */}
@@ -82,10 +99,45 @@ export default function AdminOrderDetailPage() {
           >
             <ArrowLeft size={14} /> Volver a pedidos
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
             Pedido #{String(order.orderNumber).padStart(4, '0')}
           </h1>
-          <p className="font-mono text-xs text-gray-400 mt-0.5">{order.id}</p>
+          <p className="mt-1.5 text-xs text-gray-500">
+            Número visible para clientes y reportes. El código de abajo es solo para sistema y enlaces.
+          </p>
+          <div className="mt-3 flex flex-wrap items-stretch gap-2">
+            <div
+              className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 pl-3 pr-2 py-2"
+              title={order.id}
+            >
+              <Hash size={14} className="flex-shrink-0 text-slate-400" aria-hidden />
+              <div className="min-w-0 text-left">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Referencia en base de datos
+                </p>
+                <p className="font-mono text-[13px] font-medium text-slate-800 truncate sm:max-w-md">
+                  {formatInternalId(order.id)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={copyOrderId}
+                className="ml-1 flex flex-shrink-0 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-navy shadow-sm transition hover:bg-slate-100 active:scale-[0.98]"
+              >
+                {idCopied ? (
+                  <>
+                    <Check size={14} className="text-green-600" aria-hidden />
+                    <span className="text-green-700">Copiado</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={14} aria-hidden />
+                    Copiar
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <span className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${statusConfig[order.status] ?? 'bg-gray-100 text-gray-700'}`}>
