@@ -58,11 +58,12 @@ const Footer = async () => {
           <div>
             <h3 className="text-sm font-bold uppercase tracking-widest text-gray-300 mb-4">Tienda</h3>
             <ul className="space-y-2">
-              <li><Link href="/"           className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Inicio</Link></li>
-              <li><Link href="/productos"  className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Catálogo</Link></li>
-              <li><Link href="/productos?cat=Consolas"    className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Gaming</Link></li>
+              <li><Link href="/"                       className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Inicio</Link></li>
+              <li><Link href="/productos"               className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Catálogo</Link></li>
+              <li><Link href="/tienda-barquisimeto"     className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Nuestra Tienda</Link></li>
+              <li><Link href="/productos?cat=Consolas"  className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Gaming</Link></li>
               <li><Link href="/productos?cat=Smartphones" className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Smartphones</Link></li>
-              <li><Link href="/productos?cat=Accesorios"  className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Accesorios</Link></li>
+              <li><Link href="/productos?cat=Accesorios" className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Accesorios</Link></li>
             </ul>
           </div>
 

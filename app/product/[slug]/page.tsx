@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
@@ -14,6 +15,8 @@ import { formatCurrency } from '@/lib/utils';
 import ProductCard from '@/components/ProductCard';
 import RecentlyViewedTracker from '@/components/RecentlyViewedTracker';
 import RecentlyViewed from '@/components/RecentlyViewed';
+import ProductJsonLd from '@/app/components/ProductJsonLd';
+import { slugify } from '@/lib/slugify';
 
 const BS_RATE = Number(process.env.NEXT_PUBLIC_BS_RATE ?? '36.5');
 
@@ -21,15 +24,105 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-export const dynamic = 'force-dynamic';
+// ISR: regenera la ficha cada hora — mantiene precio/stock actualizados sin full-dynamic
+export const revalidate = 3600;
 
-export async function generateMetadata({ params }: PageProps) {
-  const { slug } = await params;
-  const product = await getProduct(slug);
-  if (!product) return { title: 'Producto no encontrado — MundoTech' };
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+
+// Helper: construye URL de Cloudinary optimizada para Open Graph (1200×630)
+function buildOgImageUrl(src: string): string {
+  const CLOUDINARY_BASE = 'https://res.cloudinary.com';
+  if (!src.startsWith(CLOUDINARY_BASE)) return src;
+  const uploadMarker = '/image/upload/';
+  const uploadIndex  = src.indexOf(uploadMarker);
+  if (uploadIndex === -1) return src;
+  const base       = src.slice(0, uploadIndex + uploadMarker.length);
+  const publicPart = src.slice(uploadIndex + uploadMarker.length);
+  const firstSeg   = publicPart.split('/')[0];
+  const hasTransforms = firstSeg.includes(',') || firstSeg.includes('_');
+  const cleanPart  = hasTransforms ? publicPart.replace(/^[^/]+\//, '') : publicPart;
+  return `${base}f_auto,q_auto:good,w_1200,h_630,c_fill/${cleanPart}`;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug }  = await params;
+  const product   = await getProduct(slug);
+
+  if (!product) {
+    return { title: 'Producto no encontrado — MundoTech' };
+  }
+
+  const canonicalUrl = `${SITE_URL}/product/${product.slug ?? product.id}`;
+  const mainImage    = product.images[0] ?? '';
+  const ogImage      = mainImage ? buildOgImageUrl(mainImage) : '';
+
+  const title =
+    `${product.name}${product.brand ? ` — ${product.brand}` : ''} | Precio en Venezuela · MundoTech Barquisimeto`;
+
+  const rawDesc = product.description?.replace(/<[^>]+>/g, '').trim() ?? '';
+  const description = rawDesc
+    ? `${rawDesc.slice(0, 130).trim()}… Cómpralo en MundoTech Barquisimeto con garantía oficial y envío seguro.`
+    : `Compra ${product.name} en MundoTech, Barquisimeto. Precio en USD y Bs., garantía oficial, stock disponible y envío seguro a todo Venezuela.`;
+
+  const keywords = [
+    product.name,
+    product.brand ?? '',
+    product.category,
+    `${product.name} precio Venezuela`,
+    `${product.name} Barquisimeto`,
+    'tecnología Barquisimeto',
+    'MundoTech',
+    'tienda tecnología Venezuela',
+  ].filter(Boolean);
+
   return {
-    title:       `${product.name} — MundoTech`,
-    description: product.description ?? `Compra ${product.name} en MundoTech. Garantía oficial y envío seguro.`,
+    title,
+    description,
+    keywords,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      title,
+      description,
+      url: canonicalUrl,
+      siteName: 'MundoTech',
+      locale: 'es_VE',
+      type: 'website' as const,
+      ...(ogImage && {
+        images: [
+          {
+            url: ogImage,
+            width: 1200,
+            height: 630,
+            alt: `${product.name} — MundoTech Barquisimeto`,
+            type: 'image/jpeg',
+          },
+        ],
+      }),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      ...(ogImage && { images: [ogImage] }),
+    },
+    // Metadatos específicos de producto para redes sociales (Open Graph product namespace)
+    other: {
+      'og:type': 'product',
+      'product:price:amount': product.price.toFixed(2),
+      'product:price:currency': 'USD',
+      'product:category': product.category,
+      'product:condition': 'new',
+      'product:availability': product.stock > 0 ? 'in stock' : 'out of stock',
+      ...(product.brand && { 'product:brand': product.brand }),
+    },
+    // Productos sin stock mantienen index para preservar posicionamiento
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: { index: true, follow: true, 'max-snippet': -1, 'max-image-preview': 'large' as const },
+    },
   };
 }
 
@@ -76,6 +169,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
   return (
     <div className="pb-24 lg:pb-12 w-full max-w-full">
 
+      {/* ── Datos estructurados JSON-LD ── */}
+      <ProductJsonLd product={product} />
+
       {/* ── Breadcrumb ── */}
       <nav className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6 overflow-hidden whitespace-nowrap" aria-label="Breadcrumb">
         <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
@@ -83,7 +179,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
         <Link href="/productos" className="hover:text-navy transition-colors">Catálogo</Link>
         <ChevronRight size={12} className="flex-shrink-0 hidden xs:block" />
         <Link
-          href={`/productos?cat=${encodeURIComponent(product.category)}`}
+          href={`/categoria/${slugify(product.category)}`}
           className="hover:text-navy transition-colors capitalize hidden xs:inline"
         >
           {product.category}
@@ -115,7 +211,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
             )}
             <span className="text-slate-300">·</span>
             <Link
-              href={`/productos?cat=${encodeURIComponent(product.category)}`}
+              href={`/categoria/${slugify(product.category)}`}
               className="text-[11px] sm:text-[12px] text-slate-500 hover:text-navy capitalize transition-colors"
             >
               {product.category}
@@ -127,23 +223,14 @@ export default async function ProductDetailPage({ params }: PageProps) {
             {product.name}
           </h1>
 
-          {/* Rating + reviews link */}
-          <div className="mt-3 flex items-center gap-2">
-            <div className="flex items-center gap-0.5">
-              {[1,2,3,4,5].map(s => (
-                <Star
-                  key={s}
-                  size={14}
-                  className={s <= 4 ? 'text-amber-400 fill-amber-400' : 'text-slate-200 fill-slate-200'}
-                />
-              ))}
-            </div>
-            <span className="text-sm font-semibold text-navy nums">4.0</span>
-            <span className="text-sm text-slate-400">·</span>
-            <a href="#tabs" className="text-sm text-slate-500 hover:text-navy transition-colors">
-              Ver reseñas
-            </a>
-          </div>
+          {/* Reseñas — próximamente (sin puntuación falsa) */}
+          <a
+            href="#tabs"
+            className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-slate-400 hover:text-navy transition-colors"
+          >
+            <Star size={13} className="text-slate-300" />
+            <span>Sé el primero en reseñar este producto</span>
+          </a>
 
           {/* Precio */}
           <div className="mt-5 sm:mt-6 pb-5 sm:pb-6 border-b border-slate-100">

@@ -7,7 +7,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, Sparkles } from 'lucide-react';
 
-export const dynamic = 'force-dynamic';
+// ISR: reconstruye la home cada hora para TTFB óptimo sin datos obsoletos
+export const revalidate = 3600;
 
 interface CtaBannerData {
   imageUrl: string;

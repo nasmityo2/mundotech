@@ -108,6 +108,7 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
               alt={name}
               fill
               priority={i === 0}
+              fetchPriority={i === 0 ? 'high' : 'auto'}
               sizes="(max-width: 1024px) 100vw, 50vw"
               className="object-contain p-6 sm:p-8 animate-fade-up bg-slate-50"
             />

@@ -1,37 +1,169 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useProducts } from '../../context/ProductContext';
+import type { Product } from '../../context/ProductContext';
 import ProductCard from '../../components/ProductCard';
-import CategorySidebar from '../../components/CategorySidebar';
 import ProductCardSkeleton from '../../components/ProductCardSkeleton';
 import { motion, AnimatePresence } from 'framer-motion';
-import { SlidersHorizontal, ChevronDown, X, SearchX } from 'lucide-react';
+import {
+  SlidersHorizontal, ChevronDown, X, SearchX,
+  Tag, ArrowUpDown,
+} from 'lucide-react';
 
-const sortOptions = [
+// ── Tipos ──────────────────────────────────────────────────────────────────
+interface Props {
+  initialProducts: Product[];
+}
+
+const SORT_OPTIONS = [
   { value: 'default',    label: 'Relevancia'   },
   { value: 'price-asc',  label: 'Menor precio' },
   { value: 'price-desc', label: 'Mayor precio' },
   { value: 'name-asc',   label: 'Nombre A-Z'   },
   { value: 'name-desc',  label: 'Nombre Z-A'   },
-];
+] as const;
 
-const ProductGridAndFilters = () => {
-  const {
-    filteredAndSortedProducts,
-    loading,
-    sortOption,
-    setSortOption,
-    filterCategory,
-    setFilterCategory,
-    searchTerm,
-    setSearchTerm,
-  } = useProducts();
+type SortValue = (typeof SORT_OPTIONS)[number]['value'];
 
-  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+// ── Sidebar inline (no depende de ProductContext) ─────────────────────────
+interface SidebarProps {
+  categories: string[];
+  totalCount: number;
+  catCount: (cat: string) => number;
+  filterCategory: string;
+  setFilterCategory: (v: string) => void;
+  sortOption: SortValue;
+  setSortOption: (v: SortValue) => void;
+}
+
+function InlineSidebar({
+  categories,
+  totalCount,
+  catCount,
+  filterCategory,
+  setFilterCategory,
+  sortOption,
+  setSortOption,
+}: SidebarProps) {
+  const [catOpen,  setCatOpen]  = useState(true);
+  const [sortOpen, setSortOpen] = useState(false);
+
+  return (
+    <aside className="bg-white rounded-2xl border border-slate-200/80 shadow-soft overflow-hidden">
+      {/* Categorías */}
+      <div className="border-b border-slate-100">
+        <button
+          type="button"
+          onClick={() => setCatOpen((v) => !v)}
+          className="flex items-center justify-between w-full px-5 h-12 text-left text-navy"
+          aria-expanded={catOpen}
+        >
+          <span className="flex items-center gap-2.5 text-[13px] font-semibold tracking-tight">
+            <Tag size={14} className="text-slate-400" />
+            Categorías
+          </span>
+          <ChevronDown
+            size={15}
+            className={`text-slate-400 transition-transform duration-200 ${catOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+        <div className={`grid transition-all duration-300 ease-out ${catOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+          <div className="overflow-hidden">
+            <ul className="px-3 pb-4 space-y-0.5">
+              <li>
+                <button
+                  onClick={() => setFilterCategory('all')}
+                  className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
+                    filterCategory === 'all' ? 'bg-navy text-white font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-navy'
+                  }`}
+                >
+                  <span>Todos los productos</span>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${filterCategory === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                    {totalCount}
+                  </span>
+                </button>
+              </li>
+              {categories.map((cat) => (
+                <li key={cat}>
+                  <button
+                    onClick={() => setFilterCategory(cat)}
+                    className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
+                      filterCategory === cat ? 'bg-navy text-white font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-navy'
+                    }`}
+                  >
+                    <span className="truncate capitalize">{cat}</span>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${filterCategory === cat ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                      {catCount(cat)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Ordenar */}
+      <div className="border-b border-slate-100 last:border-b-0">
+        <button
+          type="button"
+          onClick={() => setSortOpen((v) => !v)}
+          className="flex items-center justify-between w-full px-5 h-12 text-left text-navy"
+          aria-expanded={sortOpen}
+        >
+          <span className="flex items-center gap-2.5 text-[13px] font-semibold tracking-tight">
+            <ArrowUpDown size={14} className="text-slate-400" />
+            Ordenar
+          </span>
+          <ChevronDown
+            size={15}
+            className={`text-slate-400 transition-transform duration-200 ${sortOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+        <div className={`grid transition-all duration-300 ease-out ${sortOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+          <div className="overflow-hidden">
+            <ul className="px-3 pb-4 space-y-0.5">
+              {SORT_OPTIONS.map((opt) => (
+                <li key={opt.value}>
+                  <button
+                    onClick={() => setSortOption(opt.value)}
+                    className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
+                      sortOption === opt.value ? 'bg-slate-100 text-navy font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-navy'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    {sortOption === opt.value && (
+                      <span className="w-2 h-2 rounded-full bg-brand-yellow" />
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 py-4 bg-slate-50">
+        <div className="flex items-center gap-2 text-[12px] text-slate-500">
+          <SlidersHorizontal size={13} className="text-slate-400" />
+          {totalCount} productos en total
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+// ── Componente principal ───────────────────────────────────────────────────
+const ProductGridAndFilters = ({ initialProducts }: Props) => {
   const searchParams = useSearchParams();
 
+  const [sortOption,      setSortOption]      = useState<SortValue>('default');
+  const [filterCategory,  setFilterCategory]  = useState<string>('all');
+  const [searchTerm,      setSearchTerm]      = useState<string>('');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Sincroniza ?q= y ?cat= desde la URL solo en el cliente (sin afectar SSR)
   useEffect(() => {
     const q = searchParams.get('q');
     if (q) setSearchTerm(decodeURIComponent(q));
@@ -39,15 +171,67 @@ const ProductGridAndFilters = () => {
     if (c) setFilterCategory(decodeURIComponent(c));
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Categorías derivadas de los productos
+  const categories = useMemo(
+    () => Array.from(new Set(initialProducts.map((p) => p.category))).sort(),
+    [initialProducts],
+  );
+
+  const catCount = useCallback(
+    (cat: string) =>
+      cat === 'all'
+        ? initialProducts.length
+        : initialProducts.filter((p) => p.category === cat).length,
+    [initialProducts],
+  );
+
+  // Filtro + orden — sin estado de carga (datos ya presentes en SSR)
+  const filteredProducts = useMemo(() => {
+    let result = [...initialProducts];
+
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      result = result.filter(
+        (p) =>
+          p.name.toLowerCase().includes(term) ||
+          p.category.toLowerCase().includes(term),
+      );
+    }
+
+    if (filterCategory !== 'all') {
+      result = result.filter((p) => p.category === filterCategory);
+    }
+
+    switch (sortOption) {
+      case 'price-asc':  result.sort((a, b) => a.price - b.price); break;
+      case 'price-desc': result.sort((a, b) => b.price - a.price); break;
+      case 'name-asc':   result.sort((a, b) => a.name.localeCompare(b.name)); break;
+      case 'name-desc':  result.sort((a, b) => b.name.localeCompare(a.name)); break;
+      default: break;
+    }
+
+    return result;
+  }, [initialProducts, searchTerm, filterCategory, sortOption]);
+
+  const sidebarProps: SidebarProps = {
+    categories,
+    totalCount: initialProducts.length,
+    catCount,
+    filterCategory,
+    setFilterCategory,
+    sortOption,
+    setSortOption,
+  };
+
   return (
     <section id="products" className="flex flex-col lg:flex-row gap-5 sm:gap-6 lg:gap-8 w-full max-w-full">
 
       {/* ── Sidebar desktop ── */}
-      <aside className="hidden lg:block w-[280px] flex-shrink-0">
+      <div className="hidden lg:block w-[280px] flex-shrink-0">
         <div className="sticky top-[96px]">
-          <CategorySidebar />
+          <InlineSidebar {...sidebarProps} />
         </div>
-      </aside>
+      </div>
 
       {/* ── Grid + toolbar ── */}
       <div className="flex-1 min-w-0">
@@ -57,12 +241,12 @@ const ProductGridAndFilters = () => {
             <p className="text-[13px] sm:text-sm font-semibold text-navy capitalize truncate">
               {filterCategory === 'all' ? 'Todos' : filterCategory}
               {searchTerm && (
-                <span className="text-slate-500 font-normal"> · “{searchTerm}”</span>
+                <span className="text-slate-500 font-normal"> · "{searchTerm}"</span>
               )}
             </p>
             <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
-              <span className="font-semibold text-navy nums">{filteredAndSortedProducts.length}</span>{' '}
-              {filteredAndSortedProducts.length === 1 ? 'resultado' : 'resultados'}
+              <span className="font-semibold text-navy nums">{filteredProducts.length}</span>{' '}
+              {filteredProducts.length === 1 ? 'resultado' : 'resultados'}
             </p>
           </div>
 
@@ -77,15 +261,15 @@ const ProductGridAndFilters = () => {
             <span className="hidden xs:inline">Filtros</span>
           </button>
 
-          {/* Sort */}
+          {/* Sort select */}
           <div className="relative flex-shrink-0">
             <select
               value={sortOption}
-              onChange={(e) => setSortOption(e.target.value)}
+              onChange={(e) => setSortOption(e.target.value as SortValue)}
               aria-label="Ordenar productos"
               className="appearance-none bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-navy text-base font-semibold pl-3 pr-8 min-h-[44px] rounded-xl cursor-pointer transition-colors focus:outline-none focus:bg-white focus:shadow-ring-navy max-w-[160px] xs:max-w-none truncate"
             >
-              {sortOptions.map((o) => (
+              {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
@@ -98,7 +282,7 @@ const ProductGridAndFilters = () => {
           </div>
         </div>
 
-        {/* Active filter chips */}
+        {/* Chips de filtro activos */}
         {(filterCategory !== 'all' || searchTerm) && (
           <div className="flex items-center gap-2 mb-5 flex-wrap">
             <span className="text-xs text-slate-500">Filtros activos:</span>
@@ -116,7 +300,7 @@ const ProductGridAndFilters = () => {
                 onClick={() => setSearchTerm('')}
                 className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors"
               >
-                <span className="truncate max-w-[160px]">“{searchTerm}”</span>
+                <span className="truncate max-w-[160px]">"{searchTerm}"</span>
                 <X size={12} />
               </button>
             )}
@@ -124,13 +308,7 @@ const ProductGridAndFilters = () => {
         )}
 
         {/* Grid */}
-        {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <ProductCardSkeleton key={i} />
-            ))}
-          </div>
-        ) : filteredAndSortedProducts.length === 0 ? (
+        {filteredProducts.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft px-5 py-12 sm:py-20 text-center">
             <div className="w-16 h-16 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
               <SearchX size={28} />
@@ -141,10 +319,7 @@ const ProductGridAndFilters = () => {
             </p>
             <button
               type="button"
-              onClick={() => {
-                setFilterCategory('all');
-                setSearchTerm('');
-              }}
+              onClick={() => { setFilterCategory('all'); setSearchTerm(''); }}
               className="mt-5 inline-flex items-center gap-2 bg-navy text-white text-sm font-semibold px-5 min-h-[44px] rounded-xl hover:bg-navy-700 active:bg-navy-800 shadow-soft hover:shadow-card transition-all"
             >
               Limpiar filtros
@@ -158,7 +333,7 @@ const ProductGridAndFilters = () => {
             variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
             className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5"
           >
-            {filteredAndSortedProducts.map((product) => (
+            {filteredProducts.map((product) => (
               <motion.div
                 key={product.id}
                 variants={{
@@ -174,7 +349,7 @@ const ProductGridAndFilters = () => {
         )}
       </div>
 
-      {/* ── Sidebar mobile ── */}
+      {/* ── Sidebar móvil ── */}
       <AnimatePresence>
         {mobileSidebarOpen && (
           <div className="fixed inset-0 z-50 flex lg:hidden">
@@ -201,12 +376,12 @@ const ProductGridAndFilters = () => {
                   <X size={18} />
                 </button>
               </div>
-              <CategorySidebar />
+              <InlineSidebar {...sidebarProps} />
               <button
                 className="mt-5 w-full bg-navy text-white font-semibold text-sm h-12 rounded-xl hover:bg-navy-700 shadow-soft hover:shadow-card transition-all"
                 onClick={() => setMobileSidebarOpen(false)}
               >
-                Ver {filteredAndSortedProducts.length} productos
+                Ver {filteredProducts.length} productos
               </button>
             </motion.div>
           </div>

@@ -61,7 +61,7 @@ const Navbar = ({ onCartClick }: { onCartClick: () => void }) => {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-[1400px]
                           flex justify-between items-center py-2 text-[11px]">
             <div className="flex items-center gap-5">
-              <span className="flex items-center gap-1.5"><Phone size={11} /> 0412-1471338</span>
+              <span className="flex items-center gap-1.5"><Phone size={11} /> 0412-147-1338 · 0414-505-1662</span>
               <span className="flex items-center gap-1.5"><Mail size={11} /> ventas@mundotech.com.ve</span>
             </div>
             <div className="flex items-center gap-4 text-white/80">

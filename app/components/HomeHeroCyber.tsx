@@ -96,6 +96,7 @@ export default function HomeHeroCyber({ slides: dbSlides }: { slides?: HeroBanne
           alt={altText}
           fill
           priority={active === 0}
+          fetchPriority={active === 0 ? 'high' : 'auto'}
           quality={90}
           sizes="(max-width: 640px) 100vw, (max-width: 1400px) 100vw, 1400px"
           className="object-cover object-center"
@@ -113,6 +114,13 @@ export default function HomeHeroCyber({ slides: dbSlides }: { slides?: HeroBanne
             {slide.tag}
           </span>
         ) : null}
+
+        {/* Fallback h1 for screen readers when the hero has no visible copy */}
+        {!showCopy && (
+          <h1 className="sr-only">
+            Mundo Tech: Conectados Contigo - Tu Tienda de Tecnología en Barquisimeto
+          </h1>
+        )}
 
         {showCopy ? (
           <div className="relative z-10 flex h-full w-full items-end sm:items-center px-4 pb-5 pt-4 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
@@ -133,7 +141,11 @@ export default function HomeHeroCyber({ slides: dbSlides }: { slides?: HeroBanne
                 <h1 className="mt-2 text-balance text-[1.4rem] xs:text-[1.55rem] sm:text-[1.85rem] md:text-[2rem] lg:text-[2.15rem] xl:text-[2.35rem] font-bold leading-[1.12] tracking-tight text-white drop-shadow-[0_2px_22px_rgba(0,0,0,0.55)]">
                   ¡BIENVENIDOS A <span className="text-[#FFD700]">MUNDOTECH</span>!
                 </h1>
-              ) : null}
+              ) : (
+                <h1 className="sr-only">
+                  Mundo Tech: Conectados Contigo - Tu Tienda de Tecnología en Barquisimeto
+                </h1>
+              )}
 
               {slide.sub.trim() ? (
                 <p className="mt-2 max-w-full sm:max-w-lg text-[13px] sm:text-[15px] font-medium leading-snug text-white/95 drop-shadow-md sm:leading-relaxed line-clamp-3 sm:line-clamp-none">

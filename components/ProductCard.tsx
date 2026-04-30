@@ -129,16 +129,16 @@ const ProductCard = ({ product }: { product: Product }) => {
             {product.name}
           </h3>
 
-          {/* Rating */}
+          {/* Rating — se muestra solo cuando hay reseñas reales */}
           <div className="flex items-center gap-0.5 mt-0.5">
             {[1, 2, 3, 4, 5].map((s) => (
               <Star
                 key={s}
                 size={11}
-                className={s <= 4 ? 'text-amber-400 fill-amber-400' : 'text-slate-200 fill-slate-200'}
+                className="text-slate-200 fill-slate-200"
               />
             ))}
-            <span className="text-[10px] text-slate-400 ml-0.5 nums">(4.0)</span>
+            <span className="text-[10px] text-slate-400 ml-1">Sé el primero en calificar</span>
           </div>
 
           {/* Precio */}
