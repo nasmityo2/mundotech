@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Smartphone, Building, ChevronRight, Copy, Check, UploadCloud, X, Loader2, Wallet } from 'lucide-react';
+import { Phone, Building, ChevronRight, Copy, Check, UploadCloud, X, Loader2, Wallet } from 'lucide-react';
 import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 
@@ -164,7 +164,7 @@ const PaymentForm = ({ onPaymentSubmit }: PaymentFormProps) => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {(
           [
-            { id: 'pagomovil' as const, icon: Smartphone, label: 'Pago Móvil', sub: 'Transfiere desde tu app bancaria' },
+            { id: 'pagomovil' as const, icon: Phone, label: 'Pago Móvil', sub: 'Transfiere desde tu app bancaria' },
             { id: 'transferencia' as const, icon: Building, label: 'Transferencia', sub: 'Transferencia bancaria nacional' },
             {
               id: 'binancepay' as const,

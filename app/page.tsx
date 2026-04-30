@@ -199,10 +199,10 @@ const HomePage = async () => {
           />
 
           <ProductShelf
-            badge="Gaming retro"
+            badge="Gaming"
             badgeColor="yellow"
-            title="Zona Gaming Retro"
-            subtitle="Consolas handheld, clásicos y accesorios para jugar en cualquier parte."
+            title="Consolas y gaming"
+            subtitle="Consolas portátiles y accesorios para jugar donde quieras."
             products={gaming}
             viewAllHref="/productos?cat=Consolas"
             viewAllLabel="Ver gaming"

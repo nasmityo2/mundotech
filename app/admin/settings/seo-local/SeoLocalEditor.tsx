@@ -15,7 +15,7 @@ interface SeoLocalEditorProps {
 
 const PAYMENT_OPTIONS = [
   'Cash', 'Efectivo USD/Bs.', 'Transferencia', 'Pago Móvil',
-  'Binance Pay', 'Zelle', 'Tarjeta', 'PayPal',
+  'Binance Pay', 'Tarjeta', 'PayPal',
 ];
 
 export default function SeoLocalEditor({ initial }: SeoLocalEditorProps) {

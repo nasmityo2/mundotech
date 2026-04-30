@@ -1,11 +1,10 @@
 'use client';
 
 import { useProducts } from '../context/ProductContext';
-import { Smartphone, Watch, Laptop, Gamepad2, Tv, Microwave, Grid3X3 } from 'lucide-react';
+import { Watch, Laptop, Gamepad2, Tv, Microwave, Grid3X3 } from 'lucide-react';
 
 const categoryIcons: Record<string, React.ReactNode> = {
   all:              <Grid3X3   size={20} />,
-  Smartphones:      <Smartphone size={20} />,
   Relojes:          <Watch     size={20} />,
   Laptops:          <Laptop    size={20} />,
   Consolas:         <Gamepad2  size={20} />,

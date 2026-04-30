@@ -4,7 +4,6 @@ import { requireAdmin } from '@/lib/api-auth';
 
 // Imágenes por defecto para categorías conocidas
 const DEFAULT_IMAGES: Record<string, string> = {
-  smartphones:       'https://images.unsplash.com/photo-1592750475338-74b7b21085ab?q=80&w=800&auto=format&fit=crop',
   laptops:           'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?q=80&w=800&auto=format&fit=crop',
   televisores:       'https://images.unsplash.com/photo-1593359677879-a4bb92f829e1?q=80&w=800&auto=format&fit=crop',
   consolas:          'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?q=80&w=800&auto=format&fit=crop',

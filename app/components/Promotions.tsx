@@ -22,7 +22,7 @@ const promoImg = (path: string) =>
 /** Siempre 3 ideas distintas MundoTech — rellenan huecos cuando en admin hay 1–2 promos */
 const FALLBACK_PROMOS = [
   {
-    label: 'Gaming & retro',
+    label: 'Gaming',
     title: 'Consolas portátiles\ny handheld',
     subtitle: 'R36S y más — envío seguro',
     cta: 'Ver gaming',

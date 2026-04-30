@@ -56,7 +56,7 @@ export const DEFAULT_SEO_LOCAL: SeoLocal = {
     { days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], opens: '08:30', closes: '17:30' },
     { days: ['Sat'], opens: '08:30', closes: '18:00' },
   ],
-  paymentAccepted: ['Cash', 'Transferencia', 'Pago Móvil', 'Binance Pay', 'Zelle'],
+  paymentAccepted: ['Cash', 'Transferencia', 'Pago Móvil', 'Binance Pay'],
   priceRange:      '$$',
   whatsapp:        '',
   tiktok:          '',

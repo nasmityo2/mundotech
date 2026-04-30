@@ -52,7 +52,7 @@ const DEFAULT_BENEFITS: BenefitItem[] = [
 const DEFAULT_FLASH: FlashConfig = { title: 'Ofertas MundoTech', endHour: 23 };
 
 const DEFAULT_SHELVES: ShelvesConfig = {
-  bestsellers:  { title: 'Lo más vendido en MundoTech',  badge: 'Más vendidos',    subtitle: 'Productos con alta rotación y respaldo oficial.' },
+  bestsellers:  { title: 'Lo más vendido en MundoTech',  badge: 'Más vendidos',    subtitle: 'Productos destacados con respaldo oficial.' },
   newest:       { title: 'Novedades en tecnología',       badge: 'Recién llegados', subtitle: '' },
   recommended:  { title: 'Selección MundoTech',           badge: 'Recomendados',    subtitle: 'Elegidos por nuestro equipo — calidad garantizada.' },
 };

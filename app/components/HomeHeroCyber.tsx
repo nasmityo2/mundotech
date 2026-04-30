@@ -40,7 +40,7 @@ const FALLBACK_SLIDES: Slide[] = [
     badge: 'Barquisimeto · Venezuela',
     title: '',
     sub:
-      'Tu tienda de tecnología en el C.C. Minicentro 34, Calle 22: gaming retro, gadgets, inventos trending y electrodomésticos de cocina mesa compacta —no celulares. Envío seguro y garantía oficial.',
+      'Tu tienda de tecnología en el C.C. Minicentro 34, Calle 22: gadgets, audio y accesorios. Envío seguro y garantía oficial.',
     cta: 'Ver catálogo',
     href: '/productos',
     img: US('photo-1550745165-9bc0b252726f'),
@@ -118,7 +118,7 @@ export default function HomeHeroCyber({ slides: dbSlides }: { slides?: HeroBanne
         {/* Fallback h1 for screen readers when the hero has no visible copy */}
         {!showCopy && (
           <h1 className="sr-only">
-            Mundo Tech: Conectados Contigo · tecnología en Barquisimeto · gadgets, inventos y electro cocina compacta · sin celulares
+            Mundo Tech: Conectados Contigo · tecnología en Barquisimeto · gadgets y accesorios
           </h1>
         )}
 
@@ -143,7 +143,7 @@ export default function HomeHeroCyber({ slides: dbSlides }: { slides?: HeroBanne
                 </h1>
               ) : (
                 <h1 className="sr-only">
-                  Mundo Tech: Conectados Contigo · tecnología en Barquisimeto · gadgets, inventos y electro cocina compacta · sin celulares
+                  Mundo Tech: Conectados Contigo · tecnología en Barquisimeto · gadgets y accesorios
                 </h1>
               )}
 

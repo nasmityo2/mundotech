@@ -62,7 +62,6 @@ const Footer = async () => {
               <li><Link href="/productos"               className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Catálogo</Link></li>
               <li><Link href="/tienda-barquisimeto"     className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Nuestra Tienda</Link></li>
               <li><Link href="/productos?cat=Consolas"  className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Gaming</Link></li>
-              <li><Link href="/productos?cat=Smartphones" className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Smartphones</Link></li>
               <li><Link href="/productos?cat=Accesorios" className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Accesorios</Link></li>
             </ul>
           </div>
@@ -111,7 +110,7 @@ const Footer = async () => {
 
             <h3 className="text-sm font-bold uppercase tracking-widest text-gray-300 mb-3">Métodos de Pago</h3>
             <div className="flex flex-wrap gap-2">
-              {['Pago Móvil', 'Transferencia', 'Zelle', 'Efectivo'].map(m => (
+              {['Pago Móvil', 'Transferencia', 'Binance Pay', 'Efectivo'].map(m => (
                 <span key={m} className="bg-white/5 border border-white/10 text-[11px] font-semibold px-2.5 py-1 rounded-md text-gray-300">
                   {m}
                 </span>

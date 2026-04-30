@@ -194,7 +194,7 @@ export default function ProductJsonLd({ product }: Props) {
     '@type': 'LocalBusiness',
     name: 'MundoTech',
     description:
-      'Líderes en tecnología en Lara: gadgets, inventos de uso práctico, catálogo con rotación e importación asiática, consolas gaming y electrodomésticos de cocina compacta de mesa (no neveras ni cocinas grandes). No vendemos celulares. Barquisimeto. USD/Bs., garantía oficial.',
+      'Tecnología y gadgets en Lara y Barquisimeto. Envíos nacionales, USD/Bs., garantía oficial.',
     url: SITE_URL,
     telephone: process.env.NEXT_PUBLIC_CONTACT_PHONE ?? '+58-412-1471338',
     email: process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? 'ventas@mundotech.com.ve',

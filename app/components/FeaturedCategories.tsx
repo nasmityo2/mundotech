@@ -24,7 +24,6 @@ const ICON_MAP: Record<string, React.ElementType> = {
   wearables:         Watch,
   impresoras:        Printer,
   redes:             Wifi,
-  smartphones:       Sparkles,
 };
 
 /** Fotografía producto HD — fondo neutro en UI (#F8F9FA en el círculo) */

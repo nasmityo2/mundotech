@@ -54,7 +54,7 @@ const Footer = () => {
               <span className="text-brand-yellow">Tech</span>
             </p>
             <p className="text-sm text-white/60 leading-relaxed max-w-md">
-              MundoTech: Tecnología práctica en Barquisimeto —gaming retro, inventos trending, gadgets y electro para cocina de mesa compacta— sin celulares. Envío y soporte real.
+              MundoTech: tecnología y gadgets en Barquisimeto. Envío seguro, garantía oficial y soporte real.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
@@ -156,7 +156,7 @@ const Footer = () => {
               Métodos de pago
             </h4>
             <div className="flex flex-wrap gap-2">
-              {['Pago Móvil', 'Transferencia', 'Zelle', 'Binance', 'Cashea', 'Efectivo'].map(m => (
+              {['Pago Móvil', 'Transferencia', 'Binance', 'Cashea', 'Efectivo'].map(m => (
                 <span
                   key={m}
                   className="px-3 h-8 inline-flex items-center bg-white/5 border border-white/10 rounded-xl text-[11px] font-medium text-white/75"

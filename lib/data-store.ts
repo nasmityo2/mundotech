@@ -34,7 +34,7 @@ const SETTINGS_KEY = 'store_settings';
 
 export const DEFAULT_SETTINGS: StoreSettings = {
   storeName:  'MundoTech',
-  tagline:    'Tecnología, inventos destacados y electrodomésticos para cocina de mesa compacta en Venezuela. Gaming retro y catálogo con rotación —sin celulares—.',
+  tagline:    'Tecnología y gadgets en Barquisimeto — envíos a todo Venezuela. USD/Bs., garantía oficial.',
   phone:      '0412-1471338',
   phone2:     '0414-5051662',
   email:      'ventas@mundotech.com',

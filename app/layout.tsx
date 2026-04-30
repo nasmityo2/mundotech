@@ -30,17 +30,16 @@ export const metadata: Metadata = {
     template: "%s — MundoTech",
   },
   description:
-    "Tecnología, gadgets e inventos con rotación rápida —mucho catálogo de origen chino— en Barquisimeto. Electrodomésticos de mesa y cocina compacta (cocinas tipo caracol, hornillas, útiles); gaming retro y electrónica. Sin celulares. USD/Bs., garantía y envío seguro.",
+    "Tecnología y gadgets en Barquisimeto. Precios USD/Bs., garantía oficial y envío seguro a toda Venezuela.",
   keywords: [
     "tecnología Barquisimeto",
     "tienda tecnología Venezuela",
     "gadgets tecnología Venezuela",
     "productos trending Barquisimeto",
     "MundoTech",
-    "electrodomésticos cocina Barquisimeto",
-    "consolas gaming Venezuela",
-    "compras China Barquisimeto",
+    "consolas Venezuela",
     "accesorios tech Lara",
+    "computadoras Barquisimeto",
   ],
   authors: [{ name: "MundoTech", url: SITE_URL }],
   creator: "MundoTech",
@@ -53,7 +52,7 @@ export const metadata: Metadata = {
     siteName: "MundoTech",
     title: "MundoTech — Tecnología en Barquisimeto, Venezuela",
     description:
-      "Tecnología en Barquisimeto: gadgets, inventos y gaming retro. Electrodomésticos de cocina compacta de mesa. Sin celulares. USD/Bs., garantía oficial.",
+      "Tecnología y gadgets en Barquisimeto. USD/Bs., garantía oficial y envío seguro.",
     images: [
       {
         url: `${SITE_URL}/og-default.jpg`,
@@ -67,7 +66,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "MundoTech — Tecnología en Barquisimeto, Venezuela",
     description:
-      "Tecnología, gadgets y electro para cocina de mesa en Barquisimeto. Gaming retro y accesorios. Sin celulares. Garantía oficial, envío seguro.",
+      "Tecnología y gadgets en Barquisimeto. Garantía oficial y envío seguro.",
     images: [`${SITE_URL}/og-default.jpg`],
   },
   robots: {
@@ -87,7 +86,7 @@ const websiteSchema = {
   name: "MundoTech",
   url: SITE_URL,
   description:
-    "Tecnología, gadgets y electro para cocina de mesa en Barquisimeto, Venezuela.",
+    "Tecnología y gadgets en Barquisimeto, Lara — Venezuela.",
   potentialAction: {
     "@type": "SearchAction",
     target: {
@@ -113,7 +112,7 @@ export default async function RootLayout({
     email: settings.email,
     phone: settings.phone,
     description:
-      "Tecnología en Lara: gadgets, inventos y catálogo de rotación, consolas gaming y electrodomésticos de cocina compacta. Sin celulares. Barquisimeto.",
+      "Tecnología y gadgets en Lara y Barquisimeto. Envíos nacionales, USD/Bs., garantía oficial.",
     sameAs,
   });
 

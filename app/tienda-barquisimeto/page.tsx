@@ -16,21 +16,19 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Tienda de tecnología y gadgets en Barquisimeto — Mundo Tech',
   description:
-    'Mundo Tech en el centro de Barquisimeto: tecnología, gadgets, inventos y electrodomésticos para cocina de mesa compacta —cocinas tipo caracol, hornillas—. Consolas gaming; catálogo de rotación. No vendemos celulares ni línea blanca grande.',
+    'Mundo Tech en el centro de Barquisimeto: tecnología, gadgets y accesorios. Precios USD/Bs., garantía oficial y envío seguro.',
   keywords: [
     'tienda tecnología Barquisimeto',
     'gadgets tecnología Barquisimeto',
-    'inventos tech Venezuela',
-    'electrodomésticos cocina Barquisimeto',
-    'cocina caracol Barquisimeto',
     'Mundo Tech Barquisimeto',
-    'consolas gaming Lara Venezuela',
+    'tecnología Lara Venezuela',
+    'consolas Barquisimeto',
   ],
   alternates: { canonical: PAGE_URL },
   openGraph: {
     title: 'Mundo Tech Barquisimeto — Conectados Contigo',
     description:
-      'Tu tienda en el Centro de Barquisimeto: gadgets, tecnología, gaming retro y electro para cocina de mesa compacta. Sin celulares.',
+      'Tu tienda en el Centro de Barquisimeto: tecnología, gadgets y accesorios. USD/Bs., garantía oficial.',
     url: PAGE_URL,
     siteName: 'Mundo Tech',
     locale: 'es_VE',
@@ -48,7 +46,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Mundo Tech Barquisimeto — Conectados Contigo',
     description:
-      'Gadgets, tecnología, gaming y electro cocina mesa compacta en Barquisimeto. Sin celulares. Garantía oficial.',
+      'Tecnología y gadgets en Barquisimeto. USD/Bs., garantía oficial.',
     images: [`${SITE_URL}/og-default.jpg`],
   },
 };
@@ -103,7 +101,7 @@ export default async function TiendaBarquisimetoPage() {
       email: settings.email,
       phone: settings.phone,
       description:
-        'Tecnología en Barquisimeto, Lara: gadgets, inventos, catálogo de rotación, consolas y electrodomésticos de cocina compacta de mesa.',
+        'Tecnología y gadgets en Barquisimeto, Lara. Envíos nacionales, USD/Bs., garantía oficial.',
       type: 'ElectronicsStore',
       sameAs,
     }),
@@ -146,10 +144,9 @@ export default async function TiendaBarquisimetoPage() {
 
           <p className="mt-4 text-[15px] sm:text-base text-white/75 max-w-xl leading-relaxed">
             Somos tu tienda de referencia en el centro de {seo.addressLocality} para{' '}
-            <strong className="text-white">tecnología, inventos destacados y electro para cocina de mesa compacta</strong>{' '}
-            (tipo cocina caracol, hornillas, lo práctico; no vendemos celulares ni línea blanca grande). También{' '}
-            gaming retro y accesorios. Precios USD/Bs.,{' '}
-            <strong className="text-white">garantía oficial</strong>.
+            <strong className="text-white">tecnología, gadgets y accesorios</strong>
+            . Precios USD/Bs.,{' '}
+            <strong className="text-white">garantía oficial</strong> y envío seguro.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
@@ -298,7 +295,7 @@ export default async function TiendaBarquisimetoPage() {
             Lo que encontrarás en nuestra tienda
           </h2>
           <p className="text-sm text-slate-500 mb-5">
-            Inventos trending, tecnología práctica y electrodomésticos de cocina compacta —sin celulares ni línea blanca grande— con envíos y retiro en tienda.
+            Tecnología práctica y gadgets con envíos y retiro en tienda.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {CATEGORIES.map(({ label, href }) => (

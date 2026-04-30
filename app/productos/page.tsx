@@ -13,16 +13,16 @@ export const revalidate = 3600;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
 
 export const metadata: Metadata = {
-  title: 'Catálogo · Tecnología, gadgets y cocina mesa compacta — MundoTech',
+  title: 'Catálogo · Tecnología y gadgets — MundoTech',
   description:
-    'Catálogo MundoTech Barquisimeto: tecnología práctica, gadgets, inventos y electrodomésticos para cocina de mesa compacta —no grandes neveras ni cocinas completas—. Consolas retro y accesorios trending. Sin celulares. Filtra por categoría y garantía oficial.',
+    'Catálogo MundoTech Barquisimeto: tecnología práctica, gadgets y accesorios. Filtra por categoría y garantía oficial. USD/Bs.',
   alternates: {
     canonical: `${SITE_URL}/productos`,
   },
   openGraph: {
-    title: 'Catálogo MundoTech — gadgets, tecnología y electro cocina',
+    title: 'Catálogo MundoTech — tecnología y gadgets',
     description:
-      'Gadgets, tecnología, consolas y electrodomésticos de cocina mesa compacta en Barquisimeto. Sin celulares. USD/Bs., garantía oficial.',
+      'Gadgets, tecnología y accesorios en Barquisimeto. USD/Bs., garantía oficial.',
     url: `${SITE_URL}/productos`,
     siteName: 'MundoTech',
     locale: 'es_VE',
