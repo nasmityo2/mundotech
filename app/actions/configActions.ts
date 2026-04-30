@@ -47,6 +47,7 @@ export async function updateExchangeRate(rate: unknown) {
   revalidatePath('/', 'layout');
   revalidatePath('/productos');
   revalidatePath('/admin/settings');
+  revalidatePath('/product/[slug]', 'page');
 
   return { success: true, message: `Tasa actualizada a Bs. ${parsed.data.toFixed(2)}/USD.` };
 }

@@ -17,8 +17,7 @@ import RecentlyViewedTracker from '@/components/RecentlyViewedTracker';
 import RecentlyViewed from '@/components/RecentlyViewed';
 import ProductJsonLd from '@/app/components/ProductJsonLd';
 import { slugify } from '@/lib/slugify';
-
-const BS_RATE = Number(process.env.NEXT_PUBLIC_BS_RATE ?? '36.5');
+import { getExchangeRate } from '@/app/actions/configActions';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -147,13 +146,13 @@ async function getRelatedProducts(category: string, excludeId: string) {
 
 export default async function ProductDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const product  = await getProduct(slug);
+  const [product, bsRate] = await Promise.all([getProduct(slug), getExchangeRate()]);
 
   if (!product) notFound();
 
   const mainImage = product.images[0] || '/placeholder-product.png';
   const isOut     = product.stock === 0;
-  const bsPrice   = product.price * BS_RATE;
+  const bsPrice   = product.price * bsRate;
   const discount  = product.originalPrice && product.originalPrice > product.price
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : null;
@@ -236,11 +235,11 @@ export default async function ProductDetailPage({ params }: PageProps) {
           <div className="mt-5 sm:mt-6 pb-5 sm:pb-6 border-b border-slate-100">
             <div className="flex items-baseline gap-2 sm:gap-3 flex-wrap">
               <span className="text-[2rem] sm:text-4xl md:text-5xl font-bold text-navy nums tracking-tight leading-none">
-                {formatCurrency(product.price)}
+                US {formatCurrency(product.price)}
               </span>
               {product.originalPrice && product.originalPrice > product.price && (
                 <span className="text-sm sm:text-base text-slate-400 line-through nums">
-                  {formatCurrency(product.originalPrice)}
+                  US {formatCurrency(product.originalPrice)}
                 </span>
               )}
               {discount && (
@@ -250,8 +249,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
               )}
             </div>
             <p className="mt-2 text-[12px] sm:text-sm text-slate-500 nums break-words">
-              Equivalente a <span className="font-semibold text-navy">Bs. {new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2 }).format(bsPrice)}</span>
-              <span className="text-slate-400 hidden xs:inline"> · tasa Bs.{BS_RATE.toFixed(2)}/USD</span>
+              <span className="font-semibold text-navy">Bs. {new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(bsPrice)}</span>
             </p>
           </div>
 
