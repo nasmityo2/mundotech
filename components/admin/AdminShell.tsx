@@ -5,6 +5,7 @@ import SidebarDesktop from './SidebarDesktop';
 import SidebarDrawer from './SidebarDrawer';
 import MobileTopBar from './MobileTopBar';
 import MobileBottomNav from './MobileBottomNav';
+import NewOrdersWatcher from './NewOrdersWatcher';
 
 interface AdminShellProps {
   children: React.ReactNode;
@@ -36,6 +37,7 @@ export default function AdminShell({ children, userName, userEmail }: AdminShell
         </main>
 
         <MobileBottomNav />
+        <NewOrdersWatcher />
       </div>
     </div>
   );

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdminAction } from '@/lib/api-auth';
-import { readSeoLocal, writeSeoLocal, seoLocalSchema, type SeoLocal } from '@/lib/seo-local';
+import { readSeoLocal, writeSeoLocal } from '@/lib/seo-local';
+import { seoLocalSchema, type SeoLocal } from '@/lib/seo-local-schema';
 
 export interface SeoLocalActionResult {
   success: boolean;

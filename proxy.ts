@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 import type { JWT } from 'next-auth/jwt';
 
 /**
- * Middleware global de la app.
+ * Proxy global de la app (Next 16 — antes "middleware").
  * - /admin/*    → requiere sesión + role ADMIN
  * - /checkout/* → requiere sesión
  *

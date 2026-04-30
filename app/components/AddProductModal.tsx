@@ -501,7 +501,6 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
               </div>
 
             </form>
-          </div>
         </div>
 
         {/* Footer sticky */}

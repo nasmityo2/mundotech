@@ -1,31 +1,27 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useProducts } from '../../context/ProductContext';
+import { useProducts } from '@/context/ProductContext';
 import { Order } from '@/lib/definitions';
 import {
-  Package,
-  Tag,
-  ShoppingCart,
-  Clock,
-  TrendingUp,
-  AlertCircle,
-  ArrowRight,
+  Package, Tag, ShoppingCart, Clock, TrendingUp, AlertCircle,
+  ArrowRight, Truck, Users,
 } from 'lucide-react';
 import Link from 'next/link';
+import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
 
-const formatCurrency = (amount: number) =>
+const formatBs = (amount: number) =>
   new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VES' }).format(amount);
 
-const formatDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('es-VE', { day: 'numeric', month: 'short', year: 'numeric' });
+const formatShortDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('es-VE', { day: 'numeric', month: 'short' });
 
 const statusConfig: Record<string, string> = {
   Pendiente:    'bg-yellow-100 text-yellow-800 border border-yellow-200',
   'En Proceso': 'bg-gray-100 text-navy border border-gray-200',
-  Enviado:      'bg-slate-100 text-slate-800 border border-gray-200',
-  Entregado:    'bg-green-100 text-green-800',
-  Cancelado:    'bg-red-100 text-red-800',
+  Enviado:      'bg-slate-100 text-slate-800 border border-slate-200',
+  Entregado:    'bg-green-100 text-green-800 border border-green-200',
+  Cancelado:    'bg-red-100 text-red-800 border border-red-200',
 };
 
 const AdminHomePage = () => {
@@ -42,152 +38,162 @@ const AdminHomePage = () => {
 
   const totalProducts = products.length;
   const totalCategories = new Set(products.map(p => p.category)).size;
-  const lowStock = products.filter(p => p.stock < 3).length;
+  const lowStock = products.filter(p => p.stock < 3 && p.stock > 0).length;
+  const outOfStock = products.filter(p => p.stock === 0).length;
 
   const totalOrders = orders.length;
-  const pendingOrders = orders.filter(o => o.status === 'Pendiente').length;
+  const pendingOrders = orders.filter(o => o.status === 'Pendiente' || o.status === 'Pendiente verificación Binance').length;
   const inProcessOrders = orders.filter(o => o.status === 'En Proceso').length;
-  const revenue = orders
-    .filter(o => o.status !== 'Cancelado')
-    .reduce((acc, o) => acc + o.total, 0);
+  const shippedOrders = orders.filter(o => o.status === 'Enviado').length;
+  const revenue = orders.filter(o => o.status !== 'Cancelado').reduce((acc, o) => acc + o.total, 0);
 
-  const recentOrders = orders.slice(0, 6);
+  const recentOrders = orders.slice(0, 8);
+  const lowStockProducts = products.filter(p => p.stock < 3).slice(0, 10);
 
-  const statCards = [
-    { label: 'Total Pedidos',    value: totalOrders,      icon: ShoppingCart, color: 'bg-navy',       bg: 'bg-gray-100' },
-    { label: 'Pendientes',       value: pendingOrders,    icon: Clock,        color: 'bg-yellow-500', bg: 'bg-yellow-50' },
-    { label: 'En Proceso',       value: inProcessOrders,  icon: TrendingUp,   color: 'bg-navy',       bg: 'bg-gray-100' },
-    { label: 'Total Productos',  value: totalProducts,    icon: Package,      color: 'bg-green-500',  bg: 'bg-green-50' },
-    { label: 'Categorías',       value: totalCategories,  icon: Tag,          color: 'bg-purple-500', bg: 'bg-purple-50' },
-    { label: 'Stock Bajo',       value: lowStock,         icon: AlertCircle,  color: 'bg-red-500',    bg: 'bg-red-50' },
+  const orderColumns: DataTableColumn<Order>[] = [
+    {
+      key: 'orderNumber', header: '#', primary: true,
+      cell: o => <span className="font-mono font-bold text-navy">#{String(o.orderNumber).padStart(4, '0')}</span>,
+    },
+    {
+      key: 'customer', header: 'Cliente', secondary: true, mobileLabel: 'Cliente',
+      cell: o => <span className="truncate">{o.customerName}</span>,
+    },
+    {
+      key: 'date', header: 'Fecha', mobileLabel: 'Fecha',
+      cell: o => <span className="text-xs text-gray-500">{formatShortDate(o.createdAt)}</span>,
+    },
+    {
+      key: 'status', header: 'Estado', mobileLabel: 'Estado', align: 'center',
+      cell: o => (
+        <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${statusConfig[o.status] ?? 'bg-gray-100 text-gray-700'}`}>
+          {o.status}
+        </span>
+      ),
+    },
+    {
+      key: 'total', header: 'Total', mobileLabel: 'Total', align: 'right',
+      cell: o => <span className="font-bold text-gray-900 whitespace-nowrap">{formatBs(o.total)}</span>,
+    },
   ];
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Resumen</h1>
-        <p className="text-gray-500 mt-1">Bienvenido al panel de administración de MundoTech.</p>
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-xl sm:text-2xl font-black text-navy">Panel principal</h1>
+        <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Bienvenido al panel de administración de MundoTech.</p>
       </div>
 
-      {/* Ingresos totales */}
-      <div className="bg-navy border border-gray-800 border-l-4 border-l-brand-yellow p-6 mb-8 text-white">
-        <p className="text-sm font-medium opacity-80 uppercase tracking-wider">Ingresos Totales</p>
-        <p className="text-4xl font-bold mt-1">
-          {loadingOrders ? '—' : formatCurrency(revenue)}
-        </p>
-        <p className="text-sm opacity-70 mt-1">Pedidos no cancelados</p>
+      {/* Hero ingresos */}
+      <div className="bg-gradient-to-br from-navy to-[#0f172a] rounded-2xl p-5 sm:p-6 text-white shadow-lg relative overflow-hidden">
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-brand-yellow/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative">
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Ingresos totales (VES)</p>
+          <p className="text-3xl sm:text-4xl font-black mt-1.5 tabular-nums">
+            {loadingOrders ? '—' : formatBs(revenue)}
+          </p>
+          <p className="text-[11px] opacity-60 mt-1">Pedidos no cancelados</p>
+        </div>
       </div>
 
-      {/* Tarjetas de estadísticas */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
-        {statCards.map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="bg-white p-4 border border-gray-200">
-            <div className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center mb-3`}>
-              <Icon size={18} className={color.replace('bg-', 'text-')} />
-            </div>
-            <p className="text-2xl font-bold text-gray-900">
-              {label === 'Total Pedidos' || label.includes('dientes') || label === 'En Proceso'
-                ? loadingOrders ? '—' : value
-                : value}
-            </p>
-            <p className="text-xs text-gray-500 mt-0.5">{label}</p>
-          </div>
-        ))}
+      {/* KPIs grid 2 cols mobile / 4 cols desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <KpiCard label="Pedidos totales" value={loadingOrders ? '—' : totalOrders} icon={ShoppingCart} accent="navy" href="/admin/orders" />
+        <KpiCard label="Pendientes" value={loadingOrders ? '—' : pendingOrders} icon={Clock} accent="yellow" href="/admin/orders?status=Pendiente" />
+        <KpiCard label="En proceso" value={loadingOrders ? '—' : inProcessOrders} icon={TrendingUp} accent="navy" href="/admin/orders" />
+        <KpiCard label="Enviados" value={loadingOrders ? '—' : shippedOrders} icon={Truck} accent="success" href="/admin/orders" />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <KpiCard label="Productos" value={totalProducts} icon={Package} accent="navy" href="/admin/products" />
+        <KpiCard label="Categorías" value={totalCategories} icon={Tag} accent="navy" href="/admin/categories" />
+        <KpiCard label="Stock bajo" value={lowStock} icon={AlertCircle} accent={lowStock > 0 ? 'warning' : 'navy'} href="/admin/products" />
+        <KpiCard label="Agotados" value={outOfStock} icon={AlertCircle} accent={outOfStock > 0 ? 'danger' : 'navy'} href="/admin/products" />
       </div>
 
       {/* Pedidos recientes */}
-      <div className="bg-white border border-gray-200 overflow-hidden mb-8">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-900">Pedidos Recientes</h2>
-          <Link href="/admin/orders" className="text-sm text-navy font-semibold hover:text-brand-yellow flex items-center gap-1">
-            Ver todos <ArrowRight size={14} />
+      <section>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-black text-navy uppercase tracking-wide">Pedidos recientes</h2>
+          <Link href="/admin/orders" className="min-h-[36px] inline-flex items-center gap-1 text-xs text-navy font-semibold active:bg-gray-100 px-2 rounded">
+            Ver todos <ArrowRight size={12} />
           </Link>
         </div>
-        {loadingOrders ? (
-          <div className="px-6 py-8 text-center text-gray-400">Cargando pedidos...</div>
-        ) : recentOrders.length === 0 ? (
-          <div className="px-6 py-8 text-center text-gray-400">No hay pedidos registrados.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Fecha</th>
-                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
-                  <th className="px-6 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {recentOrders.map(order => (
-                  <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-3 font-mono text-sm font-semibold text-navy">
-                      #{String(order.orderNumber).padStart(4, '0')}
-                    </td>
-                    <td className="px-6 py-3 text-gray-700 font-medium">{order.customerName}</td>
-                    <td className="px-6 py-3 text-gray-500">{formatDate(order.createdAt)}</td>
-                    <td className="px-6 py-3 text-center">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusConfig[order.status] ?? 'bg-gray-100 text-gray-700'}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 text-right font-semibold text-gray-900">
-                      {formatCurrency(order.total)}
-                    </td>
-                    <td className="px-6 py-3 text-right">
-                      <Link href={`/admin/orders/${order.id}`} className="text-navy hover:underline text-xs font-semibold">
-                        Ver →
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+        <DataTable<Order>
+          data={recentOrders}
+          columns={orderColumns}
+          rowKey={o => o.id}
+          loading={loadingOrders}
+          emptyState="Aún no hay pedidos."
+          onRowClick={o => { window.location.href = `/admin/orders/${o.id}`; }}
+        />
+      </section>
 
-      {/* Productos con stock bajo */}
-      {lowStock > 0 && (
-        <div className="bg-white border border-red-200 overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-red-100">
-            <h2 className="text-base font-semibold text-red-700 flex items-center gap-2">
-              <AlertCircle size={16} /> Productos con Stock Bajo
+      {/* Stock bajo */}
+      {lowStockProducts.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-black text-red-700 uppercase tracking-wide flex items-center gap-1.5">
+              <AlertCircle size={14} /> Stock crítico
             </h2>
-            <Link href="/admin/products" className="text-sm text-navy font-semibold hover:text-brand-yellow flex items-center gap-1">
-              Gestionar <ArrowRight size={14} />
+            <Link href="/admin/products?stock=low" className="min-h-[36px] inline-flex items-center gap-1 text-xs text-navy font-semibold active:bg-gray-100 px-2 rounded">
+              Reabastecer <ArrowRight size={12} />
             </Link>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-red-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Producto</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Categoría</th>
-                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-red-50">
-                {products.filter(p => p.stock < 3).map(p => (
-                  <tr key={p.id} className="hover:bg-red-50 transition-colors">
-                    <td className="px-6 py-3 font-medium text-gray-800">{p.name}</td>
-                    <td className="px-6 py-3 text-gray-500">{p.category}</td>
-                    <td className="px-6 py-3 text-right">
-                      <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-semibold">
-                        {p.stock} unidades
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          <ul className="bg-white border border-red-200 rounded-2xl divide-y divide-red-100 overflow-hidden">
+            {lowStockProducts.map(p => (
+              <li key={p.id}>
+                <Link href={`/admin/products`} className="flex items-center justify-between gap-3 px-4 py-3 active:bg-red-50">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-navy truncate">{p.name}</p>
+                    <p className="text-[11px] text-gray-500 truncate">{p.category}</p>
+                  </div>
+                  <span className={`flex-shrink-0 inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                    p.stock === 0 ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                  }`}>
+                    {p.stock === 0 ? 'Agotado' : `${p.stock} uds`}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );
 };
+
+function KpiCard({
+  label, value, icon: Icon, accent, href,
+}: {
+  label: string;
+  value: number | string;
+  icon: React.ElementType;
+  accent: 'navy' | 'yellow' | 'warning' | 'danger' | 'success';
+  href?: string;
+}) {
+  const styles = {
+    navy:    { bg: 'bg-gray-100',    iconColor: 'text-navy' },
+    yellow:  { bg: 'bg-yellow-50',   iconColor: 'text-yellow-600' },
+    warning: { bg: 'bg-orange-50',   iconColor: 'text-orange-600' },
+    danger:  { bg: 'bg-red-50',      iconColor: 'text-red-600' },
+    success: { bg: 'bg-green-50',    iconColor: 'text-green-600' },
+  }[accent];
+
+  const cardClass = 'bg-white border border-gray-200 rounded-2xl p-3 sm:p-4 active:bg-gray-50 transition flex flex-col';
+  const inner = (
+    <>
+      <div className={`w-9 h-9 rounded-xl ${styles.bg} flex items-center justify-center mb-2`}>
+        <Icon size={17} className={styles.iconColor} />
+      </div>
+      <p className="text-2xl sm:text-3xl font-black text-navy tabular-nums leading-tight">{value}</p>
+      <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 truncate">{label}</p>
+    </>
+  );
+
+  return href
+    ? <Link href={href} className={cardClass}>{inner}</Link>
+    : <div className={cardClass}>{inner}</div>;
+}
 
 export default AdminHomePage;

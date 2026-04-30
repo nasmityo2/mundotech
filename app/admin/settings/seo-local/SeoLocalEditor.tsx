@@ -6,8 +6,8 @@ import {
   Crosshair, Tag, Globe2, ExternalLink, Plus, Trash2,
 } from 'lucide-react';
 import { updateSeoLocal } from '@/app/actions/seoLocalActions';
-import type { SeoLocal } from '@/lib/seo-local';
-import { SEO_DAYS, DAY_LABEL_ES } from '@/lib/seo-local';
+import type { SeoLocal } from '@/lib/seo-local-schema';
+import { SEO_DAYS, DAY_LABEL_ES } from '@/lib/seo-local-schema';
 
 interface SeoLocalEditorProps {
   initial: SeoLocal;
