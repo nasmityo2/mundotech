@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AuthProvider from "./components/AuthProvider";
+import { AuthModalProvider } from "@/context/AuthModalContext";
 import { CartProvider } from "../context/CartContext";
 import { WishlistProvider } from "../context/WishlistContext";
 import { ProductProvider } from "../context/ProductContext";
@@ -139,17 +140,19 @@ export default async function RootLayout({
             <WishlistProvider>
               <ProductProvider>
                 <ExchangeRateProvider>
-                  {/*
-                    Shell del layout: Navbar/CartDrawer en cliente (AppContent),
-                    <main> y <Footer> en servidor para reducir JS bundle
-                    y mejorar LCP / INP (Core Web Vitals).
-                  */}
-                  <div className="flex min-h-[100dvh] flex-col w-full max-w-full overflow-x-hidden">
-                    <AppContent />
-                    <AppLayoutShell footer={<Footer />}>
-                      {children}
-                    </AppLayoutShell>
-                  </div>
+                  <AuthModalProvider>
+                    {/*
+                      Shell del layout: Navbar/CartDrawer en cliente (AppContent),
+                      <main> y <Footer> en servidor para reducir JS bundle
+                      y mejorar LCP / INP (Core Web Vitals).
+                    */}
+                    <div className="flex min-h-[100dvh] flex-col w-full max-w-full overflow-x-hidden">
+                      <AppContent />
+                      <AppLayoutShell footer={<Footer />}>
+                        {children}
+                      </AppLayoutShell>
+                    </div>
+                  </AuthModalProvider>
                 </ExchangeRateProvider>
               </ProductProvider>
             </WishlistProvider>

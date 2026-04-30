@@ -6,7 +6,7 @@ import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import LoginRequiredModal from '@/components/LoginRequiredModal';
+import { useAuthModal } from '@/context/AuthModalContext';
 
 interface Product {
   id: string;
@@ -27,7 +27,7 @@ export default function ProductActions({ product }: { product: Product }) {
   const router = useRouter();
   const { status } = useSession();
   const [qty, setQty] = useState(1);
-  const [showLoginModal, setShowLoginModal] = useState(false);
+  const { openAuthModal } = useAuthModal();
   const [justAdded, setJustAdded] = useState(false);
 
   const isOut = product.stock === 0;
@@ -44,7 +44,14 @@ export default function ProductActions({ product }: { product: Product }) {
   const handleBuyNow = () => {
     if (isOut) return;
     if (status !== 'authenticated') {
-      setShowLoginModal(true);
+      openAuthModal({
+        tab:              'login',
+        callbackUrl:      '/checkout',
+        onAuthenticated: () => {
+          silentAddToCart(product as never, qty);
+          router.push('/checkout');
+        },
+      });
       return;
     }
     silentAddToCart(product as never, qty);
@@ -61,17 +68,6 @@ export default function ProductActions({ product }: { product: Product }) {
 
   return (
     <>
-      {showLoginModal && (
-        <LoginRequiredModal
-          onClose={() => setShowLoginModal(false)}
-          onSuccess={() => {
-            setShowLoginModal(false);
-            silentAddToCart(product as never, qty);
-            router.push('/checkout');
-          }}
-        />
-      )}
-
       <div className="flex flex-col gap-3 sm:gap-4">
         {/* Selector de cantidad */}
         {!isOut && (

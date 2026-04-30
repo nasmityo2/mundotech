@@ -8,7 +8,7 @@ import { useSession } from 'next-auth/react';
 import { ShoppingCart, Zap } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { formatCurrency } from '@/lib/utils';
-import LoginRequiredModal from '@/components/LoginRequiredModal';
+import { useAuthModal } from '@/context/AuthModalContext';
 
 interface Props {
   product: {
@@ -25,7 +25,7 @@ export default function StickyAddToCart({ product }: Props) {
   const { status } = useSession();
   const router = useRouter();
   const [visible, setVisible] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
+  const { openAuthModal } = useAuthModal();
 
   useEffect(() => {
     const onScroll = () => setVisible(window.scrollY > 360);
@@ -39,7 +39,14 @@ export default function StickyAddToCart({ product }: Props) {
   const handleBuyNow = () => {
     if (isOut) return;
     if (status !== 'authenticated') {
-      setShowLoginModal(true);
+      openAuthModal({
+        tab:              'login',
+        callbackUrl:      '/checkout',
+        onAuthenticated: () => {
+          silentAddToCart(product as never);
+          router.push('/checkout');
+        },
+      });
       return;
     }
     silentAddToCart(product as never);
@@ -48,17 +55,6 @@ export default function StickyAddToCart({ product }: Props) {
 
   return (
     <>
-      {showLoginModal && (
-        <LoginRequiredModal
-          onClose={() => setShowLoginModal(false)}
-          onSuccess={() => {
-            setShowLoginModal(false);
-            silentAddToCart(product as never);
-            router.push('/checkout');
-          }}
-        />
-      )}
-
       <AnimatePresence>
         {visible && (
           <motion.div

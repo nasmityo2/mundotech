@@ -1,14 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Plus, Minus, Trash2, ArrowRight, ShoppingBag, ShieldCheck, Truck, Tag } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import LoginRequiredModal from '@/components/LoginRequiredModal';
+import { useAuthModal } from '@/context/AuthModalContext';
 
 const CartImageWithFallback = ({ src, alt }: { src: string; alt: string }) => {
   const [imgSrc, setImgSrc] = useState(src || '/placeholder-product.png');
@@ -26,14 +26,18 @@ const CartImageWithFallback = ({ src, alt }: { src: string; alt: string }) => {
 
 const CartClient = () => {
   const { cart: cartItems, updateQuantity, removeFromCart, getCartTotal } = useCart();
-  const router = useRouter();
-  const { status } = useSession();
-  const [showLoginModal, setShowLoginModal] = useState(false);
+  const router           = useRouter();
+  const { status }       = useSession();
+  const { openAuthModal } = useAuthModal();
   const [coupon, setCoupon] = useState('');
 
   const handleCheckout = () => {
     if (status !== 'authenticated') {
-      setShowLoginModal(true);
+      openAuthModal({
+        tab:              'login',
+        callbackUrl:      '/checkout',
+        onAuthenticated: () => router.push('/checkout'),
+      });
     } else {
       router.push('/checkout');
     }
@@ -47,16 +51,6 @@ const CartClient = () => {
 
   return (
     <>
-      {showLoginModal && (
-        <LoginRequiredModal
-          onClose={() => setShowLoginModal(false)}
-          onSuccess={() => {
-            setShowLoginModal(false);
-            router.push('/checkout');
-          }}
-        />
-      )}
-
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-5 sm:mb-6">
         <div>
           <h1 className="text-[1.6rem] sm:text-3xl md:text-4xl font-bold text-navy tracking-tight">Tu carrito</h1>

@@ -14,9 +14,8 @@ export default function AppContent() {
   const { openCart } = useCart();
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith('/admin') ?? false;
-  const isLoginSplash = pathname === '/login';
 
-  if (isAdmin || isLoginSplash) return null;
+  if (isAdmin) return null;
 
   return (
     <>

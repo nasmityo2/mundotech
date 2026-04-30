@@ -8,17 +8,17 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect, useState } from 'react';
-import LoginRequiredModal from './LoginRequiredModal';
+import { useEffect } from 'react';
+import { useAuthModal } from '@/context/AuthModalContext';
 
 const CartDrawer = () => {
   const {
     cart, isCartLoading, removeFromCart, updateQuantity,
     getCartTotal, isCartOpen, closeCart,
   } = useCart();
-  const router = useRouter();
-  const { status } = useSession();
-  const [showLoginModal, setShowLoginModal] = useState(false);
+  const router           = useRouter();
+  const { status }       = useSession();
+  const { openAuthModal } = useAuthModal();
 
   // Block body scroll while drawer is open (iOS-safe)
   useEffect(() => {
@@ -38,7 +38,14 @@ const CartDrawer = () => {
 
   const handleCheckout = () => {
     if (status !== 'authenticated') {
-      setShowLoginModal(true);
+      openAuthModal({
+        tab:              'login',
+        callbackUrl:      '/checkout',
+        onAuthenticated: () => {
+          closeCart();
+          router.push('/checkout');
+        },
+      });
     } else {
       closeCart();
       router.push('/checkout');
@@ -47,16 +54,6 @@ const CartDrawer = () => {
 
   return (
     <>
-      {showLoginModal && (
-        <LoginRequiredModal
-          onClose={() => setShowLoginModal(false)}
-          onSuccess={() => {
-            setShowLoginModal(false);
-            closeCart();
-            router.push('/checkout');
-          }}
-        />
-      )}
       <AnimatePresence>
         {isCartOpen && (
           <>
