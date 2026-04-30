@@ -58,7 +58,7 @@ const DEFAULT_SHELVES: ShelvesConfig = {
 };
 
 const PROMO_DEFAULTS = [
-  { order: 1, title: 'Hasta 30%\nde descuento', subtitle: 'En smartphones y laptops seleccionados', discountText: 'Hasta 30%', bgColor: '#FFD700', link: '/productos', active: true, imageUrl: null, subtitle_ph: 'Descripción de la oferta' },
+  { order: 1, title: 'Hasta 30%\nde descuento', subtitle: 'En consolas, gadgets y tech seleccionados', discountText: 'Hasta 30%', bgColor: '#FFD700', link: '/productos', active: true, imageUrl: null, subtitle_ph: 'Descripción de la oferta' },
   { order: 2, title: 'Garantía Oficial',          subtitle: 'Todos los productos con respaldo de fábrica',    discountText: '', bgColor: '#1A202C', link: '/productos', active: true, imageUrl: null, subtitle_ph: 'Subtítulo banner navy' },
   { order: 3, title: '¡Nuevos Ingresos!',          subtitle: 'Descubre los últimos productos disponibles',   discountText: '', bgColor: '#48BB78', link: '/productos', active: true, imageUrl: null, subtitle_ph: 'Subtítulo banner verde' },
 ];

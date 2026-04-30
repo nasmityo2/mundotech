@@ -27,16 +27,17 @@ export const metadata: Metadata = {
     template: "%s — MundoTech",
   },
   description:
-    "Tienda de tecnología, electrónica y electrodomésticos en Barquisimeto, Venezuela. Precios en USD y Bs., garantía oficial y envío seguro a todo el país.",
+    "Tecnología, gadgets e inventos con rotación rápida —mucho catálogo de origen chino— en Barquisimeto. Electrodomésticos de mesa y cocina compacta (cocinas tipo caracol, hornillas, útiles); gaming retro y electrónica. Sin celulares. USD/Bs., garantía y envío seguro.",
   keywords: [
     "tecnología Barquisimeto",
     "tienda tecnología Venezuela",
-    "electrónica Barquisimeto",
+    "gadgets tecnología Venezuela",
+    "productos trending Barquisimeto",
     "MundoTech",
-    "electrodomésticos Venezuela",
+    "electrodomésticos cocina Barquisimeto",
     "consolas gaming Venezuela",
-    "celulares Barquisimeto",
-    "computadoras Lara",
+    "compras China Barquisimeto",
+    "accesorios tech Lara",
   ],
   authors: [{ name: "MundoTech", url: SITE_URL }],
   creator: "MundoTech",
@@ -49,7 +50,7 @@ export const metadata: Metadata = {
     siteName: "MundoTech",
     title: "MundoTech — Tecnología en Barquisimeto, Venezuela",
     description:
-      "Tienda de tecnología, electrónica y electrodomésticos en Barquisimeto. Precios en USD y Bs., garantía oficial.",
+      "Tecnología en Barquisimeto: gadgets, inventos y gaming retro. Electrodomésticos de cocina compacta de mesa. Sin celulares. USD/Bs., garantía oficial.",
     images: [
       {
         url: `${SITE_URL}/og-default.jpg`,
@@ -63,7 +64,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "MundoTech — Tecnología en Barquisimeto, Venezuela",
     description:
-      "Tienda de tecnología y electrodomésticos en Barquisimeto. Garantía oficial, envío seguro.",
+      "Tecnología, gadgets y electro para cocina de mesa en Barquisimeto. Gaming retro y accesorios. Sin celulares. Garantía oficial, envío seguro.",
     images: [`${SITE_URL}/og-default.jpg`],
   },
   robots: {
@@ -83,7 +84,7 @@ const websiteSchema = {
   name: "MundoTech",
   url: SITE_URL,
   description:
-    "Tienda de tecnología y electrodomésticos en Barquisimeto, Venezuela.",
+    "Tecnología, gadgets y electro para cocina de mesa en Barquisimeto, Venezuela.",
   potentialAction: {
     "@type": "SearchAction",
     target: {
@@ -99,7 +100,7 @@ const localBusinessSchema = {
   "@type": "LocalBusiness",
   name: "MundoTech",
   description:
-    "Líderes en tecnología en el estado Lara. Tienda de electrónica, accesorios y electrodomésticos en Barquisimeto, Venezuela. Precios en USD y Bs., garantía oficial.",
+    "Tecnología en Lara: gadgets, inventos y catálogo de rotación, consolas gaming y electrodomésticos de cocina compacta —no línea blanca grande. Sin celulares. Barquisimeto. USD/Bs., garantía oficial.",
   url: SITE_URL,
   telephone: process.env.NEXT_PUBLIC_CONTACT_PHONE ?? "+58-412-1471338",
   email: process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "ventas@mundotech.com.ve",

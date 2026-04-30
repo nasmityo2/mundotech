@@ -30,12 +30,12 @@ const FALLBACK_PROMOS = [
     img: promoImg('photo-1612288532018-60aa10ad7d5f'),
   },
   {
-    label: 'Smartphones',
-    title: 'Últimos equipos\ny accesorios',
-    subtitle: 'Garantía y stock verificado',
-    cta: 'Ver smartphones',
-    href: '/productos?cat=Smartphones',
-    img: promoImg('photo-1592899677979-966312976a8a'),
+    label: 'Gadgets & tech',
+    title: 'Gadgets trending\ne inventos',
+    subtitle: 'Lo que todos piden cada semana — stock real',
+    cta: 'Ver accesorios',
+    href: '/productos?cat=Accesorios',
+    img: promoImg('photo-1523275335684-37898b6baf30'),
   },
   {
     label: 'Belleza tech',

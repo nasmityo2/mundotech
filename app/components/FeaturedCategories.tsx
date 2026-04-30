@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import {
-  Smartphone, Laptop, Tv, Gamepad2, Refrigerator,
-  Headphones, Camera, Watch, Printer, Wifi,
+  Laptop, Tv, Gamepad2, Refrigerator,
+  Headphones, Camera, Watch, Printer, Wifi, Sparkles,
 } from 'lucide-react';
 
 export interface FeaturedCategory {
@@ -14,16 +14,17 @@ export interface FeaturedCategory {
 }
 
 const ICON_MAP: Record<string, React.ElementType> = {
-  smartphones:       Smartphone,
   laptops:           Laptop,
   televisores:       Tv,
   consolas:          Gamepad2,
+  accesorios:        Sparkles,
   electrodomesticos: Refrigerator,
   audio:             Headphones,
   camaras:           Camera,
   wearables:         Watch,
   impresoras:        Printer,
   redes:             Wifi,
+  smartphones:       Sparkles,
 };
 
 /** Fotografía producto HD — fondo neutro en UI (#F8F9FA en el círculo) */
@@ -32,7 +33,7 @@ const hi = (path: string, w = 1600) =>
 
 const ALL_CATEGORIES = [
   { id: 'all', name: 'Ver todo',          slug: '',               imageUrl: null, order: -1 },
-  { id: '1',   name: 'Smartphones',       slug: 'smartphones',    imageUrl: hi('photo-1592899677979-966312976a8a'), order: 0 },
+  { id: '1',   name: 'Gadgets y accesorios', slug: 'accesorios',       imageUrl: hi('photo-1523275335684-37898b6baf30'), order: 0 },
   { id: '2',   name: 'Laptops',           slug: 'laptops',        imageUrl: hi('photo-1496181133206-80ce9b88a853'), order: 1 },
   { id: '3',   name: 'Televisores',       slug: 'televisores',    imageUrl: hi('photo-1593359677879-a4bb92f829e1'), order: 2 },
   { id: '4',   name: 'Consolas',          slug: 'consolas',       imageUrl: hi('photo-1612288532018-60aa10ad7d5f'), order: 3 },

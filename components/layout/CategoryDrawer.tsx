@@ -53,7 +53,7 @@ function Countdown({ targetHours }: { targetHours: number }) {
 
 const FALLBACK_PROMO: PromoData = {
   title:        'Hasta 30% de descuento',
-  subtitle:     'En smartphones y laptops seleccionados',
+  subtitle:     'En consolas, gadgets y tech seleccionados',
   discountText: 'Hasta 30%',
   imageUrl:     null,
   bgColor:      '#0B1220',

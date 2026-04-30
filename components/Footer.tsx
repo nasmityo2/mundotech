@@ -54,7 +54,7 @@ const Footer = () => {
               <span className="text-brand-yellow">Tech</span>
             </p>
             <p className="text-sm text-white/60 leading-relaxed max-w-md">
-              MundoTech: Especialistas en tecnología de vanguardia, consolas retro y servicio técnico garantizado en Barquisimeto.
+              MundoTech: Tecnología práctica en Barquisimeto —gaming retro, inventos trending, gadgets y electro para cocina de mesa compacta— sin celulares. Envío y soporte real.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link

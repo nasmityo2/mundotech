@@ -13,24 +13,25 @@ const PAGE_URL = `${SITE_URL}/tienda-barquisimeto`;
 
 // ── Metadata On-Page optimizada para SEO local ─────────────────────────────
 export const metadata: Metadata = {
-  title: 'Tienda de Tecnología en Barquisimeto — Mundo Tech | Conectados Contigo',
+  title: 'Tienda de tecnología y gadgets en Barquisimeto — Mundo Tech',
   description:
-    'Visita Mundo Tech en el Centro de Barquisimeto, Estado Lara. Electrónica, smartphones, consolas gaming, accesorios y electrodomésticos. Precios en USD y Bs., garantía oficial y atención personalizada.',
+    'Mundo Tech en el centro de Barquisimeto: tecnología, gadgets, inventos y electrodomésticos para cocina de mesa compacta —cocinas tipo caracol, hornillas—. Consolas gaming; catálogo de rotación y líneas orientadas al mercado chino. No vendemos celulares ni línea blanca grande. USD/Bs., garantía y atención personalizada.',
   keywords: [
     'tienda tecnología Barquisimeto',
-    'electrónica Barquisimeto centro',
+    'gadgets tecnología Barquisimeto',
+    'inventos tech Venezuela',
+    'electrodomésticos cocina Barquisimeto',
+    'cocina caracol Barquisimeto',
     'Mundo Tech Barquisimeto',
-    'smartphones Barquisimeto',
     'consolas gaming Lara Venezuela',
-    'electrodomésticos Barquisimeto',
+    'productos China Barquisimeto',
     'accesorios tech estado Lara',
-    'tienda física tecnología Venezuela',
   ],
   alternates: { canonical: PAGE_URL },
   openGraph: {
     title: 'Mundo Tech Barquisimeto — Conectados Contigo',
     description:
-      'Tu tienda de tecnología en el corazón de Barquisimeto. Visítanos en Carrera 21 con Calle 21, Centro. Lunes a viernes 8 AM – 6 PM.',
+      'Tu tienda en el Centro de Barquisimeto: gadgets, tecnología, gaming retro y electro para cocina de mesa compacta. Sin celulares. USD/Bs.',
     url: PAGE_URL,
     siteName: 'Mundo Tech',
     locale: 'es_VE',
@@ -48,7 +49,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Mundo Tech Barquisimeto — Conectados Contigo',
     description:
-      'Visítanos en el Centro de Barquisimeto. Electrónica, gaming y más con garantía oficial.',
+      'Gadgets, tecnología, gaming y electro cocina mesa compacta en Barquisimeto. Sin celulares. Garantía oficial.',
     images: [`${SITE_URL}/og-default.jpg`],
   },
 };
@@ -61,7 +62,7 @@ const localBusinessSchema = {
   alternateName: 'MundoTech Barquisimeto',
   slogan: 'Conectados Contigo',
   description:
-    'Tienda de tecnología, electrónica, smartphones, consolas gaming, accesorios y electrodomésticos en Barquisimeto, Estado Lara, Venezuela. Precios en USD y Bs., garantía oficial y atención personalizada.',
+    'Tecnología en Barquisimeto, Lara: gadgets, inventos, catálogo de rotación (importación asiática), consolas y electrodomésticos de cocina compacta de mesa. No celulares ni neveras/cocinas grandes. USD/Bs., garantía oficial y atención personalizada.',
   url: PAGE_URL,
   telephone: process.env.NEXT_PUBLIC_CONTACT_PHONE ?? '+58-412-1471338',
   email: process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? 'ventas@mundotech.com.ve',
@@ -150,12 +151,12 @@ const HOURS = [
 ];
 
 const CATEGORIES = [
-  { label: 'Smartphones',     href: '/productos?cat=Smartphones' },
-  { label: 'Consolas Gaming', href: '/productos?cat=Consolas' },
-  { label: 'Accesorios',      href: '/productos?cat=Accesorios' },
+  { label: 'Gadgets y accesorios', href: '/productos?cat=Accesorios' },
+  { label: 'Consolas gaming', href: '/productos?cat=Consolas' },
+  { label: 'Computadoras', href: '/productos?cat=Computadoras' },
   { label: 'Electrodomésticos', href: '/productos?cat=Electrodomesticos' },
-  { label: 'Computadoras',    href: '/productos?cat=Computadoras' },
-  { label: 'Audio & Video',   href: '/productos?cat=Audio' },
+  { label: 'Audio y video', href: '/productos?cat=Audio' },
+  { label: 'Todo el catálogo', href: '/productos' },
 ];
 
 // ── Componente ─────────────────────────────────────────────────────────────
@@ -199,9 +200,11 @@ export default function TiendaBarquisimetoPage() {
           </h1>
 
           <p className="mt-4 text-[15px] sm:text-base text-white/75 max-w-xl leading-relaxed">
-            Somos tu tienda de tecnología de confianza en el centro de Barquisimeto.
-            Electrónica, smartphones, consolas gaming, accesorios y electrodomésticos con{' '}
-            <strong className="text-white">garantía oficial</strong> y precios en USD y Bs.
+            Somos tu tienda de referencia en el centro de Barquisimeto para{' '}
+            <strong className="text-white">tecnología, inventos destacados y electro para cocina de mesa compacta</strong>{' '}
+            (tipo cocina caracol, hornillas, lo práctico; no vendemos celulares ni línea blanca grande). También{' '}
+            gaming retro y accesorios. Precios USD/Bs.,{' '}
+            <strong className="text-white">garantía oficial</strong>.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
@@ -362,7 +365,7 @@ export default function TiendaBarquisimetoPage() {
             Lo que encontrarás en nuestra tienda
           </h2>
           <p className="text-sm text-slate-500 mb-5">
-            Explora nuestro catálogo completo de productos tecnológicos disponibles en Barquisimeto.
+            Inventos trending, tecnología práctica y electrodomésticos de cocina compacta —sin celulares ni línea blanca grande— con envíos y retiro en tienda.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {CATEGORIES.map(({ label, href }) => (
