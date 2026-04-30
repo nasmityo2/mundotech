@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export type AuthTab = 'login' | 'register';
+
 export const authLoginSchema = z.object({
   email:    z.string().min(1, 'El correo es obligatorio.').email('Correo inválido.'),
   password: z.string().min(1, 'La contraseña es obligatoria.').min(8, 'Mínimo 8 caracteres.'),

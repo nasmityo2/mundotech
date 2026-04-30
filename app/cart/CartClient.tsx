@@ -8,7 +8,6 @@ import { Plus, Minus, Trash2, ArrowRight, ShoppingBag, ShieldCheck, Truck, Tag }
 import { formatCurrency } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useAuthModal } from '@/context/AuthModalContext';
 
 const CartImageWithFallback = ({ src, alt }: { src: string; alt: string }) => {
   const [imgSrc, setImgSrc] = useState(src || '/placeholder-product.png');
@@ -28,19 +27,14 @@ const CartClient = () => {
   const { cart: cartItems, updateQuantity, removeFromCart, getCartTotal } = useCart();
   const router           = useRouter();
   const { status }       = useSession();
-  const { openAuthModal } = useAuthModal();
   const [coupon, setCoupon] = useState('');
 
   const handleCheckout = () => {
     if (status !== 'authenticated') {
-      openAuthModal({
-        tab:              'login',
-        callbackUrl:      '/checkout',
-        onAuthenticated: () => router.push('/checkout'),
-      });
-    } else {
-      router.push('/checkout');
+      router.push(`/login?callbackUrl=${encodeURIComponent('/checkout')}`);
+      return;
     }
+    router.push('/checkout');
   };
 
   const subtotal       = getCartTotal();

@@ -1,25 +1,16 @@
-import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
+import LoginClient from './LoginClient';
 
-type Props = {
-  searchParams: Promise<{
-    callbackUrl?: string;
-    registration?: string;
-    error?: string;
-  }>;
-};
+function LoginFallback() {
+  return (
+    <div className="min-h-[calc(100dvh-60px)] sm:min-h-[calc(100dvh-104px)] bg-[#0B0F14]" />
+  );
+}
 
-/**
- * La autenticación vive en el modal integrado (`/?auth=login`).
- * Esta ruta conserva enlaces legacy y NextAuth `pages.signIn`.
- */
-export default async function LoginPage({ searchParams }: Props) {
-  const sp            = await searchParams;
-  const callbackUrl = typeof sp.callbackUrl === 'string' ? sp.callbackUrl : '/';
-
-  const q = new URLSearchParams();
-  q.set('auth', 'login');
-  q.set('callbackUrl', callbackUrl);
-  if (sp.registration === 'success') q.set('registered', '1');
-
-  redirect(`/?${q.toString()}`);
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginClient />
+    </Suspense>
+  );
 }

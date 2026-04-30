@@ -12,13 +12,11 @@ import { useSession, signOut } from 'next-auth/react';
 import { useCart }     from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuthModal } from '@/context/AuthModalContext';
 import SearchBar          from './SearchBar';
 import SearchMobileOverlay from './SearchMobileOverlay';
 import CategoryDrawer     from './layout/CategoryDrawer';
 
 const Navbar = ({ onCartClick }: { onCartClick: () => void }) => {
-  const { openAuthModal } = useAuthModal();
   const { data: session }                  = useSession();
   const { cart, isCartLoading, itemAdded } = useCart();
   const { wishlist }                       = useWishlist();
@@ -218,15 +216,14 @@ const Navbar = ({ onCartClick }: { onCartClick: () => void }) => {
                     </AnimatePresence>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => openAuthModal({ tab: 'login' })}
+                  <Link
+                    href="/login"
                     className="flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] sm:px-3 text-navy
                                hover:bg-slate-100 active:bg-slate-200 rounded-xl text-sm font-semibold transition-colors"
                   >
                     <UserCircle size={20} />
                     <span className="hidden sm:inline">Entrar</span>
-                  </button>
+                  </Link>
                 )}
 
                 {/* Carrito — siempre accesible con pulgar */}

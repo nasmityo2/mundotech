@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-/** El registro se gestiona en el modal (`/?auth=register`). */
-export default async function RegisterPage() {
-  redirect('/?auth=register');
+/** El alta se gestiona en `/login` (pestaña Crear cuenta). */
+export default function RegisterPage() {
+  redirect('/login?tab=register');
 }

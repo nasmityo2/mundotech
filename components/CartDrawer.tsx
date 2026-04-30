@@ -9,7 +9,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect } from 'react';
-import { useAuthModal } from '@/context/AuthModalContext';
 
 const CartDrawer = () => {
   const {
@@ -18,7 +17,6 @@ const CartDrawer = () => {
   } = useCart();
   const router           = useRouter();
   const { status }       = useSession();
-  const { openAuthModal } = useAuthModal();
 
   // Block body scroll while drawer is open (iOS-safe)
   useEffect(() => {
@@ -38,18 +36,12 @@ const CartDrawer = () => {
 
   const handleCheckout = () => {
     if (status !== 'authenticated') {
-      openAuthModal({
-        tab:              'login',
-        callbackUrl:      '/checkout',
-        onAuthenticated: () => {
-          closeCart();
-          router.push('/checkout');
-        },
-      });
-    } else {
       closeCart();
-      router.push('/checkout');
+      router.push(`/login?callbackUrl=${encodeURIComponent('/checkout')}`);
+      return;
     }
+    closeCart();
+    router.push('/checkout');
   };
 
   return (

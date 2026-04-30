@@ -6,7 +6,6 @@ import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useAuthModal } from '@/context/AuthModalContext';
 
 interface Product {
   id: string;
@@ -27,7 +26,6 @@ export default function ProductActions({ product }: { product: Product }) {
   const router = useRouter();
   const { status } = useSession();
   const [qty, setQty] = useState(1);
-  const { openAuthModal } = useAuthModal();
   const [justAdded, setJustAdded] = useState(false);
 
   const isOut = product.stock === 0;
@@ -44,14 +42,8 @@ export default function ProductActions({ product }: { product: Product }) {
   const handleBuyNow = () => {
     if (isOut) return;
     if (status !== 'authenticated') {
-      openAuthModal({
-        tab:              'login',
-        callbackUrl:      '/checkout',
-        onAuthenticated: () => {
-          silentAddToCart(product as never, qty);
-          router.push('/checkout');
-        },
-      });
+      silentAddToCart(product as never, qty);
+      router.push(`/login?callbackUrl=${encodeURIComponent('/checkout')}`);
       return;
     }
     silentAddToCart(product as never, qty);
