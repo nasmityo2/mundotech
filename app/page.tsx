@@ -175,11 +175,13 @@ const HomePage = async () => {
 
   return (
     <div className="w-full max-w-full overflow-x-hidden">
-      {/* Hero — mantiene los paddings del main */}
-      <div className="-mt-1 sm:-mt-2">
-        <HomeHeroCyber
-          slides={heroBanners.length > 0 ? heroBanners : undefined}
-        />
+      {/* Hero — ancho completo solo en móvil (< sm); desde sm conserva el padding del container */}
+      <div className="-mx-4 w-[calc(100%+2rem)] sm:mx-0 sm:w-full">
+        <div className="-mt-1 sm:-mt-2">
+          <HomeHeroCyber
+            slides={heroBanners.length > 0 ? heroBanners : undefined}
+          />
+        </div>
       </div>
 
       <div className="w-full max-w-full overflow-x-hidden mt-5 sm:mt-8">

@@ -63,47 +63,46 @@ function FlashCard({ product }: { product: FlashProduct }) {
   const pct      = product.originalPrice
     ? Math.round((1 - product.price / product.originalPrice) * 100)
     : 0;
-  const stockPct = Math.min(100, Math.max(10, (product.stock / 20) * 100));
+  const stockPct = Math.min(100, Math.max(8, (product.stock / 20) * 100));
 
   return (
     <Link
       href={href}
-      className="group flex-shrink-0 w-[140px] sm:w-[160px] overflow-hidden rounded-xl border border-slate-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-slate-300 hover:shadow-2xl"
+      className="group flex w-[min(44vw,168px)] flex-shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg sm:w-[160px]"
     >
-      <div className="relative aspect-square overflow-hidden bg-white">
+      <div className="relative aspect-square w-full overflow-hidden bg-slate-50">
         {pct > 0 && <DiscountBadge pct={pct} />}
         <Image
           src={img}
           alt={product.name}
           fill
-          sizes="160px"
+          sizes="(max-width:640px) 44vw, 160px"
           quality={90}
-          className="object-contain p-4 transition-transform duration-300 drop-shadow-[0_6px_20px_rgba(11,18,32,0.1)] group-hover:scale-105"
+          className="object-contain p-2.5 transition-transform duration-300 drop-shadow-[0_6px_20px_rgba(11,18,32,0.1)] group-hover:scale-105 sm:p-4"
         />
       </div>
-      <div className="p-2.5">
-        <p className="text-[12px] text-slate-500 truncate">{product.brand || product.category}</p>
-        <p className="text-[13px] font-semibold text-[#0f172a] leading-tight mt-0.5 line-clamp-2">
+      <div className="flex flex-1 flex-col p-2 sm:p-2.5">
+        <p className="truncate text-[11px] text-slate-500 sm:text-[12px]">{product.brand || product.category}</p>
+        <p className="mt-0.5 line-clamp-2 text-[12px] font-semibold leading-snug text-[#0f172a] sm:text-[13px]">
           {product.name}
         </p>
-        <p className="text-[15px] font-bold text-[#FFD700] mt-1.5 nums">
+        <p className="mt-1.5 text-[14px] font-bold text-[#FFD700] nums sm:text-[15px]">
           ${product.price.toLocaleString()}
         </p>
         {product.originalPrice && (
-          <p className="text-[11px] text-slate-400 line-through nums">
+          <p className="text-[10px] text-slate-400 line-through nums sm:text-[11px]">
             ${product.originalPrice.toLocaleString()}
           </p>
         )}
-        {/* Stock bar */}
-        <div className="mt-2">
-          <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+        <div className="mt-auto pt-2">
+          <div className="h-1 overflow-hidden rounded-full bg-slate-200">
             <div
-              className="h-full bg-slate-600 rounded-full transition-all"
-              style={{ width: `${100 - stockPct}%` }}
+              className="h-full rounded-full bg-gradient-to-r from-amber-600 to-amber-500 transition-all"
+              style={{ width: `${stockPct}%` }}
             />
           </div>
-          <p className="text-[10px] text-slate-600 font-semibold mt-0.5">
-            {product.stock < 5 ? `¡Solo ${product.stock} quedan!` : 'Disponible'}
+          <p className="mt-1 text-[9px] font-medium text-slate-500 sm:text-[10px]">
+            {product.stock < 5 ? `¡Solo ${product.stock} en stock!` : 'En inventario'}
           </p>
         </div>
       </div>
@@ -116,51 +115,65 @@ const FlashDeals = ({ products, title = 'Ofertas MundoTech', endHour = 23 }: Pro
   if (products.length === 0) return null;
 
   return (
-    <section className="bg-[#0B0B0B] rounded-2xl overflow-hidden border border-white/5 w-full max-w-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-white/10 gap-2">
-        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
-          <div className="flex items-center gap-1 rounded-full border border-[#E6C200]/50 bg-brand-yellow px-2 sm:px-3 py-1.5 text-[11px] sm:text-[13px] font-bold text-navy flex-shrink-0">
-            <Zap size={12} fill="currentColor" />
-            <span className="hidden xs:inline">{title}</span>
-            <span className="xs:hidden">Ofertas</span>
+    <section className="w-full max-w-full overflow-hidden rounded-xl border border-white/10 bg-[#0B0B0B] sm:rounded-2xl">
+      {/* Header — en móvil: fila título + enlace; cuenta atrás debajo en ancho completo */}
+      <div className="flex flex-col gap-3 border-b border-white/10 px-3 py-3 sm:flex-row sm:items-center sm:gap-4 sm:px-6 sm:py-4">
+        <div className="flex items-center justify-between gap-2 sm:justify-start sm:gap-3">
+          <div className="flex min-w-0 items-center gap-1 rounded-full border border-[#E6C200]/50 bg-brand-yellow px-2.5 py-1.5 text-[11px] font-bold text-navy sm:px-3 sm:text-[13px]">
+            <Zap size={12} className="flex-shrink-0" fill="currentColor" aria-hidden />
+            <span className="hidden truncate xs:inline">{title}</span>
+            <span className="truncate xs:hidden">Ofertas</span>
           </div>
-          {/* Countdown */}
-          <div className="flex items-center gap-0.5 sm:gap-1 overflow-hidden">
-            <span className="hidden sm:inline text-[11px] text-white/60 mr-1 flex-shrink-0">Termina en</span>
-            {[h, m, s].map((val, i) => (
-              <span key={i} className="flex items-center gap-0.5 sm:gap-1">
-                <span className="bg-white/10 text-white text-[11px] sm:text-[13px] font-bold tabular-nums w-6 sm:w-9 text-center py-1 rounded-md">
-                  {val}
-                </span>
-                {i < 2 && <span className="text-white/50 font-bold text-xs sm:text-sm">:</span>}
-              </span>
-            ))}
-          </div>
+          <Link
+            href="/productos"
+            className="flex min-h-[44px] flex-shrink-0 items-center gap-0.5 text-[11px] font-semibold text-brand-yellow sm:hidden"
+          >
+            Ver todas
+            <ChevronRight size={14} aria-hidden />
+          </Link>
         </div>
-        <Link
-          href="/productos"
-          className="flex items-center gap-1 text-[11px] sm:text-[12px] font-semibold text-brand-yellow flex-shrink-0 min-h-[44px] px-1"
-        >
-          <span className="hidden xs:inline">Ver todas</span>
-          <span className="xs:hidden">Ver</span>
-          <ChevronRight size={14} />
-        </Link>
+
+        <div className="flex items-center justify-center gap-3 sm:ml-auto sm:flex-1 sm:justify-end">
+          <div className="flex items-center justify-center gap-1 sm:justify-start">
+            <span className="mr-1 hidden flex-shrink-0 text-[11px] text-white/60 sm:inline">
+              Termina en
+            </span>
+            <div className="flex items-center gap-0.5 sm:gap-1">
+              {[h, m, s].map((val, i) => (
+                <span key={i} className="flex items-center gap-0.5 sm:gap-1">
+                  <span className="w-7 rounded-md bg-white/15 py-1.5 text-center text-[11px] font-bold tabular-nums text-white sm:w-9 sm:bg-white/10 sm:py-1 sm:text-[13px]">
+                    {val}
+                  </span>
+                  {i < 2 && (
+                    <span className="text-xs font-bold text-white/50 sm:text-sm">:</span>
+                  )}
+                </span>
+              ))}
+            </div>
+          </div>
+          <Link
+            href="/productos"
+            className="hidden min-h-[44px] items-center gap-1 text-[12px] font-semibold text-brand-yellow sm:inline-flex"
+          >
+            Ver todas
+            <ChevronRight size={14} aria-hidden />
+          </Link>
+        </div>
       </div>
 
       {/* Cards scroll */}
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide snap-x-mandatory px-3 sm:px-6 py-4 sm:py-5">
+      <div className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain px-3 py-4 scrollbar-hide sm:gap-3 sm:px-6 sm:py-5">
         {products.map((p) => (
-          <div key={p.id} className="snap-start flex-shrink-0">
+          <div key={p.id} className="flex-shrink-0 snap-start">
             <FlashCard product={p} />
           </div>
         ))}
         <Link
           href="/productos"
-          className="flex-shrink-0 w-[100px] sm:w-[120px] flex flex-col items-center justify-center gap-2 rounded-xl border border-white/10 text-white/70 text-[12px] font-semibold hover:bg-white/5 active:bg-white/10 transition-colors min-h-[140px] snap-start"
+          className="flex w-[min(32vw,100px)] flex-shrink-0 snap-start flex-col items-center justify-center gap-2 self-stretch rounded-xl border border-white/15 bg-white/5 text-center text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/10 active:bg-white/15 sm:w-[120px] sm:text-[12px]"
         >
-          <ArrowRight size={20} />
-          Ver más
+          <ArrowRight size={20} className="text-brand-yellow" aria-hidden />
+          Ver más ofertas
         </Link>
       </div>
     </section>

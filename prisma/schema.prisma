@@ -37,15 +37,12 @@ model Product {
   @@index([sku])
 }
 
-/// Medios de galería: imágenes (p. ej. Cloudinary) o vídeo embebido Bunny Stream (URL del iframe).
 model ProductMedia {
   id         String           @id @default(cuid())
   productId  String
   product    Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   type       ProductMediaType
-  /// IMAGE: URL de imagen. VIDEO: URL base del iframe Bunny (`iframe.mediadelivery.net/embed/...`).
   url        String
-  /// Miniatura / LCP fallback para VIDEO (p. ej. Cloudinary).
   posterUrl  String?
   sortOrder  Int              @default(0)
 
@@ -87,9 +84,9 @@ model Banner {
   imageUrl  String
   title     String?
   subtitle  String?
-  label     String?   // badge/eyebrow text (hero slides, ad boxes)
-  ctaText   String?   // CTA button label
-  tagText   String?   // small floating tag
+  label     String?
+  ctaText   String?
+  tagText   String?   
   link      String?  @default("/productos")
   active    Boolean  @default(true)
   order     Int      @default(0)
@@ -115,7 +112,7 @@ model User {
 }
 
 // ─────────────────────────────────────────────────────────────
-// PEDIDOS — fuente única de verdad (migrado desde db.json)
+// PEDIDOS
 // ─────────────────────────────────────────────────────────────
 model Order {
   id              String      @id @default(cuid())
@@ -142,7 +139,6 @@ model Order {
   shippingCountry String      @default("Venezuela")
 
   customerIdNumber    String?
-
   paymentBank         String?
   paymentHolderIdNumber String?
   paymentHolderPhone  String?
@@ -150,7 +146,6 @@ model Order {
   paymentProofUrl     String?
 
   notes           String?
-
   @@index([customerId])
   @@index([status])
   @@index([createdAt])
@@ -166,14 +161,10 @@ model OrderItem {
   quantity    Int
   price       Float
   imageUrl    String?
-
   @@index([orderId])
   @@index([productId])
 }
 
-// ─────────────────────────────────────────────────────────────
-// CONFIGURACIÓN GLOBAL (tasa FX, ajustes tienda)
-// ─────────────────────────────────────────────────────────────
 model AppConfig {
   id        String   @id @default(cuid())
   key       String   @unique
@@ -183,9 +174,6 @@ model AppConfig {
   @@index([key])
 }
 
-// ─────────────────────────────────────────────────────────────
-// ANALYTICS — vistas de producto (server-side)
-// ─────────────────────────────────────────────────────────────
 model ProductView {
   id        String   @id @default(cuid())
   productId String

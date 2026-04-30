@@ -88,7 +88,7 @@ export default function HomeHeroCyber({ slides: dbSlides }: { slides?: HeroBanne
       : slide.title.replace(/\n/g, ' ') || slide.badge || 'Banner MundoTech';
 
   return (
-    <section className="relative w-full max-w-full overflow-hidden rounded-2xl bg-[#0B0B0B] antialiased shadow-[0_18px_45px_-16px_rgba(0,0,0,0.28)] ring-1 ring-black/10">
+    <section className="relative w-full max-w-full overflow-hidden rounded-none bg-[#0B0B0B] antialiased shadow-[0_18px_45px_-16px_rgba(0,0,0,0.28)] ring-0 sm:rounded-2xl sm:ring-1 sm:ring-black/10">
       <div className="relative w-full h-[260px] xs:h-[280px] sm:h-[320px] md:h-[380px] lg:h-[420px] xl:h-[460px]">
         <Image
           key={`hero-${slide.img}-${active}`}

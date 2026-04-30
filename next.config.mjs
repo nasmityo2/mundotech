@@ -1,31 +1,5 @@
 /** @type {import('next').NextConfig} */
-
-/**
- * Cloudinary loader — inyecta f_auto, q_auto y ancho en cada URL.
- * Optimizado para conexiones lentas (Venezuela): calidad 'auto:eco' en móvil,
- * formato automático WebP/AVIF, ancho limitado al slot real.
- */
-function cloudinaryLoader({ src, width, quality }) {
-  // Si la URL ya contiene transformaciones, la devolvemos tal cual
-  if (src.includes('/image/upload/') && src.includes(',')) return src;
-
-  // Extraer base y public_id de la URL de Cloudinary
-  const cloudinaryBase = 'https://res.cloudinary.com';
-  if (!src.startsWith(cloudinaryBase)) return src;
-
-  const uploadIndex = src.indexOf('/image/upload/');
-  if (uploadIndex === -1) return src;
-
-  const base   = src.slice(0, uploadIndex + '/image/upload/'.length);
-  const rest   = src.slice(uploadIndex + '/image/upload/'.length);
-  // Elimina transformaciones previas si las hubiera (segmento antes de versión/id)
-  const cleanRest = rest.replace(/^[a-z_,/]+\//, '');
-
-  const q = quality ?? 'auto:good';
-  const transforms = `f_auto,q_${q},w_${width},c_limit,dpr_auto`;
-
-  return `${base}${transforms}/${cleanRest}`;
-}
+/** Image loader: see lib/cloudinaryLoader.js (f_auto, q_*, w_*, c_limit, dpr_auto). */
 
 const nextConfig = {
   serverExternalPackages: ['@prisma/client', '.prisma/client'],
