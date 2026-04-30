@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
+import { useSession } from 'next-auth/react';
 import { Store, Building2, ChevronRight } from 'lucide-react';
 import { mrwOffices } from '@/lib/mrw-offices';
 import { Field } from '@/components/ui/Field';
@@ -9,6 +11,7 @@ import { Input } from '@/components/ui/Input';
 export type ShippingFormData = {
   firstName:   string;
   lastName:    string;
+  email:       string;
   idNumber:    string;
   phoneNumber: string;
   shippingMethod: 'tienda' | 'mrw';
@@ -21,11 +24,17 @@ interface ShippingFormProps {
 }
 
 const ShippingForm = ({ onFormSubmit }: ShippingFormProps) => {
+  const { data: session } = useSession();
   const {
     register, handleSubmit, formState: { errors }, watch, setValue,
   } = useForm<ShippingFormData>({
-    defaultValues: { shippingMethod: 'tienda' },
+    defaultValues: { shippingMethod: 'tienda', email: '' },
   });
+
+  useEffect(() => {
+    const e = session?.user?.email?.trim();
+    if (e) setValue('email', e);
+  }, [session?.user?.email, setValue]);
 
   const shippingMethod = watch('shippingMethod');
   const selectedState  = watch('mrwState');
@@ -101,6 +110,27 @@ const ShippingForm = ({ onFormSubmit }: ShippingFormProps) => {
             placeholder="+58 412-0000000"
             {...register('phoneNumber', { required: 'Requerido' })}
             invalid={!!errors.phoneNumber}
+          />
+        </Field>
+        <Field
+          id="email"
+          label="Correo electrónico"
+          error={errors.email?.message}
+          className="sm:col-span-2"
+        >
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            placeholder="tu@correo.com"
+            {...register('email', {
+              required: 'Requerido para enviarte la confirmación del pedido',
+              pattern: {
+                value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                message: 'Correo no válido',
+              },
+            })}
+            invalid={!!errors.email}
           />
         </Field>
       </div>

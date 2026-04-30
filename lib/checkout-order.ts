@@ -109,11 +109,20 @@ export async function executeCheckoutInTransaction(
 
   const isRegisteredUser = customerId && customerId !== 'guest';
 
+  let resolvedCustomerEmail = customerEmail?.trim() || null;
+  if (isRegisteredUser && !resolvedCustomerEmail) {
+    const dbUser = await tx.user.findUnique({
+      where: { id: customerId },
+      select: { email: true },
+    });
+    resolvedCustomerEmail = dbUser?.email?.trim() || null;
+  }
+
   const newOrder = await tx.order.create({
     data: {
       ...(isRegisteredUser ? { customer: { connect: { id: customerId } } } : {}),
       customerName,
-      customerEmail: customerEmail ?? null,
+      customerEmail: resolvedCustomerEmail,
       customerPhone: customerPhone ?? null,
       customerIdNumber: customerIdNumber ?? null,
       total: serverTotal,

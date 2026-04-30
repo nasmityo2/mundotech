@@ -37,6 +37,7 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
     const orderPayload = {
       customerId: session?.user?.id || 'guest',
       customerName: `${shippingData.firstName} ${shippingData.lastName}`,
+      customerEmail: shippingData.email?.trim() || session?.user?.email?.trim() || null,
       customerPhone: shippingData.phoneNumber,
       customerIdNumber: shippingData.idNumber,
       shippingDetails: {

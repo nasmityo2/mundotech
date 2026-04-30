@@ -80,23 +80,37 @@ export async function PUT(
       }),
       shippedAt: status === 'Enviado' && !existing.shippedAt ? new Date() : undefined,
     },
-    include: { items: true },
+    include: {
+      items: true,
+      customer: { select: { email: true, name: true } },
+    },
   });
 
   const newTracking = (updated.trackingNumber ?? '').trim();
   const prevTracking = (existing.trackingNumber ?? '').trim();
-  const customerEmail = updated.customerEmail?.trim();
+  const recipientEmail =
+    updated.customerEmail?.trim() || updated.customer?.email?.trim() || '';
+  const displayNameForEmail =
+    updated.customerName?.trim() || updated.customer?.name?.trim() || '';
   const transitionedToShipped = existing.status !== 'Enviado' && status === 'Enviado';
   const shouldSendShippingEmail =
     status === 'Enviado' &&
     newTracking &&
-    customerEmail &&
+    recipientEmail &&
     (transitionedToShipped || newTracking !== prevTracking);
+
+  if (status === 'Enviado' && newTracking && !recipientEmail) {
+    console.warn(
+      '[shipping-email] Pedido',
+      orderId,
+      'Enviado con guía pero sin email (pedido ni cuenta vinculada); no se envía correo.'
+    );
+  }
 
   if (shouldSendShippingEmail) {
     await sendShippingEmail(
-      customerEmail,
-      firstNameFromCustomerName(updated.customerName),
+      recipientEmail,
+      firstNameFromCustomerName(displayNameForEmail),
       newTracking
     );
   }

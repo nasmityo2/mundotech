@@ -18,6 +18,232 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** Monto en bolívares para tablas de correo (coherente con la tienda). */
+function formatVES(amount: number): string {
+  return new Intl.NumberFormat('es-VE', {
+    style: 'currency',
+    currency: 'VES',
+    minimumFractionDigits: 2,
+  }).format(amount);
+}
+
+function siteBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://mundotech.com.ve';
+}
+
+/** Datos del pedido para el HTML de confirmación (sin datos sensibles extra). */
+export type OrderConfirmationEmailDetail = {
+  orderNumber: number;
+  orderId: string;
+  createdAt: Date;
+  status: string;
+  total: number;
+  paymentMethod: string;
+  paymentBank?: string | null;
+  paymentReference?: string | null;
+  shippingAddress: string;
+  shippingCity: string;
+  shippingState: string;
+  shippingZipCode: string;
+  shippingCountry: string;
+  customerPhone?: string | null;
+  items: { productName: string; quantity: number; price: number }[];
+};
+
+function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirmationEmailDetail): string {
+  const safeName = escapeHtml(firstName);
+  const orderNo = String(detail.orderNumber).padStart(4, '0');
+  const safeOrderNo = escapeHtml(orderNo);
+  const when = detail.createdAt.toLocaleString('es-VE', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+  const safeWhen = escapeHtml(when);
+  const safeStatus = escapeHtml(detail.status);
+  const safePay = escapeHtml(detail.paymentMethod);
+  const safeBank = detail.paymentBank?.trim() ? escapeHtml(detail.paymentBank.trim()) : '';
+  const safeRef = detail.paymentReference?.trim() ? escapeHtml(detail.paymentReference.trim()) : '';
+  const safeAddr = escapeHtml(detail.shippingAddress);
+  const safeCity = escapeHtml(detail.shippingCity);
+  const safeState = escapeHtml(detail.shippingState);
+  const safeZip = escapeHtml(detail.shippingZipCode);
+  const safeCountry = escapeHtml(detail.shippingCountry);
+  const safePhone = detail.customerPhone?.trim() ? escapeHtml(detail.customerPhone.trim()) : '';
+
+  const rowsHtml = detail.items
+    .map((item) => {
+      const line = item.price * item.quantity;
+      return `
+                <tr>
+                  <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #e2e8f0; font-size: 14px;">
+                    ${escapeHtml(item.productName)}
+                  </td>
+                  <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #94a3b8; font-size: 13px; text-align: center;">
+                    ${item.quantity}
+                  </td>
+                  <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #94a3b8; font-size: 13px; text-align: right; white-space: nowrap;">
+                    ${escapeHtml(formatVES(item.price))}
+                  </td>
+                  <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #f8fafc; font-size: 13px; text-align: right; white-space: nowrap; font-weight: 600;">
+                    ${escapeHtml(formatVES(line))}
+                  </td>
+                </tr>`;
+    })
+    .join('');
+
+  const orderUrl = `${siteBaseUrl()}/account/orders/${encodeURIComponent(detail.orderId)}`;
+
+  const payExtras =
+    (safeBank
+      ? `<p style="margin: 6px 0 0; font-size: 13px; color: #94a3b8;">Banco: <strong style="color: #e2e8f0;">${safeBank}</strong></p>`
+      : '') +
+    (safeRef
+      ? `<p style="margin: 6px 0 0; font-size: 13px; color: #94a3b8;">Referencia: <strong style="color: #e2e8f0;">${safeRef}</strong></p>`
+      : '');
+
+  return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pedido #${safeOrderNo}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#0f1117; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#0f1117; padding: 40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 560px; background: linear-gradient(145deg, #161b22 0%, #1a1f2e 100%); border-radius: 16px; border: 1px solid #2a2f3a; overflow: hidden; box-shadow: 0 24px 48px rgba(0,0,0,0.45);">
+          <tr>
+            <td style="padding: 36px 36px 28px; text-align: center; background: linear-gradient(180deg, rgba(56,189,248,0.08) 0%, transparent 100%);">
+              <p style="margin: 0 0 6px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: #f8fafc;">Mundo Tech</p>
+              <p style="margin: 0; font-size: 13px; color: #94a3b8; letter-spacing: 0.04em;">Conectados Contigo</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 0 36px 8px;">
+              <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #e2e8f0;">¡Hola <strong style="color: #f8fafc;">${safeName}</strong>!</p>
+              <p style="margin: 18px 0 0; font-size: 15px; line-height: 1.75; color: #cbd5e1;">
+                Gracias por tu compra. Aquí tienes el resumen del <strong style="color: #f8fafc;">pedido #${safeOrderNo}</strong>.
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top: 18px; border-radius: 10px; background: rgba(15,23,42,0.5); border: 1px solid #2a2f3a;">
+                <tr>
+                  <td style="padding: 14px 18px;">
+                    <p style="margin: 0; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: #64748b;">Fecha</p>
+                    <p style="margin: 4px 0 0; font-size: 14px; color: #e2e8f0;">${safeWhen}</p>
+                    <p style="margin: 12px 0 0; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: #64748b;">Estado</p>
+                    <p style="margin: 4px 0 0; font-size: 14px; color: #38bdf8; font-weight: 600;">${safeStatus}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 12px 36px 8px;">
+              <p style="margin: 0 0 10px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #6b7280;">Productos</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border: 1px solid #2a2f3a; border-radius: 10px; overflow: hidden;">
+                <thead>
+                  <tr style="background: rgba(56,189,248,0.08);">
+                    <th align="left" style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">Artículo</th>
+                    <th style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">Cant.</th>
+                    <th align="right" style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">P. unit.</th>
+                    <th align="right" style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                  <tr>
+                    <td colspan="3" style="padding: 14px 10px; text-align: right; font-size: 14px; font-weight: 700; color: #cbd5e1;">Total</td>
+                    <td style="padding: 14px 10px; text-align: right; font-size: 15px; font-weight: 700; color: #38bdf8; white-space: nowrap;">
+                      ${escapeHtml(formatVES(detail.total))}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 36px 8px;">
+              <p style="margin: 0 0 10px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #6b7280;">Envío</p>
+              <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #cbd5e1;">${safeAddr}</p>
+              <p style="margin: 6px 0 0; font-size: 13px; color: #94a3b8;">${safeCity}, ${safeState} · C.P. ${safeZip} · ${safeCountry}</p>
+              ${safePhone ? `<p style="margin: 8px 0 0; font-size: 13px; color: #94a3b8;">Tel: <span style="color: #e2e8f0;">${safePhone}</span></p>` : ''}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 36px 20px;">
+              <p style="margin: 0 0 10px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #6b7280;">Pago</p>
+              <p style="margin: 0; font-size: 14px; color: #e2e8f0;"><strong>${safePay}</strong></p>
+              ${payExtras}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 36px 28px; text-align: center;">
+              <a href="${escapeHtml(orderUrl)}" style="display: inline-block; padding: 14px 32px; font-size: 14px; font-weight: 600; color: #0f1117; background: linear-gradient(180deg, #38bdf8 0%, #0ea5e9 100%); border-radius: 12px; text-decoration: none; box-shadow: 0 8px 24px rgba(14,165,233,0.35);">Ver mi pedido</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 28px 36px 36px; text-align: center; border-top: 1px solid #2a2f3a;">
+              <p style="margin: 0 0 10px; font-size: 13px; line-height: 1.65; color: #94a3b8;">
+                Tecnología premium en <strong style="color: #f8fafc;">Barquisimeto</strong> y <strong style="color: #f8fafc;">Yaritagua</strong>.
+              </p>
+              <p style="margin: 0 0 8px; font-size: 12px; color: #64748b; letter-spacing: 0.06em;">Conectados Contigo</p>
+              <p style="margin: 0;">
+                <a href="mailto:ventas@jummper.pro" style="color: #38bdf8; text-decoration: none; font-size: 13px;">ventas@jummper.pro</a>
+              </p>
+              <p style="margin: 16px 0 0; font-size: 11px; color: #475569;">Mundo Tech · Venezuela</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+/**
+ * Confirmación de pedido tras checkout exitoso. Errores se registran; no relanza.
+ */
+export async function sendOrderConfirmationEmail(
+  email: string,
+  firstName: string,
+  detail: OrderConfirmationEmailDetail
+): Promise<void> {
+  const resend = getResend();
+  if (!resend) {
+    console.warn(
+      '[order-confirmation-email] RESEND_API_KEY no está configurada; se omite el envío para:',
+      email
+    );
+    return;
+  }
+
+  const trimmedEmail = email.trim();
+  if (!trimmedEmail) {
+    console.warn('[order-confirmation-email] Email vacío; se omite el envío.');
+    return;
+  }
+
+  const trimmedName = firstName.trim() || 'Cliente';
+  const subjNo = String(detail.orderNumber).padStart(4, '0');
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: trimmedEmail,
+      subject: `✅ Mundo Tech · Pedido #${subjNo} recibido`,
+      html: buildOrderConfirmationEmailHtml(trimmedName, detail),
+    });
+
+    if (error) {
+      console.error('[order-confirmation-email] Error de Resend al enviar a', trimmedEmail, error);
+    }
+  } catch (err) {
+    console.error('[order-confirmation-email] Excepción al enviar a', trimmedEmail, err);
+  }
+}
+
 function buildWelcomeEmailHtml(firstName: string): string {
   const safeName = escapeHtml(firstName);
 
