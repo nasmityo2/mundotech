@@ -30,7 +30,7 @@ export default function AuthLayout({
   children,
 }: AuthLayoutProps) {
   return (
-    <div className="-mx-4 sm:-mx-6 lg:-mx-8 -my-5 sm:-my-8 lg:-my-10 min-h-[calc(100dvh-60px)] sm:min-h-[calc(100dvh-72px)] grid grid-cols-1 lg:grid-cols-12 w-auto max-w-full overflow-x-hidden">
+    <div className="-mx-4 sm:-mx-6 lg:-mx-8 -my-5 sm:-my-8 lg:-my-10 min-h-[calc(100dvh-60px)] sm:min-h-[calc(100dvh-72px)] flex flex-col lg:grid lg:grid-cols-12 w-auto max-w-full overflow-x-hidden">
 
       {/* ── Panel branding (desktop) ── */}
       <aside className="hidden lg:flex lg:col-span-5 relative overflow-hidden bg-navy text-white p-12 flex-col justify-between">
@@ -87,9 +87,9 @@ export default function AuthLayout({
         </p>
       </aside>
 
-      {/* ── Panel formulario ── */}
-      <main className="col-span-1 lg:col-span-7 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-14 bg-surface-sunken lg:bg-white">
-        <div className="w-full max-w-md">
+      {/* ── Panel formulario (flex-1 en móvil centra el bloque en el viewport) ── */}
+      <main className="flex-1 lg:flex-none col-span-1 lg:col-span-7 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-8 sm:py-12 lg:py-14 bg-surface-sunken lg:bg-white">
+        <div className="w-full max-w-md mx-auto">
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 min-h-[44px] text-xs font-medium text-slate-500 hover:text-navy transition-colors mb-3"

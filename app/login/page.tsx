@@ -122,7 +122,7 @@ function LoginPageContent() {
               setEmail(e.target.value);
               if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: undefined }));
             }}
-            placeholder="tu@email.com"
+            placeholder="Correo electrónico"
             invalid={!!fieldErrors.email}
             className="pl-11"
           />

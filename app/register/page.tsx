@@ -123,7 +123,7 @@ export default function RegisterPage() {
             autoComplete="email"
             value={email}
             onChange={(e) => { setEmail(e.target.value); clearFieldError('email'); }}
-            placeholder="tu@email.com"
+            placeholder="Correo electrónico"
             invalid={!!fieldErrors.email}
             className="pl-11"
           />

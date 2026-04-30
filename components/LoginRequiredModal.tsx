@@ -181,7 +181,7 @@ export default function LoginRequiredModal({ onClose, onSuccess }: Props) {
                     id="l-email" type="email" autoComplete="email"
                     value={lEmail}
                     onChange={(e) => { setLEmail(e.target.value); setLErrors((p) => ({ ...p, email: '' })); }}
-                    placeholder="tu@email.com" invalid={!!lErrors.email}
+                    placeholder="Correo electrónico" invalid={!!lErrors.email}
                     className="pl-11"
                   />
                 </Field>
@@ -243,7 +243,7 @@ export default function LoginRequiredModal({ onClose, onSuccess }: Props) {
                     id="r-email" type="email" autoComplete="email"
                     value={rEmail}
                     onChange={(e) => { setREmail(e.target.value); setRErrors((p) => ({ ...p, email: '' })); }}
-                    placeholder="tu@email.com" invalid={!!rErrors.email}
+                    placeholder="Correo electrónico" invalid={!!rErrors.email}
                     className="pl-11"
                   />
                 </Field>
