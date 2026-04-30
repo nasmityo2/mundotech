@@ -1,7 +1,14 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { sendWelcomeEmail } from '@/lib/resend';
 import bcrypt from 'bcrypt';
+
+function firstNameFromName(displayName: string): string {
+  const t = displayName.trim();
+  if (!t) return 'Cliente';
+  return t.split(/\s+/)[0] ?? t;
+}
 
 export async function registerUserAction({ name, email, password }: Record<string, string>) {
   try {
@@ -31,6 +38,9 @@ export async function registerUserAction({ name, email, password }: Record<strin
         role: 'client', // Asignación explícita del rol
       },
     });
+
+    // Correo de bienvenida (fallos no revierten el registro; se registran en logs)
+    await sendWelcomeEmail(email, firstNameFromName(name));
 
     return { success: true, message: '¡Usuario registrado con éxito!' };
 
