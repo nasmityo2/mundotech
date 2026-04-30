@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Settings, Store, Phone, Mail, CreditCard, Building2,
   Save, Check, DollarSign, RefreshCw, TrendingUp, Share2,
@@ -59,6 +60,8 @@ function Field({ label, value, onChange, type = 'text', placeholder }: {
 }
 
 export default function AdminSettingsPage() {
+  const router = useRouter();
+
   const [settings, setSettings]   = useState<StoreSettings>(defaultSettings);
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
@@ -122,7 +125,11 @@ export default function AdminSettingsPage() {
     startRateTransition(async () => {
       const result = await updateExchangeRate(rate);
       setRateMsg({ ok: result.success, text: result.message });
-      if (result.success) setCurrentRate(rate);
+      if (result.success) {
+        setCurrentRate(rate);
+        // Refresh Next.js router cache so RSC pages pick up the new rate immediately
+        router.refresh();
+      }
       setTimeout(() => setRateMsg(null), 4000);
     });
   };
