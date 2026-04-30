@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
   Plus, Pencil, Trash2, Eye, EyeOff,
-  Upload, X, Save, Loader2, ImageIcon, ExternalLink,
+  X, Save, Loader2, ImageIcon, ExternalLink,
 } from 'lucide-react';
+import PhotoUploader from '@/components/admin/PhotoUploader';
 
 interface Banner {
   id:        string;
@@ -88,11 +89,8 @@ export default function AdminBannersPage() {
   const [editId, setEditId]           = useState<string | null>(null);
   const [form, setForm]               = useState({ ...EMPTY_FORM });
   const [saving, setSaving]           = useState(false);
-  const [uploading, setUploading]     = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const [previewUrl, setPreviewUrl]   = useState('');
   const [filterType, setFilterType]   = useState('all');
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const fetchBanners = async () => {
     setLoading(true);
@@ -109,30 +107,9 @@ export default function AdminBannersPage() {
 
   useEffect(() => { fetchBanners(); }, []);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadError('');
-    setUploading(true);
-    const fd = new FormData();
-    fd.append('file', file);
-    try {
-      const res  = await fetch('/api/upload', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Error al subir');
-      setForm(f => ({ ...f, imageUrl: data.url }));
-      setPreviewUrl(data.url);
-    } catch (err: unknown) {
-      setUploadError(err instanceof Error ? err.message : 'Error al subir imagen');
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const openCreate = () => {
     setEditId(null);
     setForm({ ...EMPTY_FORM });
-    setPreviewUrl('');
     setUploadError('');
     setShowForm(true);
   };
@@ -151,7 +128,6 @@ export default function AdminBannersPage() {
       active:   b.active,
       order:    b.order,
     });
-    setPreviewUrl(b.imageUrl);
     setUploadError('');
     setShowForm(true);
   };
@@ -348,20 +324,26 @@ export default function AdminBannersPage() {
 
       {/* ── Modal ──────────────────────────────────────────────────────────────── */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeForm} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center" onClick={(e) => { if (e.target === e.currentTarget) closeForm(); }}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative bg-white sm:rounded-2xl shadow-2xl w-full sm:w-[520px] sm:max-w-[92vw] sm:my-6 max-h-[100dvh] sm:max-h-[88vh] flex flex-col"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          >
 
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-black text-navy">
+            <div
+              className="sticky top-0 bg-white sm:rounded-t-2xl flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-gray-100"
+              style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.875rem)' }}
+            >
+              <h2 className="text-base font-black text-navy">
                 {editId ? 'Editar Banner' : 'Nuevo Banner'}
               </h2>
-              <button onClick={closeForm} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
-                <X size={18} />
+              <button onClick={closeForm} aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100 text-gray-500">
+                <X size={20} />
               </button>
             </div>
 
-            <div className="px-6 py-5 space-y-5">
+            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-5">
 
               {/* Tipo */}
               <div>
@@ -371,7 +353,7 @@ export default function AdminBannersPage() {
                 <select
                   value={form.type}
                   onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-navy focus:outline-none focus:ring-2 focus:ring-navy/20"
+                  className="w-full min-h-[48px] border border-gray-200 rounded-xl px-3 py-2.5 text-base text-navy bg-gray-50 focus:outline-none focus:ring-2 focus:ring-navy/20"
                 >
                   {BANNER_TYPES.map(t => (
                     <option key={t.value} value={t.value}>{t.label}</option>
@@ -382,53 +364,20 @@ export default function AdminBannersPage() {
                 </p>
               </div>
 
-              {/* Imagen */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">
-                  Imagen *
-                </label>
-                {previewUrl && (
-                  <div className="relative h-36 rounded-xl overflow-hidden border border-gray-200 mb-3">
-                    <Image src={previewUrl} alt="Preview" fill className="object-cover" sizes="400px" />
-                    <button
-                      onClick={() => { setPreviewUrl(''); setForm(f => ({ ...f, imageUrl: '' })); }}
-                      className="absolute top-2 right-2 w-6 h-6 bg-black/60 text-white rounded-full flex items-center justify-center hover:bg-black/80"
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                  className="w-full border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-navy/40 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >
-                  {uploading ? (
-                    <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-                      <Loader2 size={16} className="animate-spin" /> Subiendo...
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-                      <Upload size={16} /> Subir imagen desde tu dispositivo
-                    </div>
-                  )}
-                </button>
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-                <p className="text-center text-xs text-gray-400 my-2">— o pega una URL —</p>
-                <input
-                  type="url"
-                  placeholder="https://res.cloudinary.com/..."
-                  value={form.imageUrl}
-                  onChange={e => { setForm(f => ({ ...f, imageUrl: e.target.value })); setPreviewUrl(e.target.value); }}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/20"
-                />
-                {uploadError && (
-                  <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1">
-                    <X size={12} /> {uploadError}
-                  </p>
-                )}
-              </div>
+              <PhotoUploader
+                value={form.imageUrl}
+                onChange={(url) => setForm(f => ({ ...f, imageUrl: url ?? '' }))}
+                purpose="banner"
+                label="Imagen del banner *"
+                hint="Recomendado JPG/PNG/WebP. Para hero usar 1600×600 aprox."
+                optional={false}
+                previewHeight="h-44"
+              />
+              {uploadError && (
+                <p className="text-xs text-red-600 -mt-2">
+                  {uploadError}
+                </p>
+              )}
 
               {/* Campos dinámicos según tipo */}
               {(['title', 'subtitle', 'label', 'ctaText', 'tagText'] as const).map(field => {
@@ -441,11 +390,11 @@ export default function AdminBannersPage() {
                     </label>
                     {field === 'subtitle' ? (
                       <textarea
-                        rows={2}
+                        rows={3}
                         placeholder={help.placeholder}
                         value={form[field]}
                         onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/20 resize-none"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-navy/20 resize-none"
                       />
                     ) : (
                       <input
@@ -453,7 +402,7 @@ export default function AdminBannersPage() {
                         placeholder={help.placeholder}
                         value={form[field]}
                         onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/20"
+                        className="w-full min-h-[48px] border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-navy/20"
                       />
                     )}
                     {help.hint && <p className="text-[10px] text-gray-400 mt-0.5">{help.hint}</p>}
@@ -472,54 +421,63 @@ export default function AdminBannersPage() {
                     placeholder={FIELD_HELP.link.placeholder}
                     value={form.link}
                     onChange={e => setForm(f => ({ ...f, link: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/20"
+                    className="w-full min-h-[48px] border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-navy/20"
                   />
                 </div>
               )}
 
               {/* Orden + Activo */}
-              <div className="flex gap-4">
-                <div className="flex-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">
                     Orden {form.type === 'ad_box' ? '(1–4)' : ''}
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     min={0}
                     value={form.order}
                     onChange={e => setForm(f => ({ ...f, order: Number(e.target.value) }))}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-navy/20"
+                    className="w-full min-h-[48px] border border-gray-200 rounded-xl px-3 py-2.5 text-base bg-gray-50 focus:outline-none focus:ring-2 focus:ring-navy/20"
                   />
                 </div>
-                <div className="flex items-end pb-0.5">
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <div
-                      onClick={() => setForm(f => ({ ...f, active: !f.active }))}
-                      className={`w-10 h-6 rounded-full transition-colors ${form.active ? 'bg-green-500' : 'bg-gray-300'} relative`}
-                    >
-                      <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${form.active ? 'left-4' : 'left-0.5'}`} />
-                    </div>
-                    <span className="text-sm font-semibold text-gray-700">
-                      {form.active ? 'Activo' : 'Inactivo'}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Estado</label>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, active: !f.active }))}
+                    className={`w-full min-h-[48px] flex items-center justify-center gap-2 rounded-xl border text-sm font-bold transition ${
+                      form.active
+                        ? 'bg-green-50 border-green-300 text-green-700'
+                        : 'bg-gray-50 border-gray-200 text-gray-500'
+                    }`}
+                  >
+                    <span className={`relative w-9 h-5 rounded-full ${form.active ? 'bg-green-500' : 'bg-gray-300'}`}>
+                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.active ? 'left-4' : 'left-0.5'}`} />
                     </span>
-                  </label>
+                    {form.active ? 'Activo' : 'Inactivo'}
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+            <div
+              className="sticky bottom-0 bg-white border-t border-gray-100 sm:rounded-b-2xl px-4 sm:px-6 py-3 flex gap-2"
+              style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+            >
               <button
                 onClick={closeForm}
-                className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-200 rounded-xl transition-colors"
+                disabled={saving}
+                className="flex-1 min-h-[52px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving || uploading}
-                className="flex items-center gap-2 bg-navy text-white text-sm font-bold px-5 py-2 rounded-xl hover:bg-navy/90 disabled:opacity-50 transition-colors"
+                disabled={saving}
+                className="flex-[2] min-h-[52px] flex items-center justify-center gap-2 bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase tracking-wide rounded-xl active:bg-yellow-300 disabled:opacity-60"
               >
-                {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                 {editId ? 'Guardar cambios' : 'Crear banner'}
               </button>
             </div>

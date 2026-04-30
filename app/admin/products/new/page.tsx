@@ -1,13 +1,13 @@
 'use client';
 
-import AdminDashboard from '../../../../components/admin/AdminDashboard';
-import ProductForm from '../../../../components/admin/ProductForm';
+import ProductForm from '@/components/admin/ProductForm';
 
 const NewProductPage = () => {
   return (
-    <AdminDashboard>
+    <div className="space-y-3">
+      <h1 className="text-xl sm:text-2xl font-bold text-navy">Nuevo producto</h1>
       <ProductForm />
-    </AdminDashboard>
+    </div>
   );
 };
 

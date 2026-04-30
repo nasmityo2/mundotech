@@ -50,6 +50,11 @@ export interface Order {
   paymentHolderPhone?:       string | null;
   paymentReference?:         string | null;
   paymentProofUrl?:          string | null;
+  trackingNumber?:           string | null;
+  trackingCarrier?:          string | null;
+  trackingPhotoUrl?:         string | null;
+  trackingUrl?:              string | null;
+  shippedAt?:                string | null;
   notes?:          string | null;
 }
 
@@ -71,6 +76,11 @@ export function prismaOrderToOrder(o: {
   paymentHolderPhone?: string | null;
   paymentReference?: string | null;
   paymentProofUrl?: string | null;
+  trackingNumber?: string | null;
+  trackingCarrier?: string | null;
+  trackingPhotoUrl?: string | null;
+  trackingUrl?: string | null;
+  shippedAt?: Date | null;
   shippingAddress: string;
   shippingCity: string;
   shippingState: string;
@@ -96,6 +106,11 @@ export function prismaOrderToOrder(o: {
     paymentHolderPhone:       o.paymentHolderPhone,
     paymentReference:         o.paymentReference,
     paymentProofUrl:          o.paymentProofUrl,
+    trackingNumber:           o.trackingNumber  ?? null,
+    trackingCarrier:          o.trackingCarrier ?? null,
+    trackingPhotoUrl:         o.trackingPhotoUrl ?? null,
+    trackingUrl:              o.trackingUrl    ?? null,
+    shippedAt:                o.shippedAt ? o.shippedAt.toISOString() : null,
     notes:           o.notes,
     shippingDetails: {
       address:  o.shippingAddress,

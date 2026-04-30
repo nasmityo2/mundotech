@@ -1,213 +1,328 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
-import { getProducts } from '@/app/actions/productActions';
-import { Tag, Package, ArrowRight, Search } from 'lucide-react';
-import Link from 'next/link';
+import { useEffect, useState, useTransition } from 'react';
+import Image from 'next/image';
+import {
+  Tag, Plus, Edit, Trash2, Check, X, Loader2, Star, AlertCircle, Package,
+} from 'lucide-react';
+import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
+import { TouchIconButton } from '@/components/admin/TouchIconButton';
+import PhotoUploader from '@/components/admin/PhotoUploader';
 
-interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  stock: number;
-  images: string[];
+interface Category {
+  id:         string;
+  name:       string;
+  slug:       string;
+  imageUrl:   string | null;
+  isFeatured: boolean;
+  order:      number;
+  productCount?: number;
 }
 
-interface CategoryStat {
-  name: string;
-  productCount: number;
-  totalStock: number;
-  avgPrice: number;
-  minPrice: number;
-  maxPrice: number;
-}
-
-const formatCurrency = (n: number) =>
-  new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VES' }).format(n);
+const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 
 export default function AdminCategoriesPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [editing, setEditing]       = useState<Category | null>(null);
+  const [creating, setCreating]     = useState(false);
+  const [feedback, setFeedback]     = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
-  useEffect(() => {
-    getProducts().then(({ products: data }) => {
-      setProducts(data as Product[]);
-      setLoading(false);
-    });
-  }, []);
-
-  const categoryStats = useMemo((): CategoryStat[] => {
-    const map = new Map<string, Product[]>();
-    for (const p of products) {
-      const cat = p.category || 'Sin categoría';
-      if (!map.has(cat)) map.set(cat, []);
-      map.get(cat)!.push(p);
+  const fetchCategories = async () => {
+    setLoading(true);
+    const res = await fetch('/api/categories');
+    if (res.ok) {
+      const data = await res.json();
+      // Enriquecer con productCount (vía API de productos)
+      try {
+        const productsRes = await fetch('/api/products?perPage=500');
+        if (productsRes.ok) {
+          const products = await productsRes.json();
+          const list = Array.isArray(products) ? products : (products?.products ?? []);
+          type ProductLite = { category?: string };
+          const counts = (list as ProductLite[]).reduce<Record<string, number>>((acc, p) => {
+            const k = (p.category ?? '').toLowerCase();
+            acc[k] = (acc[k] ?? 0) + 1;
+            return acc;
+          }, {});
+          for (const c of data) c.productCount = counts[(c.name ?? '').toLowerCase()] ?? 0;
+        }
+      } catch {}
+      setCategories(data);
     }
-    return Array.from(map.entries())
-      .map(([name, prods]) => ({
-        name,
-        productCount: prods.length,
-        totalStock: prods.reduce((s, p) => s + p.stock, 0),
-        avgPrice: prods.reduce((s, p) => s + p.price, 0) / prods.length,
-        minPrice: Math.min(...prods.map(p => p.price)),
-        maxPrice: Math.max(...prods.map(p => p.price)),
-      }))
-      .sort((a, b) => b.productCount - a.productCount);
-  }, [products]);
+    setLoading(false);
+  };
 
-  const filteredCategories = useMemo(() =>
-    categoryStats.filter(c =>
-      c.name.toLowerCase().includes(search.toLowerCase())
-    ), [categoryStats, search]);
+  useEffect(() => { fetchCategories(); }, []);
 
-  const productsInSelected = useMemo(() => {
-    if (!selectedCategory) return [];
-    return products.filter(p => p.category === selectedCategory);
-  }, [products, selectedCategory]);
+  const flash = (type: 'success' | 'error', msg: string) => {
+    setFeedback({ type, msg });
+    setTimeout(() => setFeedback(null), 3500);
+  };
+
+  const handleDelete = async (cat: Category) => {
+    if (cat.productCount && cat.productCount > 0) {
+      if (!confirm(`Esta categoría tiene ${cat.productCount} productos asociados. ¿Eliminar de todas formas?`)) return;
+    } else if (!confirm(`¿Eliminar la categoría "${cat.name}"?`)) {
+      return;
+    }
+    const res = await fetch(`/api/categories/${cat.id}`, { method: 'DELETE' });
+    if (res.ok) {
+      flash('success', 'Categoría eliminada.');
+      fetchCategories();
+    } else {
+      flash('error', 'No se pudo eliminar.');
+    }
+  };
+
+  const columns: DataTableColumn<Category>[] = [
+    {
+      key: 'name', header: 'Nombre', primary: true,
+      cell: c => (
+        <span className="block truncate">
+          {c.name}
+          {c.isFeatured && <Star size={12} className="inline-block ml-1.5 text-amber-500 fill-amber-400" />}
+        </span>
+      ),
+    },
+    {
+      key: 'slug', header: 'Slug', secondary: true, mobileLabel: 'Slug',
+      cell: c => <span className="font-mono text-[12px] text-gray-500 truncate">/{c.slug}</span>,
+    },
+    {
+      key: 'order', header: 'Orden', mobileLabel: 'Orden', align: 'right',
+      cell: c => <span className="font-mono text-sm text-gray-600">{c.order}</span>,
+    },
+    {
+      key: 'productCount', header: 'Productos', mobileLabel: 'Productos', align: 'right',
+      cell: c => <span className="font-mono text-sm text-gray-600">{c.productCount ?? '—'}</span>,
+    },
+  ];
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Tag size={22} className="text-navy" /> Categorías
-        </h1>
-        <p className="text-gray-500 mt-1 text-sm">
-          {loading ? '...' : `${categoryStats.length} categorías — ${products.length} productos`}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Listado de categorías */}
-        <div className="lg:col-span-1">
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-4 py-3 border-b border-gray-100">
-              <div className="relative">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar categoría..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 bg-gray-50 focus:outline-none focus:ring-1 focus:ring-navy/30 focus:border-navy"
-                />
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="py-12 text-center text-gray-400 text-sm">Cargando...</div>
-            ) : filteredCategories.length === 0 ? (
-              <div className="py-12 text-center text-gray-400 text-sm">No se encontraron categorías.</div>
-            ) : (
-              <ul className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
-                {filteredCategories.map(cat => (
-                  <li key={cat.name}>
-                    <button
-                      onClick={() => setSelectedCategory(
-                        selectedCategory === cat.name ? null : cat.name
-                      )}
-                      className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between gap-2 ${
-                        selectedCategory === cat.name ? 'bg-gray-100 border-l-4 border-brand-yellow' : ''
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <p className={`font-medium text-sm truncate ${selectedCategory === cat.name ? 'text-navy font-semibold' : 'text-gray-800'}`}>
-                          {cat.name}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {cat.productCount} producto{cat.productCount !== 1 ? 's' : ''} · Stock: {cat.totalStock}
-                        </p>
-                      </div>
-                      <ArrowRight size={14} className={`flex-shrink-0 ${selectedCategory === cat.name ? 'text-brand-yellow' : 'text-gray-300'}`} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
+    <div className="space-y-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="w-11 h-11 rounded-2xl bg-amber-50 text-navy flex items-center justify-center">
+            <Tag size={22} />
+          </span>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-navy">Categorías</h1>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {loading ? '…' : `${categories.length} categorías. El slug controla la URL pública (SEO).`}
+            </p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          className="min-h-[48px] inline-flex items-center justify-center gap-1.5 px-4 bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase tracking-wide rounded-xl active:bg-yellow-300"
+        >
+          <Plus size={16} /> Nueva
+        </button>
+      </div>
 
-        {/* Detalle de categoría seleccionada */}
-        <div className="lg:col-span-2">
-          {!selectedCategory ? (
-            <div className="bg-white border border-dashed border-gray-200 rounded-xl h-full flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-14 h-14 bg-gray-50 rounded-full flex items-center justify-center mb-3">
-                <Tag size={24} className="text-gray-300" />
-              </div>
-              <p className="text-gray-400 text-sm">Selecciona una categoría para ver sus productos</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Stats de la categoría */}
-              {(() => {
-                const cat = categoryStats.find(c => c.name === selectedCategory)!;
-                return (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {[
-                      { label: 'Productos', value: cat.productCount },
-                      { label: 'Stock Total', value: cat.totalStock },
-                      { label: 'Precio Mínimo', value: formatCurrency(cat.minPrice) },
-                      { label: 'Precio Máximo', value: formatCurrency(cat.maxPrice) },
-                    ].map(({ label, value }) => (
-                      <div key={label} className="bg-white border border-gray-200 rounded-xl p-4 text-center">
-                        <p className="text-xs text-gray-400">{label}</p>
-                        <p className="text-lg font-bold text-gray-900 mt-1">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
-
-              {/* Tabla de productos */}
-              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-                  <h2 className="font-semibold text-gray-800 flex items-center gap-2">
-                    <Package size={16} className="text-gray-400" />
-                    Productos en &ldquo;{selectedCategory}&rdquo;
-                  </h2>
-                  <Link
-                    href={`/admin/products?category=${encodeURIComponent(selectedCategory)}`}
-                    className="text-xs text-navy font-semibold hover:underline"
-                  >
-                    Ver en inventario →
-                  </Link>
-                </div>
-                <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 sticky top-0">
-                      <tr>
-                        <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Producto</th>
-                        <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Precio</th>
-                        <th className="px-5 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Stock</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {productsInSelected.map(p => (
-                        <tr key={p.id} className="hover:bg-gray-50">
-                          <td className="px-5 py-3 font-medium text-gray-800">{p.name}</td>
-                          <td className="px-5 py-3 text-right text-gray-700">{formatCurrency(p.price)}</td>
-                          <td className="px-5 py-3 text-right">
-                            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                              p.stock === 0
-                                ? 'bg-red-100 text-red-700'
-                                : p.stock < 3
-                                ? 'bg-yellow-100 text-yellow-700'
-                                : 'bg-green-100 text-green-700'
-                            }`}>
-                              {p.stock} uds.
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
+      {feedback && (
+        <div className={`flex items-start gap-2 px-4 py-3 rounded-xl text-sm font-medium ${
+          feedback.type === 'success'
+            ? 'bg-green-50 border border-green-200 text-green-800'
+            : 'bg-red-50 border border-red-200 text-red-800'
+        }`}>
+          {feedback.type === 'success' ? <Check size={16} className="mt-0.5" /> : <AlertCircle size={16} className="mt-0.5" />}
+          <span>{feedback.msg}</span>
         </div>
+      )}
+
+      <DataTable<Category>
+        data={categories}
+        columns={columns}
+        rowKey={c => c.id}
+        loading={loading}
+        emptyState="Aún no hay categorías. Crea la primera con el botón 'Nueva'."
+        mobileLeading={c => (
+          <span className="w-12 h-12 rounded-xl border border-gray-200 overflow-hidden bg-gray-50 flex-shrink-0 flex items-center justify-center">
+            {c.imageUrl ? (
+              <Image src={c.imageUrl} alt={c.name} width={48} height={48} className="object-cover w-full h-full" />
+            ) : (
+              <Package size={20} className="text-gray-400" />
+            )}
+          </span>
+        )}
+        actions={c => (
+          <>
+            <TouchIconButton
+              variant="primary"
+              label="Editar"
+              icon={<Edit size={18} />}
+              onClick={() => setEditing(c)}
+            />
+            <TouchIconButton
+              variant="danger"
+              label="Eliminar"
+              icon={<Trash2 size={18} />}
+              onClick={() => handleDelete(c)}
+            />
+          </>
+        )}
+      />
+
+      {(creating || editing) && (
+        <CategoryDialog
+          category={editing}
+          onClose={() => { setCreating(false); setEditing(null); }}
+          onSaved={(msg) => {
+            setCreating(false);
+            setEditing(null);
+            flash('success', msg);
+            fetchCategories();
+          }}
+          onError={(msg) => flash('error', msg)}
+        />
+      )}
+    </div>
+  );
+}
+
+function CategoryDialog({
+  category, onClose, onSaved, onError,
+}: {
+  category: Category | null;
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [name, setName]             = useState(category?.name ?? '');
+  const [slug, setSlug]             = useState(category?.slug ?? '');
+  const [slugTouched, setSlugTouched] = useState(!!category);
+  const [imageUrl, setImageUrl]     = useState<string | null>(category?.imageUrl ?? null);
+  const [isFeatured, setIsFeatured] = useState(category?.isFeatured ?? false);
+  const [order, setOrder]           = useState(category?.order ?? 0);
+  const [pending, startTransition]  = useTransition();
+
+  useEffect(() => {
+    if (!slugTouched) setSlug(slugify(name));
+  }, [name, slugTouched]);
+
+  const submit = () => {
+    if (!name.trim() || !slug.trim()) {
+      onError('Nombre y slug son obligatorios.');
+      return;
+    }
+    startTransition(async () => {
+      const url = category ? `/api/categories/${category.id}` : '/api/categories';
+      const method = category ? 'PUT' : 'POST';
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, slug, imageUrl, isFeatured, order: Number(order) }),
+      });
+      if (res.ok) onSaved(category ? 'Categoría actualizada.' : 'Categoría creada.');
+      else {
+        const err = await res.json().catch(() => ({}));
+        onError(err.error ?? 'No se pudo guardar la categoría.');
+      }
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        className="relative z-10 w-full sm:w-[460px] sm:max-w-[92vw] sm:my-6 bg-white sm:rounded-2xl shadow-2xl flex flex-col max-h-[100dvh] sm:max-h-[88vh]"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <header className="sticky top-0 bg-white sm:rounded-t-2xl border-b border-gray-100 px-4 py-3.5 flex items-center justify-between gap-3"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.875rem)' }}>
+          <h2 className="text-base font-black text-navy truncate">
+            {category ? 'Editar categoría' : 'Nueva categoría'}
+          </h2>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100">
+            <X size={20} className="text-gray-500" />
+          </button>
+        </header>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wide text-gray-700 mb-1.5">Nombre</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              autoFocus
+              className="w-full min-h-[48px] px-3.5 py-2 border border-gray-200 rounded-xl bg-gray-50 text-base focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wide text-gray-700 mb-1.5">
+              Slug <span className="text-[10px] font-medium text-gray-400 normal-case">— se usa en la URL pública</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-400 font-mono">/categoria/</span>
+              <input
+                type="text"
+                value={slug}
+                onChange={e => { setSlug(slugify(e.target.value)); setSlugTouched(true); }}
+                className="flex-1 min-h-[48px] px-3.5 py-2 border border-gray-200 rounded-xl bg-gray-50 text-base font-mono focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy"
+              />
+            </div>
+            <p className="text-[11px] text-gray-500 mt-1">
+              Sin acentos, espacios o mayúsculas. Se autogenera, pero puedes editarlo.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wide text-gray-700 mb-1.5">Orden</label>
+              <input
+                type="number"
+                value={order}
+                onChange={e => setOrder(Number(e.target.value))}
+                className="w-full min-h-[48px] px-3.5 py-2 border border-gray-200 rounded-xl bg-gray-50 text-base focus:outline-none focus:ring-2 focus:ring-navy/20"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wide text-gray-700 mb-1.5">Destacada</label>
+              <button
+                type="button"
+                onClick={() => setIsFeatured(v => !v)}
+                className={`w-full min-h-[48px] rounded-xl border text-sm font-bold transition flex items-center justify-center gap-2 ${
+                  isFeatured
+                    ? 'bg-amber-100 border-amber-300 text-amber-800'
+                    : 'bg-white border-gray-200 text-gray-500 active:bg-gray-100'
+                }`}
+              >
+                <Star size={14} className={isFeatured ? 'fill-amber-400' : ''} />
+                {isFeatured ? 'Destacada' : 'Normal'}
+              </button>
+            </div>
+          </div>
+
+          <PhotoUploader
+            value={imageUrl}
+            onChange={setImageUrl}
+            purpose="category"
+            label="Imagen de la categoría"
+            hint="Recomendado 800×800. Aparece en el grid de Categorías destacadas del home."
+            previewHeight="h-40"
+          />
+        </div>
+
+        <footer className="sticky bottom-0 bg-white sm:rounded-b-2xl border-t border-gray-100 px-4 py-3 flex gap-2"
+          style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+          <button onClick={onClose} disabled={pending} className="flex-1 min-h-[52px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100">
+            Cancelar
+          </button>
+          <button onClick={submit} disabled={pending} className="flex-[2] min-h-[52px] inline-flex items-center justify-center gap-2 bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase rounded-xl active:bg-yellow-300 disabled:opacity-60">
+            {pending ? <Loader2 size={16} className="animate-spin" /> : null}
+            {category ? 'Guardar cambios' : 'Crear categoría'}
+          </button>
+        </footer>
       </div>
     </div>
   );

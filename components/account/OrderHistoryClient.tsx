@@ -2,7 +2,7 @@
 
 import { Order } from '@/lib/definitions';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, ChevronRight, Package, ArrowRight } from 'lucide-react';
+import { ShoppingBag, ChevronRight, Package, ArrowRight, Truck } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
 interface OrderHistoryClientProps {
@@ -96,6 +96,11 @@ export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) 
                     <p className="text-[12px] text-slate-400 mt-0.5">
                       {itemCount} artículo{itemCount !== 1 ? 's' : ''}
                     </p>
+                    {order.trackingNumber && (
+                      <p className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                        <Truck size={11} /> Tracking: {order.trackingNumber}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">

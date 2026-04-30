@@ -7,7 +7,10 @@ import { ProductProvider } from "../context/ProductContext";
 import { ExchangeRateProvider } from "../context/ExchangeRateContext";
 import AppContent from "./AppContent";
 import Footer from "./components/Footer";
+import AppLayoutShell from "./components/AppLayoutShell";
 import { Toaster } from "@/components/ui/Toaster";
+import { readSeoLocal, buildLocalBusinessSchema } from "@/lib/seo-local";
+import { readSettings } from "@/lib/data-store";
 import { googleMapsBusinessUrl } from "@/lib/google-maps";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mundotech.com.ve";
@@ -95,64 +98,32 @@ const websiteSchema = {
   },
 };
 
-const localBusinessSchema = {
-  "@context": "https://schema.org",
-  "@type": "LocalBusiness",
-  name: "MundoTech",
-  description:
-    "Tecnología en Lara: gadgets, inventos y catálogo de rotación, consolas gaming y electrodomésticos de cocina compacta —no línea blanca grande. Sin celulares. Barquisimeto. USD/Bs., garantía oficial.",
-  url: SITE_URL,
-  telephone: process.env.NEXT_PUBLIC_CONTACT_PHONE ?? "+58-412-1471338",
-  email: process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "ventas@mundotech.com.ve",
-  logo: `${SITE_URL}/logo.png`,
-  image: `${SITE_URL}/og-default.jpg`,
-  address: {
-    "@type": "PostalAddress",
-    streetAddress: "CARRERA 21 CON ESQUINA CALLE 21 CENTRO",
-    addressLocality: "Barquisimeto",
-    addressRegion: "Lara",
-    postalCode: "3001",
-    addressCountry: "VE",
-  },
-  geo: {
-    "@type": "GeoCoordinates",
-    latitude: 10.068287498832946,
-    longitude: -69.3120556394341,
-  },
-  hasMap: googleMapsBusinessUrl(),
-  openingHoursSpecification: [
-    {
-      "@type": "OpeningHoursSpecification",
-      dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-      opens: "08:30",
-      closes: "17:30",
-    },
-    {
-      "@type": "OpeningHoursSpecification",
-      dayOfWeek: ["Saturday"],
-      opens: "08:30",
-      closes: "18:00",
-    },
-  ],
-  priceRange: "$$",
-  currenciesAccepted: "USD, VES",
-  paymentAccepted: "Cash, Transferencia, Pago Móvil, Binance Pay",
-  areaServed: [
-    { "@type": "City", name: "Barquisimeto" },
-    { "@type": "State", name: "Lara" },
-    { "@type": "Country", name: "Venezuela" },
-  ],
-  sameAs: [
-    "https://www.instagram.com/mundotech39/",
-    "https://www.facebook.com/p/Mundo-Tech-100090548322161/",
-  ],
-};
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Datos vivos editables desde /admin/settings/seo-local y /admin/settings.
+  const [seo, settings] = await Promise.all([readSeoLocal(), readSettings()]);
+  const sameAs = [settings.instagram, settings.facebook].filter(Boolean) as string[];
+
+  const localBusinessSchema = buildLocalBusinessSchema(seo, {
+    siteUrl: SITE_URL,
+    storeName: settings.storeName,
+    email: settings.email,
+    phone: settings.phone,
+    description:
+      "Tecnología en Lara: gadgets, inventos y catálogo de rotación, consolas gaming y electrodomésticos de cocina compacta. Sin celulares. Barquisimeto.",
+    sameAs,
+  });
+
+  // Si el admin no llenó el URL del mapa, usamos el helper con la dirección viva.
+  if (!localBusinessSchema.hasMap) {
+    localBusinessSchema.hasMap = googleMapsBusinessUrl(
+      `${seo.legalName}, ${seo.streetAddress}, ${seo.addressLocality}, ${seo.addressRegion}, Venezuela`,
+    );
+  }
+
   return (
     <html lang="es" data-scroll-behavior="smooth">
       <body className="bg-surface-sunken text-navy antialiased nums" suppressHydrationWarning>
@@ -176,12 +147,9 @@ export default function RootLayout({
                   */}
                   <div className="flex min-h-[100dvh] flex-col w-full max-w-full overflow-x-hidden">
                     <AppContent />
-                    <main className="flex-1 w-full max-w-full overflow-x-hidden">
-                      <div className="container mx-auto w-full max-w-[1400px] px-4 sm:px-6 lg:px-8 py-5 sm:py-8 lg:py-10">
-                        {children}
-                      </div>
-                    </main>
-                    <Footer />
+                    <AppLayoutShell footer={<Footer />}>
+                      {children}
+                    </AppLayoutShell>
                   </div>
                 </ExchangeRateProvider>
               </ProductProvider>

@@ -145,6 +145,13 @@ model Order {
   paymentReference    String?
   paymentProofUrl     String?
 
+  // Tracking de envío (opcional, se setea cuando el pedido pasa a "Enviado")
+  trackingNumber   String?
+  trackingCarrier  String?
+  trackingPhotoUrl String?
+  trackingUrl      String?
+  shippedAt        DateTime?
+
   notes           String?
   @@index([customerId])
   @@index([status])

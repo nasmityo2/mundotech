@@ -1,30 +1,27 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import AdminDashboard from '../../../../../components/admin/AdminDashboard';
-import ProductForm from '../../../../../components/admin/ProductForm';
-import { useProducts } from '../../../../../context/ProductContext';
+import ProductForm from '@/components/admin/ProductForm';
+import { useProducts } from '@/context/ProductContext';
 
 const EditProductPage = () => {
   const params = useParams();
-  const { id } = params;
+  const id = params?.id;
   const { getProductById } = useProducts();
 
-  // El ID puede no estar disponible en el primer render
-  if (!id) {
-    return <div>Cargando...</div>;
-  }
+  if (!id) return <div className="py-10 text-center text-gray-400">Cargando...</div>;
 
   const productToEdit = getProductById(Array.isArray(id) ? id[0] : id);
 
   if (!productToEdit) {
-    return <div>Producto no encontrado</div>;
+    return <div className="py-10 text-center text-gray-400">Producto no encontrado</div>;
   }
 
   return (
-    <AdminDashboard>
+    <div className="space-y-3">
+      <h1 className="text-xl sm:text-2xl font-bold text-navy">Editar producto</h1>
       <ProductForm productToEdit={productToEdit} />
-    </AdminDashboard>
+    </div>
   );
 };
 

@@ -2,7 +2,7 @@
 import { useTransition, useRef, useEffect, useState, useCallback } from 'react';
 import { createProductAction, updateProductAction } from '@/app/actions/productActions';
 import { CldUploadWidget } from 'next-cloudinary';
-import { X, GripVertical, ImagePlus, Star, Play, Video } from 'lucide-react';
+import { X, GripVertical, ImagePlus, Star, Play, Video, Camera } from 'lucide-react';
 import { deriveLegacyImagesFromSlots } from '@/lib/product-media';
 
 interface Product {
@@ -41,13 +41,21 @@ const labelCls = "block text-gray-700 text-sm font-bold mb-1";
 
 export default function AddProductModal({ isOpen, onClose, product }: AddProductModalProps) {
   const [isPending, startTransition] = useTransition();
-  const formRef       = useRef<HTMLFormElement>(null);
-  const fileInputRef  = useRef<HTMLInputElement>(null);
+  const formRef        = useRef<HTMLFormElement>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [slots, setSlots] = useState<GallerySlot[]>([]);
   const [serverUploading, setServerUploading] = useState(false);
   const [bunnyUrl, setBunnyUrl] = useState('');
   const [bunnyPoster, setBunnyPoster] = useState('');
   const hasCloudinary = Boolean(process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
+
+  // Bloquear scroll del body con modal abierto
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!formRef.current) return;
@@ -170,20 +178,35 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
   if (!isOpen) return null;
 
   return (
-    <div className="fixed z-50 inset-0 overflow-y-auto">
-      <div className="flex items-center justify-center min-h-screen px-4 pb-20 pt-4 text-center">
-        <div className="fixed inset-0 bg-gray-500/75 transition-opacity" onClick={onClose} />
+    <div
+      className="fixed z-50 inset-0 flex sm:items-center sm:justify-center"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
 
-        <div className="relative z-10 bg-white rounded-xl text-left shadow-2xl w-full max-w-xl">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b">
-            <h3 className="text-lg font-bold text-gray-900">
-              {product ? 'Editar Producto' : 'Agregar Nuevo Producto'}
-            </h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
-          </div>
+      <div
+        className="relative z-10 bg-white text-left shadow-2xl w-full sm:w-[640px] sm:max-w-[95vw] sm:my-6 sm:rounded-2xl flex flex-col max-h-[100dvh] sm:max-h-[88vh]"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        {/* Header sticky */}
+        <div
+          className="sticky top-0 z-10 flex items-center justify-between px-4 sm:px-6 py-3.5 border-b bg-white sm:rounded-t-2xl"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.875rem)' }}
+        >
+          <h3 className="text-base sm:text-lg font-black text-navy">
+            {product ? 'Editar producto' : 'Nuevo producto'}
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100"
+          >
+            <X size={20} className="text-gray-500" />
+          </button>
+        </div>
 
-          <div className="px-6 py-5 max-h-[82vh] overflow-y-auto">
+        <div className="flex-1 px-4 sm:px-6 py-4 overflow-y-auto">
 
             {/* ── Galería de imágenes ──────────────────────────────── */}
             <div className="mb-5">
@@ -291,6 +314,18 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                   </div>
 
                   <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    disabled={serverUploading}
+                    onChange={e => {
+                      void uploadFilesViaApi(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
+                  <input
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
@@ -302,19 +337,28 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                       e.target.value = '';
                     }}
                   />
-                  <button
-                    type="button"
-                    disabled={serverUploading}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-2 bg-gray-50 text-gray-600 font-semibold py-3 px-4 rounded-lg border-2 border-dashed border-gray-300 hover:border-navy/40 hover:bg-gray-100 transition text-sm disabled:opacity-60"
-                  >
-                    <ImagePlus size={16} />
-                    {serverUploading
-                      ? 'Subiendo…'
-                      : slots.length === 0
-                        ? 'Subir fotos desde tu equipo'
-                        : `Añadir fotos (${MAX_SLOTS - slots.length} libres)`}
-                  </button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={serverUploading}
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="min-h-[52px] flex items-center justify-center gap-2 bg-navy text-white font-semibold rounded-xl active:bg-navy/80 transition text-sm disabled:opacity-60"
+                    >
+                      <Camera size={17} /> Tomar foto
+                    </button>
+                    <button
+                      type="button"
+                      disabled={serverUploading}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="min-h-[52px] flex items-center justify-center gap-2 bg-white text-gray-700 border border-gray-200 font-semibold rounded-xl active:bg-gray-100 transition text-sm disabled:opacity-60"
+                    >
+                      <ImagePlus size={17} /> Galería
+                    </button>
+                  </div>
+                  {serverUploading && (
+                    <p className="text-xs text-center text-gray-500">Subiendo a Cloudinary…</p>
+                  )}
 
                   {hasCloudinary && (
                     <CldUploadWidget
@@ -456,25 +500,31 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-5 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isPending}
-                  className="px-5 py-2 bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase tracking-wide rounded-lg hover:bg-yellow-300 transition disabled:opacity-50"
-                >
-                  {isPending ? 'Guardando…' : 'Guardar Producto'}
-                </button>
-              </div>
             </form>
           </div>
+        </div>
+
+        {/* Footer sticky */}
+        <div
+          className="sticky bottom-0 z-10 flex gap-2 px-4 sm:px-6 py-3 border-t border-gray-100 bg-white sm:rounded-b-2xl"
+          style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isPending}
+            className="flex-1 min-h-[52px] rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-semibold active:bg-gray-100 transition"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => formRef.current?.requestSubmit()}
+            disabled={isPending}
+            className="flex-[2] min-h-[52px] rounded-xl bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase tracking-wide active:bg-yellow-300 transition disabled:opacity-60 inline-flex items-center justify-center"
+          >
+            {isPending ? 'Guardando…' : product ? 'Guardar cambios' : 'Crear producto'}
+          </button>
         </div>
       </div>
     </div>

@@ -1,21 +1,30 @@
-import Sidebar from '@/components/admin/Sidebar';
+import { getServerSession } from 'next-auth/next';
+import { redirect } from 'next/navigation';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import AdminShell from '@/components/admin/AdminShell';
+import { isAdminRole } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export const metadata = {
+  title: 'MundoTech Admin',
+  robots: { index: false, follow: false },
+};
+
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as { role?: string } | undefined)?.role;
+
+  if (!session || !isAdminRole(role)) {
+    redirect('/login?callbackUrl=/admin');
+  }
+
   return (
-    <div className="flex min-h-screen bg-[#F1F5F9]">
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
-          <p className="text-sm font-semibold text-navy tracking-wide uppercase">
-            Panel de Administración — MundoTech
-          </p>
-        </header>
-        <main className="flex-1 overflow-auto p-6">
-          {children}
-        </main>
-      </div>
-    </div>
+    <AdminShell
+      userName={session.user?.name ?? undefined}
+      userEmail={session.user?.email ?? undefined}
+    >
+      {children}
+    </AdminShell>
   );
 }

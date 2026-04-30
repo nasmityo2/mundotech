@@ -2,7 +2,11 @@
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Truck, MapPin, CreditCard, CheckCircle2, Package, Send, Home } from 'lucide-react';
+import { useState } from 'react';
+import {
+  ArrowLeft, Truck, MapPin, CreditCard, CheckCircle2, Package, Send, Home,
+  ExternalLink, Copy, Check, Camera,
+} from 'lucide-react';
 import { EnrichedOrder } from '@/app/account/orders/[id]/page';
 import { Badge } from '@/components/ui/Badge';
 
@@ -40,10 +44,21 @@ const timelineIndex = (status: string) => {
 
 export default function OrderDetailClient({ order }: OrderDetailClientProps) {
   const router = useRouter();
+  const [trackingCopied, setTrackingCopied] = useState(false);
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const status = statusConfig[order.status] ?? { label: order.status, variant: 'neutral' as const };
   const currentStepIdx = timelineIndex(order.status);
   const isCancelled = order.status === 'Cancelado';
+  const hasTracking = !!(order.trackingNumber || order.trackingCarrier || order.trackingUrl || order.trackingPhotoUrl);
+
+  const copyTrackingNumber = async () => {
+    if (!order.trackingNumber) return;
+    try {
+      await navigator.clipboard.writeText(order.trackingNumber);
+      setTrackingCopied(true);
+      window.setTimeout(() => setTrackingCopied(false), 2000);
+    } catch {}
+  };
 
   return (
     <div className="space-y-6">
@@ -101,6 +116,81 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
           </div>
         )}
       </div>
+
+      {/* ── Tracking visible al cliente cuando el admin lo registra ───────── */}
+      {hasTracking && !isCancelled && (
+        <div className="bg-gradient-to-br from-amber-50 to-white rounded-2xl border-2 border-amber-200 shadow-soft p-5 sm:p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="w-11 h-11 rounded-xl bg-brand-yellow text-navy flex items-center justify-center flex-shrink-0">
+              <Truck size={22} />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-bold text-navy">Tu pedido está en camino</h2>
+              {order.shippedAt && (
+                <p className="text-[12px] text-slate-500 mt-0.5">
+                  Enviado el {formatDate(order.shippedAt)}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {order.trackingCarrier && (
+              <div>
+                <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Empresa de envío</dt>
+                <dd className="text-sm font-semibold text-navy mt-1">{order.trackingCarrier}</dd>
+              </div>
+            )}
+            {order.trackingNumber && (
+              <div>
+                <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Número de seguimiento</dt>
+                <dd className="mt-1 flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-base font-bold text-navy break-all">{order.trackingNumber}</span>
+                  <button
+                    type="button"
+                    onClick={copyTrackingNumber}
+                    aria-label="Copiar número de seguimiento"
+                    className="min-h-[36px] inline-flex items-center gap-1 px-2.5 text-[11px] font-semibold rounded-lg border border-slate-200 bg-white active:bg-slate-100"
+                  >
+                    {trackingCopied
+                      ? <><Check size={12} className="text-green-600" /> Copiado</>
+                      : <><Copy size={12} /> Copiar</>}
+                  </button>
+                </dd>
+              </div>
+            )}
+            {order.trackingUrl && (
+              <div className="sm:col-span-2">
+                <a
+                  href={order.trackingUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center justify-center gap-2 min-h-[48px] px-5 bg-navy text-white text-sm font-bold rounded-xl active:bg-navy/80 hover:bg-navy/90 transition-colors w-full sm:w-auto"
+                >
+                  Rastrear envío <ExternalLink size={14} />
+                </a>
+              </div>
+            )}
+            {order.trackingPhotoUrl && (
+              <div className="sm:col-span-2">
+                <dt className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
+                  <Camera size={11} /> Comprobante de envío
+                </dt>
+                <a href={order.trackingPhotoUrl} target="_blank" rel="noreferrer" className="block max-w-sm">
+                  <Image
+                    src={order.trackingPhotoUrl}
+                    alt="Foto de la guía de envío"
+                    width={400}
+                    height={500}
+                    className="w-full h-auto rounded-xl border border-slate-200 shadow-soft"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1.5 text-center">Toca para ver completa</p>
+                </a>
+              </div>
+            )}
+          </dl>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
