@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
+import { normalizePostgresUrlForNodePg } from '@/lib/normalize-postgres-url-for-node-pg';
 
 declare global {
   // allow global `var` declarations
@@ -8,7 +9,9 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({
+  connectionString: normalizePostgresUrlForNodePg(process.env.DATABASE_URL),
+});
 const adapter = new PrismaPg(pool);
 
 export const prisma =
