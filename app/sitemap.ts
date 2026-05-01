@@ -33,7 +33,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.3,
     },
     {
-      url: `${SITE_URL}/register`,
+      url: `${SITE_URL}/registro`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.3,

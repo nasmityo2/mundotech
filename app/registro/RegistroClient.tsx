@@ -1,30 +1,20 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import AuthSplitLayout from '@/components/auth/AuthSplitLayout';
-import { AuthLoginForm } from '@/components/auth/MundoTechAuthForms';
+import { AuthRegisterForm } from '@/components/auth/MundoTechAuthForms';
 import { safeInternalPath } from '@/lib/auth-path';
-import { toast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 
-export default function LoginClient() {
+export default function RegistroClient() {
   const router = useRouter();
   const params = useSearchParams();
   const { status, data: session } = useSession();
-  const toastedRegistered = useRef(false);
 
   const callbackUrl = params.get('callbackUrl') ?? '/';
-
-  useEffect(() => {
-    if (params.get('tab') !== 'register') return;
-    const q = new URLSearchParams(params.toString());
-    q.delete('tab');
-    const tail = q.toString();
-    router.replace(tail ? `/registro?${tail}` : '/registro');
-  }, [params, router]);
 
   useEffect(() => {
     if (status !== 'authenticated' || !session) return;
@@ -33,25 +23,6 @@ export default function LoginClient() {
     if (role === 'ADMIN') router.replace('/admin/products');
     else router.replace(dest || '/');
   }, [status, session, router, callbackUrl]);
-
-  useEffect(() => {
-    if (toastedRegistered.current) return;
-    const ok =
-      params.get('registered') === '1' ||
-      params.get('registration') === 'success';
-    if (!ok) return;
-    toastedRegistered.current = true;
-    toast({
-      title: 'Cuenta creada',
-      description: 'Inicia sesión para continuar.',
-      variant: 'success',
-    });
-  }, [params]);
-
-  const defaultEmail =
-    params.get('registered') === '1' && params.get('email')
-      ? decodeURIComponent(params.get('email')!)
-      : undefined;
 
   if (status === 'loading') {
     return (
@@ -72,8 +43,8 @@ export default function LoginClient() {
   }
 
   return (
-    <AuthSplitLayout variant="login" breadcrumbLast="Login">
-      <AuthLoginForm callbackUrl={callbackUrl} defaultEmail={defaultEmail} />
+    <AuthSplitLayout variant="register" breadcrumbLast="Registro">
+      <AuthRegisterForm callbackUrl={callbackUrl} />
     </AuthSplitLayout>
   );
 }

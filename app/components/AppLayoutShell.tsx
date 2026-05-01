@@ -20,18 +20,9 @@ export default function AppLayoutShell({
 }) {
   const pathname = usePathname() ?? '';
   const isAdmin = pathname.startsWith('/admin');
-  const isAuthDedicated = pathname === '/login';
 
   if (isAdmin) {
     return <>{children}</>;
-  }
-
-  if (isAuthDedicated) {
-    return (
-      <main className="flex-1 w-full max-w-full overflow-x-hidden bg-[#0B0F14]">
-        {children}
-      </main>
-    );
   }
 
   return (

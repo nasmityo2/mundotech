@@ -1,7 +1,5 @@
 import { z } from 'zod';
 
-export type AuthTab = 'login' | 'register';
-
 export const authLoginSchema = z.object({
   email:    z.string().min(1, 'El correo es obligatorio.').email('Correo inválido.'),
   password: z.string().min(1, 'La contraseña es obligatoria.').min(8, 'Mínimo 8 caracteres.'),
@@ -13,6 +11,9 @@ export const authRegisterSchema = z
     email:           z.string().min(1, 'El correo es obligatorio.').email('Correo inválido.'),
     password:        z.string().min(1, 'La contraseña es obligatoria.').min(8, 'Mínimo 8 caracteres.'),
     confirmPassword: z.string().min(1, 'Confirma tu contraseña.'),
+    acceptTerms:     z.boolean().refine((v) => v === true, {
+      message: 'Debes aceptar los términos y condiciones.',
+    }),
   })
   .refine((d) => d.password === d.confirmPassword, {
     message: 'Las contraseñas no coinciden.',

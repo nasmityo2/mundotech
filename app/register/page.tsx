@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-/** El alta se gestiona en `/login` (pestaña Crear cuenta). */
+/** Alias en inglés → página oficial `/registro`. */
 export default function RegisterPage() {
-  redirect('/login?tab=register');
+  redirect('/registro');
 }

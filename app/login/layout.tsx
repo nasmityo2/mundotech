@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Acceso',
-  description: 'Inicia sesión o crea tu cuenta en MundoTech.',
+  title: 'Iniciar sesión',
+  description: 'Accede a tu cuenta MundoTech para pedidos, favoritos y checkout rápido.',
 };
 
 export default function LoginLayout({ children }: { children: React.ReactNode }) {
