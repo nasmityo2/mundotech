@@ -10,7 +10,7 @@ const bullets = [
   'Soporte confiable',
 ] as const;
 
-export type AuthSplitVariant = 'login' | 'register';
+export type AuthSplitVariant = 'login' | 'register' | 'recovery';
 
 interface AuthSplitLayoutProps {
   variant: AuthSplitVariant;
@@ -26,11 +26,15 @@ export default function AuthSplitLayout({
   const headline =
     variant === 'login'
       ? 'Bienvenido de nuevo'
-      : 'Tu tecnología, en un solo lugar';
+      : variant === 'register'
+        ? 'Tu tecnología, en un solo lugar'
+        : 'Recupera el acceso a tu cuenta';
   const subtext =
     variant === 'login'
       ? 'Accede a tu cuenta para seguir pedidos, favoritos y checkout rápido.'
-      : 'Crea tu cuenta y compra con confianza: catálogo curado, envíos trackeables y soporte humano.';
+      : variant === 'register'
+        ? 'Crea tu cuenta y compra con confianza: catálogo curado, envíos trackeables y soporte humano.'
+        : 'Enlaces seguros de un solo uso. Tu cuenta sigue protegida en todo momento.';
 
   return (
     <div className="w-full space-y-6">

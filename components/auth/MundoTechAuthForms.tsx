@@ -30,7 +30,7 @@ import {
   type AuthLoginValues,
   type AuthRegisterValues,
 } from '@/lib/auth-modal-schema';
-import { safeInternalPath } from '@/lib/auth-path';
+import { resolvePostLoginRedirect, safeInternalPath } from '@/lib/auth-path';
 import { registerUserAction } from '@/app/actions/authActions';
 import { toast } from '@/components/ui/use-toast';
 
@@ -189,14 +189,7 @@ export function AuthLoginForm({ callbackUrl, defaultEmail }: LoginPanelProps) {
     router.refresh();
     const session = await getSession();
     const role = session?.user?.role?.toUpperCase?.();
-
-    if (role === 'ADMIN') {
-      router.push('/admin/products');
-      return;
-    }
-
-    const dest = safeInternalPath(callbackUrl);
-    router.push(dest || '/');
+    router.push(resolvePostLoginRedirect(role, callbackUrl));
   }, [callbackUrl, router]);
 
   const onSubmit: SubmitHandler<AuthLoginValues> = async (data) => {
@@ -332,19 +325,12 @@ export function AuthLoginForm({ callbackUrl, defaultEmail }: LoginPanelProps) {
             />
             Recordarme
           </label>
-          <button
-            type="button"
+          <Link
+            href="/forgot-password"
             className="text-sm font-medium text-slate-500 hover:text-navy transition-colors"
-            onClick={() =>
-              toast({
-                title: 'Recuperación de acceso',
-                description:
-                  'Pronto podrás restablecer tu clave desde aquí. Mientras tanto, contacta a soporte.',
-              })
-            }
           >
             ¿Olvidaste tu contraseña?
-          </button>
+          </Link>
         </div>
 
         <motion.button
@@ -445,14 +431,7 @@ export function AuthRegisterForm({ callbackUrl }: RegisterPanelProps) {
     router.refresh();
     const session = await getSession();
     const role = session?.user?.role?.toUpperCase?.();
-
-    if (role === 'ADMIN') {
-      router.push('/admin/products');
-      return;
-    }
-
-    const dest = safeInternalPath(callbackUrl);
-    router.push(dest || '/');
+    router.push(resolvePostLoginRedirect(role, callbackUrl));
   }, [callbackUrl, router]);
 
   const onSubmit: SubmitHandler<AuthRegisterValues> = async (data) => {

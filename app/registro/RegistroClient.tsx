@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 import AuthSplitLayout from '@/components/auth/AuthSplitLayout';
 import { AuthRegisterForm } from '@/components/auth/MundoTechAuthForms';
-import { safeInternalPath } from '@/lib/auth-path';
+import { resolvePostLoginRedirect } from '@/lib/auth-path';
 import { Loader2 } from 'lucide-react';
 
 export default function RegistroClient() {
@@ -19,9 +19,7 @@ export default function RegistroClient() {
   useEffect(() => {
     if (status !== 'authenticated' || !session) return;
     const role = session.user?.role?.toUpperCase?.();
-    const dest = safeInternalPath(callbackUrl);
-    if (role === 'ADMIN') router.replace('/admin/products');
-    else router.replace(dest || '/');
+    router.replace(resolvePostLoginRedirect(role, callbackUrl));
   }, [status, session, router, callbackUrl]);
 
   if (status === 'loading') {
