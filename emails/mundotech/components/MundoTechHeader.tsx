@@ -4,16 +4,18 @@ import { MT, fontSans } from '../theme';
 
 type Props = {
   customerName?: string;
+  /** Sin nombre destacado bajo el eslogan (el saludo va en el cuerpo del correo). */
+  compact?: boolean;
 };
 
-export function MundoTechHeader({ customerName }: Props) {
-  const name = customerName?.trim();
+export function MundoTechHeader({ customerName, compact }: Props) {
+  const name = !compact ? customerName?.trim() : undefined;
 
   return (
     <Section
       style={{
         textAlign: 'center',
-        padding: '36px 28px 28px',
+        padding: compact ? '28px 24px 22px' : '36px 28px 28px',
         backgroundColor: MT.cardBgAlt,
         borderBottom: `1px solid ${MT.border}`,
         fontFamily: fontSans,
@@ -32,7 +34,7 @@ export function MundoTechHeader({ customerName }: Props) {
               style={{
                 border: `1px solid ${MT.headerGlowRing}`,
                 borderRadius: 16,
-                padding: '20px 28px',
+                padding: compact ? '16px 24px' : '20px 28px',
                 backgroundColor: MT.pageBg,
               }}
             >

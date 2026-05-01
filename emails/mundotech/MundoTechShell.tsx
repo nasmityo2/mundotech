@@ -16,10 +16,18 @@ type Props = {
   /** Texto para <title> (accesibilidad / pestaña en algunos webmail). */
   title: string;
   heroCustomerName?: string;
+  /** Solo logo + eslogan (ej. confirmación de pedido estilo mockup). */
+  headerCompact?: boolean;
   children: React.ReactNode;
 };
 
-export function MundoTechShell({ preview, title, heroCustomerName, children }: Props) {
+export function MundoTechShell({
+  preview,
+  title,
+  heroCustomerName,
+  headerCompact,
+  children,
+}: Props) {
   return (
     <Html lang="es">
       <Head>
@@ -75,7 +83,10 @@ export function MundoTechShell({ preview, title, heroCustomerName, children }: P
                       overflow: 'hidden',
                     }}
                   >
-                    <MundoTechHeader customerName={heroCustomerName} />
+                    <MundoTechHeader
+                      customerName={heroCustomerName}
+                      compact={headerCompact}
+                    />
                     {children}
                     <MundoTechFooter />
                   </Section>
