@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Order, OrderStatus } from '@/lib/definitions';
-import { formatStoredOrderMoney } from '@/lib/order-pricing';
+import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import { StatusUpdateMenu } from '@/app/components/admin/StatusUpdateMenu';
 import ShipOrderDialog from '@/app/components/admin/ShipOrderDialog';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
@@ -145,7 +145,7 @@ export default function AdminOrdersPage() {
       header: 'Total',
       mobileLabel: 'Total',
       align: 'right',
-      cell: o => <span className="font-bold text-gray-900 whitespace-nowrap">{formatStoredOrderMoney(o.total, o)}</span>,
+      cell: o => <DualOrderMoney amount={o.total} order={o} variant="admin" />,
     },
     {
       key: 'tracking',

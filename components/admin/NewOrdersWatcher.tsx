@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Bell, BellOff, Truck, X } from 'lucide-react';
-import { formatStoredOrderMoney } from '@/lib/order-pricing';
+import { formatOrderDualInline } from '@/lib/order-pricing';
 
 interface NewOrder {
   id:           string;
@@ -23,7 +23,7 @@ const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
 
 const formatOrderTotal = (o: Pick<NewOrder, 'total' | 'exchangeRateUsdBs'>) =>
-  formatStoredOrderMoney(o.total, o);
+  formatOrderDualInline(o.total, o);
 
 /**
  * Vigila pedidos nuevos cada 25s y muestra:

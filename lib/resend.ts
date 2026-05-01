@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { formatStoredOrderMoney } from '@/lib/order-pricing';
+import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
 
 const FROM_ADDRESS = 'Mundo Tech <ventas@jummper.pro>';
 
@@ -74,6 +74,14 @@ function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirm
   const safeCountry = escapeHtml(detail.shippingCountry);
   const safePhone = detail.customerPhone?.trim() ? escapeHtml(detail.customerPhone.trim()) : '';
 
+  const dualMoneyCells = (amount: number) => {
+    const d = getOrderDualMoney(amount, pricingMeta);
+    if (hasFrozenBsPricing(pricingMeta)) {
+      return `${escapeHtml(d.bs)}<br/><span style="font-size:12px;color:#64748b;">${escapeHtml(d.usd)}</span>`;
+    }
+    return escapeHtml(d.usd);
+  };
+
   const rowsHtml = detail.items
     .map((item) => {
       const line = item.price * item.quantity;
@@ -85,11 +93,11 @@ function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirm
                   <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #94a3b8; font-size: 13px; text-align: center;">
                     ${item.quantity}
                   </td>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #94a3b8; font-size: 13px; text-align: right; white-space: nowrap;">
-                    ${escapeHtml(formatStoredOrderMoney(item.price, pricingMeta))}
+                  <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #94a3b8; font-size: 13px; text-align: right; line-height: 1.35;">
+                    ${dualMoneyCells(item.price)}
                   </td>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #f8fafc; font-size: 13px; text-align: right; white-space: nowrap; font-weight: 600;">
-                    ${escapeHtml(formatStoredOrderMoney(line, pricingMeta))}
+                  <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #f8fafc; font-size: 13px; text-align: right; line-height: 1.35; font-weight: 600;">
+                    ${dualMoneyCells(line)}
                   </td>
                 </tr>`;
     })
@@ -97,8 +105,8 @@ function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirm
 
   const rateNote =
     detail.exchangeRateUsdBs != null && detail.exchangeRateUsdBs > 0
-      ? `<p style="margin: 10px 0 0; font-size: 12px; color: #64748b;">Montos en bolívares según la tasa <strong style="color: #94a3b8;">Bs. ${escapeHtml(detail.exchangeRateUsdBs.toFixed(2))} / USD</strong> aplicada al confirmar tu pedido.</p>`
-      : `<p style="margin: 10px 0 0; font-size: 12px; color: #64748b;">Montos en dólares (USD), registro anterior al sistema de cobranza en bolívares.</p>`;
+      ? `<p style="margin: 10px 0 0; font-size: 12px; color: #64748b;"><strong style="color: #94a3b8;">Tasa registrada en este pedido (no cambia):</strong> Bs. ${escapeHtml(detail.exchangeRateUsdBs.toFixed(2))} / USD. Los montos anteriores son los que pagaste en ese momento.</p>`
+      : `<p style="margin: 10px 0 0; font-size: 12px; color: #64748b;">Montos en dólares (USD); pedido anterior al registro de tasa en el sistema.</p>`;
 
   const orderUrl = `${siteBaseUrl()}/account/orders/${encodeURIComponent(detail.orderId)}`;
 
@@ -155,16 +163,16 @@ function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirm
                   <tr style="background: rgba(56,189,248,0.08);">
                     <th align="left" style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">Artículo</th>
                     <th style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">Cant.</th>
-                    <th align="right" style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">P. unit.</th>
-                    <th align="right" style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">Subtotal</th>
+                    <th align="right" style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">P. unit.<br/><span style="font-weight:400;font-size:9px;letter-spacing:0.06em;">Bs. / USD</span></th>
+                    <th align="right" style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">Subtotal<br/><span style="font-weight:400;font-size:9px;letter-spacing:0.06em;">Bs. / USD</span></th>
                   </tr>
                 </thead>
                 <tbody>
                   ${rowsHtml}
                   <tr>
                     <td colspan="3" style="padding: 14px 10px; text-align: right; font-size: 14px; font-weight: 700; color: #cbd5e1;">Total</td>
-                    <td style="padding: 14px 10px; text-align: right; font-size: 15px; font-weight: 700; color: #38bdf8; white-space: nowrap;">
-                      ${escapeHtml(formatStoredOrderMoney(detail.total, pricingMeta))}
+                    <td style="padding: 14px 10px; text-align: right; font-size: 15px; font-weight: 700; color: #38bdf8; line-height: 1.35;">
+                      ${dualMoneyCells(detail.total)}
                     </td>
                   </tr>
                 </tbody>

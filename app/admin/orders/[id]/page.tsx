@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Order, OrderStatus } from '@/lib/definitions';
-import { formatStoredOrderMoney } from '@/lib/order-pricing';
+import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
+import { DualOrderMoney, OrderFrozenRateBanner } from '@/components/order/DualOrderMoney';
 import { StatusUpdateMenu } from '@/app/components/admin/StatusUpdateMenu';
 import ShipOrderDialog from '@/app/components/admin/ShipOrderDialog';
 import {
@@ -114,7 +115,6 @@ export default function AdminOrderDetailPage() {
   };
 
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const m = (n: number) => (typeof n === 'number' ? formatStoredOrderMoney(n, order) : 'N/A');
   const isShipped = order.status === 'Enviado' || order.status === 'Entregado';
   const hasTracking = !!(order.trackingNumber || order.trackingCarrier || order.trackingUrl || order.trackingPhotoUrl);
 
@@ -249,25 +249,38 @@ export default function AdminOrderDetailPage() {
               <li key={item.productId} className="flex items-start justify-between gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-gray-800 truncate">{item.productName}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{m(item.price)} × {item.quantity}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 nums">
+                    {hasFrozenBsPricing(order) ? (
+                      <>
+                        {getOrderDualMoney(item.price, order).bs}
+                        <span className="text-gray-400"> · </span>
+                        {getOrderDualMoney(item.price, order).usd}
+                        <span className="text-gray-400"> c/u</span>
+                        <span> × {item.quantity}</span>
+                      </>
+                    ) : (
+                      <>{getOrderDualMoney(item.price, order).usd} c/u × {item.quantity}</>
+                    )}
+                  </p>
                 </div>
-                <p className="text-sm font-semibold text-gray-900 flex-shrink-0">
-                  {m(item.price * item.quantity)}
-                </p>
+                <DualOrderMoney amount={item.price * item.quantity} order={order} variant="admin" />
               </li>
             ))}
           </ul>
           <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 space-y-1 text-sm">
-            <div className="flex justify-between text-gray-600">
-              <span>Subtotal</span><span>{m(subtotal)}</span>
+            <div className="flex justify-between text-gray-600 items-start gap-2">
+              <span>Subtotal</span>
+              <DualOrderMoney amount={subtotal} order={order} variant="admin" />
             </div>
             <div className="flex justify-between text-gray-600">
               <span>Envío</span><span className="text-green-600 font-medium">Gratis</span>
             </div>
-            <div className="flex justify-between font-bold text-gray-900 text-base pt-1.5 border-t border-gray-200">
-              <span>Total</span><span>{m(order.total)}</span>
+            <div className="flex justify-between font-bold text-gray-900 text-base pt-1.5 border-t border-gray-200 items-end gap-2">
+              <span>Total</span>
+              <DualOrderMoney amount={order.total} order={order} variant="admin" emphasis="total" />
             </div>
           </div>
+          <OrderFrozenRateBanner order={order} variant="admin" />
         </div>
 
         <div className="space-y-4">

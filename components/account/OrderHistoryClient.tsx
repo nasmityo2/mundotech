@@ -1,7 +1,7 @@
 'use client';
 
 import { Order } from '@/lib/definitions';
-import { formatStoredOrderMoney } from '@/lib/order-pricing';
+import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import { useRouter } from 'next/navigation';
 import { ShoppingBag, ChevronRight, Package, ArrowRight, Truck } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
@@ -103,9 +103,9 @@ export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) 
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <div className="text-right">
-                    <p className="text-lg font-bold text-navy nums tracking-tight">
-                      {formatStoredOrderMoney(order.total, order)}
-                    </p>
+                  <div className="text-right leading-tight">
+                    <DualOrderMoney amount={order.total} order={order} emphasis="total" />
+                  </div>
                   </div>
                   <ChevronRight size={18} className="text-slate-300 group-hover:text-navy group-hover:translate-x-1 transition-all" />
                 </div>

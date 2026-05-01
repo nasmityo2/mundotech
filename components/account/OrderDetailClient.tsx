@@ -9,7 +9,8 @@ import {
 } from 'lucide-react';
 import { EnrichedOrder } from '@/app/account/orders/[id]/page';
 import { Badge } from '@/components/ui/Badge';
-import { formatStoredOrderMoney } from '@/lib/order-pricing';
+import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
+import { DualOrderMoney, OrderFrozenRateBanner } from '@/components/order/DualOrderMoney';
 
 interface OrderDetailClientProps {
   order: EnrichedOrder;
@@ -44,7 +45,6 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
   const router = useRouter();
   const [trackingCopied, setTrackingCopied] = useState(false);
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const money = (n: number) => formatStoredOrderMoney(n, order);
   const status = statusConfig[order.status] ?? { label: order.status, variant: 'neutral' as const };
   const currentStepIdx = timelineIndex(order.status);
   const isCancelled = order.status === 'Cancelado';
@@ -212,32 +212,41 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                 </div>
                 <div className="flex-grow min-w-0">
                   <p className="text-sm font-medium text-navy truncate">{item.productName}</p>
-                  <p className="text-[12px] text-slate-500 nums">
-                    {money(item.price)} × {item.quantity}
+                  <p className="text-[11px] text-slate-500 nums mt-0.5 leading-snug">
+                    {hasFrozenBsPricing(order) ? (
+                      <>
+                        {getOrderDualMoney(item.price, order).bs}
+                        <span className="text-slate-400"> · </span>
+                        {getOrderDualMoney(item.price, order).usd}
+                        <span className="text-slate-400"> c/u</span>
+                        <span> × {item.quantity}</span>
+                      </>
+                    ) : (
+                      <>
+                        {getOrderDualMoney(item.price, order).usd} c/u × {item.quantity}
+                      </>
+                    )}
                   </p>
                 </div>
-                <p className="text-sm font-semibold text-navy nums whitespace-nowrap">
-                  {money(item.price * item.quantity)}
-                </p>
+                <DualOrderMoney amount={item.price * item.quantity} order={order} />
               </li>
             ))}
           </ul>
           <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 space-y-2 text-sm">
-            <div className="flex justify-between text-slate-500">
+            <div className="flex justify-between text-slate-500 items-start gap-3">
               <span>Subtotal</span>
-              <span className="text-navy nums">{money(subtotal)}</span>
+              <DualOrderMoney amount={subtotal} order={order} />
             </div>
             <div className="flex justify-between text-slate-500">
               <span>Envío</span>
               <span className="text-emerald-600 font-medium">Gratis</span>
             </div>
-            <div className="border-t border-slate-200 pt-2.5 mt-1.5 flex items-end justify-between">
+            <div className="border-t border-slate-200 pt-2.5 mt-1.5 flex items-end justify-between gap-3">
               <span className="text-base font-semibold text-navy">Total</span>
-              <span className="text-2xl font-bold text-navy nums tracking-tight">
-                {money(order.total)}
-              </span>
+              <DualOrderMoney amount={order.total} order={order} emphasis="total" />
             </div>
           </div>
+          <OrderFrozenRateBanner order={order} />
         </div>
 
         {/* Sidebar info */}

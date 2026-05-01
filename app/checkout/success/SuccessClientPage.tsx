@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Check, ArrowRight, Package, Mail, Home } from 'lucide-react';
 import type { EnrichedOrder } from './page';
-import { formatStoredOrderMoney } from '@/lib/order-pricing';
+import { DualOrderMoney, OrderFrozenRateBanner } from '@/components/order/DualOrderMoney';
 
 interface Props {
   order: EnrichedOrder;
@@ -17,7 +17,6 @@ const fadeUp = {
 };
 
 export default function SuccessClientPage({ order }: Props) {
-  const m = (n: number) => formatStoredOrderMoney(n, order);
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   return (
     <div className="py-10 sm:py-14 max-w-3xl mx-auto">
@@ -102,27 +101,26 @@ export default function SuccessClientPage({ order }: Props) {
                   <p className="text-sm font-medium text-navy truncate">{item.productName}</p>
                   <p className="text-[12px] text-slate-500">Cantidad: {item.quantity}</p>
                 </div>
-                <p className="text-sm font-semibold text-navy nums whitespace-nowrap">
-                  {m(item.price * item.quantity)}
-                </p>
+                <DualOrderMoney amount={item.price * item.quantity} order={order} />
               </li>
             ))}
           </ul>
 
           <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 space-y-2 text-sm">
-            <div className="flex justify-between text-slate-500">
+            <div className="flex justify-between text-slate-500 items-start gap-3">
               <span>Subtotal</span>
-              <span className="text-navy nums">{m(subtotal)}</span>
+              <DualOrderMoney amount={subtotal} order={order} />
             </div>
             <div className="flex justify-between text-slate-500">
               <span>Envío</span>
               <span className="text-emerald-600 font-medium">Gratis</span>
             </div>
-            <div className="border-t border-slate-200 pt-2.5 mt-1.5 flex items-end justify-between">
+            <div className="border-t border-slate-200 pt-2.5 mt-1.5 flex items-end justify-between gap-3">
               <span className="text-base font-semibold text-navy">Total</span>
-              <span className="text-2xl font-bold text-navy nums tracking-tight">{m(order.total)}</span>
+              <DualOrderMoney amount={order.total} order={order} emphasis="total" />
             </div>
           </div>
+          <OrderFrozenRateBanner order={order} />
         </motion.div>
 
         {/* CTAs */}
