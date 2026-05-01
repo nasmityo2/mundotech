@@ -62,7 +62,8 @@ export async function validateOrderPayment(orderId: string): Promise<ValidateOrd
   await sendPaymentValidatedEmail(
     recipientEmail,
     firstNameFromCustomerName(displayNameForEmail),
-    String(updated.orderNumber).padStart(4, '0')
+    String(updated.orderNumber).padStart(4, '0'),
+    updated.id
   );
 
   revalidatePath('/admin/orders');

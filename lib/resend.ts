@@ -3,6 +3,18 @@ import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
 
 const FROM_ADDRESS = 'Mundo Tech <ventas@jummper.pro>';
 
+/** Paleta MundoTech — correo claro retail (alineado con web; sin cyan). */
+const PAGE_BG = '#F1F5F9';
+const CARD_BG = '#FFFFFF';
+const BORDER = '#E2E8F0';
+const NAVY = '#0B1220';
+const GOLD = '#FFD700';
+const GOLD_MID = '#FFE03A';
+const SUCCESS = '#48BB78';
+const TEXT_MUTED = '#64748b';
+const TEXT_SECONDARY = '#475569';
+const TABLE_HEAD = '#F8FAFC';
+
 function getResend(): Resend | null {
   const key = process.env.RESEND_API_KEY;
   if (!key?.trim()) {
@@ -19,17 +31,120 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Monto en bolívares para tablas de correo (coherente con la tienda). */
-function formatVES(amount: number): string {
-  return new Intl.NumberFormat('es-VE', {
-    style: 'currency',
-    currency: 'VES',
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-
 function siteBaseUrl(): string {
   return process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://mundotech.com.ve';
+}
+
+function contactEmailRaw(): string {
+  return process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || 'ventas@jummper.pro';
+}
+
+/** Estilos mínimos para padding responsivo (clientes que respetan @media). */
+function emailHead(title: string): string {
+  const safeTitle = escapeHtml(title);
+  return `
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>${safeTitle}</title>
+  <!--[if mso]><style type="text/css">table, td { border-collapse: collapse; }</style><![endif]-->
+  <style type="text/css">
+    @media only screen and (min-width: 600px) {
+      .mt-pad-x { padding-left: 32px !important; padding-right: 32px !important; }
+      .mt-pad-h { padding-top: 28px !important; padding-bottom: 28px !important; }
+    }
+    @media only screen and (max-width: 599px) {
+      .mt-btn { display: block !important; width: 100% !important; box-sizing: border-box !important; }
+    }
+  </style>`;
+}
+
+function brandMarkHtml(): string {
+  return `<span style="font-size:22px;font-weight:700;letter-spacing:-0.02em;color:${NAVY};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">Mundo<span style="color:${GOLD};">Tech</span></span>`;
+}
+
+function emailHeader(): string {
+  return `
+          <tr>
+            <td class="mt-pad-x mt-pad-h" style="padding:24px 16px 20px;text-align:center;background:${CARD_BG};border-bottom:1px solid ${BORDER};">
+              <p style="margin:0 0 8px;">${brandMarkHtml()}</p>
+              <p style="margin:0;font-size:13px;color:${TEXT_MUTED};letter-spacing:0.02em;">Conectados Contigo</p>
+            </td>
+          </tr>`;
+}
+
+function emailFooter(): string {
+  const mail = escapeHtml(contactEmailRaw());
+  const mailto = escapeHtml(`mailto:${contactEmailRaw()}`);
+  return `
+          <tr>
+            <td class="mt-pad-x" style="padding:28px 16px 32px;text-align:center;background:${CARD_BG};border-top:1px solid ${BORDER};">
+              <p style="margin:0 0 8px;font-size:13px;line-height:1.65;color:${TEXT_MUTED};">
+                Tecnología premium en <strong style="color:${TEXT_SECONDARY};">Barquisimeto</strong>
+              </p>
+              <p style="margin:0 0 12px;">
+                <a href="${mailto}" style="color:${GOLD};font-weight:600;text-decoration:none;font-size:14px;">${mail}</a>
+              </p>
+              <p style="margin:0;font-size:12px;color:${TEXT_MUTED};">MundoTech · Conectados Contigo</p>
+            </td>
+          </tr>`;
+}
+
+function statusBadge(text: string, tone: 'neutral' | 'success'): string {
+  const safe = escapeHtml(text);
+  const bg = tone === 'success' ? '#ECFDF5' : '#F1F5F9';
+  const fg = tone === 'success' ? SUCCESS : NAVY;
+  return `<span style="display:inline-block;padding:6px 14px;font-size:12px;font-weight:600;color:${fg};background:${bg};border-radius:999px;">${safe}</span>`;
+}
+
+/** Botón primario: amarillo marca; “hover” simulado vía color intermedio en borde sutil (solo visual fijo en email). */
+function ctaButton(href: string, label: string): string {
+  const h = escapeHtml(href);
+  const l = escapeHtml(label);
+  return `
+            <tr>
+              <td class="mt-pad-x" style="padding:8px 16px 8px;text-align:center;">
+                <a class="mt-btn" href="${h}" style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:${NAVY};background-color:${GOLD};border-radius:12px;text-decoration:none;border:1px solid ${GOLD_MID};min-width:200px;box-sizing:border-box;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${l}</a>
+              </td>
+            </tr>`;
+}
+
+function ctaButtonSecondary(href: string, label: string): string {
+  const h = escapeHtml(href);
+  const l = escapeHtml(label);
+  return `
+            <tr>
+              <td class="mt-pad-x" style="padding:4px 16px 16px;text-align:center;">
+                <a class="mt-btn" href="${h}" style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:600;color:${NAVY};background-color:${TABLE_HEAD};border-radius:12px;text-decoration:none;border:1px solid ${BORDER};min-width:200px;box-sizing:border-box;text-align:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">${l}</a>
+              </td>
+            </tr>`;
+}
+
+function wrapEmail(title: string, innerRows: string): string {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>${emailHead(title)}
+</head>
+<body style="margin:0;padding:0;background-color:${PAGE_BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:${PAGE_BG};">
+    <tr>
+      <td align="center" style="padding:24px 16px;">
+        <table role="presentation" width="560" cellspacing="0" cellpadding="0" style="max-width:560px;width:100%;border-collapse:separate;border-spacing:0;">
+          <tr>
+            <td style="background-color:${CARD_BG};border-radius:20px;border:1px solid ${BORDER};overflow:hidden;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+${emailHeader()}
+${innerRows}
+${emailFooter()}
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 }
 
 /** Datos del pedido para el HTML de confirmación (sin datos sensibles extra). */
@@ -63,7 +178,6 @@ function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirm
     timeStyle: 'short',
   });
   const safeWhen = escapeHtml(when);
-  const safeStatus = escapeHtml(detail.status);
   const safePay = escapeHtml(detail.paymentMethod);
   const safeBank = detail.paymentBank?.trim() ? escapeHtml(detail.paymentBank.trim()) : '';
   const safeRef = detail.paymentReference?.trim() ? escapeHtml(detail.paymentReference.trim()) : '';
@@ -77,9 +191,9 @@ function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirm
   const dualMoneyCells = (amount: number) => {
     const d = getOrderDualMoney(amount, pricingMeta);
     if (hasFrozenBsPricing(pricingMeta)) {
-      return `${escapeHtml(d.bs)}<br/><span style="font-size:12px;color:#64748b;">${escapeHtml(d.usd)}</span>`;
+      return `${escapeHtml(d.bs)}<br/><span style="font-size:12px;color:${TEXT_MUTED};">${escapeHtml(d.usd)}</span>`;
     }
-    return escapeHtml(d.usd);
+    return `<span style="color:${NAVY};font-weight:600;">${escapeHtml(d.usd)}</span>`;
   };
 
   const rowsHtml = detail.items
@@ -87,16 +201,16 @@ function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirm
       const line = item.price * item.quantity;
       return `
                 <tr>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #e2e8f0; font-size: 14px;">
+                  <td style="padding:12px 10px;border-bottom:1px solid ${BORDER};color:${NAVY};font-size:14px;">
                     ${escapeHtml(item.productName)}
                   </td>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #94a3b8; font-size: 13px; text-align: center;">
+                  <td style="padding:12px 10px;border-bottom:1px solid ${BORDER};color:${TEXT_MUTED};font-size:13px;text-align:center;">
                     ${item.quantity}
                   </td>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #94a3b8; font-size: 13px; text-align: right; line-height: 1.35;">
+                  <td style="padding:12px 10px;border-bottom:1px solid ${BORDER};color:${TEXT_MUTED};font-size:13px;text-align:right;line-height:1.35;">
                     ${dualMoneyCells(item.price)}
                   </td>
-                  <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #f8fafc; font-size: 13px; text-align: right; line-height: 1.35; font-weight: 600;">
+                  <td style="padding:12px 10px;border-bottom:1px solid ${BORDER};color:${NAVY};font-size:13px;text-align:right;line-height:1.35;font-weight:700;">
                     ${dualMoneyCells(line)}
                   </td>
                 </tr>`;
@@ -105,73 +219,58 @@ function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirm
 
   const rateNote =
     detail.exchangeRateUsdBs != null && detail.exchangeRateUsdBs > 0
-      ? `<p style="margin: 10px 0 0; font-size: 12px; color: #64748b;"><strong style="color: #94a3b8;">Tasa registrada en este pedido (no cambia):</strong> Bs. ${escapeHtml(detail.exchangeRateUsdBs.toFixed(2))} / USD. Los montos anteriores son los que pagaste en ese momento.</p>`
-      : `<p style="margin: 10px 0 0; font-size: 12px; color: #64748b;">Montos en dólares (USD); pedido anterior al registro de tasa en el sistema.</p>`;
+      ? `<p style="margin:12px 0 0;font-size:12px;color:${TEXT_MUTED};"><strong style="color:${TEXT_SECONDARY};">Tasa registrada en este pedido (no cambia):</strong> Bs. ${escapeHtml(detail.exchangeRateUsdBs.toFixed(2))} / USD. Los montos anteriores son los que pagaste en ese momento.</p>`
+      : `<p style="margin:12px 0 0;font-size:12px;color:${TEXT_MUTED};">Montos en dólares (USD); pedido anterior al registro de tasa en el sistema.</p>`;
 
   const orderUrl = `${siteBaseUrl()}/account/orders/${encodeURIComponent(detail.orderId)}`;
 
   const payExtras =
     (safeBank
-      ? `<p style="margin: 6px 0 0; font-size: 13px; color: #94a3b8;">Banco: <strong style="color: #e2e8f0;">${safeBank}</strong></p>`
+      ? `<p style="margin:6px 0 0;font-size:13px;color:${TEXT_MUTED};">Banco: <strong style="color:${NAVY};">${safeBank}</strong></p>`
       : '') +
     (safeRef
-      ? `<p style="margin: 6px 0 0; font-size: 13px; color: #94a3b8;">Referencia: <strong style="color: #e2e8f0;">${safeRef}</strong></p>`
+      ? `<p style="margin:6px 0 0;font-size:13px;color:${TEXT_MUTED};">Referencia: <strong style="color:${NAVY};">${safeRef}</strong></p>`
       : '');
 
-  return `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pedido #${safeOrderNo}</title>
-</head>
-<body style="margin:0; padding:0; background-color:#0f1117; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#0f1117; padding: 40px 16px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 560px; background: linear-gradient(145deg, #161b22 0%, #1a1f2e 100%); border-radius: 16px; border: 1px solid #2a2f3a; overflow: hidden; box-shadow: 0 24px 48px rgba(0,0,0,0.45);">
+  const inner = `
           <tr>
-            <td style="padding: 36px 36px 28px; text-align: center; background: linear-gradient(180deg, rgba(56,189,248,0.08) 0%, transparent 100%);">
-              <p style="margin: 0 0 6px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: #f8fafc;">Mundo Tech</p>
-              <p style="margin: 0; font-size: 13px; color: #94a3b8; letter-spacing: 0.04em;">Conectados Contigo</p>
+            <td class="mt-pad-x" style="padding:8px 16px 8px;">
+              <p style="margin:0;font-size:16px;line-height:1.6;color:${NAVY};">Hola <strong style="color:${NAVY};">${safeName}</strong>,</p>
+              <p style="margin:16px 0 0;font-size:15px;line-height:1.7;color:${TEXT_SECONDARY};">
+                Gracias por tu compra en <strong style="color:${NAVY};">MundoTech</strong>. Aquí tienes el resumen del pedido <strong style="color:${NAVY};">#${safeOrderNo}</strong>.
+              </p>
             </td>
           </tr>
           <tr>
-            <td style="padding: 0 36px 8px;">
-              <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #e2e8f0;">¡Hola <strong style="color: #f8fafc;">${safeName}</strong>!</p>
-              <p style="margin: 18px 0 0; font-size: 15px; line-height: 1.75; color: #cbd5e1;">
-                Gracias por tu compra. Aquí tienes el resumen del <strong style="color: #f8fafc;">pedido #${safeOrderNo}</strong>.
-              </p>
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top: 18px; border-radius: 10px; background: rgba(15,23,42,0.5); border: 1px solid #2a2f3a;">
+            <td class="mt-pad-x" style="padding:8px 16px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid ${BORDER};border-radius:12px;overflow:hidden;background:${TABLE_HEAD};">
                 <tr>
-                  <td style="padding: 14px 18px;">
-                    <p style="margin: 0; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: #64748b;">Fecha</p>
-                    <p style="margin: 4px 0 0; font-size: 14px; color: #e2e8f0;">${safeWhen}</p>
-                    <p style="margin: 12px 0 0; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: #64748b;">Estado</p>
-                    <p style="margin: 4px 0 0; font-size: 14px; color: #38bdf8; font-weight: 600;">${safeStatus}</p>
+                  <td style="padding:16px 18px;">
+                    <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${TEXT_MUTED};">Resumen</p>
+                    <p style="margin:0 0 6px;font-size:13px;color:${TEXT_SECONDARY};">${safeWhen}</p>
+                    <p style="margin:12px 0 0;">${statusBadge(detail.status, 'neutral')}</p>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
           <tr>
-            <td style="padding: 12px 36px 8px;">
-              <p style="margin: 0 0 10px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #6b7280;">Productos</p>
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border: 1px solid #2a2f3a; border-radius: 10px; overflow: hidden;">
+            <td class="mt-pad-x" style="padding:12px 16px 8px;">
+              <p style="margin:0 0 10px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:${TEXT_MUTED};">Productos</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid ${BORDER};border-radius:12px;overflow:hidden;background:${CARD_BG};">
                 <thead>
-                  <tr style="background: rgba(56,189,248,0.08);">
-                    <th align="left" style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">Artículo</th>
-                    <th style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">Cant.</th>
-                    <th align="right" style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">P. unit.<br/><span style="font-weight:400;font-size:9px;letter-spacing:0.06em;">Bs. / USD</span></th>
-                    <th align="right" style="padding: 10px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8;">Subtotal<br/><span style="font-weight:400;font-size:9px;letter-spacing:0.06em;">Bs. / USD</span></th>
+                  <tr style="background:${TABLE_HEAD};">
+                    <th align="left" style="padding:12px 10px;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:${TEXT_SECONDARY};border-bottom:1px solid ${BORDER};">Artículo</th>
+                    <th style="padding:12px 10px;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:${TEXT_SECONDARY};border-bottom:1px solid ${BORDER};">Cant.</th>
+                    <th align="right" style="padding:12px 10px;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:${TEXT_SECONDARY};border-bottom:1px solid ${BORDER};">P. unit.<br/><span style="font-weight:400;font-size:10px;">Bs. / USD</span></th>
+                    <th align="right" style="padding:12px 10px;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:${TEXT_SECONDARY};border-bottom:1px solid ${BORDER};">Subtotal<br/><span style="font-weight:400;font-size:10px;">Bs. / USD</span></th>
                   </tr>
                 </thead>
                 <tbody>
                   ${rowsHtml}
-                  <tr>
-                    <td colspan="3" style="padding: 14px 10px; text-align: right; font-size: 14px; font-weight: 700; color: #cbd5e1;">Total</td>
-                    <td style="padding: 14px 10px; text-align: right; font-size: 15px; font-weight: 700; color: #38bdf8; line-height: 1.35;">
+                  <tr style="background:${TABLE_HEAD};">
+                    <td colspan="3" style="padding:16px 10px;text-align:right;font-size:15px;font-weight:700;color:${NAVY};border-top:1px solid ${BORDER};">Total</td>
+                    <td style="padding:16px 10px;text-align:right;font-size:16px;font-weight:700;color:${NAVY};border-top:1px solid ${BORDER};line-height:1.35;">
                       ${dualMoneyCells(detail.total)}
                     </td>
                   </tr>
@@ -181,99 +280,48 @@ function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirm
             </td>
           </tr>
           <tr>
-            <td style="padding: 8px 36px 8px;">
-              <p style="margin: 0 0 10px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #6b7280;">Envío</p>
-              <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #cbd5e1;">${safeAddr}</p>
-              <p style="margin: 6px 0 0; font-size: 13px; color: #94a3b8;">${safeCity}, ${safeState} · C.P. ${safeZip} · ${safeCountry}</p>
-              ${safePhone ? `<p style="margin: 8px 0 0; font-size: 13px; color: #94a3b8;">Tel: <span style="color: #e2e8f0;">${safePhone}</span></p>` : ''}
+            <td class="mt-pad-x" style="padding:8px 16px;">
+              <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:${TEXT_MUTED};">Envío</p>
+              <p style="margin:0;font-size:14px;line-height:1.6;color:${TEXT_SECONDARY};">${safeAddr}</p>
+              <p style="margin:6px 0 0;font-size:13px;color:${TEXT_MUTED};">${safeCity}, ${safeState} · C.P. ${safeZip} · ${safeCountry}</p>
+              ${safePhone ? `<p style="margin:8px 0 0;font-size:13px;color:${TEXT_MUTED};">Tel: <span style="color:${NAVY};">${safePhone}</span></p>` : ''}
             </td>
           </tr>
           <tr>
-            <td style="padding: 8px 36px 20px;">
-              <p style="margin: 0 0 10px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #6b7280;">Pago</p>
-              <p style="margin: 0; font-size: 14px; color: #e2e8f0;"><strong>${safePay}</strong></p>
+            <td class="mt-pad-x" style="padding:8px 16px 16px;">
+              <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:${TEXT_MUTED};">Pago</p>
+              <p style="margin:0;font-size:14px;color:${NAVY};"><strong>${safePay}</strong></p>
               ${payExtras}
             </td>
           </tr>
-          <tr>
-            <td style="padding: 8px 36px 28px; text-align: center;">
-              <a href="${escapeHtml(orderUrl)}" style="display: inline-block; padding: 14px 32px; font-size: 14px; font-weight: 600; color: #0f1117; background: linear-gradient(180deg, #38bdf8 0%, #0ea5e9 100%); border-radius: 12px; text-decoration: none; box-shadow: 0 8px 24px rgba(14,165,233,0.35);">Ver mi pedido</a>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 28px 36px 36px; text-align: center; border-top: 1px solid #2a2f3a;">
-              <p style="margin: 0 0 10px; font-size: 13px; line-height: 1.65; color: #94a3b8;">
-                Tecnología premium en <strong style="color: #f8fafc;">Barquisimeto</strong>.
-              </p>
-              <p style="margin: 0 0 8px; font-size: 12px; color: #64748b; letter-spacing: 0.06em;">Conectados Contigo</p>
-              <p style="margin: 0;">
-                <a href="mailto:ventas@jummper.pro" style="color: #38bdf8; text-decoration: none; font-size: 13px;">ventas@jummper.pro</a>
-              </p>
-              <p style="margin: 16px 0 0; font-size: 11px; color: #475569;">Mundo Tech · Venezuela</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+          ${ctaButton(orderUrl, 'Ver pedido')}`;
+
+  return wrapEmail(`Pedido #${safeOrderNo}`, inner);
 }
 
-function buildPaymentValidatedEmailHtml(firstName: string, orderDisplayId: string): string {
+function buildPaymentValidatedEmailHtml(firstName: string, orderDisplayId: string, orderUuid?: string): string {
   const safeName = escapeHtml(firstName);
   const safeOrderRef = escapeHtml(orderDisplayId);
-  const ordersUrl = 'https://jummper.pro/mis-pedidos';
+  const ordersPath = orderUuid
+    ? `${siteBaseUrl()}/account/orders/${encodeURIComponent(orderUuid)}`
+    : `${siteBaseUrl()}/account/orders`;
 
-  return `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pago confirmado</title>
-</head>
-<body style="margin:0; padding:0; background-color:#0f1117; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#0f1117; padding: 40px 16px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 560px; background: linear-gradient(145deg, #161b22 0%, #1a1f2e 100%); border-radius: 16px; border: 1px solid #2a2f3a; overflow: hidden; box-shadow: 0 24px 48px rgba(0,0,0,0.45);">
+  const inner = `
           <tr>
-            <td style="padding: 36px 36px 28px; text-align: center; background: linear-gradient(180deg, rgba(56,189,248,0.08) 0%, transparent 100%);">
-              <p style="margin: 0 0 6px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: #f8fafc;">Mundo Tech</p>
-              <p style="margin: 0; font-size: 13px; color: #94a3b8; letter-spacing: 0.04em;">Conectados Contigo</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 0 36px 8px;">
-              <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #e2e8f0;">Hola <strong style="color: #f8fafc;">${safeName}</strong>,</p>
-              <p style="margin: 18px 0 0; font-size: 15px; line-height: 1.75; color: #cbd5e1;">
-                Hemos verificado tu pago exitosamente para el pedido <strong style="color: #38bdf8;">#${safeOrderRef}</strong>. Ya estamos preparando tu paquete con el mayor cuidado.
+            <td class="mt-pad-x" style="padding:8px 16px 8px;">
+              <p style="margin:0 0 16px;">${statusBadge('Pago verificado', 'success')}</p>
+              <p style="margin:0;font-size:16px;line-height:1.6;color:${NAVY};">Hola <strong style="color:${NAVY};">${safeName}</strong>,</p>
+              <p style="margin:16px 0 0;font-size:18px;line-height:1.45;color:${NAVY};font-weight:700;">
+                Tu pago fue verificado correctamente
+              </p>
+              <p style="margin:14px 0 0;font-size:15px;line-height:1.7;color:${TEXT_SECONDARY};">
+                Hemos confirmado el pago del pedido <strong style="color:${NAVY};">#${safeOrderRef}</strong>. Ya estamos preparando tu envío con el mayor cuidado.
               </p>
             </td>
           </tr>
-          <tr>
-            <td style="padding: 24px 36px 28px; text-align: center;">
-              <a href="${escapeHtml(ordersUrl)}" style="display: inline-block; padding: 14px 32px; font-size: 14px; font-weight: 600; color: #0f1117; background: linear-gradient(180deg, #38bdf8 0%, #0ea5e9 100%); border-radius: 12px; text-decoration: none; box-shadow: 0 8px 24px rgba(14,165,233,0.35);">Ver detalles de mi pedido</a>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 28px 36px 36px; text-align: center; border-top: 1px solid #2a2f3a;">
-              <p style="margin: 0 0 10px; font-size: 13px; line-height: 1.65; color: #94a3b8;">
-                Conectados contigo desde <strong style="color: #f8fafc;">Barquisimeto</strong>.
-              </p>
-              <p style="margin: 0;">
-                <a href="mailto:ventas@jummper.pro" style="color: #38bdf8; text-decoration: none; font-size: 13px;">ventas@jummper.pro</a>
-              </p>
-              <p style="margin: 16px 0 0; font-size: 11px; color: #475569;">Mundo Tech · Venezuela</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+          ${ctaButton(ordersPath, 'Ver pedido')}`;
+
+  return wrapEmail('Pago confirmado — MundoTech', inner);
 }
 
 /**
@@ -283,7 +331,8 @@ function buildPaymentValidatedEmailHtml(firstName: string, orderDisplayId: strin
 export async function sendPaymentValidatedEmail(
   email: string,
   firstName: string,
-  orderId: string
+  orderId: string,
+  orderUuid?: string
 ): Promise<void> {
   const resend = getResend();
   if (!resend) {
@@ -304,8 +353,8 @@ export async function sendPaymentValidatedEmail(
     const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: trimmedEmail,
-      subject: '✅ ¡Pago Confirmado! Tu pedido de Mundo Tech está en preparación.',
-      html: buildPaymentValidatedEmailHtml(trimmedName, trimmedOrderRef),
+      subject: 'MundoTech · Pago confirmado — tu pedido va en preparación',
+      html: buildPaymentValidatedEmailHtml(trimmedName, trimmedOrderRef, orderUuid),
     });
 
     if (error) {
@@ -346,7 +395,7 @@ export async function sendOrderConfirmationEmail(
     const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: trimmedEmail,
-      subject: `✅ Mundo Tech · Pedido #${subjNo} recibido`,
+      subject: `MundoTech · Pedido #${subjNo} recibido`,
       html: buildOrderConfirmationEmailHtml(trimmedName, detail),
     });
 
@@ -360,6 +409,7 @@ export async function sendOrderConfirmationEmail(
 
 function buildWelcomeEmailHtml(firstName: string): string {
   const safeName = escapeHtml(firstName);
+  const shopUrl = `${siteBaseUrl()}/productos`;
 
   const socialLinks: { label: string; url: string }[] = [];
   const ig = process.env.NEXT_PUBLIC_INSTAGRAM_URL?.trim();
@@ -373,148 +423,124 @@ function buildWelcomeEmailHtml(firstName: string): string {
     socialLinks.length === 0
       ? ''
       : `
-      <tr>
-        <td style="padding: 24px 36px 36px; text-align: center; border-top: 1px solid #2a2f3a;">
-          <p style="margin: 0 0 12px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #6b7280;">Redes</p>
-          <p style="margin: 0; font-size: 13px; line-height: 1.8;">
-            ${socialLinks
-              .map(
-                (l) =>
-                  `<a href="${escapeHtml(l.url)}" style="color: #38bdf8; text-decoration: none; margin: 0 10px;">${escapeHtml(l.label)}</a>`
-              )
-              .join('·')}
-          </p>
-        </td>
-      </tr>`;
+          <tr>
+            <td class="mt-pad-x" style="padding:8px 16px 16px;text-align:center;">
+              <p style="margin:0 0 8px;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:${TEXT_MUTED};">Síguenos</p>
+              <p style="margin:0;font-size:13px;line-height:2;">
+                ${socialLinks
+                  .map(
+                    (l) =>
+                      `<a href="${escapeHtml(l.url)}" style="color:${GOLD};font-weight:600;text-decoration:none;margin:0 8px;">${escapeHtml(l.label)}</a>`
+                  )
+                  .join(' ')}
+              </p>
+            </td>
+          </tr>`;
 
-  return `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bienvenido a Mundo Tech</title>
-</head>
-<body style="margin:0; padding:0; background-color:#0f1117; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#0f1117; padding: 40px 16px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 560px; background: linear-gradient(145deg, #161b22 0%, #1a1f2e 100%); border-radius: 16px; border: 1px solid #2a2f3a; overflow: hidden; box-shadow: 0 24px 48px rgba(0,0,0,0.45);">
+  const inner = `
           <tr>
-            <td style="padding: 36px 36px 28px; text-align: center; background: linear-gradient(180deg, rgba(56,189,248,0.08) 0%, transparent 100%);">
-              <p style="margin: 0 0 6px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: #f8fafc;">Mundo Tech</p>
-              <p style="margin: 0; font-size: 13px; color: #94a3b8; letter-spacing: 0.04em;">Conectados Contigo</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 0 36px 8px;">
-              <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #e2e8f0;">Hola <strong style="color: #f8fafc;">${safeName}</strong>,</p>
-              <p style="margin: 18px 0 0; font-size: 15px; line-height: 1.75; color: #cbd5e1;">
-                Nos alegra darte la bienvenida. Estamos cerca de ti en <strong style="color: #f8fafc;">Barquisimeto</strong>, acompañando tu experiencia tech con el mismo cuidado en tienda y en línea.
+            <td class="mt-pad-x" style="padding:8px 16px 8px;">
+              <p style="margin:0 0 12px;font-size:20px;line-height:1.35;color:${NAVY};font-weight:700;">Bienvenido a MundoTech</p>
+              <p style="margin:0;font-size:16px;line-height:1.6;color:${NAVY};">Hola <strong style="color:${NAVY};">${safeName}</strong>,</p>
+              <p style="margin:16px 0 0;font-size:15px;line-height:1.75;color:${TEXT_SECONDARY};">
+                Gracias por registrarte. Somos tu tienda de tecnología en <strong style="color:${NAVY};">Barquisimeto</strong>: stock real, soporte cercano y pedidos con respaldo.
               </p>
-              <p style="margin: 20px 0 0; font-size: 15px; line-height: 1.75; color: #cbd5e1;">
-                Gracias por unirte a la comunidad tecnológica más avanzada. Ahora tienes acceso a lanzamientos exclusivos de hardware, seguimiento de pedidos en tiempo real y soporte prioritario.
-              </p>
-              <p style="margin: 24px 0 0; font-size: 14px; line-height: 1.6; color: #64748b;">
-                — El equipo de Mundo Tech
+              <p style="margin:16px 0 0;font-size:15px;line-height:1.75;color:${TEXT_SECONDARY};">
+                Explora nuestro catálogo y compra con la tranquilidad de una marca local seria.
               </p>
             </td>
           </tr>
-          ${socialRow}
-          <tr>
-            <td style="padding: 28px 36px 36px; text-align: center; border-top: 1px solid #2a2f3a;">
-              <p style="margin: 0 0 8px; font-size: 12px; color: #64748b;">Contacto</p>
-              <p style="margin: 0;">
-                <a href="mailto:ventas@jummper.pro" style="color: #38bdf8; text-decoration: none; font-size: 13px;">ventas@jummper.pro</a>
-              </p>
-              <p style="margin: 16px 0 0; font-size: 11px; color: #475569;">Mundo Tech · Venezuela</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+          ${ctaButton(shopUrl, 'Explorar productos')}
+          ${socialRow}`;
+
+  return wrapEmail('Bienvenido a MundoTech', inner);
 }
 
-function buildShippingEmailHtml(firstName: string, trackingNumber: string): string {
+export type ShippingEmailOptions = {
+  carrier?: string | null;
+  trackingUrl?: string | null;
+  orderId?: string | null;
+};
+
+function buildShippingEmailHtml(
+  firstName: string,
+  trackingNumber: string,
+  opts?: ShippingEmailOptions
+): string {
   const safeName = escapeHtml(firstName);
   const safeTracking = escapeHtml(trackingNumber.trim());
-  const trackUrl = `https://jummper.pro/tracking/${encodeURIComponent(trackingNumber.trim())}`;
+  const carrierRaw = opts?.carrier?.trim() || 'Tu transportista';
+  const safeCarrier = escapeHtml(carrierRaw);
+  const explicitUrl = opts?.trackingUrl?.trim();
+  const orderId = opts?.orderId?.trim();
+  const trackHref =
+    explicitUrl && /^https?:\/\//i.test(explicitUrl)
+      ? explicitUrl
+      : orderId
+        ? `${siteBaseUrl()}/account/orders/${encodeURIComponent(orderId)}`
+        : `${siteBaseUrl()}/account/orders`;
+  const ctaLabel = explicitUrl && /^https?:\/\//i.test(explicitUrl) ? 'Rastrear envío' : 'Ver pedido';
 
-  return `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tu pedido va en camino</title>
-</head>
-<body style="margin:0; padding:0; background-color:#0f1117; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#0f1117; padding: 40px 16px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 560px; background: linear-gradient(145deg, #161b22 0%, #1a1f2e 100%); border-radius: 16px; border: 1px solid #2a2f3a; overflow: hidden; box-shadow: 0 24px 48px rgba(0,0,0,0.45);">
+  const inner = `
           <tr>
-            <td style="padding: 36px 36px 28px; text-align: center; background: linear-gradient(180deg, rgba(56,189,248,0.08) 0%, transparent 100%);">
-              <p style="margin: 0 0 6px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: #f8fafc;">Mundo Tech</p>
-              <p style="margin: 0; font-size: 13px; color: #94a3b8; letter-spacing: 0.04em;">Conectados Contigo</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 0 36px 8px;">
-              <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #e2e8f0;">¡Hola <strong style="color: #f8fafc;">${safeName}</strong>!</p>
-              <p style="margin: 18px 0 0; font-size: 15px; line-height: 1.75; color: #cbd5e1;">
-                Tu paquete ya ha sido entregado a <strong style="color: #f8fafc;">MRW</strong> y está viajando hacia ti.
+            <td class="mt-pad-x" style="padding:8px 16px 8px;">
+              <p style="margin:0 0 12px;">${statusBadge('Enviado', 'neutral')}</p>
+              <p style="margin:0;font-size:16px;line-height:1.6;color:${NAVY};">¡Hola <strong style="color:${NAVY};">${safeName}</strong>!</p>
+              <p style="margin:16px 0 0;font-size:15px;line-height:1.7;color:${TEXT_SECONDARY};">
+                Tu pedido salió con <strong style="color:${NAVY};">${safeCarrier}</strong>. Usa el número de seguimiento para ver el estado del envío.
               </p>
             </td>
           </tr>
           <tr>
-            <td style="padding: 20px 36px;">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-radius: 12px; border: 1px solid rgba(56,189,248,0.45); background: linear-gradient(135deg, rgba(56,189,248,0.12) 0%, rgba(15,23,42,0.6) 100%); box-shadow: 0 0 32px rgba(56,189,248,0.12);">
+            <td class="mt-pad-x" style="padding:8px 16px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px solid ${BORDER};border-radius:12px;background:${TABLE_HEAD};">
                 <tr>
-                  <td style="padding: 20px 24px; text-align: center;">
-                    <p style="margin: 0 0 8px; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #38bdf8;">Número de guía MRW</p>
-                    <p style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.06em; color: #f8fafc; font-family: ui-monospace, 'Cascadia Code', 'Segoe UI Mono', monospace;">${safeTracking}</p>
+                  <td style="padding:20px 18px;">
+                    <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${TEXT_MUTED};">Guía / tracking</p>
+                    <p style="margin:0;font-size:18px;font-weight:700;color:${NAVY};letter-spacing:0.03em;font-family:ui-monospace,'Segoe UI Mono',Consolas,monospace;">${safeTracking}</p>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
+          ${ctaButton(trackHref, ctaLabel)}`;
+
+  return wrapEmail('Tu pedido va en camino — MundoTech', inner);
+}
+
+function buildOrderDeliveredEmailHtml(firstName: string, orderUuid: string): string {
+  const safeName = escapeHtml(firstName);
+  const orderUrl = `${siteBaseUrl()}/account/orders/${encodeURIComponent(orderUuid)}`;
+  const shopUrl = `${siteBaseUrl()}/productos`;
+
+  const inner = `
           <tr>
-            <td style="padding: 8px 36px 28px; text-align: center;">
-              <a href="${escapeHtml(trackUrl)}" style="display: inline-block; padding: 16px 40px; font-size: 15px; font-weight: 600; color: #0f1117; background: linear-gradient(180deg, #38bdf8 0%, #0ea5e9 100%); border-radius: 12px; text-decoration: none; box-shadow: 0 8px 24px rgba(14,165,233,0.35);">Rastrear mi Paquete</a>
+            <td class="mt-pad-x" style="padding:8px 16px 8px;">
+              <p style="margin:0 0 16px;">${statusBadge('Entregado', 'success')}</p>
+              <p style="margin:0;font-size:16px;line-height:1.6;color:${NAVY};">Hola <strong style="color:${NAVY};">${safeName}</strong>,</p>
+              <p style="margin:16px 0 0;font-size:18px;line-height:1.45;color:${NAVY};font-weight:700;">
+                Tu pedido fue entregado
+              </p>
+              <p style="margin:14px 0 0;font-size:15px;line-height:1.7;color:${TEXT_SECONDARY};">
+                Esperamos que disfrutes tu compra. Si necesitas ayuda con garantía o accesorios, escríbenos.
+              </p>
             </td>
           </tr>
-          <tr>
-            <td style="padding: 28px 36px 36px; text-align: center; border-top: 1px solid #2a2f3a;">
-              <p style="margin: 0 0 10px; font-size: 13px; line-height: 1.65; color: #94a3b8;">
-                Somos <strong style="color: #e2e8f0;">tecnología premium</strong> en <strong style="color: #f8fafc;">Barquisimeto</strong>.
-              </p>
-              <p style="margin: 0 0 8px; font-size: 12px; color: #64748b; letter-spacing: 0.06em;">Conectados Contigo</p>
-              <p style="margin: 0;">
-                <a href="mailto:ventas@jummper.pro" style="color: #38bdf8; text-decoration: none; font-size: 13px;">ventas@jummper.pro</a>
-              </p>
-              <p style="margin: 16px 0 0; font-size: 11px; color: #475569;">Mundo Tech · Venezuela</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+          ${ctaButton(orderUrl, 'Ver pedido')}
+          ${ctaButtonSecondary(shopUrl, 'Comprar nuevamente')}`;
+
+  return wrapEmail('Pedido entregado — MundoTech', inner);
 }
 
 /**
- * Envía el correo de envío cuando el pedido sale con MRW.
+ * Envía el correo de envío cuando el pedido sale con guía.
  * Solo debe llamarse desde el servidor. Errores se registran; no relanza.
  */
 export async function sendShippingEmail(
   email: string,
   firstName: string,
-  trackingNumber: string
+  trackingNumber: string,
+  opts?: ShippingEmailOptions
 ): Promise<void> {
   const resend = getResend();
   if (!resend) {
@@ -538,8 +564,8 @@ export async function sendShippingEmail(
     const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: trimmedEmail,
-      subject: '📦 ¡Buenas noticias! Tu pedido de Mundo Tech va en camino',
-      html: buildShippingEmailHtml(trimmedName, trimmedTracking),
+      subject: 'MundoTech · Tu pedido va en camino',
+      html: buildShippingEmailHtml(trimmedName, trimmedTracking, opts),
     });
 
     if (error) {
@@ -547,6 +573,41 @@ export async function sendShippingEmail(
     }
   } catch (err) {
     console.error('[shipping-email] Excepción al enviar correo de envío a', trimmedEmail, err);
+  }
+}
+
+/**
+ * Notificación de pedido marcado como entregado en admin.
+ */
+export async function sendOrderDeliveredEmail(email: string, firstName: string, orderUuid: string): Promise<void> {
+  const resend = getResend();
+  if (!resend) {
+    console.warn('[order-delivered-email] RESEND_API_KEY no está configurada; se omite el envío para:', email);
+    return;
+  }
+
+  const trimmedEmail = email.trim();
+  const id = orderUuid.trim();
+  if (!trimmedEmail || !id) {
+    console.warn('[order-delivered-email] Email o ID vacío; se omite el envío.');
+    return;
+  }
+
+  const trimmedName = firstName.trim() || 'Cliente';
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: trimmedEmail,
+      subject: 'MundoTech · Tu pedido fue entregado',
+      html: buildOrderDeliveredEmailHtml(trimmedName, id),
+    });
+
+    if (error) {
+      console.error('[order-delivered-email] Error de Resend al enviar a', trimmedEmail, error);
+    }
+  } catch (err) {
+    console.error('[order-delivered-email] Excepción al enviar a', trimmedEmail, err);
   }
 }
 
@@ -570,7 +631,7 @@ export async function sendWelcomeEmail(email: string, firstName: string): Promis
     const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: email,
-      subject: '¡Bienvenido a Mundo Tech!',
+      subject: 'Bienvenido a MundoTech',
       html: buildWelcomeEmailHtml(trimmed),
     });
 
@@ -582,72 +643,37 @@ export async function sendWelcomeEmail(email: string, firstName: string): Promis
   }
 }
 
-/** URL base del flujo de restablecimiento (dominio público de la tienda). */
-const PASSWORD_RESET_PAGE_BASE = 'https://jummper.pro/reset-password';
-
 function buildPasswordResetEmailHtml(resetUrl: string): string {
-  const safeUrl = escapeHtml(resetUrl);
+  const displayUrl = escapeHtml(resetUrl);
 
-  return `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Restablecer contraseña · Mundo Tech</title>
-</head>
-<body style="margin:0; padding:0; background-color:#0f1117; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#0f1117; padding: 40px 16px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 560px; background: linear-gradient(145deg, #161b22 0%, #1a1f2e 100%); border-radius: 16px; border: 1px solid #2a2f3a; overflow: hidden; box-shadow: 0 24px 48px rgba(0,0,0,0.45);">
+  const inner = `
           <tr>
-            <td style="padding: 36px 36px 28px; text-align: center; background: linear-gradient(180deg, rgba(255,215,0,0.12) 0%, transparent 100%);">
-              <p style="margin: 0 0 6px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: #f8fafc;">Mundo<span style="color:#FFD700;"> Tech</span></p>
-              <p style="margin: 0; font-size: 13px; color: #94a3b8; letter-spacing: 0.04em;">Conectados Contigo</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 0 36px 8px;">
-              <p style="margin: 0; font-size: 15px; line-height: 1.75; color: #cbd5e1;">
-                Recibimos una solicitud para restablecer la contraseña de tu cuenta. Si fuiste tú, usa el botón siguiente para elegir una nueva clave.
+            <td class="mt-pad-x" style="padding:8px 16px 8px;">
+              <p style="margin:0 0 12px;font-size:13px;line-height:1.5;color:${TEXT_MUTED};text-transform:uppercase;letter-spacing:0.06em;">Seguridad</p>
+              <p style="margin:0;font-size:16px;line-height:1.65;color:${TEXT_SECONDARY};">
+                Recibimos una solicitud para restablecer la contraseña de tu cuenta en <strong style="color:${NAVY};">MundoTech</strong>. Si fuiste tú, pulsa el botón para elegir una nueva clave.
+              </p>
+              <p style="margin:14px 0 0;font-size:14px;line-height:1.6;color:${TEXT_MUTED};">
+                Si no solicitaste este cambio, ignora este mensaje. Nadie podrá cambiar tu contraseña sin acceso a tu correo.
               </p>
             </td>
           </tr>
+          ${ctaButton(resetUrl, 'Restablecer contraseña')}
           <tr>
-            <td style="padding: 28px 36px 24px; text-align: center;">
-              <a href="${safeUrl}" style="display: inline-block; padding: 14px 32px; font-size: 14px; font-weight: 700; letter-spacing: 0.02em; color: #0B1220; background: linear-gradient(180deg, #FFD700 0%, #E6C200 100%); border-radius: 12px; text-decoration: none; box-shadow: 0 10px 28px rgba(255,215,0,0.28);">Restablecer Contraseña</a>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 0 36px 28px;">
-              <p style="margin: 0; font-size: 13px; line-height: 1.65; color: #64748b;">
-                Si no solicitaste este cambio, puedes ignorar este correo con seguridad. El enlace expira en 15 minutos.
+            <td class="mt-pad-x" style="padding:0 16px 24px;">
+              <p style="margin:0;font-size:12px;line-height:1.55;color:${TEXT_MUTED};word-break:break-all;">
+                ¿El botón no funciona? Copia y pega en el navegador:<br/>
+                <span style="color:${TEXT_SECONDARY};">${displayUrl}</span>
               </p>
-              <p style="margin: 16px 0 0; font-size: 11px; line-height: 1.55; color: #475569; word-break: break-all;">
-                Si el botón no funciona, copia y pega esta URL en tu navegador:<br/>
-                <span style="color:#94a3b8;">${safeUrl}</span>
-              </p>
+              <p style="margin:12px 0 0;font-size:12px;color:${TEXT_MUTED};">El enlace expira en 15 minutos.</p>
             </td>
-          </tr>
-          <tr>
-            <td style="padding: 28px 36px 36px; text-align: center; border-top: 1px solid #2a2f3a;">
-              <p style="margin: 0;">
-                <a href="mailto:ventas@jummper.pro" style="color: #FFD700; text-decoration: none; font-size: 13px;">ventas@jummper.pro</a>
-              </p>
-              <p style="margin: 16px 0 0; font-size: 11px; color: #475569;">Mundo Tech · Venezuela</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+          </tr>`;
+
+  return wrapEmail('Restablecer contraseña · MundoTech', inner);
 }
 
 /**
- * Correo de recuperación de contraseña (premium dark). Errores se registran; no relanza.
+ * Correo de recuperación de contraseña. Errores se registran; no relanza.
  */
 export async function sendPasswordResetEmail(email: string, token: string): Promise<void> {
   const resend = getResend();
@@ -662,13 +688,13 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
     return;
   }
 
-  const resetUrl = `${PASSWORD_RESET_PAGE_BASE}?token=${encodeURIComponent(token.trim())}`;
+  const resetUrl = `${siteBaseUrl()}/reset-password?token=${encodeURIComponent(token.trim())}`;
 
   try {
     const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: trimmedEmail,
-      subject: 'Mundo Tech · Restablecer tu contraseña',
+      subject: 'MundoTech · Restablecer tu contraseña',
       html: buildPasswordResetEmailHtml(resetUrl),
     });
 

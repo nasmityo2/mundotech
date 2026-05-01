@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { prismaOrderToOrder, type OrderStatus } from '@/lib/definitions';
-import { sendShippingEmail } from '@/lib/resend';
+import { sendOrderDeliveredEmail, sendShippingEmail } from '@/lib/resend';
 
 function firstNameFromCustomerName(displayName: string): string {
   const t = displayName.trim();
@@ -99,6 +99,9 @@ export async function PUT(
     recipientEmail &&
     (transitionedToShipped || newTracking !== prevTracking);
 
+  const transitionedToDelivered = existing.status !== 'Entregado' && status === 'Entregado';
+  const shouldSendDeliveredEmail = transitionedToDelivered && recipientEmail;
+
   if (status === 'Enviado' && newTracking && !recipientEmail) {
     console.warn(
       '[shipping-email] Pedido',
@@ -111,7 +114,28 @@ export async function PUT(
     await sendShippingEmail(
       recipientEmail,
       firstNameFromCustomerName(displayNameForEmail),
-      newTracking
+      newTracking,
+      {
+        carrier: updated.trackingCarrier,
+        trackingUrl: updated.trackingUrl,
+        orderId: updated.id,
+      }
+    );
+  }
+
+  if (shouldSendDeliveredEmail) {
+    await sendOrderDeliveredEmail(
+      recipientEmail,
+      firstNameFromCustomerName(displayNameForEmail),
+      updated.id
+    );
+  }
+
+  if (status === 'Entregado' && !recipientEmail) {
+    console.warn(
+      '[order-delivered-email] Pedido',
+      orderId,
+      'marcado Entregado pero sin email; no se notifica al cliente.'
     );
   }
 
