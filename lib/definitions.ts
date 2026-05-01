@@ -42,6 +42,8 @@ export interface Order {
   customerIdNumber?: string | null;
   items:           OrderItem[];
   total:           number;
+  /** Si existe, `total` y precios de ítems están en Bs. (tasa al comprar). Si no, legado en USD. */
+  exchangeRateUsdBs?: number | null;
   status:          OrderStatus;
   shippingDetails: ShippingDetails;
   paymentMethod:   string;
@@ -86,6 +88,7 @@ export function prismaOrderToOrder(o: {
   shippingState: string;
   shippingZipCode: string;
   shippingCountry: string;
+  exchangeRateUsdBs?: number | null;
   notes?: string | null;
   items: { id: string; productId: string; productName: string; quantity: number; price: number; imageUrl?: string | null }[];
 }): Order {
@@ -99,6 +102,7 @@ export function prismaOrderToOrder(o: {
     customerPhone:   o.customerPhone,
     customerIdNumber: o.customerIdNumber,
     total:           o.total,
+    exchangeRateUsdBs: o.exchangeRateUsdBs ?? null,
     status:          o.status as OrderStatus,
     paymentMethod:   o.paymentMethod,
     paymentBank:              o.paymentBank,

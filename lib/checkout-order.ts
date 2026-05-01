@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { loadExchangeRateUsdBsFromTx, roundMoney2 } from '@/lib/exchange-rate';
 
 export const orderItemSchema = z.object({
   productId: z.string().min(1),
@@ -103,9 +104,15 @@ export async function executeCheckoutInTransaction(
     }
   }
 
-  const serverTotal = items.reduce((sum, item) => {
-    return sum + productMap.get(item.productId)!.price * item.quantity;
-  }, 0);
+  const rate = await loadExchangeRateUsdBsFromTx(tx);
+
+  let serverTotal = 0;
+  for (const item of items) {
+    const p = productMap.get(item.productId)!;
+    const unitVes = roundMoney2(p.price * rate);
+    serverTotal += unitVes * item.quantity;
+  }
+  serverTotal = roundMoney2(serverTotal);
 
   const isRegisteredUser = customerId && customerId !== 'guest';
 
@@ -126,6 +133,7 @@ export async function executeCheckoutInTransaction(
       customerPhone: customerPhone ?? null,
       customerIdNumber: customerIdNumber ?? null,
       total: serverTotal,
+      exchangeRateUsdBs: rate,
       status: orderStatus,
       paymentMethod,
       paymentBank: paymentBank ?? null,
@@ -139,13 +147,17 @@ export async function executeCheckoutInTransaction(
       shippingZipCode: shippingDetails.zipCode,
       shippingCountry: shippingDetails.country,
       items: {
-        create: items.map((item) => ({
-          productId: item.productId,
-          productName: productMap.get(item.productId)!.name,
-          quantity: item.quantity,
-          price: productMap.get(item.productId)!.price,
-          imageUrl: item.imageUrl ?? null,
-        })),
+        create: items.map((item) => {
+          const p = productMap.get(item.productId)!;
+          const unitVes = roundMoney2(p.price * rate);
+          return {
+            productId: item.productId,
+            productName: p.name,
+            quantity: item.quantity,
+            price: unitVes,
+            imageUrl: item.imageUrl ?? null,
+          };
+        }),
       },
     },
     include: { items: true },

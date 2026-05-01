@@ -5,13 +5,11 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Check, ArrowRight, Package, Mail, Home } from 'lucide-react';
 import type { EnrichedOrder } from './page';
+import { formatStoredOrderMoney } from '@/lib/order-pricing';
 
 interface Props {
   order: EnrichedOrder;
 }
-
-const formatVES = (amount: number) =>
-  new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VES' }).format(amount);
 
 const fadeUp = {
   hidden:  { opacity: 0, y: 12 },
@@ -19,6 +17,8 @@ const fadeUp = {
 };
 
 export default function SuccessClientPage({ order }: Props) {
+  const m = (n: number) => formatStoredOrderMoney(n, order);
+  const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   return (
     <div className="py-10 sm:py-14 max-w-3xl mx-auto">
       <motion.div
@@ -103,7 +103,7 @@ export default function SuccessClientPage({ order }: Props) {
                   <p className="text-[12px] text-slate-500">Cantidad: {item.quantity}</p>
                 </div>
                 <p className="text-sm font-semibold text-navy nums whitespace-nowrap">
-                  {formatVES(item.price * item.quantity)}
+                  {m(item.price * item.quantity)}
                 </p>
               </li>
             ))}
@@ -112,7 +112,7 @@ export default function SuccessClientPage({ order }: Props) {
           <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 space-y-2 text-sm">
             <div className="flex justify-between text-slate-500">
               <span>Subtotal</span>
-              <span className="text-navy nums">{formatVES(order.total)}</span>
+              <span className="text-navy nums">{m(subtotal)}</span>
             </div>
             <div className="flex justify-between text-slate-500">
               <span>Envío</span>
@@ -120,7 +120,7 @@ export default function SuccessClientPage({ order }: Props) {
             </div>
             <div className="border-t border-slate-200 pt-2.5 mt-1.5 flex items-end justify-between">
               <span className="text-base font-semibold text-navy">Total</span>
-              <span className="text-2xl font-bold text-navy nums tracking-tight">{formatVES(order.total)}</span>
+              <span className="text-2xl font-bold text-navy nums tracking-tight">{m(order.total)}</span>
             </div>
           </div>
         </motion.div>

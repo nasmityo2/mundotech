@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { formatStoredOrderMoney } from '@/lib/order-pricing';
 
 const FROM_ADDRESS = 'Mundo Tech <ventas@jummper.pro>';
 
@@ -47,10 +48,13 @@ export type OrderConfirmationEmailDetail = {
   shippingZipCode: string;
   shippingCountry: string;
   customerPhone?: string | null;
+  /** Tasa usada al cobrar (Bs/USD). Si falta, los montos del pedido se interpretan como USD (legado). */
+  exchangeRateUsdBs?: number | null;
   items: { productName: string; quantity: number; price: number }[];
 };
 
 function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirmationEmailDetail): string {
+  const pricingMeta = { exchangeRateUsdBs: detail.exchangeRateUsdBs ?? null };
   const safeName = escapeHtml(firstName);
   const orderNo = String(detail.orderNumber).padStart(4, '0');
   const safeOrderNo = escapeHtml(orderNo);
@@ -82,14 +86,19 @@ function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirm
                     ${item.quantity}
                   </td>
                   <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #94a3b8; font-size: 13px; text-align: right; white-space: nowrap;">
-                    ${escapeHtml(formatVES(item.price))}
+                    ${escapeHtml(formatStoredOrderMoney(item.price, pricingMeta))}
                   </td>
                   <td style="padding: 12px 10px; border-bottom: 1px solid #2a2f3a; color: #f8fafc; font-size: 13px; text-align: right; white-space: nowrap; font-weight: 600;">
-                    ${escapeHtml(formatVES(line))}
+                    ${escapeHtml(formatStoredOrderMoney(line, pricingMeta))}
                   </td>
                 </tr>`;
     })
     .join('');
+
+  const rateNote =
+    detail.exchangeRateUsdBs != null && detail.exchangeRateUsdBs > 0
+      ? `<p style="margin: 10px 0 0; font-size: 12px; color: #64748b;">Montos en bolívares según la tasa <strong style="color: #94a3b8;">Bs. ${escapeHtml(detail.exchangeRateUsdBs.toFixed(2))} / USD</strong> aplicada al confirmar tu pedido.</p>`
+      : `<p style="margin: 10px 0 0; font-size: 12px; color: #64748b;">Montos en dólares (USD), registro anterior al sistema de cobranza en bolívares.</p>`;
 
   const orderUrl = `${siteBaseUrl()}/account/orders/${encodeURIComponent(detail.orderId)}`;
 
@@ -155,11 +164,12 @@ function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirm
                   <tr>
                     <td colspan="3" style="padding: 14px 10px; text-align: right; font-size: 14px; font-weight: 700; color: #cbd5e1;">Total</td>
                     <td style="padding: 14px 10px; text-align: right; font-size: 15px; font-weight: 700; color: #38bdf8; white-space: nowrap;">
-                      ${escapeHtml(formatVES(detail.total))}
+                      ${escapeHtml(formatStoredOrderMoney(detail.total, pricingMeta))}
                     </td>
                   </tr>
                 </tbody>
               </table>
+              ${rateNote}
             </td>
           </tr>
           <tr>

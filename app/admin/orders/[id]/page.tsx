@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Order, OrderStatus } from '@/lib/definitions';
+import { formatStoredOrderMoney } from '@/lib/order-pricing';
 import { StatusUpdateMenu } from '@/app/components/admin/StatusUpdateMenu';
 import ShipOrderDialog from '@/app/components/admin/ShipOrderDialog';
 import {
@@ -25,11 +26,6 @@ const formatDateTime = (iso: string | null | undefined) => {
     year: 'numeric', month: 'long', day: 'numeric',
     hour: '2-digit', minute: '2-digit', hour12: true,
   });
-};
-
-const formatCurrency = (amount: number) => {
-  if (typeof amount !== 'number') return 'N/A';
-  return new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VES' }).format(amount);
 };
 
 function formatInternalId(id: string) {
@@ -118,6 +114,7 @@ export default function AdminOrderDetailPage() {
   };
 
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const m = (n: number) => (typeof n === 'number' ? formatStoredOrderMoney(n, order) : 'N/A');
   const isShipped = order.status === 'Enviado' || order.status === 'Entregado';
   const hasTracking = !!(order.trackingNumber || order.trackingCarrier || order.trackingUrl || order.trackingPhotoUrl);
 
@@ -252,23 +249,23 @@ export default function AdminOrderDetailPage() {
               <li key={item.productId} className="flex items-start justify-between gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-gray-800 truncate">{item.productName}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{formatCurrency(item.price)} × {item.quantity}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{m(item.price)} × {item.quantity}</p>
                 </div>
                 <p className="text-sm font-semibold text-gray-900 flex-shrink-0">
-                  {formatCurrency(item.price * item.quantity)}
+                  {m(item.price * item.quantity)}
                 </p>
               </li>
             ))}
           </ul>
           <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 space-y-1 text-sm">
             <div className="flex justify-between text-gray-600">
-              <span>Subtotal</span><span>{formatCurrency(subtotal)}</span>
+              <span>Subtotal</span><span>{m(subtotal)}</span>
             </div>
             <div className="flex justify-between text-gray-600">
               <span>Envío</span><span className="text-green-600 font-medium">Gratis</span>
             </div>
             <div className="flex justify-between font-bold text-gray-900 text-base pt-1.5 border-t border-gray-200">
-              <span>Total</span><span>{formatCurrency(order.total)}</span>
+              <span>Total</span><span>{m(order.total)}</span>
             </div>
           </div>
         </div>

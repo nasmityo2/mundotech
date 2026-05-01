@@ -5,9 +5,11 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-
-const EXCHANGE_RATE_KEY = 'exchange_rate_usd_bs';
-const DEFAULT_RATE      = 36.5;
+import {
+  DEFAULT_EXCHANGE_RATE_USD_BS,
+  EXCHANGE_RATE_APP_CONFIG_KEY,
+  parseExchangeRateFromConfigValue,
+} from '@/lib/exchange-rate';
 
 const exchangeRateSchema = z
   .number({ error: 'La tasa debe ser un número.' })
@@ -17,12 +19,12 @@ const exchangeRateSchema = z
 
 export async function getExchangeRate(): Promise<number> {
   try {
-    const record = await prisma.appConfig.findUnique({ where: { key: EXCHANGE_RATE_KEY } });
-    if (!record) return DEFAULT_RATE;
-    const parsed = parseFloat(record.value);
-    return isNaN(parsed) ? DEFAULT_RATE : parsed;
+    const record = await prisma.appConfig.findUnique({
+      where: { key: EXCHANGE_RATE_APP_CONFIG_KEY },
+    });
+    return parseExchangeRateFromConfigValue(record?.value);
   } catch {
-    return DEFAULT_RATE;
+    return DEFAULT_EXCHANGE_RATE_USD_BS;
   }
 }
 
@@ -38,9 +40,9 @@ export async function updateExchangeRate(rate: unknown) {
   }
 
   await prisma.appConfig.upsert({
-    where:  { key: EXCHANGE_RATE_KEY },
+    where:  { key: EXCHANGE_RATE_APP_CONFIG_KEY },
     update: { value: parsed.data.toString() },
-    create: { key: EXCHANGE_RATE_KEY, value: parsed.data.toString() },
+    create: { key: EXCHANGE_RATE_APP_CONFIG_KEY, value: parsed.data.toString() },
   });
 
   // Invalidate the full layout so every page recalculates prices

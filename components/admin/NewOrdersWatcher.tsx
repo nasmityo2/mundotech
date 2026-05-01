@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Bell, BellOff, Truck, X } from 'lucide-react';
+import { formatStoredOrderMoney } from '@/lib/order-pricing';
 
 interface NewOrder {
   id:           string;
   orderNumber:  number;
   customerName: string;
   total:        number;
+  exchangeRateUsdBs?: number | null;
   createdAt:    string;
   status:       string;
 }
@@ -20,8 +22,8 @@ const POLL_INTERVAL_MS = 25_000;
 const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-const formatBs = (n: number) =>
-  new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VES' }).format(n);
+const formatOrderTotal = (o: Pick<NewOrder, 'total' | 'exchangeRateUsdBs'>) =>
+  formatStoredOrderMoney(o.total, o);
 
 /**
  * Vigila pedidos nuevos cada 25s y muestra:
@@ -80,7 +82,7 @@ export default function NewOrdersWatcher() {
     if (!hasPermission || !('Notification' in window)) return;
     const main = orders[0];
     new Notification(`🛒 ${orders.length} pedido${orders.length !== 1 ? 's' : ''} nuevo${orders.length !== 1 ? 's' : ''}`, {
-      body: `${main.customerName} · #${String(main.orderNumber).padStart(4, '0')} · ${formatBs(main.total)}`,
+      body: `${main.customerName} · #${String(main.orderNumber).padStart(4, '0')} · ${formatOrderTotal(main)}`,
       tag: 'mt-new-order',
       icon: '/logo.png',
       badge: '/logo.png',
@@ -186,7 +188,7 @@ export default function NewOrdersWatcher() {
                     <p className="text-[11px] text-gray-500">{formatTime(o.createdAt)}</p>
                   </div>
                   <p className="text-sm font-bold text-navy tabular-nums whitespace-nowrap flex-shrink-0">
-                    {formatBs(o.total)}
+                    {formatOrderTotal(o)}
                   </p>
                 </Link>
               </li>

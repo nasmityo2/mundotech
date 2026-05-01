@@ -77,6 +77,7 @@ export async function POST(request: Request) {
           shippingZipCode: order.shippingZipCode,
           shippingCountry: order.shippingCountry,
           customerPhone: order.customerPhone,
+          exchangeRateUsdBs: order.exchangeRateUsdBs,
           items: order.items.map((i) => ({
             productName: i.productName,
             quantity: i.quantity,

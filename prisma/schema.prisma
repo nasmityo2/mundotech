@@ -129,6 +129,8 @@ model Order {
   items           OrderItem[]
 
   total           Float
+  /** Tasa Bs/USD usada al crear el pedido. Si es null, `total` e ítems están en USD (pedidos antiguos). */
+  exchangeRateUsdBs Float?
   status          String      @default("Pendiente")
   paymentMethod   String
 

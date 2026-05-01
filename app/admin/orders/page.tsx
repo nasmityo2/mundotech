@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Order, OrderStatus } from '@/lib/definitions';
+import { formatStoredOrderMoney } from '@/lib/order-pricing';
 import { StatusUpdateMenu } from '@/app/components/admin/StatusUpdateMenu';
 import ShipOrderDialog from '@/app/components/admin/ShipOrderDialog';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
@@ -22,9 +23,6 @@ const formatDate = (iso: string) =>
     month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit', hour12: true,
   });
-
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VES' }).format(amount);
 
 const ALL_STATUSES: OrderStatus[] = [
   'Pendiente verificación Binance',
@@ -147,7 +145,7 @@ export default function AdminOrdersPage() {
       header: 'Total',
       mobileLabel: 'Total',
       align: 'right',
-      cell: o => <span className="font-bold text-gray-900 whitespace-nowrap">{formatCurrency(o.total)}</span>,
+      cell: o => <span className="font-bold text-gray-900 whitespace-nowrap">{formatStoredOrderMoney(o.total, o)}</span>,
     },
     {
       key: 'tracking',

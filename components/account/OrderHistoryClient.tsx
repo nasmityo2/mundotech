@@ -1,6 +1,7 @@
 'use client';
 
 import { Order } from '@/lib/definitions';
+import { formatStoredOrderMoney } from '@/lib/order-pricing';
 import { useRouter } from 'next/navigation';
 import { ShoppingBag, ChevronRight, Package, ArrowRight, Truck } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
@@ -8,9 +9,6 @@ import { Badge } from '@/components/ui/Badge';
 interface OrderHistoryClientProps {
   orders: Order[];
 }
-
-const formatVES = (amount: number) =>
-  new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VES' }).format(amount);
 
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString('es-VE', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -106,7 +104,7 @@ export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) 
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <div className="text-right">
                     <p className="text-lg font-bold text-navy nums tracking-tight">
-                      {formatVES(order.total)}
+                      {formatStoredOrderMoney(order.total, order)}
                     </p>
                   </div>
                   <ChevronRight size={18} className="text-slate-300 group-hover:text-navy group-hover:translate-x-1 transition-all" />

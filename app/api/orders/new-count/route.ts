@@ -35,6 +35,7 @@ export async function GET(request: Request) {
         orderNumber: true,
         customerName: true,
         total: true,
+        exchangeRateUsdBs: true,
         createdAt: true,
         status: true,
       },

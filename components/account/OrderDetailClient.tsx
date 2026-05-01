@@ -9,13 +9,11 @@ import {
 } from 'lucide-react';
 import { EnrichedOrder } from '@/app/account/orders/[id]/page';
 import { Badge } from '@/components/ui/Badge';
+import { formatStoredOrderMoney } from '@/lib/order-pricing';
 
 interface OrderDetailClientProps {
   order: EnrichedOrder;
 }
-
-const formatVES = (amount: number) =>
-  new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VES' }).format(amount);
 
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString('es-VE', {
@@ -46,6 +44,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
   const router = useRouter();
   const [trackingCopied, setTrackingCopied] = useState(false);
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const money = (n: number) => formatStoredOrderMoney(n, order);
   const status = statusConfig[order.status] ?? { label: order.status, variant: 'neutral' as const };
   const currentStepIdx = timelineIndex(order.status);
   const isCancelled = order.status === 'Cancelado';
@@ -214,11 +213,11 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                 <div className="flex-grow min-w-0">
                   <p className="text-sm font-medium text-navy truncate">{item.productName}</p>
                   <p className="text-[12px] text-slate-500 nums">
-                    {formatVES(item.price)} × {item.quantity}
+                    {money(item.price)} × {item.quantity}
                   </p>
                 </div>
                 <p className="text-sm font-semibold text-navy nums whitespace-nowrap">
-                  {formatVES(item.price * item.quantity)}
+                  {money(item.price * item.quantity)}
                 </p>
               </li>
             ))}
@@ -226,7 +225,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
           <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 space-y-2 text-sm">
             <div className="flex justify-between text-slate-500">
               <span>Subtotal</span>
-              <span className="text-navy nums">{formatVES(subtotal)}</span>
+              <span className="text-navy nums">{money(subtotal)}</span>
             </div>
             <div className="flex justify-between text-slate-500">
               <span>Envío</span>
@@ -235,7 +234,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
             <div className="border-t border-slate-200 pt-2.5 mt-1.5 flex items-end justify-between">
               <span className="text-base font-semibold text-navy">Total</span>
               <span className="text-2xl font-bold text-navy nums tracking-tight">
-                {formatVES(order.total)}
+                {money(order.total)}
               </span>
             </div>
           </div>
