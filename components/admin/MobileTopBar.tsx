@@ -25,7 +25,7 @@ export default function MobileTopBar({ onOpenDrawer }: MobileTopBarProps) {
           type="button"
           onClick={() => router.back()}
           aria-label="Volver"
-          className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100 transition"
+          className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100 transition touch-manipulation"
         >
           <ArrowLeft size={20} className="text-navy" />
         </button>
@@ -34,7 +34,7 @@ export default function MobileTopBar({ onOpenDrawer }: MobileTopBarProps) {
           type="button"
           onClick={onOpenDrawer}
           aria-label="Abrir menú"
-          className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100 transition"
+          className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100 transition touch-manipulation"
         >
           <Menu size={22} className="text-navy" />
         </button>
@@ -48,7 +48,7 @@ export default function MobileTopBar({ onOpenDrawer }: MobileTopBarProps) {
       <Link
         href="/"
         aria-label="Ir a la tienda"
-        className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100 transition text-[10px] font-bold text-gray-500"
+        className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100 transition touch-manipulation text-[10px] font-bold text-gray-500"
       >
         Tienda
       </Link>

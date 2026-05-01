@@ -31,7 +31,7 @@ export default function AdminShell({ children, userName, userEmail }: AdminShell
         <MobileTopBar onOpenDrawer={() => setDrawerOpen(true)} />
 
         <main
-          className="flex-1 w-full min-w-0 px-3 sm:px-5 lg:px-8 py-4 sm:py-6 pb-24 md:pb-10"
+          className="flex-1 w-full min-w-0 px-3 sm:px-5 lg:px-8 py-4 sm:py-6 pb-[max(6rem,calc(4.25rem+env(safe-area-inset-bottom,0px)))] md:pb-10"
         >
           {children}
         </main>

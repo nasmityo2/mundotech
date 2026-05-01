@@ -44,7 +44,7 @@ export function ValidatePaymentAdminButton({
       type="button"
       disabled={pending}
       onClick={handleValidate}
-      className="min-h-[40px] inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-600/30 bg-emerald-600 px-3 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-60"
+      className="touch-manipulation select-none min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-600/30 bg-emerald-600 px-3 sm:px-4 text-xs sm:text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-60"
     >
       {pending ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
       Validar pago

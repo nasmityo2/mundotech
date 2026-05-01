@@ -1,57 +1,99 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
 import { OrderStatus } from '@/lib/definitions';
 
-const validStatuses: OrderStatus[] = ['Pendiente', 'En Proceso', 'Enviado', 'Entregado', 'Cancelado'];
+const validStatuses = [
+  'Pendiente',
+  'En Proceso',
+  'Enviado',
+  'Entregado',
+  'Cancelado',
+] as const satisfies readonly OrderStatus[];
 
+type ButtonStatus = (typeof validStatuses)[number];
+
+const buttonTone: Record<ButtonStatus, string> = {
+  Pendiente:
+    'border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 active:bg-amber-200/80',
+  'En Proceso':
+    'border-slate-200 bg-slate-50 text-navy hover:bg-slate-100 active:bg-slate-200/80',
+  Enviado: 'border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100 active:bg-sky-200/80',
+  Entregado:
+    'border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 active:bg-emerald-200/80',
+  Cancelado: 'border-red-200 bg-red-50 text-red-800 hover:bg-red-100 active:bg-red-200/80',
+};
+
+function confirmStatusChange(
+  status: OrderStatus,
+  opts: { isBulk: boolean; bulkCount?: number }
+): boolean {
+  if (opts.isBulk) {
+    const n = opts.bulkCount ?? 0;
+    if (status === 'Enviado') {
+      return window.confirm(
+        `¿Confirmas marcar ${n} pedido${n === 1 ? '' : 's'} como «Enviado»?\n\nEn lote no se pedirá guía MRW; puedes abrir cada pedido y completar el tracking después.`
+      );
+    }
+    return window.confirm(
+      `¿Confirmas cambiar el estado de ${n} pedido${n === 1 ? '' : 's'} a «${status}»?`
+    );
+  }
+  const envíoHint =
+    status === 'Enviado'
+      ? '\n\nA continuación se pedirán los datos de envío (guía MRW, etc.).'
+      : '';
+  return window.confirm(
+    `¿Cambiar el estado del pedido a «${status}»?${envíoHint}`
+  );
+}
+
+/**
+ * Botones para pasar el pedido (o un lote) a otro estado. Siempre pide confirmación antes de llamar a `onUpdate`.
+ */
 export const StatusUpdateMenu = ({
   onUpdate,
   isBulk = false,
   currentStatus,
+  bulkCount = 0,
   allowedOnly,
 }: {
   onUpdate: (status: OrderStatus) => void;
   isBulk?: boolean;
   currentStatus?: OrderStatus;
-  /** Si se define, solo se muestran estos estados (ej. solo Cancelado durante verificación Binance). */
+  bulkCount?: number;
   allowedOnly?: OrderStatus[];
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const options: ButtonStatus[] = allowedOnly?.length
+    ? validStatuses.filter((s): s is ButtonStatus => (allowedOnly as readonly string[]).includes(s))
+    : [...validStatuses];
 
-  const options = allowedOnly?.length ? allowedOnly : validStatuses;
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setIsOpen(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleSelect = (status: OrderStatus) => {
+  const handleClick = (status: OrderStatus) => {
+    if (!isBulk && currentStatus === status) return;
+    if (!confirmStatusChange(status, { isBulk, bulkCount })) return;
     onUpdate(status);
-    setIsOpen(false);
   };
 
   return (
-    <div className="relative inline-block text-left" ref={menuRef}>
-      <button onClick={() => setIsOpen(!isOpen)} className={`inline-flex items-center border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-navy/30 ${isBulk ? '' : 'w-full justify-center'}`}>
-        {isBulk ? 'Actualizar Estado' : (currentStatus ? 'Cambiar Estado' : 'Establecer Estado')}
-        <svg className="-mr-1 ml-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-      </button>
-      {isOpen && (
-        <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
-          <div className="py-1">
-            {options.map((status) => (
-              <button key={status} onClick={() => handleSelect(status)} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                {status}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+    <div
+      className={`flex flex-wrap gap-2 sm:gap-2.5 ${isBulk ? '' : 'justify-start'}`}
+      role="group"
+      aria-label={isBulk ? 'Cambiar estado de los pedidos seleccionados' : 'Cambiar estado del pedido'}
+    >
+      {options.map(status => {
+        const isCurrent = !isBulk && currentStatus === status;
+        return (
+          <button
+            key={status}
+            type="button"
+            disabled={isCurrent}
+            onClick={() => handleClick(status)}
+            title={isCurrent ? 'Ya está en este estado' : `Marcar como ${status}`}
+            className={`touch-manipulation select-none min-h-[44px] min-w-[44px] px-3 sm:px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold border transition-colors disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed ${buttonTone[status]}`}
+          >
+            {status}
+          </button>
+        );
+      })}
     </div>
   );
 };

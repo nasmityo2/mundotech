@@ -203,7 +203,7 @@ function buildOrderConfirmationEmailHtml(firstName: string, detail: OrderConfirm
           <tr>
             <td style="padding: 28px 36px 36px; text-align: center; border-top: 1px solid #2a2f3a;">
               <p style="margin: 0 0 10px; font-size: 13px; line-height: 1.65; color: #94a3b8;">
-                Tecnología premium en <strong style="color: #f8fafc;">Barquisimeto</strong> y <strong style="color: #f8fafc;">Yaritagua</strong>.
+                Tecnología premium en <strong style="color: #f8fafc;">Barquisimeto</strong>.
               </p>
               <p style="margin: 0 0 8px; font-size: 12px; color: #64748b; letter-spacing: 0.06em;">Conectados Contigo</p>
               <p style="margin: 0;">
@@ -260,7 +260,7 @@ function buildPaymentValidatedEmailHtml(firstName: string, orderDisplayId: strin
           <tr>
             <td style="padding: 28px 36px 36px; text-align: center; border-top: 1px solid #2a2f3a;">
               <p style="margin: 0 0 10px; font-size: 13px; line-height: 1.65; color: #94a3b8;">
-                Conectados contigo desde <strong style="color: #f8fafc;">Barquisimeto</strong> y <strong style="color: #f8fafc;">Yaritagua</strong>.
+                Conectados contigo desde <strong style="color: #f8fafc;">Barquisimeto</strong>.
               </p>
               <p style="margin: 0;">
                 <a href="mailto:ventas@jummper.pro" style="color: #38bdf8; text-decoration: none; font-size: 13px;">ventas@jummper.pro</a>
@@ -410,7 +410,7 @@ function buildWelcomeEmailHtml(firstName: string): string {
             <td style="padding: 0 36px 8px;">
               <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #e2e8f0;">Hola <strong style="color: #f8fafc;">${safeName}</strong>,</p>
               <p style="margin: 18px 0 0; font-size: 15px; line-height: 1.75; color: #cbd5e1;">
-                Nos alegra darte la bienvenida. Estamos cerca de ti en <strong style="color: #f8fafc;">Barquisimeto</strong> y <strong style="color: #f8fafc;">Yaritagua</strong>, acompañando tu experiencia tech con el mismo cuidado en tienda y en línea.
+                Nos alegra darte la bienvenida. Estamos cerca de ti en <strong style="color: #f8fafc;">Barquisimeto</strong>, acompañando tu experiencia tech con el mismo cuidado en tienda y en línea.
               </p>
               <p style="margin: 20px 0 0; font-size: 15px; line-height: 1.75; color: #cbd5e1;">
                 Gracias por unirte a la comunidad tecnológica más avanzada. Ahora tienes acceso a lanzamientos exclusivos de hardware, seguimiento de pedidos en tiempo real y soporte prioritario.
@@ -490,7 +490,7 @@ function buildShippingEmailHtml(firstName: string, trackingNumber: string): stri
           <tr>
             <td style="padding: 28px 36px 36px; text-align: center; border-top: 1px solid #2a2f3a;">
               <p style="margin: 0 0 10px; font-size: 13px; line-height: 1.65; color: #94a3b8;">
-                Somos <strong style="color: #e2e8f0;">tecnología premium</strong> en <strong style="color: #f8fafc;">Barquisimeto</strong> y <strong style="color: #f8fafc;">Yaritagua</strong>.
+                Somos <strong style="color: #e2e8f0;">tecnología premium</strong> en <strong style="color: #f8fafc;">Barquisimeto</strong>.
               </p>
               <p style="margin: 0 0 8px; font-size: 12px; color: #64748b; letter-spacing: 0.06em;">Conectados Contigo</p>
               <p style="margin: 0;">

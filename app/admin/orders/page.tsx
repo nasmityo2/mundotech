@@ -264,7 +264,7 @@ function OrdersPageContent() {
         <div className="p-4 sm:p-5 space-y-4">
           <div className="flex flex-col gap-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Filtrar por estado</p>
-            <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-thin [scrollbar-color:rgba(100,116,139,0.35)_transparent]">
+            <div className="flex gap-1.5 sm:gap-2 overflow-x-auto overscroll-x-contain touch-pan-x pb-2 -mx-1 px-1 [-webkit-overflow-scrolling:touch] scrollbar-thin [scrollbar-color:rgba(100,116,139,0.35)_transparent]">
               {TAB_ORDER.map(key => {
                 const selected = tab === key;
                 const count = tabCounts[key];
@@ -275,10 +275,10 @@ function OrdersPageContent() {
                     type="button"
                     onClick={() => setTab(key)}
                     className={[
-                      'shrink-0 whitespace-nowrap px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors min-h-[44px]',
+                      'touch-manipulation select-none shrink-0 whitespace-nowrap px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors min-h-[44px] active:opacity-90',
                       selected
                         ? 'bg-white text-[#0f172a] shadow-md shadow-black/20'
-                        : 'bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-transparent',
+                        : 'bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-800 active:bg-slate-700/50 border border-transparent',
                     ].join(' ')}
                   >
                     {TAB_LABELS[key]}
@@ -298,28 +298,40 @@ function OrdersPageContent() {
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
             <input
               type="search"
+              enterKeyHint="search"
+              autoCorrect="off"
+              autoCapitalize="none"
               placeholder="Buscar por # o nombre…"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 min-h-[48px] py-2.5 rounded-xl border border-slate-600/50 bg-slate-900/60 text-slate-100 placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow/40 focus:border-brand-yellow/50"
+              className="w-full pl-10 pr-4 min-h-[48px] py-2.5 rounded-xl border border-slate-600/50 bg-slate-900/60 text-slate-100 placeholder:text-slate-500 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow/40 focus:border-brand-yellow/50"
             />
           </div>
         </div>
       </div>
 
       {selectedOrders.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
-          <span className="text-sm font-semibold text-navy">
-            {selectedOrders.length} seleccionado{selectedOrders.length !== 1 ? 's' : ''}
-          </span>
-          <StatusUpdateMenu onUpdate={status => handleUpdateStatus(status, selectedOrders)} isBulk />
-          <button
-            type="button"
-            onClick={() => setSelectedOrders([])}
-            className="ml-auto text-xs text-gray-500 hover:text-gray-700 min-h-[36px] px-2"
-          >
-            Cancelar
-          </button>
+        <div className="flex flex-col gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm font-semibold text-navy">
+              {selectedOrders.length} seleccionado{selectedOrders.length !== 1 ? 's' : ''}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedOrders([])}
+              className="touch-manipulation ml-auto sm:ml-0 text-xs text-gray-500 hover:text-gray-700 min-h-[44px] min-w-[44px] px-3 rounded-lg active:bg-amber-100/80"
+            >
+              Quitar selección
+            </button>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Pasar selección a estado</p>
+            <StatusUpdateMenu
+              onUpdate={status => handleUpdateStatus(status, selectedOrders)}
+              isBulk
+              bulkCount={selectedOrders.length}
+            />
+          </div>
         </div>
       )}
 

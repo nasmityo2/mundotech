@@ -129,18 +129,21 @@ export function DataTable<T>({
               <Wrapper
                 type={interactive ? 'button' : undefined}
                 onClick={interactive ? () => onRowClick?.(row) : undefined}
-                className={`w-full text-left bg-white border rounded-2xl shadow-sm p-3.5 ${ACCENT_BORDER[accent]} ${ACCENT_BG[accent]} ${
+                className={`w-full text-left bg-white border rounded-2xl shadow-sm p-3.5 ${ACCENT_BORDER[accent]} ${ACCENT_BG[accent]} touch-manipulation select-none ${
                   interactive ? 'active:bg-gray-50' : ''
                 } ${selectedIds.includes(id) ? 'ring-2 ring-brand-yellow' : ''}`}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-2 sm:gap-3">
                   {selectable && (
-                    <label className="flex-shrink-0 inline-flex items-center" onClick={e => e.stopPropagation()}>
+                    <label
+                      className="flex-shrink-0 inline-flex items-center justify-center min-w-[44px] min-h-[44px] -ms-1 sm:ms-0 touch-manipulation"
+                      onClick={e => e.stopPropagation()}
+                    >
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(id)}
                         onChange={() => toggleOne(id)}
-                        className="w-5 h-5 rounded border-gray-300 text-navy focus:ring-navy"
+                        className="w-6 h-6 sm:w-5 sm:h-5 rounded border-gray-300 text-navy focus:ring-navy"
                       />
                     </label>
                   )}

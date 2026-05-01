@@ -20,7 +20,7 @@ export default function MobileBottomNav() {
               <Link
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className={`relative flex flex-col items-center justify-center h-16 gap-0.5 select-none transition active:bg-gray-100 ${
+                className={`relative flex flex-col items-center justify-center h-16 gap-0.5 select-none touch-manipulation transition active:bg-gray-100 ${
                   active ? 'text-navy' : 'text-gray-400'
                 }`}
               >

@@ -158,7 +158,7 @@ export default function AdminOrderDetailPage() {
           <button
             type="button"
             onClick={copyOrderId}
-            className="min-h-[40px] inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 pl-3 pr-2 text-[12px] active:bg-slate-100"
+            className="touch-manipulation select-none min-h-[44px] inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 pl-3 pr-3 text-[12px] sm:text-[13px] active:bg-slate-100"
             title={order.id}
           >
             <Hash size={12} className="text-slate-400" />
@@ -168,6 +168,10 @@ export default function AdminOrderDetailPage() {
               : <span className="ml-1 inline-flex items-center gap-1 text-slate-500"><Copy size={12} /></span>
             }
           </button>
+        </div>
+
+        <div className="pt-4 border-t border-gray-100 space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Estado del pedido / envío</p>
           <StatusUpdateMenu onUpdate={handleStatusChange} currentStatus={order.status} />
         </div>
       </div>
@@ -190,7 +194,7 @@ export default function AdminOrderDetailPage() {
             <button
               type="button"
               onClick={() => setShowShipDialog(true)}
-              className="min-h-[40px] inline-flex items-center gap-1.5 px-3 text-xs font-semibold text-navy bg-white border border-gray-200 rounded-xl active:bg-gray-50"
+              className="touch-manipulation select-none min-h-[44px] inline-flex items-center gap-1.5 px-3 sm:px-4 text-xs sm:text-sm font-semibold text-navy bg-white border border-gray-200 rounded-xl active:bg-gray-50"
             >
               <Edit3 size={13} /> Editar
             </button>

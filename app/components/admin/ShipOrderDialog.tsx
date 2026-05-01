@@ -121,7 +121,7 @@ export default function ShipOrderDialog({
             onClick={onClose}
             disabled={submitting}
             aria-label="Cerrar"
-            className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100"
+            className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100 touch-manipulation"
           >
             <X size={20} className="text-gray-500" />
           </button>
@@ -214,7 +214,7 @@ export default function ShipOrderDialog({
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="flex-1 min-h-[52px] inline-flex items-center justify-center bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100"
+            className="flex-1 min-h-[52px] touch-manipulation inline-flex items-center justify-center bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100"
           >
             Cancelar
           </button>
@@ -222,7 +222,7 @@ export default function ShipOrderDialog({
             type="button"
             onClick={submit}
             disabled={submitting}
-            className="flex-[2] min-h-[52px] inline-flex items-center justify-center gap-2 bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase tracking-wide rounded-xl active:bg-yellow-300 disabled:opacity-60"
+            className="flex-[2] min-h-[52px] touch-manipulation inline-flex items-center justify-center gap-2 bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase tracking-wide rounded-xl active:bg-yellow-300 disabled:opacity-60"
           >
             {submitting ? <Loader2 size={16} className="animate-spin" /> : <Truck size={16} />}
             {editMode ? 'Guardar tracking' : 'Marcar como Enviado'}
