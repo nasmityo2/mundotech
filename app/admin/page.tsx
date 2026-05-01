@@ -4,6 +4,10 @@ import { useEffect, useState } from 'react';
 import { useProducts } from '@/context/ProductContext';
 import { Order } from '@/lib/definitions';
 import {
+  orderCountsTowardValidatedRevenue,
+  orderStoredRevenueTotal,
+} from '@/lib/analytics-orders';
+import {
   Package, Tag, ShoppingCart, Clock, TrendingUp, AlertCircle,
   ArrowRight, Truck, Users,
 } from 'lucide-react';
@@ -45,7 +49,9 @@ const AdminHomePage = () => {
   const pendingOrders = orders.filter(o => o.status === 'Pendiente' || o.status === 'Pendiente verificación Binance').length;
   const inProcessOrders = orders.filter(o => o.status === 'En Proceso').length;
   const shippedOrders = orders.filter(o => o.status === 'Enviado').length;
-  const revenue = orders.filter(o => o.status !== 'Cancelado').reduce((acc, o) => acc + o.total, 0);
+  const revenue = orders
+    .filter(o => orderCountsTowardValidatedRevenue(o.status))
+    .reduce((acc, o) => acc + orderStoredRevenueTotal(o), 0);
 
   const recentOrders = orders.slice(0, 8);
   const lowStockProducts = products.filter(p => p.stock < 3).slice(0, 10);
@@ -92,16 +98,16 @@ const AdminHomePage = () => {
           <p className="text-3xl sm:text-4xl font-black mt-1.5 tabular-nums">
             {loadingOrders ? '—' : formatBs(revenue)}
           </p>
-          <p className="text-[11px] opacity-60 mt-1">Pedidos no cancelados</p>
+          <p className="text-[11px] opacity-60 mt-1">Solo pagos validados · montos en moneda del pedido (tasa congelada si aplica)</p>
         </div>
       </div>
 
       {/* KPIs grid 2 cols mobile / 4 cols desktop */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         <KpiCard label="Pedidos totales" value={loadingOrders ? '—' : totalOrders} icon={ShoppingCart} accent="navy" href="/admin/orders" />
-        <KpiCard label="Pendientes" value={loadingOrders ? '—' : pendingOrders} icon={Clock} accent="yellow" href="/admin/orders?status=Pendiente" />
-        <KpiCard label="En proceso" value={loadingOrders ? '—' : inProcessOrders} icon={TrendingUp} accent="navy" href="/admin/orders" />
-        <KpiCard label="Enviados" value={loadingOrders ? '—' : shippedOrders} icon={Truck} accent="success" href="/admin/orders" />
+        <KpiCard label="Pendientes" value={loadingOrders ? '—' : pendingOrders} icon={Clock} accent="yellow" href="/admin/orders?tab=pending" />
+        <KpiCard label="En proceso" value={loadingOrders ? '—' : inProcessOrders} icon={TrendingUp} accent="navy" href="/admin/orders?tab=processing" />
+        <KpiCard label="Enviados" value={loadingOrders ? '—' : shippedOrders} icon={Truck} accent="success" href="/admin/orders?tab=shipped" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">

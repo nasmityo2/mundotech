@@ -7,6 +7,7 @@ import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
 import { DualOrderMoney, OrderFrozenRateBanner } from '@/components/order/DualOrderMoney';
 import { StatusUpdateMenu } from '@/app/components/admin/StatusUpdateMenu';
 import ShipOrderDialog from '@/app/components/admin/ShipOrderDialog';
+import { ValidatePaymentAdminButton } from '@/components/admin/ValidatePaymentAdminButton';
 import {
   ArrowLeft, Package, MapPin, CreditCard, Clock, Copy, Check, Hash,
   Truck, ExternalLink, Edit3,
@@ -153,6 +154,7 @@ export default function AdminOrderDetailPage() {
         </div>
 
         <div className="flex flex-wrap items-stretch gap-2">
+          <ValidatePaymentAdminButton order={order} onValidated={setOrder} />
           <button
             type="button"
             onClick={copyOrderId}

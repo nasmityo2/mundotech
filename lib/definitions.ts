@@ -57,6 +57,8 @@ export interface Order {
   trackingPhotoUrl?:         string | null;
   trackingUrl?:              string | null;
   shippedAt?:                string | null;
+  /** ISO: validación de pago (admin). Null en pedidos antiguos o aún pendientes. */
+  paidAt?:                   string | null;
   notes?:          string | null;
 }
 
@@ -83,6 +85,7 @@ export function prismaOrderToOrder(o: {
   trackingPhotoUrl?: string | null;
   trackingUrl?: string | null;
   shippedAt?: Date | null;
+  paidAt?: Date | null;
   shippingAddress: string;
   shippingCity: string;
   shippingState: string;
@@ -115,6 +118,7 @@ export function prismaOrderToOrder(o: {
     trackingPhotoUrl:         o.trackingPhotoUrl ?? null,
     trackingUrl:              o.trackingUrl    ?? null,
     shippedAt:                o.shippedAt ? o.shippedAt.toISOString() : null,
+    paidAt:                   o.paidAt ? o.paidAt.toISOString() : null,
     notes:           o.notes,
     shippingDetails: {
       address:  o.shippingAddress,

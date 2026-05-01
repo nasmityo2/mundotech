@@ -2,6 +2,10 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { Order } from '@/lib/definitions';
+import {
+  orderAnalyticsPeriodDate,
+  orderCountsTowardValidatedRevenue,
+} from '@/lib/analytics-orders';
 import { BarChart2, TrendingUp, Package, ShoppingCart, Award, Eye } from 'lucide-react';
 
 interface TopViewedProduct {
@@ -68,10 +72,12 @@ export default function AdminStatsPage() {
       .catch(() => setLoadingViews(false));
   }, []);
 
+  /** Solo pedidos con pago validado; el período usa paidAt si existe (día de cobro), si no createdAt (legado). */
   const filteredOrders = useMemo(() => {
     const from = startOf(period);
-    if (!from) return orders.filter(o => o.status !== 'Cancelado');
-    return orders.filter(o => o.status !== 'Cancelado' && new Date(o.createdAt) >= from);
+    const validated = orders.filter(o => orderCountsTowardValidatedRevenue(o.status));
+    if (!from) return validated;
+    return validated.filter(o => orderAnalyticsPeriodDate(o) >= from);
   }, [orders, period]);
 
   const productStats = useMemo((): ProductStat[] => {
@@ -147,7 +153,7 @@ export default function AdminStatsPage() {
             <div className="w-9 h-9 bg-gray-100 border border-gray-200 flex items-center justify-center">
               <ShoppingCart size={18} className="text-navy" />
             </div>
-            <p className="text-sm text-gray-500">Pedidos en el período</p>
+            <p className="text-sm text-gray-500">Pedidos validados en el período</p>
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-2">
             {loading ? '—' : totalOrdersInPeriod}
@@ -169,7 +175,7 @@ export default function AdminStatsPage() {
             <div className="w-9 h-9 bg-purple-50 rounded-lg flex items-center justify-center">
               <TrendingUp size={18} className="text-purple-500" />
             </div>
-            <p className="text-sm text-gray-500">Ingresos del período</p>
+            <p className="text-sm text-gray-500">Ingresos validados del período</p>
           </div>
           <p className="text-2xl font-bold text-gray-900 mt-2">
             {loading ? '—' : formatCurrency(totalRevenue)}

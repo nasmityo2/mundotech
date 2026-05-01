@@ -153,11 +153,14 @@ model Order {
   trackingPhotoUrl String?
   trackingUrl      String?
   shippedAt        DateTime?
+  /** Fecha en que se validó el pago (Validar Pago / equivalente). Para reportes por día de cobro. */
+  paidAt           DateTime?
 
   notes           String?
   @@index([customerId])
   @@index([status])
   @@index([createdAt])
+  @@index([paidAt])
 }
 
 model OrderItem {
