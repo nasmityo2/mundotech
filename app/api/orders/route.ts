@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
+import { absoluteEmailUrl } from '@/emails/mundotech/site';
+import type { OrderConfirmationPayload } from '@/emails/mundotech/types';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { prismaOrderToOrder } from '@/lib/definitions';
 import { checkoutSchema, executeCheckoutInTransaction } from '@/lib/checkout-order';
+import { roundMoney2 } from '@/lib/exchange-rate';
 import { sendOrderConfirmationEmail } from '@/lib/resend';
-
-function firstNameFromCustomerName(displayName: string): string {
-  const t = displayName.trim();
-  if (!t) return 'Cliente';
-  return t.split(/\s+/)[0] ?? t;
-}
 
 /** Solo admins pueden ver el listado global de pedidos. */
 export async function GET() {
@@ -59,32 +56,59 @@ export async function POST(request: Request) {
     }
 
     if (recipientEmail) {
-      await sendOrderConfirmationEmail(
-        recipientEmail,
-        firstNameFromCustomerName(order.customerName),
-        {
-          orderNumber: order.orderNumber,
-          orderId: order.id,
-          createdAt: order.createdAt,
-          status: order.status,
-          total: order.total,
-          paymentMethod: order.paymentMethod,
-          paymentBank: order.paymentBank,
-          paymentReference: order.paymentReference,
-          shippingAddress: order.shippingAddress,
-          shippingCity: order.shippingCity,
-          shippingState: order.shippingState,
-          shippingZipCode: order.shippingZipCode,
-          shippingCountry: order.shippingCountry,
-          customerPhone: order.customerPhone,
-          exchangeRateUsdBs: order.exchangeRateUsdBs,
-          items: order.items.map((i) => ({
-            productName: i.productName,
-            quantity: i.quantity,
-            price: i.price,
-          })),
-        }
+      const productIds = [...new Set(order.items.map((i) => i.productId))];
+      const products = await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, slug: true },
+      });
+      const slugById = new Map(
+        products.map((p) => [p.id, (p.slug?.trim() || p.id) as string])
       );
+
+      const rate = order.exchangeRateUsdBs;
+      const priceUsdFromStored = (priceStored: number) =>
+        rate != null && rate > 0 ? roundMoney2(priceStored / rate) : roundMoney2(priceStored);
+
+      const itemsPayload = order.items.map((i) => ({
+        name: i.productName,
+        slug: slugById.get(i.productId) ?? i.productId,
+        image: absoluteEmailUrl(i.imageUrl),
+        priceUsd: priceUsdFromStored(i.price),
+        quantity: i.quantity,
+      }));
+
+      const subtotalUsd = roundMoney2(
+        itemsPayload.reduce((sum, line) => sum + line.priceUsd * line.quantity, 0)
+      );
+      const totalUsd =
+        rate != null && rate > 0 ? roundMoney2(order.total / rate) : roundMoney2(order.total);
+      const shippingUsd = roundMoney2(Math.max(0, totalUsd - subtotalUsd));
+
+      const confirmationPayload: OrderConfirmationPayload = {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        customerName: order.customerName.trim() || 'Cliente',
+        email: recipientEmail,
+        createdAt: order.createdAt,
+        status: order.status,
+        items: itemsPayload,
+        subtotalUsd,
+        shippingUsd,
+        totalUsd,
+        exchangeRateUsdBs: rate ?? null,
+        paymentMethod: order.paymentMethod,
+        paymentBank: order.paymentBank,
+        paymentReference: order.paymentReference,
+        shippingAddress: order.shippingAddress,
+        shippingCity: order.shippingCity,
+        shippingState: order.shippingState,
+        shippingZipCode: order.shippingZipCode,
+        shippingCountry: order.shippingCountry,
+        customerPhone: order.customerPhone,
+        shippingMethod: order.trackingCarrier ?? null,
+      };
+
+      await sendOrderConfirmationEmail(confirmationPayload);
     } else {
       console.warn(
         '[order-confirmation-email] Pedido',
