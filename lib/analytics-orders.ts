@@ -23,7 +23,7 @@ export function orderAnalyticsPeriodDate(order: Pick<Order, 'createdAt' | 'paidA
 }
 
 /**
- * Total almacenado en el pedido (Bs con tasa congelada o USD legado). No aplicar tasa actual del sitio.
+ * Total almacenado en el pedido (Bs con tasa registrada al comprar o USD legado). No aplicar tasa actual del sitio.
  */
 export function orderStoredRevenueTotal(order: Pick<Order, 'total'>): number {
   return order.total;

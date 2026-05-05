@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import ProductGridAndFilters from '@/app/components/ProductGridAndFilters';
+import ProductCardSkeleton from '@/components/ProductCardSkeleton';
 import RecentlyViewed from '@/components/RecentlyViewed';
 import { ChevronRight, Sparkles } from 'lucide-react';
 import type { Product } from '@/context/ProductContext';
@@ -109,10 +110,7 @@ export default async function ProductosPage() {
         fallback={
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-2xl bg-slate-100 animate-pulse aspect-[3/4]"
-              />
+              <ProductCardSkeleton key={i} />
             ))}
           </div>
         }

@@ -16,10 +16,10 @@ export function hasFrozenBsPricing(order: OrderWithPricingMeta): boolean {
   return order.exchangeRateUsdBs != null && order.exchangeRateUsdBs > 0;
 }
 
-/** Texto fijo: tasa del momento de la compra (no usa la tasa actual del sitio). */
+/** Leyenda con la tasa del momento de la compra (no usa la tasa actual del sitio). */
 export function getOrderFrozenRateCaption(order: OrderWithPricingMeta): string | null {
   if (!hasFrozenBsPricing(order)) return null;
-  return `Tasa al comprar (fija para este pedido): Bs. ${order.exchangeRateUsdBs!.toFixed(2)} / USD`;
+  return `Tasa al comprar: Bs. ${order.exchangeRateUsdBs!.toFixed(2)} / USD`;
 }
 
 export type OrderDualMoney = {

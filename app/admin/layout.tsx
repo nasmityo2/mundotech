@@ -29,8 +29,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await getServerSession(authOptions);
   const role = (session?.user as { role?: string } | undefined)?.role;
 
-  if (!session || !isAdminRole(role)) {
-    redirect('/login?callbackUrl=/admin');
+  if (!session) {
+    // No autenticado → login limpio sin exponer /admin en la URL
+    redirect('/login');
+  }
+
+  if (!isAdminRole(role)) {
+    // Autenticado pero sin rol ADMIN → redirigir a cuenta, nunca a /login
+    redirect('/account/orders?error=forbidden');
   }
 
   return (

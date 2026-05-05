@@ -45,10 +45,16 @@ export async function POST(
       }
 
       for (const item of order.items) {
-        await tx.product.update({
-          where: { id: item.productId },
+        const result = await tx.product.updateMany({
+          where: { id: item.productId, stock: { gte: item.quantity } },
           data: { stock: { decrement: item.quantity } },
         });
+        if (result.count === 0) {
+          throw new Error(
+            `Stock insuficiente para "${item.productName}" al aprobar el pago. ` +
+              `Actualiza el inventario o cancela el pedido.`
+          );
+        }
       }
 
       await tx.order.update({

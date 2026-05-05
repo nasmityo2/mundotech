@@ -10,7 +10,7 @@ type Props = {
   emphasize?: boolean;
 };
 
-/** Siempre USD visible; Bs.S cuando hay tasa congelada en el pedido. */
+/** Siempre USD visible; Bs.S cuando el pedido incluye `exchangeRateUsdBs`. */
 export function DualMoneyBlock({ amountUsd, exchangeRateUsdBs, emphasize }: Props) {
   const usdLine = formatEmailUsd(amountUsd);
   const rate =

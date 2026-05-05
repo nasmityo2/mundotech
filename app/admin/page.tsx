@@ -98,7 +98,7 @@ const AdminHomePage = () => {
           <p className="text-3xl sm:text-4xl font-black mt-1.5 tabular-nums">
             {loadingOrders ? '—' : formatBs(revenue)}
           </p>
-          <p className="text-[11px] opacity-60 mt-1">Solo pagos validados · montos en moneda del pedido (tasa congelada si aplica)</p>
+          <p className="text-[11px] opacity-60 mt-1">Solo pagos validados · montos según el pedido (Bs o USD según corresponda)</p>
         </div>
       </div>
 

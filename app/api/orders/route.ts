@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
 import { absoluteEmailUrl } from '@/emails/mundotech/site';
 import type { OrderConfirmationPayload } from '@/emails/mundotech/types';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prismaOrderToOrder } from '@/lib/definitions';
 import { checkoutSchema, executeCheckoutInTransaction } from '@/lib/checkout-order';
 import { roundMoney2 } from '@/lib/exchange-rate';
 import { sendOrderConfirmationEmail } from '@/lib/resend';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 /** Solo admins pueden ver el listado global de pedidos. */
 export async function GET() {
@@ -22,9 +25,27 @@ export async function GET() {
 
 /**
  * POST /api/orders — checkout atómico.
- * Binance manual: pedido en "Pendiente verificación Binance" sin descontar stock hasta aprobación admin.
+ *
+ * El customerId del body es ignorado: siempre se usa session.user.id
+ * del servidor para evitar que un cliente vincule un pedido al ID de
+ * otra cuenta. Si no hay sesión, se trata como pedido de invitado.
+ *
+ * Binance manual: pedido en "Pendiente verificación Binance" sin
+ * descontar stock hasta aprobación admin.
  */
 export async function POST(request: Request) {
+  // Rate limit: máx 5 pedidos por IP por minuto
+  const ip = getClientIp(request);
+  if (rateLimit(`orders:post:${ip}`, { limit: 5, windowMs: 60_000 })) {
+    return NextResponse.json(
+      { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
+      { status: 429 }
+    );
+  }
+
+  // Obtener sesión antes de procesar el body
+  const session = await getServerSession(authOptions);
+
   try {
     const body = await request.json();
     const parsed = checkoutSchema.safeParse(body);
@@ -37,10 +58,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const isBinanceManual = parsed.data.paymentMethod === 'Binance Pay';
+    // Ignorar el customerId enviado por el cliente; usar siempre la sesión del servidor
+    const safeData = {
+      ...parsed.data,
+      customerId: session?.user?.id ?? 'guest',
+    };
+
+    const isBinanceManual = safeData.paymentMethod === 'Binance Pay';
 
     const order = await prisma.$transaction(async (tx) =>
-      executeCheckoutInTransaction(tx, parsed.data, {
+      executeCheckoutInTransaction(tx, safeData, {
         deferStockDeduction: isBinanceManual,
         orderStatus: isBinanceManual ? 'Pendiente verificación Binance' : 'Pendiente',
       })

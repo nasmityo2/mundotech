@@ -165,10 +165,17 @@ export async function executeCheckoutInTransaction(
 
   if (!deferStock) {
     for (const item of items) {
-      await tx.product.update({
-        where: { id: item.productId },
+      const result = await tx.product.updateMany({
+        where: { id: item.productId, stock: { gte: item.quantity } },
         data: { stock: { decrement: item.quantity } },
       });
+      if (result.count === 0) {
+        const p = productMap.get(item.productId)!;
+        throw new Error(
+          `Stock insuficiente para "${p.name}" al confirmar la compra. ` +
+            `Otro pedido puede haber reservado las últimas unidades.`
+        );
+      }
     }
   }
 

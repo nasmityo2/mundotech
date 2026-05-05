@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import cloudinary from '@/lib/cloudinary';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
-/** Comprobantes de pago en checkout: público para invitados y clientes (no ADMIN). */
 const PROOF_FOLDER = 'mundotech/order-proofs';
 const MAX_BYTES = 6 * 1024 * 1024; // 6 MB
 
@@ -19,6 +21,24 @@ function extensionLooksLikeImage(name: string): boolean {
 }
 
 export async function POST(request: Request) {
+  // Requiere sesión activa — rechazar invitados no autenticados
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json(
+      { error: 'Debes iniciar sesión para subir el comprobante de pago.' },
+      { status: 401 }
+    );
+  }
+
+  // Rate limit: máx 10 uploads por usuario por 10 minutos
+  const userId = session.user?.id ?? getClientIp(request);
+  if (rateLimit(`upload-proof:${userId}`, { limit: 10, windowMs: 10 * 60_000 })) {
+    return NextResponse.json(
+      { error: 'Demasiadas solicitudes de subida. Espera unos minutos.' },
+      { status: 429 }
+    );
+  }
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;

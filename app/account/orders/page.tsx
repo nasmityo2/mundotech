@@ -1,8 +1,11 @@
 import { getServerSession } from 'next-auth/next';
+import { redirect } from 'next/navigation';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { prismaOrderToOrder, type Order } from '@/lib/definitions';
 import OrderHistoryClient from '@/components/account/OrderHistoryClient';
+import ForbiddenBanner from '@/components/account/ForbiddenBanner';
+import { Suspense } from 'react';
 
 async function getUserOrders(userId: string): Promise<Order[]> {
   const rows = await prisma.order.findMany({
@@ -13,18 +16,32 @@ async function getUserOrders(userId: string): Promise<Order[]> {
   return rows.map(prismaOrderToOrder);
 }
 
-export default async function AccountOrdersPage() {
+interface Props {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function AccountOrdersPage({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.id) {
-    return (
-      <div>
-        <h1 className="text-2xl font-bold mb-6">Mis Pedidos</h1>
-        <p className="text-red-500">Por favor, inicia sesión para ver tus pedidos.</p>
-      </div>
-    );
+    redirect('/login');
   }
 
+  // Await searchParams for Next.js 15 compatibility
+  const resolvedParams = await searchParams;
+  const showForbidden = resolvedParams['error'] === 'forbidden';
+
   const orders = await getUserOrders(session.user.id);
-  return <OrderHistoryClient orders={orders} />;
+
+  return (
+    <>
+      {showForbidden && (
+        // Suspense requerido por useSearchParams dentro de ForbiddenBanner
+        <Suspense>
+          <ForbiddenBanner />
+        </Suspense>
+      )}
+      <OrderHistoryClient orders={orders} />
+    </>
+  );
 }

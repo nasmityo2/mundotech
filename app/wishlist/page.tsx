@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Heart, ShoppingCart, X, ArrowRight, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { Heart, ShoppingCart, X, ArrowRight, ChevronRight, Check } from 'lucide-react';
 import { useWishlist } from '../../context/WishlistContext';
 import { useCart }     from '../../context/CartContext';
 import { formatCurrency } from '@/lib/utils';
@@ -10,6 +11,15 @@ import { formatCurrency } from '@/lib/utils';
 const WishlistPage = () => {
   const { wishlist, removeFromWishlist } = useWishlist();
   const { addToCart } = useCart();
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+
+  const handleAddToCart = (product: (typeof wishlist)[number]) => {
+    addToCart(product, 1);
+    setAddedIds((prev) => new Set(prev).add(product.id));
+    setTimeout(() => {
+      setAddedIds((prev) => { const next = new Set(prev); next.delete(product.id); return next; });
+    }, 1500);
+  };
 
   return (
     <div className="pb-10 sm:pb-12 w-full max-w-full">
@@ -111,12 +121,21 @@ const WishlistPage = () => {
 
                     <button
                       type="button"
-                      onClick={() => addToCart(product, 1)}
-                      disabled={isOut}
+                      onClick={() => handleAddToCart(product)}
+                      disabled={isOut || addedIds.has(product.id)}
                       className="mt-2.5 sm:mt-3 w-full inline-flex items-center justify-center gap-1.5 min-h-[42px] sm:min-h-[44px] rounded-xl bg-brand-yellow text-navy text-[12px] sm:text-sm font-semibold hover:bg-[#FFE03A] active:scale-[0.97] shadow-soft hover:shadow-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <ShoppingCart size={14} />
-                      <span className="truncate">{isOut ? 'Agotado' : 'Mover al carrito'}</span>
+                      {addedIds.has(product.id) ? (
+                        <>
+                          <Check size={14} className="text-emerald-600" />
+                          <span className="truncate text-emerald-700">¡Agregado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingCart size={14} />
+                          <span className="truncate">{isOut ? 'Agotado' : 'Mover al carrito'}</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>

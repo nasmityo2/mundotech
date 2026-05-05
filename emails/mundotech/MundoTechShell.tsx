@@ -57,6 +57,16 @@ export function MundoTechShell({
           WebkitFontSmoothing: 'antialiased',
         }}
       >
+        {/* Gmail strips <head> entirely — duplicate media query in <body> as best-effort fallback */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+            @media only screen and (max-width: 600px) {
+              .mt-pad { padding-left: 16px !important; padding-right: 16px !important; }
+            }
+          `,
+          }}
+        />
         <table
           role="presentation"
           width="100%"

@@ -10,8 +10,15 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: orderId } = await params;
+  // Verificar sesión PRIMERO, sin tocar la BD
   const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ message: 'No autorizado.' }, { status: 401 });
+  }
+
+  const { id: orderId } = await params;
+  const role = (session.user as { role?: string })?.role;
+  const isAdmin = isAdminRole(role);
 
   const order = await prisma.order.findUnique({
     where:   { id: orderId },
@@ -19,16 +26,14 @@ export async function GET(
   });
 
   if (!order) {
+    // No revelar existencia del pedido a usuarios no administradores
     return NextResponse.json(
-      { message: `Pedido con ID ${orderId} no encontrado.` },
-      { status: 404 }
+      { message: isAdmin ? 'Pedido no encontrado.' : 'No autorizado.' },
+      { status: isAdmin ? 404 : 403 }
     );
   }
 
-  const role = (session?.user as { role?: string })?.role;
-  const isAdmin = isAdminRole(role);
-  const isOwner = session?.user?.id === order.customerId;
-
+  const isOwner = session.user?.id === order.customerId;
   if (!isAdmin && !isOwner) {
     return NextResponse.json({ message: 'No autorizado.' }, { status: 403 });
   }

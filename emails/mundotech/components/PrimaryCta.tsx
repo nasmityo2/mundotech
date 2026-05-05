@@ -30,31 +30,23 @@ export function PrimaryCta({ href, label, fullWidth }: Props) {
 
   return (
     <Section style={{ padding: '16px 24px 10px', fontFamily: fontSans }}>
-      {fullWidth ? (
-        <table
-          role="presentation"
-          width="100%"
-          cellPadding={0}
-          cellSpacing={0}
-          style={{ borderCollapse: 'collapse' }}
-        >
-          <tbody>
-            <tr>
-              <td align="center">
-                <Button href={href} style={btnStyle}>
-                  {label}
-                </Button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      ) : (
-        <div style={{ textAlign: 'center' }}>
-          <Button href={href} style={btnStyle}>
-            {label}
-          </Button>
-        </div>
-      )}
+      <table
+        role="presentation"
+        width="100%"
+        cellPadding={0}
+        cellSpacing={0}
+        style={{ borderCollapse: 'collapse' }}
+      >
+        <tbody>
+          <tr>
+            <td align="center">
+              <Button href={href} style={btnStyle}>
+                {label}
+              </Button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </Section>
   );
 }

@@ -50,7 +50,7 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
   const rate = payload.exchangeRateUsdBs;
   const rateNote =
     rate != null && rate > 0
-      ? `Tasa de este pedido (fija): Bs.S ${rate.toFixed(2)} por USD.`
+      ? `Tasa de este pedido: Bs.S ${rate.toFixed(2)} por USD.`
       : 'Equivalente en bolívares no mostrado (pedido sin tasa registrada).';
 
   const shipMethod = payload.shippingMethod?.trim() || 'Por coordinar';

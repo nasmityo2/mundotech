@@ -195,7 +195,8 @@ const CartClient = () => {
                   </div>
                   <button
                     type="button"
-                    className="min-h-[44px] px-4 text-sm font-semibold rounded-xl bg-slate-100 text-navy hover:bg-slate-200 active:bg-slate-300 transition-colors"
+                    disabled={!coupon.trim()}
+                    className="min-h-[44px] px-4 text-sm font-semibold rounded-xl bg-slate-100 text-navy hover:bg-slate-200 active:bg-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Aplicar
                   </button>

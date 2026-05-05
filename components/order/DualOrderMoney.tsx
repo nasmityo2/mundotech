@@ -58,7 +58,7 @@ export function OrderFrozenRateBanner({ order, variant = 'storefront' }: { order
   const label = variant === 'admin' ? 'font-semibold text-gray-700' : 'font-semibold text-slate-600';
   return (
     <p className={wrap}>
-      <span className={label}>Tasa al comprar (no cambia):</span>{' '}
+      <span className={label}>Tasa al comprar:</span>{' '}
       Bs. {order.exchangeRateUsdBs!.toFixed(2)} / USD
     </p>
   );

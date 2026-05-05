@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import type { JWT } from 'next-auth/jwt';
 import type { Session } from 'next-auth';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 const googleId     = process.env.GOOGLE_CLIENT_ID;
 const googleSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -93,6 +94,25 @@ export const authOptions: AuthOptions = {
   },
 };
 
-const handler = NextAuth(authOptions);
+const nextAuthHandler = NextAuth(authOptions);
+
+/**
+ * Wrapper con rate limiting sobre el handler de NextAuth.
+ * Limita intentos de login (POST) a 10 por IP por minuto para
+ * mitigar ataques de fuerza bruta sobre CredentialsProvider.
+ */
+async function handler(req: Request, ctx: unknown) {
+  if (req.method === 'POST') {
+    const ip = getClientIp(req);
+    if (rateLimit(`auth:${ip}`, { limit: 10, windowMs: 60_000 })) {
+      return new Response(
+        JSON.stringify({ error: 'Demasiados intentos de inicio de sesión. Intenta de nuevo en un minuto.' }),
+        { status: 429, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+  // @ts-expect-error — NextAuth handler acepta (req, ctx) en App Router
+  return nextAuthHandler(req, ctx);
+}
 
 export { handler as GET, handler as POST };
