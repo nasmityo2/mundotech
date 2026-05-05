@@ -15,7 +15,7 @@ const promotionSchema = z.object({
     .default('#FFD700'),
   link:   z.string().max(500).optional().default('/productos'),
   active: z.boolean().optional().default(true),
-  order:  z.number({ invalid_type_error: 'El orden debe ser un número.' }).int().min(0).max(9999).optional().default(1),
+  order:  z.number({ message: 'El orden debe ser un número.' }).int().min(0).max(9999).optional().default(1),
 });
 
 export async function PUT(

@@ -17,7 +17,9 @@ const BANNER_TYPES = [
 ] as const;
 
 const bannerSchema = z.object({
-  type:     z.enum(BANNER_TYPES, { errorMap: () => ({ message: `Tipo inválido. Valores permitidos: ${BANNER_TYPES.join(', ')}.` }) }),
+  type: z.enum(BANNER_TYPES, {
+    message: `Tipo inválido. Valores permitidos: ${BANNER_TYPES.join(', ')}.`,
+  }),
   imageUrl: z.string().url('URL de imagen inválida.').max(500),
   title:    z.string().max(200).optional().nullable(),
   subtitle: z.string().max(300).optional().nullable(),
@@ -26,7 +28,7 @@ const bannerSchema = z.object({
   tagText:  z.string().max(100).optional().nullable(),
   link:     z.string().max(500).optional().nullable().default('/productos'),
   active:   z.boolean().optional().default(true),
-  order:    z.number({ invalid_type_error: 'El orden debe ser un número.' }).int().min(0).max(9999).optional().default(0),
+  order:    z.number({ message: 'El orden debe ser un número.' }).int().min(0).max(9999).optional().default(0),
 });
 
 export async function GET(

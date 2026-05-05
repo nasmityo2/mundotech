@@ -7,14 +7,12 @@ import type { JWT } from 'next-auth/jwt';
  * Middleware global de la app.
  *
  * Rutas protegidas:
- *  - /admin/*    → sesión obligatoria + rol ADMIN; si no tiene ADMIN → /
- *  - /account/*  → sesión obligatoria; si no autenticado → /login (gestionado por withAuth)
- *  - /checkout/* → sesión obligatoria (gestionado por withAuth)
+ *  - /admin/*    → sin sesión → /login (sin callbackUrl); con sesión y sin rol ADMIN → /
+ *  - /account/*  → sin sesión → /login?callbackUrl=… (withAuth)
+ *  - /checkout/* → sin sesión → /login?callbackUrl=… (withAuth)
  *
- * La devolución `authorized: !!token` hace que withAuth redirija
- * automáticamente a /login cuando no hay sesión para cualquier ruta
- * del matcher; nuestra función interna solo necesita gestionar el
- * caso "autenticado pero sin rol correcto".
+ * Para /admin, `authorized` devuelve siempre true y esta función aplica
+ * los redirects explícitos arriba (evita que withAuth añada callbackUrl=/admin).
  */
 export default withAuth(
   function middleware(req: NextRequest & { nextauth: { token: JWT | null } }) {

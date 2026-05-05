@@ -18,7 +18,7 @@ const bulkUpdateSchema = z.object({
     .min(1, 'Se requiere al menos un pedido.')
     .max(100, 'No se pueden actualizar más de 100 pedidos a la vez.'),
   status: z.enum(VALID_STATUSES, {
-    errorMap: () => ({ message: `Estado no válido. Opciones: ${VALID_STATUSES.join(', ')}.` }),
+    message: `Estado no válido. Opciones: ${VALID_STATUSES.join(', ')}.`,
   }),
 });
 

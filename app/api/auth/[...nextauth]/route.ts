@@ -111,8 +111,7 @@ async function handler(req: Request, ctx: unknown) {
       );
     }
   }
-  // @ts-expect-error — NextAuth handler acepta (req, ctx) en App Router
-  return nextAuthHandler(req, ctx);
+  return nextAuthHandler(req, ctx as Parameters<typeof nextAuthHandler>[1]);
 }
 
 export { handler as GET, handler as POST };

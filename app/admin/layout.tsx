@@ -35,8 +35,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   if (!isAdminRole(role)) {
-    // Autenticado pero sin rol ADMIN → redirigir a cuenta, nunca a /login
-    redirect('/account/orders?error=forbidden');
+    // Autenticado pero sin rol ADMIN → inicio (consistente con middleware; sin exponer /admin)
+    redirect('/');
   }
 
   return (
