@@ -6,7 +6,7 @@ import {
   computeLoginLandingFromSources,
   resolveSearchParamGetter,
 } from '@/lib/auth-path';
-import { readAndConsumeLoginReturnCookiePath } from '@/lib/login-return-cookie';
+import { readLoginReturnPathFromPromotedHeader } from '@/lib/login-return-cookie';
 
 export const metadata: Metadata = {
   title: 'Crear cuenta',
@@ -26,7 +26,7 @@ interface PageProps {
 export default async function RegistroPage(props: PageProps) {
   const resolved = props.searchParams ? await props.searchParams : {};
   const getParam = resolveSearchParamGetter(resolved);
-  const cookiePath = await readAndConsumeLoginReturnCookiePath();
+  const cookiePath = await readLoginReturnPathFromPromotedHeader();
   const landing = computeLoginLandingFromSources(getParam, cookiePath);
 
   return (
