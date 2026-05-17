@@ -11,11 +11,15 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",    // unsafe-eval requerido por Next.js en dev; en prod usar nonce
-      "style-src 'self' 'unsafe-inline'",                    // Tailwind requiere unsafe-inline
-      "img-src 'self' data: blob: https://res.cloudinary.com",
-      "font-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      // Productos pueden traer cualquier URL HTTPS (BD); fallbacks Unsplash/Bunny/Google maps assets.
+      // Restringido a esquema https (no permite http: ni esquemas exóticos como javascript:).
+      "img-src 'self' data: blob: https:",
+      "media-src 'self' blob: https:",
+      "font-src 'self' data:",
       "connect-src 'self' https://res.cloudinary.com",
+      "frame-src 'self' https://iframe.mediadelivery.net https://www.google.com https://maps.google.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -32,6 +36,17 @@ const nextConfig = {
         // Aplica a todas las rutas del sitio
         source: '/(.*)',
         headers: securityHeaders,
+      },
+    ];
+  },
+
+  /** Peticiones legacy que piden `/favicon.ico` → mismo asset que `app/icon.svg`. */
+  async redirects() {
+    return [
+      {
+        source: '/favicon.ico',
+        destination: '/icon.svg',
+        permanent: false,
       },
     ];
   },
