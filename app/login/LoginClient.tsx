@@ -37,6 +37,16 @@ export default function LoginClient({ serverCallbackUrl }: Props) {
     if (nextOrCbExplicit) {
       const urlBased = resolveLoginCallbackFromParams(params.get.bind(params));
       setCallbackUrl(urlBased !== '/' ? urlBased : '/');
+
+      /* Quitar ?next=?callbackUrl legacy de la barra (ya quedaron en estado). */
+      const q = new URLSearchParams(params.toString());
+      if (q.has('next') || q.has('callbackUrl')) {
+        q.delete('next');
+        q.delete('callbackUrl');
+        const tail = q.toString();
+        router.replace(tail ? `/login?${tail}` : '/login', { scroll: false });
+      }
+
       return;
     }
 
@@ -47,7 +57,7 @@ export default function LoginClient({ serverCallbackUrl }: Props) {
     }
 
     setCallbackUrl(serverCallbackUrl);
-  }, [paramsKey, params, serverCallbackUrl]);
+  }, [paramsKey, params, serverCallbackUrl, router]);
 
   useEffect(() => {
     if (params.get('tab') !== 'register') return;
