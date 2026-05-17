@@ -5,11 +5,10 @@
  *   • schema:LocalBusiness (MundoTech Barquisimeto) — incluido en cada ficha
  *     para reforzar la entidad local en Google.
  *
- * Uso: <ProductJsonLd product={product} />
+ * Uso: <ProductJsonLd product={product} categoryPath={categoryPath} />
  * Renderiza solo <script> tags; no emite HTML visible.
  */
 
-import { slugify } from '@/lib/slugify';
 import { googleMapsBusinessUrl } from '@/lib/google-maps';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
@@ -56,11 +55,15 @@ interface ProductForJsonLd {
 
 interface Props {
   product: ProductForJsonLd;
+  /** Ruta desde resolveCategoryPathFromProductCategory (`/categoria/slug` o `/productos`). */
+  categoryPath: string;
 }
 
 // ── Componente ─────────────────────────────────────────────────────────────
-export default function ProductJsonLd({ product }: Props) {
-  const productUrl = `${SITE_URL}/product/${product.slug ?? product.id}`;
+export default function ProductJsonLd({ product, categoryPath }: Props) {
+  const baseUrl = SITE_URL.replace(/\/$/, '');
+  const categoryItemUrl = `${baseUrl}${categoryPath}`;
+  const productUrl = `${baseUrl}/product/${product.slug ?? product.id}`;
   const mainImage  = product.images[0] ?? '';
   const ogImage    = mainImage ? buildOgImageUrl(mainImage) : '';
 
@@ -177,7 +180,7 @@ export default function ProductJsonLd({ product }: Props) {
         '@type': 'ListItem',
         position: 3,
         name: product.category,
-        item: `${SITE_URL}/categoria/${slugify(product.category)}`,
+        item: categoryItemUrl,
       },
       {
         '@type': 'ListItem',

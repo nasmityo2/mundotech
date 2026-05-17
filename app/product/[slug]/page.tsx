@@ -16,7 +16,7 @@ import ProductCard from '@/components/ProductCard';
 import RecentlyViewedTracker from '@/components/RecentlyViewedTracker';
 import RecentlyViewed from '@/components/RecentlyViewed';
 import ProductJsonLd from '@/app/components/ProductJsonLd';
-import { slugify } from '@/lib/slugify';
+import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
 import { getExchangeRate } from '@/app/actions/configActions';
 
 interface PageProps {
@@ -150,6 +150,8 @@ export default async function ProductDetailPage({ params }: PageProps) {
 
   if (!product) notFound();
 
+  const categoryPath = await resolveCategoryPathFromProductCategory(product.category);
+
   const mainImage = product.images[0] || '/placeholder-product.png';
   const isOut     = product.stock === 0;
   const bsPrice   = product.price * bsRate;
@@ -169,7 +171,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     <div className="pb-24 lg:pb-12 w-full max-w-full">
 
       {/* ── Datos estructurados JSON-LD ── */}
-      <ProductJsonLd product={product} />
+      <ProductJsonLd product={product} categoryPath={categoryPath} />
 
       {/* ── Breadcrumb ── */}
       <nav className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6 overflow-hidden whitespace-nowrap" aria-label="Breadcrumb">
@@ -178,7 +180,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
         <Link href="/productos" className="hover:text-navy transition-colors">Catálogo</Link>
         <ChevronRight size={12} className="flex-shrink-0 hidden xs:block" />
         <Link
-          href={`/categoria/${slugify(product.category)}`}
+          href={categoryPath}
           className="hover:text-navy transition-colors capitalize hidden xs:inline"
         >
           {product.category}
@@ -210,7 +212,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
             )}
             <span className="text-slate-300">·</span>
             <Link
-              href={`/categoria/${slugify(product.category)}`}
+              href={categoryPath}
               className="text-[11px] sm:text-[12px] text-slate-500 hover:text-navy capitalize transition-colors"
             >
               {product.category}
