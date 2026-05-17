@@ -2,10 +2,15 @@
  * Rate limiter en memoria basado en Map.
  *
  * Apropiado para desarrollo y deployments de instancia única.
- * Para producción multi-instancia (Vercel serverless, etc.)
- * sustituir por Upstash Redis:
+ *
+ * TODO (PRODUCCIÓN MULTI-INSTANCIA): migrar a Upstash Redis para rate limit global.
+ * En Vercel serverless cada instancia tiene su propio Map → los límites NO son globales.
+ * Migración:
  *   npm i @upstash/ratelimit @upstash/redis
  *   https://github.com/upstash/ratelimit
+ * Variables de entorno requeridas: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
+ * Algoritmo recomendado: Sliding Window para mayor precisión.
+ * Compensación temporal: usa límites más conservadores (ej. divide entre 3 instancias esperadas).
  */
 
 interface Entry {
@@ -61,13 +66,42 @@ export function rateLimit(key: string, config: RateLimitConfig): boolean {
 }
 
 /**
- * Extrae la IP del cliente de la request de la forma más precisa posible.
- * Usa x-forwarded-for (proxies / CDN) con fallback a x-real-ip.
+ * Extrae la IP del cliente de forma segura según el entorno de despliegue.
+ *
+ * Estrategia por entorno (configurable con DEPLOYMENT_ENV):
+ *  - "vercel"     → x-vercel-forwarded-for (proxy de Vercel, no falsificable)
+ *  - "cloudflare" → cf-connecting-ip (proxy de Cloudflare, no falsificable)
+ *  - default      → último valor de x-forwarded-for (IP del proxy más cercano conocido)
+ *                   o x-real-ip, con fallback a 'unknown'.
+ *
+ * ADVERTENCIA: El primer valor de x-forwarded-for puede ser falsificado por el cliente.
+ * En producción detrás de un proxy de confianza, configurar DEPLOYMENT_ENV.
+ *
+ * TODO (PRODUCCIÓN): configurar DEPLOYMENT_ENV=vercel o DEPLOYMENT_ENV=cloudflare
+ * según el proveedor para obtener la IP real del cliente y prevenir evasión de rate limit.
  */
 export function getClientIp(request: Request): string {
-  return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    request.headers.get('x-real-ip') ??
-    'unknown'
-  );
+  const env = (process.env.DEPLOYMENT_ENV ?? '').toLowerCase();
+
+  if (env === 'vercel') {
+    const ip = request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim();
+    if (ip) return ip;
+  }
+
+  if (env === 'cloudflare') {
+    const ip = request.headers.get('cf-connecting-ip')?.trim();
+    if (ip) return ip;
+  }
+
+  // Sin proxy de confianza configurado: tomar el ÚLTIMO valor de x-forwarded-for
+  // (el proxy más cercano conocido) en lugar del primero (que el cliente puede falsificar).
+  const xff = request.headers.get('x-forwarded-for');
+  if (xff) {
+    const parts = xff.split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      return parts[parts.length - 1];
+    }
+  }
+
+  return request.headers.get('x-real-ip')?.trim() ?? 'unknown';
 }

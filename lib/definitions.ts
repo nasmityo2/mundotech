@@ -6,6 +6,15 @@ export type OrderStatus =
   | 'Entregado'
   | 'Cancelado';
 
+/** Valores válidos para actualización manual de estado (excluye Binance que tiene ruta propia). */
+export const VALID_ORDER_STATUSES: OrderStatus[] = [
+  'Pendiente',
+  'En Proceso',
+  'Enviado',
+  'Entregado',
+  'Cancelado',
+];
+
 export interface Customer {
   id: string;
   name: string;

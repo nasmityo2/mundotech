@@ -3,22 +3,20 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import type { OrderStatus } from '@/lib/definitions';
+import { VALID_ORDER_STATUSES } from '@/lib/definitions';
 
-const VALID_STATUSES = [
-  'Pendiente',
-  'En Proceso',
-  'Enviado',
-  'Entregado',
-  'Cancelado',
-] as const;
+/** Mismo estado que aprueba-stock en checkout Binance hasta validación manual. */
+const BINANCE_PENDING: OrderStatus = 'Pendiente verificación Binance';
+
+const STATUS_ENUM_VALUES = VALID_ORDER_STATUSES as unknown as [OrderStatus, ...OrderStatus[]];
 
 const bulkUpdateSchema = z.object({
   orderIds: z
     .array(z.string().min(1))
     .min(1, 'Se requiere al menos un pedido.')
     .max(100, 'No se pueden actualizar más de 100 pedidos a la vez.'),
-  status: z.enum(VALID_STATUSES, {
-    message: `Estado no válido. Opciones: ${VALID_STATUSES.join(', ')}.`,
+  status: z.enum(STATUS_ENUM_VALUES, {
+    message: `Estado no válido. Opciones: ${VALID_ORDER_STATUSES.join(', ')}.`,
   }),
 });
 
@@ -44,7 +42,7 @@ export async function POST(request: Request) {
   });
 
   const blocked = targeted.filter(
-    (o) => o.status === 'Pendiente verificación Binance' && status !== 'Cancelado'
+    (o) => o.status === BINANCE_PENDING && status !== 'Cancelado'
   );
   if (blocked.length > 0) {
     return NextResponse.json(
@@ -56,13 +54,36 @@ export async function POST(request: Request) {
     );
   }
 
-  const { count } = await prisma.order.updateMany({
-    where: { id: { in: orderIds } },
-    data:  { status: status as OrderStatus },
+  // Cancelación masiva: restaurar inventario igual que PUT /api/orders/[id]/status
+  // para pedidos Binance donde el checkout ya decrementó stock.
+  const updated = await prisma.$transaction(async (tx) => {
+    if (status === 'Cancelado') {
+      const binanceOrders = await tx.order.findMany({
+        where: {
+          id: { in: orderIds },
+          status: BINANCE_PENDING,
+        },
+        include: { items: true },
+      });
+
+      for (const order of binanceOrders) {
+        for (const item of order.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
+      }
+    }
+
+    return tx.order.updateMany({
+      where: { id: { in: orderIds } },
+      data: { status },
+    });
   });
 
   return NextResponse.json({
-    message:      `${count} de ${orderIds.length} pedidos actualizados al estado '${status}'.`,
-    updatedCount: count,
+    message:      `${updated.count} de ${orderIds.length} pedidos actualizados al estado '${status}'.`,
+    updatedCount: updated.count,
   });
 }

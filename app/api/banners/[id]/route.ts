@@ -36,8 +36,19 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+  const auth = await requireAdmin();
+
   const banner = await prisma.banner.findUnique({ where: { id } });
-  if (!banner) return NextResponse.json({ error: 'No encontrado.' }, { status: 404 });
+  if (!banner) {
+    return NextResponse.json({ error: 'No encontrado.' }, { status: 404 });
+  }
+
+  // Público: solo banners activos (evita fuga si se adivina el id de un banner inactivo).
+  // Admin puede ver cualquier registro para el panel / previas.
+  if (!banner.active && !auth.authorized) {
+    return NextResponse.json({ error: 'No encontrado.' }, { status: 404 });
+  }
+
   return NextResponse.json(banner);
 }
 

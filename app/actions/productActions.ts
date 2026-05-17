@@ -2,8 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '../api/auth/[...nextauth]/route';
+import { requireAdminAction } from '@/lib/api-auth';
 import { z } from 'zod';
 import Papa from 'papaparse';
 import { slugify } from '@/lib/slugify';
@@ -71,9 +70,7 @@ const productSchema = z.object({
 });
 
 async function verifyAdminSession() {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user?.role !== 'ADMIN') throw new Error('No autorizado');
-  return session;
+  return requireAdminAction();
 }
 
 /** Genera un slug único para un nuevo producto consultando la BD. */
@@ -147,7 +144,7 @@ export async function createProductAction(formData: FormData) {
     return { success: true, message: 'Producto añadido con éxito.' };
   } catch (error) {
     console.error('Error al crear el producto:', error);
-    if (error instanceof Error && error.message === 'No autorizado') {
+    if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No tienes permiso para realizar esta acción.' };
     }
     return { success: false, message: 'No se pudo crear el producto.' };
@@ -212,7 +209,7 @@ export async function updateProductAction(productId: string, formData: FormData)
     return { success: true, message: 'Producto actualizado con éxito.' };
   } catch (error) {
     console.error('Error al actualizar el producto:', error);
-    if (error instanceof Error && error.message === 'No autorizado') {
+    if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No tienes permiso para realizar esta acción.' };
     }
     return { success: false, message: 'No se pudo actualizar el producto.' };
@@ -228,7 +225,7 @@ export async function deleteProductAction(productId: string) {
     return { success: true, message: 'Producto eliminado con éxito.' };
   } catch (error) {
     console.error('Error al eliminar el producto:', error);
-    if (error instanceof Error && error.message === 'No autorizado') {
+    if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No tienes permiso para realizar esta acción.' };
     }
     return { success: false, message: 'No se pudo eliminar el producto.' };
@@ -352,7 +349,7 @@ export async function quickUpdateStockAction(productId: string, stock: number) {
     revalidatePath('/');
     return { success: true };
   } catch (error) {
-    if (error instanceof Error && error.message === 'No autorizado') {
+    if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No autorizado.' };
     }
     return { success: false, message: 'Error al actualizar stock.' };
@@ -370,7 +367,7 @@ export async function quickUpdatePriceAction(productId: string, price: number) {
     revalidatePath('/');
     return { success: true };
   } catch (error) {
-    if (error instanceof Error && error.message === 'No autorizado') {
+    if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No autorizado.' };
     }
     return { success: false, message: 'Error al actualizar precio.' };

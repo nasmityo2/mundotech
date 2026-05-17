@@ -3,22 +3,10 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import cloudinary from '@/lib/cloudinary';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { detectImageMimeFromBuffer, isAllowedProofMime } from '@/lib/detect-image-mime';
 
 const PROOF_FOLDER = 'mundotech/order-proofs';
-const MAX_BYTES = 6 * 1024 * 1024; // 6 MB
-
-const ALLOWED_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'image/heic',
-  'image/heif',
-]);
-
-function extensionLooksLikeImage(name: string): boolean {
-  return /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(name);
-}
+const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export async function POST(request: Request) {
   // Requiere sesión activa — rechazar invitados no autenticados
@@ -54,28 +42,24 @@ export async function POST(request: Request) {
     if (file.size > MAX_BYTES) {
       return NextResponse.json(
         { error: `La imagen supera el máximo permitido (${MAX_BYTES / (1024 * 1024)} MB).` },
-        { status: 400 }
-      );
-    }
-
-    const mime = (file.type || '').toLowerCase().trim();
-    if (mime && !ALLOWED_TYPES.has(mime)) {
-      return NextResponse.json(
-        { error: 'Formato no permitido. Usa JPG, PNG, WEBP o GIF.' },
-        { status: 400 }
-      );
-    }
-
-    if (!mime && !extensionLooksLikeImage(file.name)) {
-      return NextResponse.json(
-        { error: 'No pudimos reconocer el tipo de archivo. Usa una imagen JPG o PNG.' },
-        { status: 400 }
+        { status: 413 }
       );
     }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const base64 = `data:${mime || 'image/jpeg'};base64,${buffer.toString('base64')}`;
+
+    // Verificación de magic bytes — la única fuente confiable del tipo real del archivo.
+    // El Content-Type del cliente y la extensión del nombre pueden ser falsificados.
+    const detectedMime = detectImageMimeFromBuffer(buffer);
+    if (!detectedMime || !isAllowedProofMime(detectedMime)) {
+      return NextResponse.json(
+        { error: 'Tipo de archivo no permitido. Usa una imagen JPG, PNG o WEBP.' },
+        { status: 400 }
+      );
+    }
+
+    const base64 = `data:${detectedMime};base64,${buffer.toString('base64')}`;
 
     const result = await cloudinary.uploader.upload(base64, {
       folder: PROOF_FOLDER,

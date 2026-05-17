@@ -1,15 +1,9 @@
 import { NextResponse } from 'next/server';
 import cloudinary from '@/lib/cloudinary';
 import { requireAdmin } from '@/lib/api-auth';
+import { detectImageMimeFromBuffer, isAllowedAdminUploadMime } from '@/lib/detect-image-mime';
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
-
-const ALLOWED_MIME_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-]);
 
 export async function POST(request: Request) {
   const auth = await requireAdmin();
@@ -31,15 +25,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validar tipo MIME
-    const mime = (file.type || '').toLowerCase().trim();
-    if (!mime || !ALLOWED_MIME_TYPES.has(mime)) {
-      return NextResponse.json(
-        { error: 'Tipo de archivo no permitido. Solo se aceptan imágenes JPG, PNG, WEBP o GIF.' },
-        { status: 415 }
-      );
-    }
-
     const purpose = String(formData.get('purpose') ?? 'banner');
     const folder =
       purpose === 'product' || purpose === 'products'
@@ -48,7 +33,17 @@ export async function POST(request: Request) {
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const base64 = `data:${mime};base64,${buffer.toString('base64')}`;
+
+    // Validar tipo real por magic bytes — no confiar en file.type del navegador.
+    const detectedMime = detectImageMimeFromBuffer(buffer);
+    if (!detectedMime || !isAllowedAdminUploadMime(detectedMime)) {
+      return NextResponse.json(
+        { error: 'Tipo de archivo no permitido. Solo se aceptan imágenes JPG, PNG, WEBP o GIF.' },
+        { status: 415 }
+      );
+    }
+
+    const base64 = `data:${detectedMime};base64,${buffer.toString('base64')}`;
 
     const isProduct = folder === 'mundotech/products';
 

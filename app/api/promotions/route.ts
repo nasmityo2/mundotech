@@ -5,14 +5,26 @@ import { requireAdmin } from '@/lib/api-auth';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const active = searchParams.get('active');
-    const where = active === 'true' ? { active: true } : {};
+
+    // Público siempre filtra por active: true.
+    // Solo un admin puede pasar showAll=true para ver todas.
+    let where: { active?: boolean } = { active: true };
+
+    const showAll = searchParams.get('showAll') === 'true' || searchParams.get('active') === 'all';
+    if (showAll) {
+      const auth = await requireAdmin();
+      if (auth.authorized) {
+        where = {};
+      }
+    }
+
     const promotions = await prisma.promotion.findMany({
       where,
       orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
     });
     return NextResponse.json(promotions);
-  } catch {
+  } catch (error) {
+    console.error('[GET /api/promotions] Error inesperado:', error);
     return NextResponse.json({ error: 'Error al obtener promociones' }, { status: 500 });
   }
 }

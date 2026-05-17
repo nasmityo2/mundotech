@@ -95,7 +95,7 @@ export default function AdminBannersPage() {
   const fetchBanners = async () => {
     setLoading(true);
     try {
-      const r    = await fetch('/api/banners');
+      const r = await fetch('/api/banners?showAll=true');
       const data = await r.json();
       setBanners(Array.isArray(data) ? data : []);
     } catch {

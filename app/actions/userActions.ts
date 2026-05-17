@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdminAction } from '@/lib/api-auth';
+import { isAdminRole } from '@/lib/is-admin-role';
 
 export interface AdminUser {
   id:        string;
@@ -109,7 +110,7 @@ export async function deleteAdminUser(userId: string): Promise<{ success: boolea
   const target = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (!target) return { success: false, message: 'Usuario no encontrado.' };
 
-  if (target.role === 'ADMIN') {
+  if (isAdminRole(target.role)) {
     const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
     if (adminCount <= 1) {
       return { success: false, message: 'No puedes eliminar al último administrador.' };

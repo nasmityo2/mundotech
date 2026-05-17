@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, Building, ChevronRight, Copy, Check, UploadCloud, X, Loader2, Wallet } from 'lucide-react';
 import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
+import type { StoreSettings } from '@/lib/data-store';
 
 export type PaymentMethod = 'pagomovil' | 'transferencia' | 'binancepay';
 
@@ -20,25 +21,13 @@ export type PaymentFormData = {
 interface PaymentFormProps {
   onPaymentSubmit: (data: PaymentFormData) => void;
   onBack: () => void;
+  /** Datos de pago de la tienda leídos desde el data-store en el Server Component padre. */
+  pagoMovil: StoreSettings['pagoMovil'];
+  transferencia: StoreSettings['transferencia'];
 }
 
 const BINANCE_PAY_ID = process.env.NEXT_PUBLIC_MUNDOTECH_BINANCE_PAY_ID?.trim() ?? '';
 const BINANCE_QR_URL = process.env.NEXT_PUBLIC_MUNDOTECH_BINANCE_QR_URL?.trim() ?? '';
-
-// ── Datos de la tienda para recibir pagos ──────────────────────────────────────
-const STORE_PAYMENT = {
-  pagomovil: [
-    { label: 'Banco',     value: 'Banesco' },
-    { label: 'Teléfono',  value: '0412-1234567' },
-    { label: 'Cédula',    value: 'V-12.345.678' },
-  ],
-  transferencia: [
-    { label: 'Banco',    value: 'Banco Mercantil' },
-    { label: 'Cuenta',   value: '0105-0000-00-1234567890' },
-    { label: 'Titular',  value: 'MundoTech C.A.' },
-    { label: 'RIF',      value: 'J-123456789' },
-  ],
-};
 
 // ── Lista de bancos venezolanos ────────────────────────────────────────────────
 export const VENEZUELAN_BANKS = [
@@ -68,7 +57,7 @@ export const VENEZUELAN_BANKS = [
 const selectCls =
   'block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy';
 
-const PaymentForm = ({ onPaymentSubmit }: PaymentFormProps) => {
+const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia }: PaymentFormProps) => {
   const [selected,        setSelected]        = useState<PaymentMethod | null>(null);
   const [copiedField,     setCopiedField]      = useState<string | null>(null);
   const [bank,            setBank]             = useState('');
@@ -149,8 +138,22 @@ const PaymentForm = ({ onPaymentSubmit }: PaymentFormProps) => {
     });
   };
 
-  const storeData =
-    selected && selected !== 'binancepay' ? STORE_PAYMENT[selected as 'pagomovil' | 'transferencia'] : null;
+  const storeDataRows: { label: string; value: string }[] | null = (() => {
+    if (!selected || selected === 'binancepay') return null;
+    if (selected === 'pagomovil') {
+      return [
+        { label: 'Banco',    value: pagoMovil.bank },
+        { label: 'Teléfono', value: pagoMovil.phone },
+        { label: 'Cédula',   value: pagoMovil.idNumber },
+      ];
+    }
+    return [
+      { label: 'Banco',    value: transferencia.bank },
+      { label: 'Cuenta',   value: transferencia.accountNumber },
+      { label: 'Titular',  value: transferencia.accountHolder },
+      { label: 'RIF',      value: transferencia.rif },
+    ];
+  })();
 
   return (
     <form onSubmit={handleSubmit} className="space-y-7">
@@ -204,7 +207,7 @@ const PaymentForm = ({ onPaymentSubmit }: PaymentFormProps) => {
 
       {/* ── Datos de la tienda para pagar ── */}
       <AnimatePresence mode="wait">
-        {storeData && selected !== 'binancepay' && (
+        {storeDataRows && selected !== 'binancepay' && (
           <motion.div
             key={selected}
             initial={{ opacity: 0, y: 8 }}
@@ -217,7 +220,7 @@ const PaymentForm = ({ onPaymentSubmit }: PaymentFormProps) => {
               Transfiere a estos datos de MundoTech
             </p>
             <dl className="space-y-2">
-              {storeData.map((row) => (
+              {storeDataRows.map((row) => (
                 <div key={row.label} className="flex items-center justify-between gap-3 text-sm">
                   <dt className="text-slate-500 shrink-0">{row.label}</dt>
                   <dd className="flex items-center gap-2 font-mono text-navy text-[13px] text-right">

@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
-import { prismaOrderToOrder, type OrderStatus } from '@/lib/definitions';
+import { prismaOrderToOrder, type OrderStatus, VALID_ORDER_STATUSES } from '@/lib/definitions';
 import { sendOrderDeliveredEmail, sendShippingEmail } from '@/lib/resend';
+
+type OrderWithRelations = Prisma.OrderGetPayload<{
+  include: { items: true; customer: { select: { email: true; name: true } } };
+}>;
 
 function firstNameFromCustomerName(displayName: string): string {
   const t = displayName.trim();
@@ -11,7 +16,7 @@ function firstNameFromCustomerName(displayName: string): string {
   return t.split(/\s+/)[0] ?? t;
 }
 
-const VALID_STATUSES: OrderStatus[] = ['Pendiente', 'En Proceso', 'Enviado', 'Entregado', 'Cancelado'];
+const VALID_STATUSES = VALID_ORDER_STATUSES;
 
 const bodySchema = z.object({
   status: z.string(),
@@ -49,16 +54,16 @@ export async function PUT(
     return NextResponse.json({ message: 'Pedido no encontrado.' }, { status: 404 });
   }
 
-  if (existing.status === 'Pendiente verificación Binance') {
-    if (status !== 'Cancelado') {
-      return NextResponse.json(
-        {
-          message:
-            'Pedido pendiente de verificación Binance: usa «Aprobar pago Binance» para confirmar y descontar stock, o marca como Cancelado.',
-        },
-        { status: 400 }
-      );
-    }
+  const isBinancePending = existing.status === 'Pendiente verificación Binance';
+
+  if (isBinancePending && status !== 'Cancelado') {
+    return NextResponse.json(
+      {
+        message:
+          'Pedido pendiente de verificación Binance: usa «Aprobar pago Binance» para confirmar el pago, o marca como Cancelado.',
+      },
+      { status: 400 }
+    );
   }
 
   // Si pasa a Enviado, sellamos shippedAt si aún no estaba.
@@ -68,23 +73,58 @@ export async function PUT(
     || Object.prototype.hasOwnProperty.call(body ?? {}, 'trackingUrl')
     || Object.prototype.hasOwnProperty.call(body ?? {}, 'trackingPhotoUrl');
 
-  const updated = await prisma.order.update({
-    where: { id: orderId },
-    data: {
-      status,
-      ...(trackingProvided && {
-        trackingNumber:   tracking.trackingNumber   ?? null,
-        trackingCarrier:  tracking.trackingCarrier  ?? null,
-        trackingUrl:      tracking.trackingUrl      ?? null,
-        trackingPhotoUrl: tracking.trackingPhotoUrl ?? null,
-      }),
-      shippedAt: status === 'Enviado' && !existing.shippedAt ? new Date() : undefined,
-    },
-    include: {
-      items: true,
-      customer: { select: { email: true, name: true } },
-    },
-  });
+  // Cancelar un pedido Binance pendiente: restaurar el stock decrementado en el checkout.
+  // Para otros estados → Cancelado, el admin gestiona inventario manualmente.
+  let updated: OrderWithRelations;
+
+  if (isBinancePending && status === 'Cancelado') {
+    const orderWithItems = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+
+    updated = await prisma.$transaction(async (tx) => {
+      if (orderWithItems?.items) {
+        for (const item of orderWithItems.items) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
+      }
+      return tx.order.update({
+        where: { id: orderId },
+        data: { status },
+        include: {
+          items: true,
+          customer: { select: { email: true, name: true } },
+        },
+      });
+    });
+
+    console.info(
+      '[order-cancel-binance] Stock restaurado y pedido cancelado:',
+      orderId
+    );
+  } else {
+    updated = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        status,
+        ...(trackingProvided && {
+          trackingNumber:   tracking.trackingNumber   ?? null,
+          trackingCarrier:  tracking.trackingCarrier  ?? null,
+          trackingUrl:      tracking.trackingUrl      ?? null,
+          trackingPhotoUrl: tracking.trackingPhotoUrl ?? null,
+        }),
+        shippedAt: status === 'Enviado' && !existing.shippedAt ? new Date() : undefined,
+      },
+      include: {
+        items: true,
+        customer: { select: { email: true, name: true } },
+      },
+    });
+  }
 
   const newTracking = (updated.trackingNumber ?? '').trim();
   const prevTracking = (existing.trackingNumber ?? '').trim();

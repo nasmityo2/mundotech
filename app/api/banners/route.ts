@@ -5,17 +5,29 @@ import { requireAdmin } from '@/lib/api-auth';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const type   = searchParams.get('type');
-    const active = searchParams.get('active');
-    const where: Record<string, unknown> = {};
-    if (type)   where.type   = type;
-    if (active) where.active = active === 'true';
+    const type = searchParams.get('type');
+
+    // Público siempre filtra por active: true.
+    // Solo admin puede usar showAll=true para ver todos.
+    const where: Record<string, unknown> = { active: true };
+
+    const showAll = searchParams.get('showAll') === 'true' || searchParams.get('active') === 'all';
+    if (showAll) {
+      const auth = await requireAdmin();
+      if (auth.authorized) {
+        delete where.active;
+      }
+    }
+
+    if (type) where.type = type;
+
     const banners = await prisma.banner.findMany({
       where,
       orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
     });
     return NextResponse.json(banners);
-  } catch {
+  } catch (error) {
+    console.error('[GET /api/banners] Error inesperado:', error);
     return NextResponse.json({ error: 'Error al obtener banners' }, { status: 500 });
   }
 }

@@ -32,13 +32,9 @@ export default withAuth(
         return NextResponse.redirect(new URL('/', req.url));
       }
 
-      // Admin verificado → continuar con cabeceras de seguridad
-      const res = NextResponse.next();
-      res.headers.set('X-Frame-Options', 'DENY');
-      res.headers.set('X-Content-Type-Options', 'nosniff');
-      res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-      res.headers.set('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=()');
-      return res;
+      // Admin verificado → continuar.
+      // Los headers de seguridad globales se aplican en next.config.mjs (headers()).
+      return NextResponse.next();
     }
 
     return NextResponse.next();

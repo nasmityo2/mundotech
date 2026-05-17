@@ -11,6 +11,7 @@ import {
 } from '@/app/actions/userActions';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
 import { TouchIconButton } from '@/components/admin/TouchIconButton';
+import { isAdminRole } from '@/lib/is-admin-role';
 
 interface UsersClientProps {
   users: AdminUser[];
@@ -38,7 +39,7 @@ export default function UsersClient({ users: initial, currentUserId }: UsersClie
   };
 
   const handleToggleRole = async (u: AdminUser) => {
-    const newRole = u.role === 'ADMIN' ? 'CLIENT' : 'ADMIN';
+    const newRole = isAdminRole(u.role) ? 'CLIENT' : 'ADMIN';
     const res = await updateUserRole(u.id, newRole);
     if (res.success) {
       flash('success', res.message);
@@ -75,7 +76,7 @@ export default function UsersClient({ users: initial, currentUserId }: UsersClie
       key: 'role', header: 'Rol', mobileLabel: 'Rol',
       cell: u => (
         <span className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-bold ${
-          u.role === 'ADMIN'
+          isAdminRole(u.role)
             ? 'bg-amber-100 text-amber-800 border border-amber-200'
             : 'bg-gray-100 text-gray-700 border border-gray-200'
         }`}>
@@ -132,7 +133,7 @@ export default function UsersClient({ users: initial, currentUserId }: UsersClie
         rowKey={u => u.id}
         mobileLeading={u => (
           <span className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
-            u.role === 'ADMIN' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+            isAdminRole(u.role) ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
           }`}>
             <UserCircle size={22} />
           </span>
@@ -140,9 +141,9 @@ export default function UsersClient({ users: initial, currentUserId }: UsersClie
         actions={u => (
           <>
             <TouchIconButton
-              label={u.role === 'ADMIN' ? 'Hacer cliente' : 'Promover a admin'}
+              label={isAdminRole(u.role) ? 'Hacer cliente' : 'Promover a admin'}
               variant="primary"
-              icon={u.role === 'ADMIN' ? <ShieldOff size={18} /> : <ShieldCheck size={18} />}
+              icon={isAdminRole(u.role) ? <ShieldOff size={18} /> : <ShieldCheck size={18} />}
               onClick={() => handleToggleRole(u)}
             />
             <TouchIconButton

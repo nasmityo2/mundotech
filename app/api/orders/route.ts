@@ -30,21 +30,30 @@ export async function GET() {
  * del servidor para evitar que un cliente vincule un pedido al ID de
  * otra cuenta. Si no hay sesión, se trata como pedido de invitado.
  *
- * Binance manual: pedido en "Pendiente verificación Binance" sin
- * descontar stock hasta aprobación admin.
+ * Binance Pay: el pedido inicia como "Pendiente verificación Binance".
+ * El stock se descuenta atómicamente en esta misma transacción (`updateMany`
+ * con `stock >= cantidad`). `approve-binance` solo avanza estado y `paidAt`;
+ * al cancelar (PUT o cambio masivo) se debe restaurar inventario cuando el pedido siga en ese estado pendiente Binance.
  */
 export async function POST(request: Request) {
-  // Rate limit: máx 5 pedidos por IP por minuto
   const ip = getClientIp(request);
-  if (rateLimit(`orders:post:${ip}`, { limit: 5, windowMs: 60_000 })) {
+  if (rateLimit(`orders:post:ip:${ip}`, { limit: 5, windowMs: 60_000 })) {
     return NextResponse.json(
       { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
       { status: 429 }
     );
   }
 
-  // Obtener sesión antes de procesar el body
   const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  if (userId && userId !== 'guest') {
+    if (rateLimit(`orders:post:user:${userId}`, { limit: 5, windowMs: 60_000 })) {
+      return NextResponse.json(
+        { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
+        { status: 429 }
+      );
+    }
+  }
 
   try {
     const body = await request.json();
@@ -68,7 +77,7 @@ export async function POST(request: Request) {
 
     const order = await prisma.$transaction(async (tx) =>
       executeCheckoutInTransaction(tx, safeData, {
-        deferStockDeduction: isBinanceManual,
+        deferStockDeduction: false,
         orderStatus: isBinanceManual ? 'Pendiente verificación Binance' : 'Pendiente',
       })
     );

@@ -1,177 +1,21 @@
-'use client';
+import { readSettings } from '@/lib/data-store';
+import CheckoutFlow from '@/app/components/checkout/CheckoutFlow';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, ShieldCheck, Lock } from 'lucide-react';
+// Fuerza renderizado dinámico (por-request) para que readSettings()
+// lea la configuración actual de la BD en cada visita.
+export const dynamic = 'force-dynamic';
 
-import CheckoutStepper from '@/app/components/checkout/CheckoutStepper';
-import ShippingForm, { ShippingFormData } from '@/app/components/checkout/ShippingForm';
-import PaymentForm, { PaymentFormData } from '@/app/components/checkout/PaymentForm';
-import ReviewStep from '@/app/components/checkout/ReviewStep';
-import { useCart } from '@/context/CartContext';
-import { formatCurrency } from '@/lib/utils';
-
-const CheckoutPage = () => {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [direction, setDirection]     = useState<1 | -1>(1);
-  const [shippingData, setShippingData] = useState<ShippingFormData | null>(null);
-  const [paymentData, setPaymentData]   = useState<PaymentFormData  | null>(null);
-
-  const { cart, getCartTotal, isCartLoading } = useCart();
-  const subtotal = getCartTotal();
-  const total    = subtotal;
-
-  const handleShippingSubmit = (data: ShippingFormData) => {
-    setShippingData(data);
-    setDirection(1);
-    setCurrentStep(1);
-  };
-
-  const handlePaymentSubmit = (data: PaymentFormData) => {
-    setPaymentData(data);
-    setDirection(1);
-    setCurrentStep(2);
-  };
-
-  const handleBack = () => {
-    setDirection(-1);
-    setCurrentStep((s) => Math.max(0, s - 1));
-  };
-
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 0: return <ShippingForm onFormSubmit={handleShippingSubmit} />;
-      case 1: return <PaymentForm onPaymentSubmit={handlePaymentSubmit} onBack={handleBack} />;
-      case 2: return <ReviewStep shippingData={shippingData} paymentData={paymentData} />;
-      default: return null;
-    }
-  };
+/**
+ * Server Component: lee los datos de pago de la tienda desde la BD
+ * y los pasa al flujo interactivo de checkout (Client Component).
+ */
+export default async function CheckoutPage() {
+  const settings = await readSettings();
 
   return (
-    <div className="pb-10 sm:pb-12 w-full max-w-full">
-      <nav className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6" aria-label="Breadcrumb">
-        <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
-        <ChevronRight size={12} />
-        <Link href="/cart" className="hover:text-navy transition-colors">Carrito</Link>
-        <ChevronRight size={12} />
-        <span className="text-navy font-medium">Pago</span>
-      </nav>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6 lg:gap-8 items-start">
-
-        {/* Columna principal (debajo del resumen en móvil) */}
-        <div className="lg:col-span-2 space-y-5 sm:space-y-6 order-2 lg:order-1">
-
-          {/* Stepper */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-4 sm:p-6 lg:p-8">
-            <CheckoutStepper currentStep={currentStep} />
-          </div>
-
-          {/* Step content */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-4 sm:p-6 lg:p-8 overflow-hidden relative min-h-[300px]">
-            <AnimatePresence mode="wait" custom={direction}>
-              <motion.div
-                key={currentStep}
-                custom={direction}
-                initial={{ opacity: 0, x: direction * 24 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: direction * -24 }}
-                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-              >
-                {renderStepContent()}
-              </motion.div>
-            </AnimatePresence>
-
-            {currentStep > 0 && (
-              <div className="mt-8 pt-6 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-navy transition-colors"
-                >
-                  <ChevronLeft size={15} /> Volver al paso anterior
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Resumen: primero en móvil para contexto del pedido ── */}
-        <aside className="lg:col-span-1 order-1 lg:order-2">
-          <div className="lg:sticky lg:top-[96px] space-y-4">
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-100">
-                <h2 className="text-base font-semibold text-navy">Tu pedido</h2>
-              </div>
-
-              <ul className="px-5 py-4 space-y-3 max-h-[260px] overflow-y-auto scrollbar-hide">
-                {isCartLoading ? (
-                  <li className="text-sm text-slate-500">Cargando…</li>
-                ) : cart.length === 0 ? (
-                  <li className="text-sm text-slate-500">Sin productos.</li>
-                ) : (
-                  cart.map((item) => (
-                    <li key={item.id} className="flex items-center gap-3">
-                      <div className="relative h-12 w-12 flex-shrink-0 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
-                        <Image
-                          src={item.image || item.images?.[0] || '/placeholder-product.png'}
-                          alt={item.name}
-                          fill
-                          sizes="48px"
-                          className="object-contain p-1.5"
-                        />
-                        <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-navy text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
-                          {item.quantity}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-navy line-clamp-1">{item.name}</p>
-                        <p className="text-[11px] text-slate-500 nums">{formatCurrency(item.price)}</p>
-                      </div>
-                      <p className="text-sm font-semibold text-navy nums whitespace-nowrap">
-                        {formatCurrency(item.price * item.quantity)}
-                      </p>
-                    </li>
-                  ))
-                )}
-              </ul>
-
-              <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 space-y-2 text-sm">
-                <div className="flex justify-between text-slate-500">
-                  <span>Subtotal</span>
-                  <span className="text-navy font-medium nums">{formatCurrency(subtotal)}</span>
-                </div>
-                <div className="border-t border-slate-200 pt-3 mt-2 flex items-end justify-between">
-                  <span className="text-base font-semibold text-navy">Total</span>
-                  <span className="text-2xl font-bold text-navy nums tracking-tight">
-                    {formatCurrency(total)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Trust */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
-                <Lock size={16} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-navy">Compra protegida</p>
-                <p className="text-[11px] text-slate-500">Datos cifrados · No compartimos tu información.</p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
-              <ShieldCheck size={11} className="text-emerald-500" />
-              SSL 256-bit · CSRF activo
-            </div>
-          </div>
-        </aside>
-      </div>
-    </div>
+    <CheckoutFlow
+      pagoMovil={settings.pagoMovil}
+      transferencia={settings.transferencia}
+    />
   );
-};
-
-export default CheckoutPage;
+}

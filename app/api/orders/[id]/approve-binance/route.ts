@@ -7,7 +7,11 @@ const BINANCE_PENDING = 'Pendiente verificación Binance';
 
 /**
  * POST /api/orders/[id]/approve-binance
- * Tras revisar el pago en la app Binance: descuenta stock y pasa el pedido a "Pendiente".
+ * Tras verificar el pago en Binance: pasa el pedido a "Pendiente".
+ *
+ * El stock ya fue decrementado atómicamente en el momento del checkout
+ * (POST /api/orders), por lo que esta ruta solo actualiza el estado
+ * y sella paidAt. No toca el inventario.
  */
 export async function POST(
   _request: Request,
@@ -19,59 +23,35 @@ export async function POST(
   const { id: orderId } = await params;
 
   try {
-    await prisma.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({
-        where: { id: orderId },
-        include: { items: true },
-      });
-
-      if (!order) {
-        throw new Error('Pedido no encontrado.');
-      }
-      if (order.status !== BINANCE_PENDING) {
-        throw new Error('Este pedido no está pendiente de verificación Binance.');
-      }
-
-      for (const item of order.items) {
-        const product = await tx.product.findUnique({
-          where: { id: item.productId },
-          select: { id: true, stock: true, name: true },
-        });
-        if (!product || product.stock < item.quantity) {
-          throw new Error(
-            `Stock insuficiente para "${item.productName}". Actualiza inventario o cancela el pedido.`
-          );
-        }
-      }
-
-      for (const item of order.items) {
-        const result = await tx.product.updateMany({
-          where: { id: item.productId, stock: { gte: item.quantity } },
-          data: { stock: { decrement: item.quantity } },
-        });
-        if (result.count === 0) {
-          throw new Error(
-            `Stock insuficiente para "${item.productName}" al aprobar el pago. ` +
-              `Actualiza el inventario o cancela el pedido.`
-          );
-        }
-      }
-
-      await tx.order.update({
-        where: { id: orderId },
-        data: { status: 'Pendiente' },
-      });
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, status: true },
     });
 
-    const updated = await prisma.order.findUnique({
+    if (!order) {
+      return NextResponse.json({ message: 'Pedido no encontrado.' }, { status: 404 });
+    }
+    if (order.status !== BINANCE_PENDING) {
+      return NextResponse.json(
+        { message: 'Este pedido no está pendiente de verificación Binance.' },
+        { status: 400 }
+      );
+    }
+
+    const updated = await prisma.order.update({
       where: { id: orderId },
+      data: {
+        status: 'Pendiente',
+        paidAt: new Date(),
+      },
       include: { items: true },
     });
 
-    return NextResponse.json(prismaOrderToOrder(updated!));
+    console.info('[approve-binance] Pago Binance aprobado para pedido:', orderId);
+    return NextResponse.json(prismaOrderToOrder(updated));
   } catch (error) {
-    console.error('[approve-binance]', error);
+    console.error('[approve-binance] Error inesperado:', error);
     const message = error instanceof Error ? error.message : 'No se pudo aprobar el pago.';
-    return NextResponse.json({ message }, { status: 400 });
+    return NextResponse.json({ message }, { status: 500 });
   }
 }

@@ -15,6 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import SearchBar          from './SearchBar';
 import SearchMobileOverlay from './SearchMobileOverlay';
 import CategoryDrawer     from './layout/CategoryDrawer';
+import { isAdminRole } from '@/lib/is-admin-role';
 
 const Navbar = ({ onCartClick }: { onCartClick: () => void }) => {
   const { data: session }                  = useSession();
@@ -31,7 +32,7 @@ const Navbar = ({ onCartClick }: { onCartClick: () => void }) => {
     ? cart.reduce((acc, item) => acc + item.quantity, 0)
     : 0;
   const cartAnim = { scale: itemAdded ? [1, 1.18, 1] : 1, transition: { duration: 0.32 } };
-  const isAdmin  = session?.user?.role === 'ADMIN' || session?.user?.role === 'admin';
+  const isAdmin  = isAdminRole(session?.user?.role);
 
   // Sombra/blur progresivo
   useEffect(() => {

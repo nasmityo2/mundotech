@@ -159,7 +159,7 @@ export default function HomeManagerPage() {
   const fetchPromotions = async () => {
     setLoadingPro(true);
     try {
-      const r    = await fetch('/api/promotions');
+      const r = await fetch('/api/promotions?showAll=true');
       const data = await r.json();
       const list: Promotion[] = Array.isArray(data) ? data : [];
       const forms: Promotion[] = PROMO_DEFAULTS.map(def => {

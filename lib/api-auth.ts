@@ -2,14 +2,13 @@ import { getServerSession } from 'next-auth/next';
 import { NextResponse } from 'next/server';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import type { Session } from 'next-auth';
+import { isAdminRole } from '@/lib/is-admin-role';
+
+export { isAdminRole } from '@/lib/is-admin-role';
 
 type AdminAuthResult =
   | { authorized: true; session: Session }
   | { authorized: false; response: NextResponse };
-
-export function isAdminRole(role: string | null | undefined): boolean {
-  return (role ?? '').toUpperCase() === 'ADMIN';
-}
 
 /**
  * Verifica sesión activa + rol ADMIN.
