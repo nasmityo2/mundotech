@@ -6,6 +6,7 @@ import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { stashLoginRedirectForPathname } from '@/lib/auth-path';
 
 interface Product {
   id: string;
@@ -43,7 +44,8 @@ export default function ProductActions({ product }: { product: Product }) {
     if (isOut) return;
     if (status !== 'authenticated') {
       silentAddToCart(product as never, qty);
-      router.push(`/login?callbackUrl=${encodeURIComponent('/checkout')}`);
+      stashLoginRedirectForPathname('/checkout');
+      router.push('/login');
       return;
     }
     silentAddToCart(product as never, qty);

@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react';
 import { ShoppingCart, Zap } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { formatCurrency } from '@/lib/utils';
+import { stashLoginRedirectForPathname } from '@/lib/auth-path';
 
 interface Props {
   product: {
@@ -38,7 +39,8 @@ export default function StickyAddToCart({ product }: Props) {
     if (isOut) return;
     if (status !== 'authenticated') {
       silentAddToCart(product as never);
-      router.push(`/login?callbackUrl=${encodeURIComponent('/checkout')}`);
+      stashLoginRedirectForPathname('/checkout');
+      router.push('/login');
       return;
     }
     silentAddToCart(product as never);

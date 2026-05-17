@@ -1,6 +1,12 @@
 import { Suspense } from 'react';
 import type { Metadata } from 'next';
+
 import RegistroClient from './RegistroClient';
+import {
+  computeLoginLandingFromSources,
+  resolveSearchParamGetter,
+} from '@/lib/auth-path';
+import { readAndConsumeLoginReturnCookiePath } from '@/lib/login-return-cookie';
 
 export const metadata: Metadata = {
   title: 'Crear cuenta',
@@ -13,10 +19,19 @@ function RegistroFallback() {
   );
 }
 
-export default function RegistroPage() {
+interface PageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function RegistroPage(props: PageProps) {
+  const resolved = props.searchParams ? await props.searchParams : {};
+  const getParam = resolveSearchParamGetter(resolved);
+  const cookiePath = await readAndConsumeLoginReturnCookiePath();
+  const landing = computeLoginLandingFromSources(getParam, cookiePath);
+
   return (
     <Suspense fallback={<RegistroFallback />}>
-      <RegistroClient />
+      <RegistroClient serverCallbackUrl={landing.callbackUrl} />
     </Suspense>
   );
 }

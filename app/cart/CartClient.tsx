@@ -6,6 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Plus, Minus, Trash2, ArrowRight, ShoppingBag, ShieldCheck, Truck, Tag } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { stashLoginRedirectForPathname } from '@/lib/auth-path';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 
@@ -31,7 +32,8 @@ const CartClient = () => {
 
   const handleCheckout = () => {
     if (status !== 'authenticated') {
-      router.push(`/login?callbackUrl=${encodeURIComponent('/checkout')}`);
+      stashLoginRedirectForPathname('/checkout');
+      router.push('/login');
       return;
     }
     router.push('/checkout');

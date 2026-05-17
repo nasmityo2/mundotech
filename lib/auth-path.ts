@@ -1,3 +1,116 @@
+/** Rutas conocidas tras login; slugs guardados en cookie HttpOnly o sessionStorage (no rutas arbitrarias). */
+const LOGIN_NEXT_SLUG_TO_PATH: Record<string, string> = {
+  checkout: '/checkout',
+  account: '/account',
+  orders: '/account/orders',
+  password: '/account/password',
+};
+
+/**
+ * Traduce rutas protegidas a slug (cookie HttpOnly / sessionStorage), no rutas arbitrarias.
+ * Orden: prefijos más largos primero.
+ */
+export function pathnameToLoginNextSlug(pathname: string): string | null {
+  const raw = pathname.split('?')[0] ?? '';
+  const pathNorm = raw.replace(/\/+$/, '') || '/';
+  if (pathNorm === '/') return null;
+  if (pathNorm.startsWith('/account/orders')) return 'orders';
+  if (pathNorm.startsWith('/account/password')) return 'password';
+  if (pathNorm.startsWith('/account')) return 'account';
+  if (pathNorm.startsWith('/checkout')) return 'checkout';
+  return null;
+}
+
+export function pathFromLoginNextSlug(
+  slug: string | null | undefined,
+): string | null {
+  if (!slug) return null;
+  const key = slug.trim().toLowerCase();
+  return LOGIN_NEXT_SLUG_TO_PATH[key] ?? null;
+}
+
+/** Clave única para recordar checkout/cuenta antes de `/login` (sin query en URL). TTL en JSON. */
+const CLIENT_LOGIN_REDIRECT_KEY = 'mt_login_return_v1';
+const CLIENT_LOGIN_REDIRECT_MAX_MS = 10 * 60 * 1000;
+
+/** Persiste slug permitido antes de navegar a `/login` desde el cliente. */
+export function stashLoginRedirectForPathname(internalPathname: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const slug = pathnameToLoginNextSlug(internalPathname);
+  if (!slug) return false;
+  try {
+    sessionStorage.setItem(
+      CLIENT_LOGIN_REDIRECT_KEY,
+      JSON.stringify({ s: slug, t: Date.now() }),
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Lee intento válido/no expirado; no borra (evita doble mount Strict Mode). */
+export function readFreshStashedLoginRedirectPath(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(CLIENT_LOGIN_REDIRECT_KEY);
+    if (!raw) return null;
+    const { s, t } = JSON.parse(raw) as { s?: string; t?: number };
+    if (!s || typeof t !== 'number') return null;
+    if (Date.now() - t > CLIENT_LOGIN_REDIRECT_MAX_MS) {
+      sessionStorage.removeItem(CLIENT_LOGIN_REDIRECT_KEY);
+      return null;
+    }
+    return pathFromLoginNextSlug(s);
+  } catch {
+    return null;
+  }
+}
+
+export function clearStashedLoginRedirectPath(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.removeItem(CLIENT_LOGIN_REDIRECT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function resolveSearchParamGetter(
+  record: Record<string, string | string[] | undefined>,
+): (key: string) => string | null {
+  return (key: string) => {
+    const v = record[key];
+    if (typeof v === 'string') return v;
+    if (Array.isArray(v) && typeof v[0] === 'string') return v[0];
+    return null;
+  };
+}
+
+/**
+ * Prioridad: URL explícita (`next`, `callbackUrl` legacy), luego cookie consumida desde middleware/servidor.
+ */
+export function computeLoginLandingFromSources(
+  getParam: (key: string) => string | null,
+  cookiePathConsumed: string | null,
+): { callbackUrl: string } {
+  const fromUrl = resolveLoginCallbackFromParams((name) => getParam(name));
+
+  const merged =
+    fromUrl !== '/' ? fromUrl : (cookiePathConsumed && cookiePathConsumed !== '' ? cookiePathConsumed : '/');
+
+  return { callbackUrl: merged };
+}
+
+/** Lee `next` + fallback legacy `callbackUrl` desde search params del cliente o middleware. */
+export function resolveLoginCallbackFromParams(get: URLSearchParams['get']): string {
+  const fromNext = pathFromLoginNextSlug(get('next'));
+  if (fromNext) return fromNext;
+  const rawCb = get('callbackUrl');
+  if (rawCb) return safeInternalPath(rawCb);
+  return '/';
+}
+
 /** Normaliza callbackUrl para evitar open redirects fuera del mismo origin. */
 export function safeInternalPath(raw: string): string {
   try {
@@ -16,7 +129,7 @@ function pathnameOnly(internalPath: string): string {
 
 /**
  * Destino tras login/registro. Los ADMIN siguen al panel por defecto, pero si venían de la tienda
- * (`callbackUrl` ≠ `/`), respetan ese destino (checkout, producto, carrito, cuenta, etc.).
+ * cuando el callback no es solo el inicio, respetan ese destino (cookie/sessionStorage o URL legacy).
  */
 export function resolvePostLoginRedirect(
   role: string | undefined | null,

@@ -1,65 +1,74 @@
-import { withAuth } from 'next-auth/middleware';
-import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import type { JWT } from 'next-auth/jwt';
+import { NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
+
+import { pathnameToLoginNextSlug } from '@/lib/auth-path';
+import {
+  LOGIN_RETURN_COOKIE_NAME,
+  loginReturnCookieOptions,
+} from '@/lib/login-return-cookie-shared';
 
 /**
- * Middleware global de la app.
- *
- * Rutas protegidas:
- *  - /admin/*    → sin sesión → /login (sin callbackUrl); con sesión y sin rol ADMIN → /
- *  - /account/*  → sin sesión → /login?callbackUrl=… (withAuth)
- *  - /checkout/* → sin sesión → /login?callbackUrl=… (withAuth)
- *
- * Para /admin, `authorized` devuelve siempre true y esta función aplica
- * los redirects explícitos arriba (evita que withAuth añada callbackUrl=/admin).
+ * Evita Set-Cookie si la petición es vuelo RSC/prefetch. Solo navegaciones “documento”.
  */
-export default withAuth(
-  function middleware(req: NextRequest & { nextauth: { token: JWT | null } }) {
-    const { pathname } = req.nextUrl;
-    const token = req.nextauth?.token as (JWT & { role?: string }) | null;
+function shouldAttachLoginReturnCookie(req: NextRequest): boolean {
+  const purpose = req.headers.get('purpose')?.toLowerCase();
+  if (purpose === 'prefetch') return false;
 
-    if (pathname.startsWith('/admin')) {
-      // Sin sesión → login limpio, sin exponer /admin en la URL
-      if (!token) {
-        return NextResponse.redirect(new URL('/login', req.url));
-      }
+  if ((req.headers.get('rsc') ?? '').trim() === '1') return false;
 
-      const isAdmin = (token.role ?? '').toUpperCase() === 'ADMIN';
+  const mode = req.headers.get('sec-fetch-mode');
+  const dest = req.headers.get('sec-fetch-dest');
 
-      // Autenticado pero sin rol ADMIN → inicio, nunca a /login
-      if (!isAdmin) {
-        return NextResponse.redirect(new URL('/', req.url));
-      }
+  return mode === 'navigate' && dest === 'document';
+}
 
-      // Admin verificado → continuar.
-      // Los headers de seguridad globales se aplican en next.config.mjs (headers()).
-      return NextResponse.next();
+/**
+ * Rutas protegidas (matcher abajo).
+ * - /admin/* → sin JWT → /login; sin rol ADMIN → /
+ * - /account/* | /checkout/* → sin JWT → /login (destino opcional en cookie HttpOnly)
+ */
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  const token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+
+  if (pathname.startsWith('/admin')) {
+    if (!token) {
+      return NextResponse.redirect(new URL('/login', req.url));
+    }
+
+    const role = (((token as { role?: unknown }).role as string | undefined) ?? '').toUpperCase();
+    if (role !== 'ADMIN') {
+      return NextResponse.redirect(new URL('/', req.url));
     }
 
     return NextResponse.next();
-  },
-  {
-    callbacks: {
-      /**
-       * Para /admin siempre devolvemos true: la función de middleware
-       * ya gestiona "sin sesión" y "sin rol" con redirects específicos
-       * sin añadir callbackUrl a la URL.
-       * Para /account/* y /checkout/* dejamos que withAuth redirija
-       * a /login con callbackUrl (comportamiento correcto para el usuario).
-       */
-      authorized({ token, req }) {
-        if (req.nextUrl.pathname.startsWith('/admin')) return true;
-        return !!token;
-      },
-    },
   }
-);
+
+  /* Solo matcher account + checkout */
+  if (!token) {
+    const login = new URL('/login', req.url);
+    const res = NextResponse.redirect(login);
+
+    const slug = pathnameToLoginNextSlug(pathname);
+    if (slug && shouldAttachLoginReturnCookie(req)) {
+      res.cookies.set(LOGIN_RETURN_COOKIE_NAME, slug, loginReturnCookieOptions());
+    }
+    return res;
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: [
     '/admin/:path*',
     '/account/:path*',
+    '/checkout',
     '/checkout/:path*',
   ],
 };

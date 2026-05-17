@@ -1,23 +1,53 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import AuthSplitLayout from '@/components/auth/AuthSplitLayout';
 import { AuthRegisterForm } from '@/components/auth/MundoTechAuthForms';
-import { resolvePostLoginRedirect } from '@/lib/auth-path';
+import {
+  readFreshStashedLoginRedirectPath,
+  clearStashedLoginRedirectPath,
+  resolveLoginCallbackFromParams,
+  resolvePostLoginRedirect,
+} from '@/lib/auth-path';
 import { Loader2 } from 'lucide-react';
 
-export default function RegistroClient() {
+interface Props {
+  serverCallbackUrl: string;
+}
+
+export default function RegistroClient({ serverCallbackUrl }: Props) {
   const router = useRouter();
   const params = useSearchParams();
+  const paramsKey = params.toString();
   const { status, data: session } = useSession();
 
-  const callbackUrl = params.get('callbackUrl') ?? '/';
+  const [callbackUrl, setCallbackUrl] = useState(serverCallbackUrl);
+
+  useEffect(() => {
+    const nextOrCbExplicit =
+      (params.get('next') ?? '').length > 0 || (params.get('callbackUrl') ?? '').length > 0;
+
+    if (nextOrCbExplicit) {
+      const urlBased = resolveLoginCallbackFromParams(params.get.bind(params));
+      setCallbackUrl(urlBased !== '/' ? urlBased : '/');
+      return;
+    }
+
+    const stashed = readFreshStashedLoginRedirectPath();
+    if (stashed) {
+      setCallbackUrl(stashed);
+      return;
+    }
+
+    setCallbackUrl(serverCallbackUrl);
+  }, [paramsKey, params, serverCallbackUrl]);
 
   useEffect(() => {
     if (status !== 'authenticated' || !session) return;
+    clearStashedLoginRedirectPath();
     const role = session.user?.role?.toUpperCase?.();
     router.replace(resolvePostLoginRedirect(role, callbackUrl));
   }, [status, session, router, callbackUrl]);

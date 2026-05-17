@@ -1,22 +1,53 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import AuthSplitLayout from '@/components/auth/AuthSplitLayout';
 import { AuthLoginForm } from '@/components/auth/MundoTechAuthForms';
-import { resolvePostLoginRedirect } from '@/lib/auth-path';
+import {
+  readFreshStashedLoginRedirectPath,
+  clearStashedLoginRedirectPath,
+  resolveLoginCallbackFromParams,
+  resolvePostLoginRedirect,
+} from '@/lib/auth-path';
 import { toast } from '@/components/ui/use-toast';
 import { Loader2 } from 'lucide-react';
 
-export default function LoginClient() {
+interface Props {
+  /** Destino desde servidor (URL legacy o cookie consumida una vez). */
+  serverCallbackUrl: string;
+}
+
+export default function LoginClient({ serverCallbackUrl }: Props) {
   const router = useRouter();
   const params = useSearchParams();
+  const paramsKey = params.toString();
   const { status, data: session } = useSession();
   const toastedRegistered = useRef(false);
 
-  const callbackUrl = params.get('callbackUrl') ?? '/';
+  const [callbackUrl, setCallbackUrl] = useState(serverCallbackUrl);
+
+  /** Orden: query explícita > sessionStorage cliente > servidor (cookie/etc.). */
+  useEffect(() => {
+    const nextOrCbExplicit =
+      (params.get('next') ?? '').length > 0 || (params.get('callbackUrl') ?? '').length > 0;
+
+    if (nextOrCbExplicit) {
+      const urlBased = resolveLoginCallbackFromParams(params.get.bind(params));
+      setCallbackUrl(urlBased !== '/' ? urlBased : '/');
+      return;
+    }
+
+    const stashed = readFreshStashedLoginRedirectPath();
+    if (stashed) {
+      setCallbackUrl(stashed);
+      return;
+    }
+
+    setCallbackUrl(serverCallbackUrl);
+  }, [paramsKey, params, serverCallbackUrl]);
 
   useEffect(() => {
     if (params.get('tab') !== 'register') return;
@@ -28,6 +59,7 @@ export default function LoginClient() {
 
   useEffect(() => {
     if (status !== 'authenticated' || !session) return;
+    clearStashedLoginRedirectPath();
     const role = session.user?.role?.toUpperCase?.();
     router.replace(resolvePostLoginRedirect(role, callbackUrl));
   }, [status, session, router, callbackUrl]);

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Minus, ShoppingBag, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { formatCurrency } from '../lib/utils';
+import { stashLoginRedirectForPathname } from '@/lib/auth-path';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -37,7 +38,8 @@ const CartDrawer = () => {
   const handleCheckout = () => {
     if (status !== 'authenticated') {
       closeCart();
-      router.push(`/login?callbackUrl=${encodeURIComponent('/checkout')}`);
+      stashLoginRedirectForPathname('/checkout');
+      router.push('/login');
       return;
     }
     closeCart();

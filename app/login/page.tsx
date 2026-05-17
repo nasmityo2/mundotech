@@ -1,5 +1,11 @@
 import { Suspense } from 'react';
+
 import LoginClient from './LoginClient';
+import {
+  computeLoginLandingFromSources,
+  resolveSearchParamGetter,
+} from '@/lib/auth-path';
+import { readAndConsumeLoginReturnCookiePath } from '@/lib/login-return-cookie';
 
 function LoginFallback() {
   return (
@@ -7,10 +13,19 @@ function LoginFallback() {
   );
 }
 
-export default function LoginPage() {
+interface PageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function LoginPage(props: PageProps) {
+  const resolved = props.searchParams ? await props.searchParams : {};
+  const getParam = resolveSearchParamGetter(resolved);
+  const cookiePath = await readAndConsumeLoginReturnCookiePath();
+  const landing = computeLoginLandingFromSources(getParam, cookiePath);
+
   return (
     <Suspense fallback={<LoginFallback />}>
-      <LoginClient />
+      <LoginClient serverCallbackUrl={landing.callbackUrl} />
     </Suspense>
   );
 }
