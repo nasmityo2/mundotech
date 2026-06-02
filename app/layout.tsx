@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "./globals.css";
 import AuthProvider from "./components/AuthProvider";
 import { CartProvider } from "../context/CartContext";
@@ -103,7 +104,13 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // Datos vivos editables desde /admin/settings/seo-local y /admin/settings.
-  const [seo, settings] = await Promise.all([readSeoLocal(), readSettings()]);
+  const [seo, settings, headersList] = await Promise.all([
+    readSeoLocal(),
+    readSettings(),
+    headers(),
+  ]);
+  // Nonce generado por middleware para CSP strict-dynamic (sin unsafe-inline en script-src).
+  const nonce = headersList.get('x-nonce') ?? undefined;
   const sameAs = [settings.instagram, settings.facebook].filter(Boolean) as string[];
 
   const localBusinessSchema = buildLocalBusinessSchema(seo, {
@@ -127,10 +134,12 @@ export default async function RootLayout({
     <html lang="es" data-scroll-behavior="smooth">
       <body className="bg-surface-sunken text-navy antialiased nums" suppressHydrationWarning>
         <script
+          nonce={nonce}
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
         />
         <script
+          nonce={nonce}
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
         />

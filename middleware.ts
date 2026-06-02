@@ -10,7 +10,28 @@ import {
 } from '@/lib/login-return-cookie-shared';
 
 /**
- * Evita Set-Cookie si la petición es vuelo RSC/prefetch. Solo navegaciones “documento”.
+ * CSP con nonce por petición. Se elimina unsafe-eval y unsafe-inline de script-src.
+ * strict-dynamic permite que scripts cargados por un script con nonce válido también se ejecuten.
+ * img-src restringido a dominios concretos (cloudinary + data/blob para previews locales).
+ */
+function buildCsp(nonce: string): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https://res.cloudinary.com",
+    "media-src 'self' data: blob: https://res.cloudinary.com",
+    "font-src 'self' data:",
+    "connect-src 'self' https://res.cloudinary.com",
+    "frame-src 'self' https://iframe.mediadelivery.net https://www.google.com https://maps.google.com",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ');
+}
+
+/**
+ * Evita Set-Cookie si la petición es vuelo RSC/prefetch. Solo navegaciones "documento".
  */
 function shouldAttachLoginReturnCookie(req: NextRequest): boolean {
   const purpose = req.headers.get('purpose')?.toLowerCase();
@@ -27,8 +48,12 @@ function shouldAttachLoginReturnCookie(req: NextRequest): boolean {
 /**
  * Migra cookie `mt_login_next` → cabecera de petición solo para downstream RSC,
  * y limpia la cookie en la respuesta (evita `cookies().delete` en páginas, que tumba prod).
+ * También inyecta el nonce en los request headers para que el layout lo lea.
  */
-function promoteLoginReturnCookieToRequestHeader(req: NextRequest): NextResponse {
+function promoteLoginReturnCookieToRequestHeader(
+  req: NextRequest,
+  nonce: string,
+): NextResponse {
   const slugRaw = req.cookies.get(LOGIN_RETURN_COOKIE_NAME)?.value ?? null;
   const slugValid =
     slugRaw && pathFromLoginNextSlug(slugRaw) ? slugRaw.trim().toLowerCase() : null;
@@ -38,6 +63,7 @@ function promoteLoginReturnCookieToRequestHeader(req: NextRequest): NextResponse
   if (slugValid) {
     requestHeaders.set(LOGIN_RETURN_PROMOTED_HEADER, slugValid);
   }
+  requestHeaders.set('x-nonce', nonce);
 
   const res = NextResponse.next({
     request: { headers: requestHeaders },
@@ -55,57 +81,95 @@ function promoteLoginReturnCookieToRequestHeader(req: NextRequest): NextResponse
 }
 
 /**
- * Rutas protegidas (matcher abajo).
- * - `/login`, `/registro` → opcional promo cookie→header arriba
- * - `/admin/*` sin JWT → /login; sin rol ADMIN → /
- * - `/account/*` | `/checkout/*` sin JWT → /login (cookie opcional)
+ * Rutas protegidas.
+ * - `/login`, `/registro`       → promueve cookie→header (nonce inyectado)
+ * - `/admin/*`                  → JWT requerido + rol ADMIN; redirect /login o /
+ * - `/api/admin/*`              → JWT requerido + rol ADMIN; 401/403 JSON (no redirect)
+ * - `/account/*` | `/checkout*` → JWT requerido; redirect /login con cookie opcional
+ * - Resto de rutas              → pasa con nonce (sin auth check para no penalizar perf)
  */
 export async function middleware(req: NextRequest) {
+  const nonce = Buffer.from(globalThis.crypto.randomUUID()).toString('base64');
+  const csp = buildCsp(nonce);
   const { pathname } = req.nextUrl;
 
+  /* Adjunta CSP al response sin importar qué ruta sea. */
+  function withCsp(response: NextResponse): NextResponse {
+    response.headers.set('Content-Security-Policy', csp);
+    return response;
+  }
+
+  /* next() con nonce inyectado en request headers para el layout. */
+  function nextWithNonce(): NextResponse {
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set('x-nonce', nonce);
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   if (pathname === '/login' || pathname === '/registro') {
-    return promoteLoginReturnCookieToRequestHeader(req);
+    return withCsp(promoteLoginReturnCookieToRequestHeader(req, nonce));
   }
 
-  const token = await getToken({
-    req,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
+  const isAdminUiPath  = pathname.startsWith('/admin');
+  const isApiAdminPath = pathname.startsWith('/api/admin');
+  const isProtectedPath =
+    pathname.startsWith('/account') || pathname.startsWith('/checkout');
 
-  if (pathname.startsWith('/admin')) {
+  if (isAdminUiPath || isApiAdminPath || isProtectedPath) {
+    const token = await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+
+    if (isAdminUiPath || isApiAdminPath) {
+      if (!token) {
+        return withCsp(
+          isApiAdminPath
+            ? new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' },
+              })
+            : NextResponse.redirect(new URL('/login', req.url)),
+        );
+      }
+
+      const role = (
+        ((token as { role?: unknown }).role as string | undefined) ?? ''
+      ).toUpperCase();
+
+      if (role !== 'ADMIN') {
+        return withCsp(
+          isApiAdminPath
+            ? new NextResponse(JSON.stringify({ error: 'Forbidden' }), {
+                status: 403,
+                headers: { 'Content-Type': 'application/json' },
+              })
+            : NextResponse.redirect(new URL('/', req.url)),
+        );
+      }
+
+      return withCsp(nextWithNonce());
+    }
+
+    /* isProtectedPath sin token → /login con cookie de retorno opcional. */
     if (!token) {
-      return NextResponse.redirect(new URL('/login', req.url));
+      const login = new URL('/login', req.url);
+      const res = NextResponse.redirect(login);
+      const slug = pathnameToLoginNextSlug(pathname);
+      if (slug && shouldAttachLoginReturnCookie(req)) {
+        res.cookies.set(LOGIN_RETURN_COOKIE_NAME, slug, loginReturnCookieOptions());
+      }
+      return withCsp(res);
     }
-
-    const role = (((token as { role?: unknown }).role as string | undefined) ?? '').toUpperCase();
-    if (role !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/', req.url));
-    }
-
-    return NextResponse.next();
   }
 
-  if (!token) {
-    const login = new URL('/login', req.url);
-    const res = NextResponse.redirect(login);
-
-    const slug = pathnameToLoginNextSlug(pathname);
-    if (slug && shouldAttachLoginReturnCookie(req)) {
-      res.cookies.set(LOGIN_RETURN_COOKIE_NAME, slug, loginReturnCookieOptions());
-    }
-    return res;
-  }
-
-  return NextResponse.next();
+  return withCsp(nextWithNonce());
 }
 
 export const config = {
-  matcher: [
-    '/login',
-    '/registro',
-    '/admin/:path*',
-    '/account/:path*',
-    '/checkout',
-    '/checkout/:path*',
-  ],
+  /**
+   * Cubre todas las rutas excepto assets estáticos de Next.js.
+   * Necesario para que el nonce CSP se genere en cada página (no solo en las protegidas).
+   */
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico).*)'],
 };

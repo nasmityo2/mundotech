@@ -2,29 +2,16 @@
 /** Image loader: see lib/cloudinaryLoader.js (f_auto, q_*, w_*, c_limit, dpr_auto). */
 
 /** @type {import('next').NextConfig} */
+/**
+ * Headers estáticos que no requieren nonce por petición.
+ * El Content-Security-Policy (con nonce dinámico por request) lo genera middleware.ts,
+ * que cubre todas las rutas HTML excepto _next/static y _next/image.
+ */
 const securityHeaders = [
-  { key: 'X-Frame-Options',          value: 'DENY' },
-  { key: 'X-Content-Type-Options',   value: 'nosniff' },
-  { key: 'Referrer-Policy',          value: 'strict-origin-when-cross-origin' },
-  { key: 'Permissions-Policy',       value: 'camera=(), microphone=(), geolocation=()' },
-  {
-    key: 'Content-Security-Policy',
-    value: [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      // Productos pueden traer cualquier URL HTTPS (BD); fallbacks Unsplash/Bunny/Google maps assets.
-      // Restringido a esquema https (no permite http: ni esquemas exóticos como javascript:).
-      "img-src 'self' data: blob: https:",
-      "media-src 'self' blob: https:",
-      "font-src 'self' data:",
-      "connect-src 'self' https://res.cloudinary.com",
-      "frame-src 'self' https://iframe.mediadelivery.net https://www.google.com https://maps.google.com",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-    ].join('; '),
-  },
+  { key: 'X-Frame-Options',        value: 'DENY' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy',        value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy',     value: 'camera=(), microphone=(), geolocation=()' },
 ];
 
 const nextConfig = {

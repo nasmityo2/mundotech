@@ -26,7 +26,11 @@ export function pathFromLoginNextSlug(
 ): string | null {
   if (!slug) return null;
   const key = slug.trim().toLowerCase();
-  return LOGIN_NEXT_SLUG_TO_PATH[key] ?? null;
+  const path = LOGIN_NEXT_SLUG_TO_PATH[key] ?? null;
+  // Belt-and-suspenders: garantiza que el resultado sea una ruta interna relativa,
+  // por si en el futuro se agrega accidentalmente una URL externa al mapa.
+  if (path !== null && (!path.startsWith('/') || path.includes('://'))) return null;
+  return path;
 }
 
 /** Clave única para recordar checkout/cuenta antes de `/login` (sin query en URL). TTL en JSON. */
