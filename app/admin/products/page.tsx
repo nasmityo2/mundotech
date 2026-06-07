@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useTransition, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
-import { PlusCircle, Trash2, Edit, Upload, Check, X, Search, ChevronDown } from 'lucide-react';
+import { PlusCircle, Trash2, Edit, Upload, Download, Check, X, Search, ChevronDown } from 'lucide-react';
 import {
   getProductsAdmin,
   deleteProductAction,
@@ -14,6 +14,7 @@ import {
 import AddProductModal from '@/app/components/AddProductModal';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
 import { TouchIconButton } from '@/components/admin/TouchIconButton';
+import { downloadCsv, csvDateStamp } from '@/lib/csv-export';
 
 interface Product {
   id:          string;
@@ -95,9 +96,33 @@ function AdminProductsContent() {
 
   useEffect(() => { loadProducts(); }, [loadProducts]);
 
+  // Aplica el filtro de stock recibido por query (?stock=low|out), p. ej. desde
+  // el enlace «stock bajo» del dashboard. Solo en el montaje inicial para no
+  // sobrescribir el filtro que el operador elija después.
+  const stockParamApplied = useRef(false);
+  useEffect(() => {
+    if (stockParamApplied.current) return;
+    stockParamApplied.current = true;
+    const s = searchParams.get('stock');
+    if (s === 'low' || s === 'out') setStockFilter(s);
+  }, [searchParams]);
+
   useEffect(() => {
     if (inlineEdit) inlineInputRef.current?.focus();
   }, [inlineEdit]);
+
+  const handleExportCsv = useCallback(() => {
+    const rows = products.map(p => ({
+      SKU: p.sku ?? '',
+      Nombre: p.name,
+      Marca: p.brand,
+      Categoría: p.category,
+      'Precio USD': p.price,
+      Stock: p.stock,
+      Estado: p.stock === 0 ? 'Agotado' : p.stock < LOW_STOCK_THRESHOLD ? 'Bajo' : 'Disponible',
+    }));
+    downloadCsv(`inventario-mundotech-${csvDateStamp()}.csv`, rows);
+  }, [products]);
 
   const setParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams);
@@ -282,11 +307,20 @@ function AdminProductsContent() {
         <div className="flex gap-2">
           <button
             type="button"
+            onClick={handleExportCsv}
+            disabled={products.length === 0}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 min-h-[44px] px-3 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100 disabled:opacity-40"
+            title="Exportar el inventario filtrado a CSV"
+          >
+            <Download size={16} /> Exportar
+          </button>
+          <button
+            type="button"
             onClick={handleImportClick}
             disabled={isImporting}
             className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 min-h-[44px] px-3 bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100 disabled:opacity-50"
           >
-            <Upload size={16} /> {isImporting ? 'Importando…' : 'CSV'}
+            <Upload size={16} /> {isImporting ? 'Importando…' : 'Importar'}
           </button>
           <button
             type="button"

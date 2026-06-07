@@ -1,6 +1,7 @@
 'use client';
 
 import { Order } from '@/lib/definitions';
+import { orderPathSegment } from '@/lib/order-ref';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import { useRouter } from 'next/navigation';
 import { ShoppingBag, ChevronRight, Package, ArrowRight, Truck } from 'lucide-react';
@@ -71,7 +72,7 @@ export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) 
             <button
               key={order.id}
               type="button"
-              onClick={() => router.push(`/account/orders/${order.id}`)}
+              onClick={() => router.push(`/account/orders/${orderPathSegment(order.orderNumber)}`)}
               className="group w-full text-left bg-white rounded-2xl border border-slate-200/80 shadow-soft p-5 hover:shadow-card hover:border-slate-300 hover:-translate-y-0.5 transition-all"
             >
               <div className="flex items-start justify-between gap-4">

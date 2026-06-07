@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { ShoppingCart, Heart, Check, Star } from 'lucide-react';
+import { ShoppingCart, Heart, Check } from 'lucide-react';
 import { useCart }     from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useState }    from 'react';
 import type { Product } from '../context/ProductContext';
 import { useExchangeRate } from '../context/ExchangeRateContext';
+import { Stars } from '@/components/reviews/Stars';
 
 function formatUSD(amount: number): string {
   return `$${new Intl.NumberFormat('en-US', {
@@ -129,17 +130,13 @@ const ProductCard = ({ product }: { product: Product }) => {
             {product.name}
           </h3>
 
-          {/* Rating — se muestra solo cuando hay reseñas reales */}
-          <div className="flex items-center gap-0.5 mt-0.5">
-            {[1, 2, 3, 4, 5].map((s) => (
-              <Star
-                key={s}
-                size={11}
-                className="text-slate-200 fill-slate-200"
-              />
-            ))}
-            <span className="text-[10px] text-slate-400 ml-1">Sé el primero en calificar</span>
-          </div>
+          {/* Rating — solo cuando hay reseñas reales aprobadas */}
+          {product.reviewCount && product.reviewCount > 0 ? (
+            <div className="flex items-center gap-1 mt-0.5">
+              <Stars rating={product.rating ?? 0} size={11} />
+              <span className="text-[10px] text-slate-400 ml-0.5 nums">({product.reviewCount})</span>
+            </div>
+          ) : null}
 
           {/* Precio */}
           <div className="mt-auto pt-2 sm:pt-3">

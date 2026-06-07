@@ -8,12 +8,13 @@ import { MT, fontSans } from './theme';
 
 type Props = {
   customerName: string;
-  orderUuid: string;
+  /** Segmento legible para la URL del pedido (#0042). */
+  orderRef: string;
 };
 
-export function OrderDeliveredEmail({ customerName, orderUuid }: Props) {
+export function OrderDeliveredEmail({ customerName, orderRef }: Props) {
   const base = emailSiteBaseUrl().replace(/\/$/, '');
-  const orderUrl = `${base}/account/orders/${encodeURIComponent(orderUuid)}`;
+  const orderUrl = `${base}/account/orders/${encodeURIComponent(orderRef)}`;
   const shopUrl = `${base}/productos`;
 
   return (

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
-import { Loader2, CheckCircle2, Store, Building2, CreditCard } from 'lucide-react';
+import { Loader2, CheckCircle2, Store, Building2, CreditCard, Tag, X } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { ShippingFormData } from './ShippingForm';
 import { PaymentFormData } from './PaymentForm';
@@ -22,8 +22,58 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Cupón de descuento (validado contra el servidor).
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
+  const [discountUsd, setDiscountUsd] = useState(0);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponMessage, setCouponMessage] = useState<string | null>(null);
+
   const subtotal = getCartTotal();
-  const total = subtotal;
+  const total = Math.max(0, subtotal - discountUsd);
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim();
+    if (!code) return;
+    setCouponLoading(true);
+    setCouponMessage(null);
+    try {
+      const res = await fetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          items: cart.map((item) => ({ productId: item.id, quantity: item.quantity })),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        valid?: boolean;
+        code?: string;
+        discountUsd?: number;
+        reason?: string;
+      };
+      if (data.valid && data.code) {
+        setAppliedCoupon(data.code);
+        setDiscountUsd(data.discountUsd ?? 0);
+        setCouponMessage(null);
+      } else {
+        setAppliedCoupon(null);
+        setDiscountUsd(0);
+        setCouponMessage(data.reason ?? 'Cupón no válido.');
+      }
+    } catch {
+      setCouponMessage('No se pudo validar el cupón. Intenta de nuevo.');
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setDiscountUsd(0);
+    setCouponInput('');
+    setCouponMessage(null);
+  };
 
   const handleConfirmOrder = async () => {
     if (!shippingData || !paymentData) {
@@ -61,6 +111,7 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
       paymentHolderPhone: paymentData.holderPhone || null,
       paymentReference: paymentData.referenceNumber || null,
       paymentProofUrl: paymentData.proofImageUrl || null,
+      couponCode: appliedCoupon || null,
       items: cart.map((item) => ({
         productId: item.id,
         productName: item.name,
@@ -224,7 +275,7 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
                   <dd className="text-navy font-mono text-right">{paymentData.referenceNumber}</dd>
                 </div>
                 <p className="text-xs text-slate-500 pt-1 leading-relaxed">
-                  Tras confirmar, MundoTech revisará la captura y tu pago en Binance antes de descontar stock.
+                  Tras confirmar, reservamos tu pedido y MundoTech verificará tu pago en Binance antes de preparar el envío.
                 </p>
               </>
             )}
@@ -240,6 +291,81 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
               />
             </div>
           ) : null}
+        </div>
+      </div>
+
+      {/* Cupón de descuento */}
+      <div className="rounded-2xl border border-slate-200 p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Tag size={15} className="text-slate-400" />
+          <h3 className="text-sm font-semibold text-navy">Cupón de descuento</h3>
+        </div>
+
+        {appliedCoupon ? (
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+              <span className="text-sm font-semibold text-emerald-700 font-mono truncate">
+                {appliedCoupon}
+              </span>
+              <span className="text-xs text-emerald-600 whitespace-nowrap">
+                −{formatCurrency(discountUsd)}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleRemoveCoupon}
+              className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-rose-600 transition-colors"
+            >
+              <X size={14} /> Quitar
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={couponInput}
+              onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleApplyCoupon();
+                }
+              }}
+              placeholder="Ingresa tu código"
+              className="flex-grow min-w-0 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-mono uppercase tracking-wide focus:border-navy focus:ring-2 focus:ring-navy/10 outline-none"
+            />
+            <button
+              type="button"
+              onClick={handleApplyCoupon}
+              disabled={couponLoading || !couponInput.trim()}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-navy text-white text-sm font-semibold px-5 py-2.5 hover:bg-navy-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              {couponLoading ? <Loader2 size={15} className="animate-spin" /> : 'Aplicar'}
+            </button>
+          </div>
+        )}
+
+        {couponMessage && (
+          <p className="mt-2 text-xs text-rose-600">{couponMessage}</p>
+        )}
+      </div>
+
+      {/* Resumen de totales */}
+      <div className="rounded-2xl border border-slate-200 p-5 space-y-2">
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-500">Subtotal</span>
+          <span className="text-navy nums">{formatCurrency(subtotal)}</span>
+        </div>
+        {discountUsd > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-emerald-600">Descuento ({appliedCoupon})</span>
+            <span className="text-emerald-600 nums">−{formatCurrency(discountUsd)}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-base font-bold pt-2 border-t border-slate-100">
+          <span className="text-navy">Total</span>
+          <span className="text-navy nums">{formatCurrency(total)}</span>
         </div>
       </div>
 

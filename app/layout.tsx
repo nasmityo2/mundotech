@@ -9,9 +9,11 @@ import { ExchangeRateProvider } from "../context/ExchangeRateContext";
 import AppContent from "./AppContent";
 import Footer from "./components/Footer";
 import AppLayoutShell from "./components/AppLayoutShell";
+import AnnouncementBar from "./components/AnnouncementBar";
 import { Toaster } from "@/components/ui/Toaster";
 import { readSeoLocal, buildLocalBusinessSchema } from "@/lib/seo-local";
 import { readSettings } from "@/lib/data-store";
+import { readAnnouncement } from "@/lib/announcement";
 import { googleMapsBusinessUrl } from "@/lib/google-maps";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mundotech.com.ve";
@@ -104,9 +106,10 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   // Datos vivos editables desde /admin/settings/seo-local y /admin/settings.
-  const [seo, settings, headersList] = await Promise.all([
+  const [seo, settings, announcement, headersList] = await Promise.all([
     readSeoLocal(),
     readSettings(),
+    readAnnouncement(),
     headers(),
   ]);
   // Nonce generado por middleware para CSP strict-dynamic (sin unsafe-inline en script-src).
@@ -130,6 +133,29 @@ export default async function RootLayout({
     );
   }
 
+  // Organization: potencia la entidad de marca, el logo y el panel de conocimiento.
+  const organizationSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: settings.storeName,
+    url: SITE_URL,
+    logo: `${SITE_URL}/logo.png`,
+    image: `${SITE_URL}/og-default.jpg`,
+    ...(settings.email ? { email: settings.email } : {}),
+    ...(settings.phone
+      ? {
+          contactPoint: {
+            "@type": "ContactPoint",
+            telephone: settings.phone,
+            contactType: "customer service",
+            areaServed: "VE",
+            availableLanguage: ["es"],
+          },
+        }
+      : {}),
+    ...(sameAs.length > 0 ? { sameAs } : {}),
+  };
+
   return (
     <html lang="es" data-scroll-behavior="smooth">
       <body className="bg-surface-sunken text-navy antialiased nums" suppressHydrationWarning>
@@ -143,6 +169,11 @@ export default async function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
         />
+        <script
+          nonce={nonce}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
         <AuthProvider>
           <CartProvider>
             <WishlistProvider>
@@ -154,6 +185,7 @@ export default async function RootLayout({
                     y mejorar LCP / INP (Core Web Vitals).
                   */}
                   <div className="flex min-h-[100dvh] flex-col w-full max-w-full overflow-x-hidden">
+                    <AnnouncementBar data={announcement} />
                     <AppContent />
                     <AppLayoutShell footer={<Footer />}>
                       {children}

@@ -31,6 +31,7 @@ model Product {
 
   views         ProductView[]
   media         ProductMedia[]
+  reviews       Review[]
 
   @@index([slug])
   @@index([category])
@@ -110,6 +111,7 @@ model User {
 
   orders               Order[]
   passwordResetTokens  PasswordResetToken[]
+  reviews              Review[]
 }
 
 model PasswordResetToken {
@@ -168,7 +170,20 @@ model Order {
   /** Fecha en que se validó el pago (Validar Pago / equivalente). Para reportes por día de cobro. */
   paidAt           DateTime?
 
+  // Cupón aplicado (descuento calculado en el servidor, congelado en Bs).
+  /** Código del cupón aplicado al pedido (en mayúsculas). Null si no se usó cupón. */
+  couponCode       String?
+  /** Descuento aplicado por el cupón, en Bs (misma moneda que `total`). */
+  couponDiscount   Float?
+
+  // Auditoría de verificación de pago (quién validó/rechazó y por qué).
+  /** Email del admin que validó o rechazó el pago. Para trazabilidad. */
+  paymentVerifiedBy      String?
+  /** Motivo de rechazo del pago, si el pedido fue cancelado por pago no válido. */
+  paymentRejectionReason String?
+
   notes           String?
+  couponRedemption CouponRedemption?
   @@index([customerId])
   @@index([status])
   @@index([createdAt])
@@ -207,4 +222,79 @@ model ProductView {
 
   @@index([productId])
   @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// RESEÑAS / VALORACIONES
+// ─────────────────────────────────────────────────────────────
+// status: 'PENDING' | 'APPROVED' | 'REJECTED' — valores en lib/definitions.ts (ReviewStatus).
+model Review {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  authorName  String
+  rating      Int
+  title       String?
+  comment     String
+
+  status           String   @default("PENDING")
+  verifiedPurchase Boolean  @default(false)
+  adminReply       String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([productId, status])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// CUPONES DE DESCUENTO
+// ─────────────────────────────────────────────────────────────
+// discountType: 'PERCENT' | 'FIXED' — valores en lib/definitions.ts (CouponDiscountType).
+// FIXED se expresa en USD; PERCENT es un porcentaje 1-100.
+model Coupon {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  description   String?
+  discountType  String
+  discountValue Float
+  /** Compra mínima en USD (subtotal) para que aplique el cupón. */
+  minPurchase   Float    @default(0)
+  /** Tope máximo de descuento en USD (solo aplica a PERCENT). Null = sin tope. */
+  maxDiscount   Float?
+  /** Usos totales permitidos. Null = ilimitado. */
+  maxUses       Int?
+  usedCount     Int      @default(0)
+  /** Usos máximos por usuario registrado. Null = sin límite por usuario. */
+  perUserLimit  Int?
+  startsAt      DateTime?
+  expiresAt     DateTime?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  redemptions   CouponRedemption[]
+
+  @@index([active])
+  @@index([code])
+}
+
+model CouponRedemption {
+  id        String   @id @default(cuid())
+  couponId  String
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  orderId   String   @unique
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId    String?
+  /** Descuento aplicado, en Bs (misma moneda que Order.total). */
+  discount  Float
+  createdAt DateTime @default(now())
+
+  @@index([couponId])
+  @@index([userId])
 }

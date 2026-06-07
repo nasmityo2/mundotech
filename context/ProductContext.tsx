@@ -19,6 +19,10 @@ export interface Product {
   isNew?:        boolean;
   isOffer?:      boolean;
   details:       Record<string, string>;
+  /** Promedio de reseñas aprobadas (0–5). Opcional: se muestra solo si reviewCount > 0. */
+  rating?:       number;
+  /** Nº de reseñas aprobadas. */
+  reviewCount?:  number;
 }
 
 // El tipo para el valor del contexto

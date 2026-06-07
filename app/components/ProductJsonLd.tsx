@@ -10,6 +10,7 @@
  */
 
 import { googleMapsBusinessUrl } from '@/lib/google-maps';
+import type { Review, ReviewSummary } from '@/lib/definitions';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
 
@@ -57,10 +58,14 @@ interface Props {
   product: ProductForJsonLd;
   /** Ruta desde resolveCategoryPathFromProductCategory (`/categoria/slug` o `/productos`). */
   categoryPath: string;
+  /** Resumen de reseñas APROBADAS — habilita aggregateRating si count > 0. */
+  reviewSummary?: ReviewSummary;
+  /** Reseñas APROBADAS para emitir como schema:Review (máx. 5 para no inflar el HTML). */
+  reviews?: Review[];
 }
 
 // ── Componente ─────────────────────────────────────────────────────────────
-export default function ProductJsonLd({ product, categoryPath }: Props) {
+export default function ProductJsonLd({ product, categoryPath, reviewSummary, reviews }: Props) {
   const baseUrl = SITE_URL.replace(/\/$/, '');
   const categoryItemUrl = `${baseUrl}${categoryPath}`;
   const productUrl = `${baseUrl}/product/${product.slug ?? product.id}`;
@@ -80,6 +85,31 @@ export default function ProductJsonLd({ product, categoryPath }: Props) {
     .map((img) => buildOgImageUrl(img))
     .filter(Boolean);
 
+  // ── Reseñas: aggregateRating + review (solo con datos reales aprobados) ──────
+  const hasRatings = !!reviewSummary && reviewSummary.count > 0;
+  const aggregateRating = hasRatings
+    ? {
+        '@type': 'AggregateRating',
+        ratingValue: reviewSummary!.average.toFixed(1),
+        reviewCount: reviewSummary!.count,
+        bestRating: '5',
+        worstRating: '1',
+      }
+    : null;
+  const reviewSchema = (reviews ?? []).slice(0, 5).map((r) => ({
+    '@type': 'Review',
+    reviewRating: {
+      '@type': 'Rating',
+      ratingValue: String(r.rating),
+      bestRating: '5',
+      worstRating: '1',
+    },
+    author: { '@type': 'Person', name: r.authorName },
+    datePublished: r.createdAt.split('T')[0],
+    ...(r.title ? { name: r.title } : {}),
+    reviewBody: r.comment,
+  }));
+
   const productSchema = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -92,6 +122,8 @@ export default function ProductJsonLd({ product, categoryPath }: Props) {
     }),
     category: product.category,
     url: productUrl,
+    ...(aggregateRating ? { aggregateRating } : {}),
+    ...(reviewSchema.length > 0 ? { review: reviewSchema } : {}),
     offers: {
       '@type': 'Offer',
       price: product.price.toFixed(2),

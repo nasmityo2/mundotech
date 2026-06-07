@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { prismaOrderToOrder, type Order, type OrderItem } from '@/lib/definitions';
+import { parseOrderRef, type OrderRef } from '@/lib/order-ref';
 import OrderDetailClient from '@/components/account/OrderDetailClient';
 
 export interface EnrichedOrderItem extends OrderItem {
@@ -12,9 +13,9 @@ export interface EnrichedOrder extends Omit<Order, 'items'> {
   items: EnrichedOrderItem[];
 }
 
-async function getEnrichedOrder(orderId: string): Promise<EnrichedOrder | null> {
+async function getEnrichedOrder(ref: OrderRef): Promise<EnrichedOrder | null> {
   const row = await prisma.order.findUnique({
-    where:   { id: orderId },
+    where:   'orderNumber' in ref ? { orderNumber: ref.orderNumber } : { id: ref.id },
     include: { items: true },
   });
   if (!row) return null;
@@ -42,7 +43,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     );
   }
 
-  const order = await getEnrichedOrder(orderId);
+  const ref = parseOrderRef(orderId);
+  const order = ref ? await getEnrichedOrder(ref) : null;
 
   if (!order) {
     return <div className="p-6"><p className="text-red-500">Pedido no encontrado.</p></div>;

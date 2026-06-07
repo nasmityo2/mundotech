@@ -3,9 +3,11 @@ import * as React from 'react';
 import { roundMoney2 } from '@/lib/exchange-rate';
 import { DualMoneyInline } from './components/DualMoneyInline';
 import { PrimaryCta } from './components/PrimaryCta';
+import { StatusPill } from './components/StatusPill';
 import { MundoTechShell } from './MundoTechShell';
 import type { OrderConfirmationPayload } from './types';
 import { emailSiteBaseUrl } from './site';
+import { orderPathSegment } from '@/lib/order-ref';
 import { MT, fontSans } from './theme';
 
 function formatVariations(v: OrderConfirmationPayload['items'][0]['variations']): string | null {
@@ -38,7 +40,7 @@ const cardTableStyle: React.CSSProperties = {
 
 export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
   const base = emailSiteBaseUrl().replace(/\/$/, '');
-  const orderHref = `${base}/account/orders/${encodeURIComponent(payload.id)}`;
+  const orderHref = `${base}/account/orders/${orderPathSegment(payload.orderNumber)}`;
   const padded = paddedOrderNo(payload.orderNumber);
 
   const formattedDate = new Intl.DateTimeFormat('es-VE', {
@@ -58,6 +60,21 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
   const resumenLabel =
     lineCount === 1 ? 'Resumen del pedido (1 artículo)' : `Resumen del pedido (${lineCount} artículos)`;
 
+  const nextSteps: { title: string; desc: string }[] = [
+    {
+      title: 'Verificamos tu pago',
+      desc: 'Revisamos tu comprobante y confirmamos el pedido lo antes posible.',
+    },
+    {
+      title: 'Preparamos tu pedido',
+      desc: 'Empacamos tus productos y los dejamos listos para envío o retiro.',
+    },
+    {
+      title: 'Te avisamos',
+      desc: 'Recibirás un correo con el número de seguimiento cuando salga tu pedido.',
+    },
+  ];
+
   return (
     <MundoTechShell
       preview={`Pedido #${padded} confirmado — gracias por tu compra en MundoTech.`}
@@ -66,6 +83,7 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
     >
       {/* ── Hero (mockup): gracias + fecha VET ───────────────────────────── */}
       <Section className="mt-pad" style={{ padding: '24px 24px 20px', fontFamily: fontSans }}>
+        <StatusPill tone="success">Pedido confirmado</StatusPill>
         <Text
           style={{
             margin: '0 0 10px',
@@ -155,6 +173,10 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
                             </Text>
                           ) : null}
                           <Text style={{ margin: '0 0 4px', fontSize: 13, color: MT.textMuted }}>
+                            Precio unitario
+                          </Text>
+                          <DualMoneyInline amountUsd={item.priceUsd} exchangeRateUsdBs={rate} fontSize={13} />
+                          <Text style={{ margin: '12px 0 4px', fontSize: 13, color: MT.textMuted }}>
                             Subtotal del artículo
                           </Text>
                           <DualMoneyInline amountUsd={lineUsd} exchangeRateUsdBs={rate} fontSize={14} bold />
@@ -190,10 +212,16 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
             </tr>
             <tr>
               <td style={{ padding: '10px 18px', verticalAlign: 'top' }}>
-                <Text style={{ margin: 0, fontSize: 14, color: MT.textMuted }}>Tarifa de envío</Text>
+                <Text style={{ margin: 0, fontSize: 14, color: MT.textMuted }}>Envío</Text>
               </td>
               <td style={{ padding: '10px 18px', textAlign: 'right', verticalAlign: 'top' }} align="right">
-                <DualMoneyInline amountUsd={payload.shippingUsd} exchangeRateUsdBs={rate} />
+                {payload.shippingUsd > 0 ? (
+                  <DualMoneyInline amountUsd={payload.shippingUsd} exchangeRateUsdBs={rate} />
+                ) : (
+                  <Text style={{ margin: 0, fontSize: 14, fontWeight: 700, color: MT.success }}>
+                    Gratis
+                  </Text>
+                )}
               </td>
             </tr>
             <tr>
@@ -287,9 +315,64 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
         </table>
       </Section>
 
-      <Section style={{ padding: '4px 28px 8px', fontFamily: fontSans, textAlign: 'center' }}>
+      {/* ── ¿Qué sigue? (pasos del pedido) ──────────────────────────────── */}
+      <Section style={{ padding: '8px 24px 6px', fontFamily: fontSans }}>
+        <table role="presentation" width="100%" cellPadding={0} cellSpacing={0} style={cardTableStyle}>
+          <tbody>
+            <tr>
+              <td style={{ padding: '18px 18px 4px' }}>
+                <Text style={{ margin: 0, fontSize: 16, fontWeight: 700, color: MT.textPrimary }}>
+                  ¿Qué sigue?
+                </Text>
+              </td>
+            </tr>
+            {nextSteps.map((step, i) => (
+              <tr key={step.title}>
+                <td style={{ padding: i === nextSteps.length - 1 ? '8px 18px 18px' : '8px 18px' }}>
+                  <Row>
+                    <Column style={{ width: 40, verticalAlign: 'top' }}>
+                      <table role="presentation" cellPadding={0} cellSpacing={0} style={{ borderCollapse: 'collapse' }}>
+                        <tbody>
+                          <tr>
+                            <td
+                              style={{
+                                width: 26,
+                                height: 26,
+                                borderRadius: 999,
+                                backgroundColor: 'rgba(255, 215, 0, 0.14)',
+                                border: `1px solid ${MT.gold}`,
+                                color: MT.gold,
+                                fontSize: 13,
+                                fontWeight: 700,
+                                textAlign: 'center',
+                                lineHeight: '26px',
+                              }}
+                            >
+                              {i + 1}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </Column>
+                    <Column style={{ verticalAlign: 'top' }}>
+                      <Text style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 700, color: MT.textPrimary }}>
+                        {step.title}
+                      </Text>
+                      <Text style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: MT.textMuted }}>
+                        {step.desc}
+                      </Text>
+                    </Column>
+                  </Row>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Section>
+
+      <Section style={{ padding: '10px 28px 4px', fontFamily: fontSans, textAlign: 'center' }}>
         <Text style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: MT.textMuted }}>
-          Recibirás un correo cuando tu pedido sea enviado (con número de rastreo cuando aplique).
+          ¿Dudas con tu pedido? Responde a este correo y con gusto te ayudamos.
         </Text>
       </Section>
 

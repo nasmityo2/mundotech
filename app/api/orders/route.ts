@@ -95,10 +95,25 @@ export async function POST(request: Request) {
       const productIds = [...new Set(order.items.map((i) => i.productId))];
       const products = await prisma.product.findMany({
         where: { id: { in: productIds } },
-        select: { id: true, slug: true },
+        select: {
+          id: true,
+          slug: true,
+          images: true,
+          media: {
+            where: { type: 'IMAGE' },
+            orderBy: { sortOrder: 'asc' },
+            take: 1,
+            select: { url: true },
+          },
+        },
       });
       const slugById = new Map(
         products.map((p) => [p.id, (p.slug?.trim() || p.id) as string])
+      );
+      // Respaldo de imagen: si la línea del pedido no guardó imagen, usamos la
+      // foto del producto para que el correo siempre muestre el artículo.
+      const fallbackImageById = new Map(
+        products.map((p) => [p.id, p.images?.[0]?.trim() || p.media?.[0]?.url?.trim() || null])
       );
 
       const rate = order.exchangeRateUsdBs;
@@ -108,17 +123,17 @@ export async function POST(request: Request) {
       const itemsPayload = order.items.map((i) => ({
         name: i.productName,
         slug: slugById.get(i.productId) ?? i.productId,
-        image: absoluteEmailUrl(i.imageUrl),
+        image: absoluteEmailUrl(i.imageUrl || fallbackImageById.get(i.productId) || null),
         priceUsd: priceUsdFromStored(i.price),
         quantity: i.quantity,
       }));
 
-      const subtotalUsd = roundMoney2(
-        itemsPayload.reduce((sum, line) => sum + line.priceUsd * line.quantity, 0)
-      );
+      // La tienda no cobra envío: el total autoritativo (Bs) es el subtotal.
+      // Evita una "Tarifa de envío" fantasma por redondeo Bs↔USD por línea.
       const totalUsd =
         rate != null && rate > 0 ? roundMoney2(order.total / rate) : roundMoney2(order.total);
-      const shippingUsd = roundMoney2(Math.max(0, totalUsd - subtotalUsd));
+      const subtotalUsd = totalUsd;
+      const shippingUsd = 0;
 
       const confirmationPayload: OrderConfirmationPayload = {
         id: order.id,

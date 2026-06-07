@@ -16,6 +16,13 @@ export interface AdminUser {
   orderCount: number;
 }
 
+/** Cuenta administradores sin depender del casing del rol ('ADMIN', 'admin', …). */
+async function countAdmins(): Promise<number> {
+  return prisma.user.count({
+    where: { role: { equals: 'ADMIN', mode: 'insensitive' } },
+  });
+}
+
 export async function listAdminUsers(): Promise<AdminUser[]> {
   await requireAdminAction();
   const rows = await prisma.user.findMany({
@@ -75,7 +82,7 @@ export async function updateUserRole(
 
   // Bloquear que se quede sin admins
   if (role === 'CLIENT') {
-    const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
+    const adminCount = await countAdmins();
     if (adminCount <= 1) {
       return { success: false, message: 'No puedes dejar la tienda sin administradores.' };
     }
@@ -111,7 +118,7 @@ export async function deleteAdminUser(userId: string): Promise<{ success: boolea
   if (!target) return { success: false, message: 'Usuario no encontrado.' };
 
   if (isAdminRole(target.role)) {
-    const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
+    const adminCount = await countAdmins();
     if (adminCount <= 1) {
       return { success: false, message: 'No puedes eliminar al último administrador.' };
     }

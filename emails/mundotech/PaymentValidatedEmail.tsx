@@ -14,8 +14,11 @@ type Props = {
 
 export function PaymentValidatedEmail({ customerName, orderDisplayId, orderUuid }: Props) {
   const base = emailSiteBaseUrl().replace(/\/$/, '');
-  const ordersPath = orderUuid
-    ? `${base}/account/orders/${encodeURIComponent(orderUuid)}`
+  // El enlace usa el número de pedido legible (#0042). `orderUuid` se mantiene
+  // solo como respaldo para enlaces de versiones anteriores del correo.
+  const orderSegment = orderDisplayId.trim() || orderUuid?.trim() || '';
+  const ordersPath = orderSegment
+    ? `${base}/account/orders/${encodeURIComponent(orderSegment)}`
     : `${base}/account/orders`;
 
   return (

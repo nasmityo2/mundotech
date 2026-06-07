@@ -4,7 +4,9 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { prismaOrderToOrder, type OrderStatus, VALID_ORDER_STATUSES } from '@/lib/definitions';
+import { orderPathSegment } from '@/lib/order-ref';
 import { sendOrderDeliveredEmail, sendShippingEmail } from '@/lib/resend';
+import { restoreOrderStockInTransaction, shouldRestoreStockOnCancel } from '@/lib/checkout-order';
 
 type OrderWithRelations = Prisma.OrderGetPayload<{
   include: { items: true; customer: { select: { email: true; name: true } } };
@@ -73,11 +75,13 @@ export async function PUT(
     || Object.prototype.hasOwnProperty.call(body ?? {}, 'trackingUrl')
     || Object.prototype.hasOwnProperty.call(body ?? {}, 'trackingPhotoUrl');
 
-  // Cancelar un pedido Binance pendiente: restaurar el stock decrementado en el checkout.
-  // Para otros estados → Cancelado, el admin gestiona inventario manualmente.
+  // El stock se descuenta en el checkout para todos los métodos de pago, así que
+  // al cancelar un pedido (que no esté ya cancelado ni entregado) hay que devolver
+  // las unidades al inventario para mantener el catálogo consistente.
+  const restoreStock = shouldRestoreStockOnCancel(existing.status, status);
   let updated: OrderWithRelations;
 
-  if (isBinancePending && status === 'Cancelado') {
+  if (restoreStock) {
     const orderWithItems = await prisma.order.findUnique({
       where: { id: orderId },
       include: { items: true },
@@ -85,12 +89,7 @@ export async function PUT(
 
     updated = await prisma.$transaction(async (tx) => {
       if (orderWithItems?.items) {
-        for (const item of orderWithItems.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { increment: item.quantity } },
-          });
-        }
+        await restoreOrderStockInTransaction(tx, orderWithItems.items);
       }
       return tx.order.update({
         where: { id: orderId },
@@ -102,10 +101,7 @@ export async function PUT(
       });
     });
 
-    console.info(
-      '[order-cancel-binance] Stock restaurado y pedido cancelado:',
-      orderId
-    );
+    console.info('[order-cancel] Stock restaurado y pedido cancelado:', orderId);
   } else {
     updated = await prisma.order.update({
       where: { id: orderId },
@@ -158,7 +154,7 @@ export async function PUT(
       {
         carrier: updated.trackingCarrier,
         trackingUrl: updated.trackingUrl,
-        orderId: updated.id,
+        orderId: orderPathSegment(updated.orderNumber),
       }
     );
   }
@@ -167,7 +163,7 @@ export async function PUT(
     await sendOrderDeliveredEmail(
       recipientEmail,
       firstNameFromCustomerName(displayNameForEmail),
-      updated.id
+      orderPathSegment(updated.orderNumber)
     );
   }
 

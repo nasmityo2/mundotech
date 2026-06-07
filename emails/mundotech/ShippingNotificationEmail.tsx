@@ -9,6 +9,7 @@ import { MT, fontSans } from './theme';
 export type ShippingNotificationOptions = {
   carrier?: string | null;
   trackingUrl?: string | null;
+  /** Segmento legible para la URL del pedido (#0042), no el cuid. */
   orderId?: string | null;
 };
 

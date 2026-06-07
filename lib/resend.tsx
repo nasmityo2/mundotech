@@ -2,22 +2,43 @@ import { OrderConfirmationEmail } from '@/emails/mundotech/OrderConfirmationEmai
 import { OrderDeliveredEmail } from '@/emails/mundotech/OrderDeliveredEmail';
 import { PasswordResetEmail } from '@/emails/mundotech/PasswordResetEmail';
 import { PaymentValidatedEmail } from '@/emails/mundotech/PaymentValidatedEmail';
+import { PaymentRejectedEmail } from '@/emails/mundotech/PaymentRejectedEmail';
 import {
   ShippingNotificationEmail,
   type ShippingNotificationOptions,
 } from '@/emails/mundotech/ShippingNotificationEmail';
 import type { OrderConfirmationPayload } from '@/emails/mundotech/types';
-import { emailSiteBaseUrl } from '@/emails/mundotech/site';
+import { emailSiteBaseUrl, emailContactAddress } from '@/emails/mundotech/site';
 import { WelcomeEmail } from '@/emails/mundotech/WelcomeEmail';
 import { render } from '@react-email/render';
 import { Resend } from 'resend';
+import * as React from 'react';
 
 export type { OrderConfirmationPayload, OrderConfirmationLineItem } from '@/emails/mundotech/types';
 
 /** @deprecated Use ShippingNotificationOptions — mantenido por compatibilidad con importaciones existentes. */
 export type ShippingEmailOptions = ShippingNotificationOptions;
 
-const FROM_ADDRESS = 'Mundo Tech <ventas@jummper.pro>';
+/** Nombre visible de la marca en el remitente. */
+const BRAND_SENDER_NAME = 'MundoTech';
+
+/**
+ * Remitente de los correos. Se lee de `RESEND_FROM_ADDRESS` (dominio verificado en
+ * Resend, p. ej. `noreply@mundotech.com.ve`). Si el valor ya trae nombre visible
+ * (`Nombre <correo>`) se respeta; si es solo el correo, se antepone la marca.
+ * El fallback usa el dominio de la tienda, nunca un dominio de terceros.
+ */
+function resolveFromAddress(): string {
+  const raw = process.env.RESEND_FROM_ADDRESS?.trim();
+  if (!raw) return `${BRAND_SENDER_NAME} <noreply@mundotech.com.ve>`;
+  if (raw.includes('<') && raw.includes('>')) return raw;
+  return `${BRAND_SENDER_NAME} <${raw}>`;
+}
+
+const FROM_ADDRESS = resolveFromAddress();
+
+/** Dirección de respuesta: el correo de atención real de la tienda. */
+const REPLY_TO_ADDRESS = emailContactAddress();
 
 function getResend(): Resend | null {
   const key = process.env.RESEND_API_KEY;
@@ -25,6 +46,43 @@ function getResend(): Resend | null {
     return null;
   }
   return new Resend(key);
+}
+
+/**
+ * Envía un correo transaccional renderizando HTML + texto plano desde el mismo
+ * componente React. El texto plano mejora la entregabilidad (menos spam) y la
+ * accesibilidad en clientes que no renderizan HTML. Los errores se registran y
+ * no se relanzan (envío best-effort que nunca debe tumbar el flujo de negocio).
+ */
+async function sendBrandedEmail(params: {
+  resend: Resend;
+  to: string;
+  subject: string;
+  element: React.ReactElement;
+  logScope: string;
+}): Promise<void> {
+  const { resend, to, subject, element, logScope } = params;
+  try {
+    const [html, text] = await Promise.all([
+      render(element),
+      render(element, { plainText: true }),
+    ]);
+
+    const { error } = await resend.emails.send({
+      from: FROM_ADDRESS,
+      to,
+      replyTo: REPLY_TO_ADDRESS,
+      subject,
+      html,
+      text,
+    });
+
+    if (error) {
+      console.error(`[${logScope}] Error de Resend al enviar a`, to, error);
+    }
+  } catch (err) {
+    console.error(`[${logScope}] Excepción al enviar a`, to, err);
+  }
 }
 
 /**
@@ -52,28 +110,61 @@ export async function sendPaymentValidatedEmail(
   const trimmedName = firstName.trim() || 'Cliente';
   const trimmedOrderRef = orderId.trim();
 
-  try {
-    const html = await render(
+  await sendBrandedEmail({
+    resend,
+    to: trimmedEmail,
+    subject: 'MundoTech · Pago confirmado — tu pedido va en preparación',
+    logScope: 'payment-validated-email',
+    element: (
       <PaymentValidatedEmail
         customerName={trimmedName}
         orderDisplayId={trimmedOrderRef}
         orderUuid={orderUuid}
       />
-    );
+    ),
+  });
+}
 
-    const { error } = await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: trimmedEmail,
-      subject: 'MundoTech · Pago confirmado — tu pedido va en preparación',
-      html,
-    });
-
-    if (error) {
-      console.error('[payment-validated-email] Error de Resend al enviar a', trimmedEmail, error);
-    }
-  } catch (err) {
-    console.error('[payment-validated-email] Excepción al enviar a', trimmedEmail, err);
+/**
+ * Notificación de pago rechazado: el pedido fue cancelado por pago no verificado.
+ * `orderId` es el número visible del pedido (ej. "0123"). Errores no relanzan.
+ */
+export async function sendPaymentRejectedEmail(
+  email: string,
+  firstName: string,
+  orderId: string,
+  reason: string,
+  orderUuid?: string
+): Promise<void> {
+  const resend = getResend();
+  if (!resend) {
+    console.warn('[payment-rejected-email] RESEND_API_KEY no está configurada; se omite el envío para:', email);
+    return;
   }
+
+  const trimmedEmail = email.trim();
+  if (!trimmedEmail) {
+    console.warn('[payment-rejected-email] Email vacío; se omite el envío.');
+    return;
+  }
+
+  const trimmedName = firstName.trim() || 'Cliente';
+  const trimmedOrderRef = orderId.trim();
+
+  await sendBrandedEmail({
+    resend,
+    to: trimmedEmail,
+    subject: `MundoTech · No pudimos verificar el pago de tu pedido #${trimmedOrderRef}`,
+    logScope: 'payment-rejected-email',
+    element: (
+      <PaymentRejectedEmail
+        customerName={trimmedName}
+        orderDisplayId={trimmedOrderRef}
+        reason={reason}
+        orderUuid={orderUuid}
+      />
+    ),
+  });
 }
 
 /**
@@ -97,22 +188,13 @@ export async function sendOrderConfirmationEmail(order: OrderConfirmationPayload
 
   const subjNo = String(order.orderNumber).padStart(4, '0');
 
-  try {
-    const html = await render(<OrderConfirmationEmail {...order} />);
-
-    const { error } = await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: trimmedEmail,
-      subject: `MundoTech · Pedido #${subjNo} recibido`,
-      html,
-    });
-
-    if (error) {
-      console.error('[order-confirmation-email] Error de Resend al enviar a', trimmedEmail, error);
-    }
-  } catch (err) {
-    console.error('[order-confirmation-email] Excepción al enviar a', trimmedEmail, err);
-  }
+  await sendBrandedEmail({
+    resend,
+    to: trimmedEmail,
+    subject: `MundoTech · Pedido #${subjNo} recibido`,
+    logScope: 'order-confirmation-email',
+    element: <OrderConfirmationEmail {...order} />,
+  });
 }
 
 /**
@@ -140,32 +222,26 @@ export async function sendShippingEmail(
 
   const trimmedName = firstName.trim() || 'Cliente';
 
-  try {
-    const html = await render(
+  await sendBrandedEmail({
+    resend,
+    to: trimmedEmail,
+    subject: 'MundoTech · Tu pedido va en camino',
+    logScope: 'shipping-email',
+    element: (
       <ShippingNotificationEmail
         customerName={trimmedName}
         trackingNumber={trimmedTracking}
         opts={opts}
       />
-    );
-
-    const { error } = await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: trimmedEmail,
-      subject: 'MundoTech · Tu pedido va en camino',
-      html,
-    });
-
-    if (error) {
-      console.error('[shipping-email] Error de Resend al enviar a', trimmedEmail, error);
-    }
-  } catch (err) {
-    console.error('[shipping-email] Excepción al enviar correo de envío a', trimmedEmail, err);
-  }
+    ),
+  });
 }
 
-/** Notificación de pedido marcado como entregado en admin. */
-export async function sendOrderDeliveredEmail(email: string, firstName: string, orderUuid: string): Promise<void> {
+/**
+ * Notificación de pedido marcado como entregado en admin.
+ * `orderRef` es el segmento legible para la URL (#0042), no el cuid.
+ */
+export async function sendOrderDeliveredEmail(email: string, firstName: string, orderRef: string): Promise<void> {
   const resend = getResend();
   if (!resend) {
     console.warn('[order-delivered-email] RESEND_API_KEY no está configurada; se omite el envío para:', email);
@@ -173,30 +249,21 @@ export async function sendOrderDeliveredEmail(email: string, firstName: string, 
   }
 
   const trimmedEmail = email.trim();
-  const id = orderUuid.trim();
-  if (!trimmedEmail || !id) {
-    console.warn('[order-delivered-email] Email o ID vacío; se omite el envío.');
+  const ref = orderRef.trim();
+  if (!trimmedEmail || !ref) {
+    console.warn('[order-delivered-email] Email o referencia vacío; se omite el envío.');
     return;
   }
 
   const trimmedName = firstName.trim() || 'Cliente';
 
-  try {
-    const html = await render(<OrderDeliveredEmail customerName={trimmedName} orderUuid={id} />);
-
-    const { error } = await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: trimmedEmail,
-      subject: 'MundoTech · Tu pedido fue entregado',
-      html,
-    });
-
-    if (error) {
-      console.error('[order-delivered-email] Error de Resend al enviar a', trimmedEmail, error);
-    }
-  } catch (err) {
-    console.error('[order-delivered-email] Excepción al enviar a', trimmedEmail, err);
-  }
+  await sendBrandedEmail({
+    resend,
+    to: trimmedEmail,
+    subject: 'MundoTech · Tu pedido fue entregado',
+    logScope: 'order-delivered-email',
+    element: <OrderDeliveredEmail customerName={trimmedName} orderRef={ref} />,
+  });
 }
 
 /**
@@ -211,23 +278,19 @@ export async function sendWelcomeEmail(email: string, firstName: string): Promis
   }
 
   const trimmed = firstName.trim() || 'Cliente';
-
-  try {
-    const html = await render(<WelcomeEmail customerName={trimmed} />);
-
-    const { error } = await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: email,
-      subject: 'Bienvenido a MundoTech',
-      html,
-    });
-
-    if (error) {
-      console.error('[welcome-email] Error de Resend al enviar a', email, error);
-    }
-  } catch (err) {
-    console.error('[welcome-email] Excepción al enviar correo de bienvenida a', email, err);
+  const trimmedEmail = email.trim();
+  if (!trimmedEmail) {
+    console.warn('[welcome-email] Email vacío; se omite el envío.');
+    return;
   }
+
+  await sendBrandedEmail({
+    resend,
+    to: trimmedEmail,
+    subject: 'Bienvenido a MundoTech',
+    logScope: 'welcome-email',
+    element: <WelcomeEmail customerName={trimmed} />,
+  });
 }
 
 /** Correo de recuperación de contraseña. Errores se registran; no relanza. */
@@ -246,20 +309,11 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
 
   const resetUrl = `${emailSiteBaseUrl().replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token.trim())}`;
 
-  try {
-    const html = await render(<PasswordResetEmail resetUrl={resetUrl} />);
-
-    const { error } = await resend.emails.send({
-      from: FROM_ADDRESS,
-      to: trimmedEmail,
-      subject: 'MundoTech · Restablecer tu contraseña',
-      html,
-    });
-
-    if (error) {
-      console.error('[password-reset-email] Error de Resend al enviar a', trimmedEmail, error);
-    }
-  } catch (err) {
-    console.error('[password-reset-email] Excepción al enviar a', trimmedEmail, err);
-  }
+  await sendBrandedEmail({
+    resend,
+    to: trimmedEmail,
+    subject: 'MundoTech · Restablecer tu contraseña',
+    logScope: 'password-reset-email',
+    element: <PasswordResetEmail resetUrl={resetUrl} />,
+  });
 }

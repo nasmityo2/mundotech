@@ -1,7 +1,7 @@
 import {
-  Home, Package, Tag, ShoppingCart, Settings, BarChart2,
+  Home, Package, Tag, ShoppingCart, BarChart2,
   Image as ImageIcon, LayoutDashboard, Users, MapPin, Store,
-  ScanLine, Wallet, Palette, MoreHorizontal,
+  Wallet, Palette, MoreHorizontal, Ticket, Star, Megaphone,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -38,6 +38,7 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
       { href: '/admin/products',   label: 'Productos',  icon: Package, description: 'Inventario' },
       { href: '/admin/categories', label: 'Categorías', icon: Tag,     description: 'Slugs SEO' },
       { href: '/admin/banners',    label: 'Banners',    icon: ImageIcon, description: 'Hero y CTA' },
+      { href: '/admin/reviews',    label: 'Reseñas',    icon: Star, description: 'Moderación', badge: 'new' },
     ],
   },
   {
@@ -45,15 +46,16 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
     label: 'Ventas',
     items: [
       { href: '/admin/orders',     label: 'Pedidos',  icon: ShoppingCart, description: 'En curso y archivo' },
-      { href: '/admin/pos',        label: 'Mostrador',icon: ScanLine,    description: 'Vender presencial', badge: 'new' },
+      { href: '/admin/coupons',    label: 'Cupones',  icon: Ticket, description: 'Descuentos', badge: 'new' },
     ],
   },
   {
     id: 'site',
     label: 'Sitio',
     items: [
-      { href: '/admin/home-manager',         label: 'Gestor Home', icon: LayoutDashboard, description: 'Bloques de la home' },
-      { href: '/admin/settings/seo-local',   label: 'SEO Local',   icon: MapPin,         description: 'Dirección · horarios', badge: 'new' },
+      { href: '/admin/home-manager',           label: 'Gestor Home',      icon: LayoutDashboard, description: 'Bloques de la home' },
+      { href: '/admin/settings/announcement',  label: 'Barra de anuncios', icon: Megaphone,      description: 'Mensaje superior', badge: 'new' },
+      { href: '/admin/settings/seo-local',     label: 'SEO Local',        icon: MapPin,          description: 'Dirección · horarios', badge: 'new' },
     ],
   },
   {
@@ -85,7 +87,6 @@ export const FLAT_ADMIN_NAV: NavItem[] = ADMIN_NAV_GROUPS.flatMap(g => g.items);
 export function getActiveLabel(pathname: string): string {
   if (pathname === '/admin') return 'Inicio';
   if (pathname === '/admin/menu') return 'Menú';
-  if (pathname === '/admin/pos') return 'Mostrador';
   const found = FLAT_ADMIN_NAV.find(i =>
     i.href !== '/admin' && pathname.startsWith(i.href),
   );

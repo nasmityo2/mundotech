@@ -31,7 +31,15 @@ export async function registerUserAction({ name, email, password }: Record<strin
       return { success: false, message: 'Todos los campos son obligatorios.' };
     }
 
-    // 2. Verificar si el usuario ya existe
+    // 2. Validaciones mínimas de servidor (no confiar solo en el cliente)
+    if (!EMAIL_REGEX.test(email.trim())) {
+      return { success: false, message: 'Introduce un correo electrónico válido.' };
+    }
+    if (password.length < 8) {
+      return { success: false, message: 'La contraseña debe tener al menos 8 caracteres.' };
+    }
+
+    // 3. Verificar si el usuario ya existe
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
@@ -40,16 +48,16 @@ export async function registerUserAction({ name, email, password }: Record<strin
       return { success: false, message: 'El correo electrónico ya está en uso.' };
     }
 
-    // 3. Hashear la contraseña
+    // 4. Hashear la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 4. Crear el usuario (el rol por defecto es CLIENT)
+    // 5. Crear el usuario (rol normalizado en mayúsculas, consistente con isAdminRole)
     await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
-        role: 'client', // Asignación explícita del rol
+        role: 'CLIENT',
       },
     });
 

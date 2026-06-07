@@ -7,10 +7,10 @@ import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
 import { DualOrderMoney, OrderFrozenRateBanner } from '@/components/order/DualOrderMoney';
 import { StatusUpdateMenu } from '@/app/components/admin/StatusUpdateMenu';
 import ShipOrderDialog from '@/app/components/admin/ShipOrderDialog';
-import { ValidatePaymentAdminButton } from '@/components/admin/ValidatePaymentAdminButton';
+import { PaymentVerificationPanel } from '@/components/admin/PaymentVerificationPanel';
 import {
-  ArrowLeft, Package, MapPin, CreditCard, Clock, Copy, Check, Hash,
-  Truck, ExternalLink, Edit3,
+  ArrowLeft, Package, MapPin, Clock, Copy, Check, Hash,
+  Truck, ExternalLink, Edit3, FileText, Loader2, Printer, Ticket,
 } from 'lucide-react';
 
 const statusConfig: Record<string, string> = {
@@ -40,6 +40,9 @@ export default function AdminOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [idCopied, setIdCopied] = useState(false);
   const [showShipDialog, setShowShipDialog] = useState(false);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string | undefined;
@@ -48,7 +51,7 @@ export default function AdminOrderDetailPage() {
     if (!id) return;
     fetch(`/api/orders/${id}`)
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(data => { setOrder(data); setLoading(false); })
+      .then(data => { setOrder(data); setNotesDraft(data.notes ?? ''); setLoading(false); })
       .catch(() => { setOrder(null); setLoading(false); });
   }, [id]);
 
@@ -129,6 +132,28 @@ export default function AdminOrderDetailPage() {
     }
   };
 
+  const handleSaveNotes = async () => {
+    if (!order) return;
+    setSavingNotes(true);
+    try {
+      const r = await fetch(`/api/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: notesDraft.trim() || null }),
+      });
+      if (!r.ok) throw new Error();
+      setOrder(await r.json());
+      setNotesSaved(true);
+      window.setTimeout(() => setNotesSaved(false), 2000);
+    } catch {
+      alert('No se pudieron guardar las notas.');
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
+  const notesDirty = notesDraft.trim() !== (order.notes ?? '').trim();
+
   return (
     <div className="space-y-4">
       <button
@@ -154,7 +179,14 @@ export default function AdminOrderDetailPage() {
         </div>
 
         <div className="flex flex-wrap items-stretch gap-2">
-          <ValidatePaymentAdminButton order={order} onValidated={setOrder} />
+          <a
+            href={`/admin/orders/${order.id}/etiqueta`}
+            target="_blank"
+            rel="noreferrer"
+            className="touch-manipulation select-none min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-lg border border-navy bg-navy px-3 sm:px-4 text-xs sm:text-sm font-semibold text-white shadow-sm hover:bg-navy-700 active:bg-navy-800"
+          >
+            <Printer size={14} /> Imprimir etiqueta
+          </a>
           <button
             type="button"
             onClick={copyOrderId}
@@ -172,7 +204,19 @@ export default function AdminOrderDetailPage() {
 
         <div className="pt-4 border-t border-gray-100 space-y-2">
           <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Estado del pedido / envío</p>
-          <StatusUpdateMenu onUpdate={handleStatusChange} currentStatus={order.status} />
+          {order.status === 'Pendiente verificación Binance' ? (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Verifica el pago en Binance y pulsa <strong>«Aprobar pago Binance»</strong> para continuar, o
+              cancela el pedido si el pago no llegó.
+            </p>
+          ) : null}
+          <StatusUpdateMenu
+            onUpdate={handleStatusChange}
+            currentStatus={order.status}
+            allowedOnly={
+              order.status === 'Pendiente verificación Binance' ? ['Cancelado'] : undefined
+            }
+          />
         </div>
       </div>
 
@@ -281,6 +325,14 @@ export default function AdminOrderDetailPage() {
             <div className="flex justify-between text-gray-600">
               <span>Envío</span><span className="text-green-600 font-medium">Gratis</span>
             </div>
+            {order.couponDiscount && order.couponDiscount > 0 ? (
+              <div className="flex justify-between text-emerald-600 items-start gap-2">
+                <span className="inline-flex items-center gap-1">
+                  <Ticket size={13} /> Cupón {order.couponCode}
+                </span>
+                <span className="inline-flex items-center">−<DualOrderMoney amount={order.couponDiscount} order={order} variant="admin" /></span>
+              </div>
+            ) : null}
             <div className="flex justify-between font-bold text-gray-900 text-base pt-1.5 border-t border-gray-200 items-end gap-2">
               <span>Total</span>
               <DualOrderMoney amount={order.total} order={order} variant="admin" emphasis="total" />
@@ -309,30 +361,7 @@ export default function AdminOrderDetailPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-2.5">
-              <CreditCard size={14} className="text-gray-400" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Pago</h3>
-            </div>
-            <dl className="text-sm space-y-1.5">
-              <div className="flex justify-between gap-2">
-                <dt className="text-gray-500">Método</dt>
-                <dd className="font-medium text-gray-800 text-right">{order.paymentMethod}</dd>
-              </div>
-              {order.paymentReference && (
-                <div className="flex justify-between gap-2">
-                  <dt className="text-gray-500">Referencia</dt>
-                  <dd className="font-mono font-semibold text-navy text-right break-all">{order.paymentReference}</dd>
-                </div>
-              )}
-            </dl>
-            {order.paymentProofUrl && (
-              <a href={order.paymentProofUrl} target="_blank" rel="noreferrer" className="block mt-3">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={order.paymentProofUrl} alt="Comprobante" className="w-full max-w-[180px] rounded-lg border border-gray-200" />
-              </a>
-            )}
-          </div>
+          <PaymentVerificationPanel order={order} onUpdate={setOrder} />
 
           <div className="bg-white border border-gray-200 rounded-2xl p-4">
             <div className="flex items-center gap-2 mb-2.5">
@@ -341,8 +370,41 @@ export default function AdminOrderDetailPage() {
             </div>
             <ul className="text-xs space-y-1.5 text-gray-600">
               <li><span className="text-gray-400">Creado:</span> {formatDateTime(order.createdAt)}</li>
+              {order.paidAt && <li><span className="text-gray-400">Pago validado:</span> {formatDateTime(order.paidAt)}</li>}
               {order.shippedAt && <li><span className="text-gray-400">Enviado:</span> {formatDateTime(order.shippedAt)}</li>}
             </ul>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-2.5">
+              <FileText size={14} className="text-gray-400" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Notas internas</h3>
+            </div>
+            <textarea
+              value={notesDraft}
+              onChange={(e) => setNotesDraft(e.target.value)}
+              rows={4}
+              maxLength={2000}
+              placeholder="Notas visibles solo para el equipo (no se envían al cliente)…"
+              className="w-full rounded-xl border border-gray-200 bg-slate-50/60 px-3 py-2 text-sm text-navy placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-navy/30 focus:bg-white resize-y"
+            />
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] text-slate-400 nums">{notesDraft.length}/2000</span>
+              <button
+                type="button"
+                onClick={handleSaveNotes}
+                disabled={savingNotes || !notesDirty}
+                className="touch-manipulation select-none min-h-[40px] inline-flex items-center gap-1.5 rounded-lg bg-navy px-3.5 text-xs font-semibold text-white hover:bg-navy-700 active:bg-navy-800 disabled:opacity-40 disabled:pointer-events-none"
+              >
+                {savingNotes ? (
+                  <><Loader2 size={13} className="animate-spin" /> Guardando…</>
+                ) : notesSaved ? (
+                  <><Check size={13} /> Guardado</>
+                ) : (
+                  'Guardar notas'
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>

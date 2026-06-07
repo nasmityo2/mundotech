@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import type { OrderStatus } from '@/lib/definitions';
 import { VALID_ORDER_STATUSES } from '@/lib/definitions';
+import { restoreOrderStockInTransaction, shouldRestoreStockOnCancel } from '@/lib/checkout-order';
 
 /** Mismo estado que aprueba-stock en checkout Binance hasta validación manual. */
 const BINANCE_PENDING: OrderStatus = 'Pendiente verificación Binance';
@@ -54,24 +55,19 @@ export async function POST(request: Request) {
     );
   }
 
-  // Cancelación masiva: restaurar inventario igual que PUT /api/orders/[id]/status
-  // para pedidos Binance donde el checkout ya decrementó stock.
+  // Cancelación masiva: restaurar inventario igual que PUT /api/orders/[id]/status.
+  // El stock se descuenta en el checkout para todos los métodos, así que se devuelve
+  // a inventario al cancelar cualquier pedido que no estuviera ya cancelado/entregado.
   const updated = await prisma.$transaction(async (tx) => {
     if (status === 'Cancelado') {
-      const binanceOrders = await tx.order.findMany({
-        where: {
-          id: { in: orderIds },
-          status: BINANCE_PENDING,
-        },
+      const cancellable = await tx.order.findMany({
+        where: { id: { in: orderIds } },
         include: { items: true },
       });
 
-      for (const order of binanceOrders) {
-        for (const item of order.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { stock: { increment: item.quantity } },
-          });
+      for (const order of cancellable) {
+        if (shouldRestoreStockOnCancel(order.status, status)) {
+          await restoreOrderStockInTransaction(tx, order.items);
         }
       }
     }

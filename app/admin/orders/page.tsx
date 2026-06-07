@@ -7,7 +7,8 @@ import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import { StatusUpdateMenu } from '@/app/components/admin/StatusUpdateMenu';
 import ShipOrderDialog from '@/app/components/admin/ShipOrderDialog';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
-import { Search, Truck } from 'lucide-react';
+import { Search, Truck, Download } from 'lucide-react';
+import { downloadCsv, csvDateStamp } from '@/lib/csv-export';
 
 const statusConfig: Record<string, string> = {
   'Pendiente verificación Binance': 'bg-amber-100 text-amber-900 border border-amber-200',
@@ -251,13 +252,46 @@ function OrdersPageContent() {
 
   const hasFilters = Boolean(searchTerm) || tab !== 'all';
 
+  const handleExportCsv = useCallback(() => {
+    const rows = filteredOrders.map(o => ({
+      Pedido: String(o.orderNumber).padStart(4, '0'),
+      Fecha: new Date(o.createdAt).toLocaleString('es-VE'),
+      Cliente: o.customerName,
+      Email: o.customerEmail ?? '',
+      Teléfono: o.customerPhone ?? '',
+      Estado: o.status,
+      'Método de pago': o.paymentMethod,
+      Banco: o.paymentBank ?? '',
+      Referencia: o.paymentReference ?? '',
+      'Total (Bs/USD)': o.total,
+      'Tasa USD/Bs': o.exchangeRateUsdBs ?? '',
+      Tracking: o.trackingNumber ?? '',
+      Transportista: o.trackingCarrier ?? '',
+      Ciudad: o.shippingDetails.city,
+      'Estado/Región': o.shippingDetails.state,
+      Artículos: o.items.map(i => `${i.quantity}× ${i.productName}`).join(' | '),
+    }));
+    downloadCsv(`pedidos-mundotech-${csvDateStamp()}.csv`, rows);
+  }, [filteredOrders]);
+
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Pedidos</h1>
-        <p className="text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
-          Gestiona y actualiza el estado de todos los pedidos.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Pedidos</h1>
+          <p className="text-sm text-slate-500 mt-1 max-w-2xl leading-relaxed">
+            Gestiona y actualiza el estado de todos los pedidos.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleExportCsv}
+          disabled={filteredOrders.length === 0}
+          className="touch-manipulation select-none min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-navy shadow-soft hover:border-slate-300 hover:shadow-card active:bg-slate-50 transition-all disabled:opacity-40 disabled:pointer-events-none"
+          title="Exportar los pedidos visibles a CSV"
+        >
+          <Download size={15} /> Exportar CSV
+        </button>
       </div>
 
       <div className="rounded-2xl bg-gradient-to-br from-[#0b1220] via-[#0f172a] to-[#020617] border border-slate-800/80 shadow-xl shadow-slate-900/20 overflow-hidden">

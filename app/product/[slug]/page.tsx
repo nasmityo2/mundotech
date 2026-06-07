@@ -16,6 +16,9 @@ import ProductCard from '@/components/ProductCard';
 import RecentlyViewedTracker from '@/components/RecentlyViewedTracker';
 import RecentlyViewed from '@/components/RecentlyViewed';
 import ProductJsonLd from '@/app/components/ProductJsonLd';
+import ProductReviews from './ProductReviews';
+import { Stars } from '@/components/reviews/Stars';
+import { getReviewSummary, getApprovedReviews, getReviewSummariesMap } from '@/lib/reviews';
 import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
 import { getExchangeRate } from '@/app/actions/configActions';
 
@@ -165,13 +168,19 @@ export default async function ProductDetailPage({ params }: PageProps) {
     details: {} as Record<string, string>,
   };
 
-  const relatedProducts = await getRelatedProducts(product.category, product.id);
+  const [relatedProducts, reviewSummary, productReviews] = await Promise.all([
+    getRelatedProducts(product.category, product.id),
+    getReviewSummary(product.id),
+    getApprovedReviews(product.id),
+  ]);
+
+  const relatedSummaries = await getReviewSummariesMap(relatedProducts.map((r) => r.id));
 
   return (
     <div className="pb-24 lg:pb-12 w-full max-w-full">
 
       {/* ── Datos estructurados JSON-LD ── */}
-      <ProductJsonLd product={product} categoryPath={categoryPath} />
+      <ProductJsonLd product={product} categoryPath={categoryPath} reviewSummary={reviewSummary} reviews={productReviews} />
 
       {/* ── Breadcrumb ── */}
       <nav className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6 overflow-hidden whitespace-nowrap" aria-label="Breadcrumb">
@@ -224,14 +233,25 @@ export default async function ProductDetailPage({ params }: PageProps) {
             {product.name}
           </h1>
 
-          {/* Reseñas — próximamente (sin puntuación falsa) */}
-          <a
-            href="#tabs"
-            className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-slate-400 hover:text-navy transition-colors"
-          >
-            <Star size={13} className="text-slate-300" />
-            <span>Sé el primero en reseñar este producto</span>
-          </a>
+          {/* Reseñas — promedio real (sin puntuación falsa) */}
+          {reviewSummary.count > 0 ? (
+            <a
+              href="#reviews"
+              className="mt-3 inline-flex items-center gap-2 text-[12px] text-slate-500 hover:text-navy transition-colors"
+            >
+              <Stars rating={reviewSummary.average} size={14} />
+              <span className="font-semibold text-navy nums">{reviewSummary.average.toFixed(1)}</span>
+              <span>· {reviewSummary.count} {reviewSummary.count === 1 ? 'reseña' : 'reseñas'}</span>
+            </a>
+          ) : (
+            <a
+              href="#reviews"
+              className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-slate-400 hover:text-navy transition-colors"
+            >
+              <Star size={13} className="text-slate-300" />
+              <span>Sé el primero en reseñar este producto</span>
+            </a>
+          )}
 
           {/* Precio */}
           <div className="mt-5 sm:mt-6 pb-5 sm:pb-6 border-b border-slate-100">
@@ -310,6 +330,14 @@ export default async function ProductDetailPage({ params }: PageProps) {
         />
       </div>
 
+      {/* ── Reseñas de clientes ── */}
+      <ProductReviews
+        productId={product.id}
+        productName={product.name}
+        initialSummary={reviewSummary}
+        initialReviews={productReviews}
+      />
+
       {/* ── También te puede interesar ── */}
       {relatedProducts.length > 0 && (
         <div className="mt-8 sm:mt-12">
@@ -321,17 +349,22 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
-            {relatedProducts.map(related => (
-              <ProductCard
-                key={related.id}
-                product={{
-                  ...related,
-                  image: related.images[0] || '/placeholder-product.png',
-                  description: related.description || '',
-                  details: {},
-                } as any}
-              />
-            ))}
+            {relatedProducts.map(related => {
+              const s = relatedSummaries.get(related.id);
+              return (
+                <ProductCard
+                  key={related.id}
+                  product={{
+                    ...related,
+                    image: related.images[0] || '/placeholder-product.png',
+                    description: related.description || '',
+                    details: {},
+                    rating: s?.average,
+                    reviewCount: s?.count,
+                  } as any}
+                />
+              );
+            })}
           </div>
         </div>
       )}

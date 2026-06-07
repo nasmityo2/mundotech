@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { isAdminRole } from '@/lib/api-auth';
 import {
   DEFAULT_EXCHANGE_RATE_USD_BS,
   EXCHANGE_RATE_APP_CONFIG_KEY,
@@ -30,7 +31,8 @@ export async function getExchangeRate(): Promise<number> {
 
 export async function updateExchangeRate(rate: unknown) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as { role?: string })?.role !== 'ADMIN') {
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  if (!session || !isAdminRole(role)) {
     return { success: false, message: 'No autorizado.' };
   }
 

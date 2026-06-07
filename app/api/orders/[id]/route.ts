@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { prismaOrderToOrder } from '@/lib/definitions';
 import { requireAdmin, isAdminRole } from '@/lib/api-auth';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { restoreOrderStockInTransaction, shouldRestoreStockOnCancel } from '@/lib/checkout-order';
 
 export async function GET(
   _request: Request,
@@ -41,17 +43,20 @@ export async function GET(
   return NextResponse.json(prismaOrderToOrder(order));
 }
 
-const trackingSchema = z.object({
+const patchSchema = z.object({
   trackingNumber:   z.string().trim().max(80).optional().nullable(),
   trackingCarrier:  z.string().trim().max(80).optional().nullable(),
   trackingUrl:      z.string().url().max(500).optional().nullable(),
   trackingPhotoUrl: z.string().url().max(500).optional().nullable(),
+  notes:            z.string().trim().max(2000).optional().nullable(),
 });
 
 /**
  * PATCH /api/orders/[id]
- * Permite al admin actualizar el tracking del pedido (todos campos opcionales).
- * Si se envía cualquier dato de tracking se setea shippedAt si aún era null.
+ * Actualización PARCIAL del admin: solo se modifican los campos presentes en el
+ * body (tracking y/o notas internas). Esto evita borrar el tracking al guardar
+ * únicamente las notas, y viceversa. Si se envía tracking y el pedido aún no
+ * tenía fecha de envío, se sella `shippedAt`.
  */
 export async function PATCH(
   request: Request,
@@ -62,7 +67,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await request.json().catch(() => null);
-  const parsed = trackingSchema.safeParse(body);
+  const parsed = patchSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: 'Datos inválidos.', errors: parsed.error.flatten() },
@@ -70,22 +75,38 @@ export async function PATCH(
     );
   }
 
-  const data = parsed.data;
-  const hasAnyTracking =
-    !!(data.trackingNumber ?? data.trackingCarrier ?? data.trackingUrl ?? data.trackingPhotoUrl);
+  const raw = (body ?? {}) as Record<string, unknown>;
+  const has = (key: string) => Object.prototype.hasOwnProperty.call(raw, key);
+
+  const data: Prisma.OrderUpdateInput = {};
+  let touchedTracking = false;
+
+  if (has('trackingNumber'))   { data.trackingNumber   = parsed.data.trackingNumber   ?? null; touchedTracking = true; }
+  if (has('trackingCarrier'))  { data.trackingCarrier  = parsed.data.trackingCarrier  ?? null; touchedTracking = true; }
+  if (has('trackingUrl'))      { data.trackingUrl      = parsed.data.trackingUrl      ?? null; touchedTracking = true; }
+  if (has('trackingPhotoUrl')) { data.trackingPhotoUrl = parsed.data.trackingPhotoUrl ?? null; touchedTracking = true; }
+  if (has('notes'))            { data.notes            = parsed.data.notes            ?? null; }
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: 'Nada que actualizar.' }, { status: 400 });
+  }
 
   const current = await prisma.order.findUnique({ where: { id }, select: { shippedAt: true } });
   if (!current) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 });
 
+  const hasTrackingValue = !!(
+    parsed.data.trackingNumber ??
+    parsed.data.trackingCarrier ??
+    parsed.data.trackingUrl ??
+    parsed.data.trackingPhotoUrl
+  );
+  if (touchedTracking && hasTrackingValue && !current.shippedAt) {
+    data.shippedAt = new Date();
+  }
+
   const updated = await prisma.order.update({
     where: { id },
-    data: {
-      trackingNumber:   data.trackingNumber   ?? null,
-      trackingCarrier:  data.trackingCarrier  ?? null,
-      trackingUrl:      data.trackingUrl      ?? null,
-      trackingPhotoUrl: data.trackingPhotoUrl ?? null,
-      shippedAt: hasAnyTracking && !current.shippedAt ? new Date() : current.shippedAt,
-    },
+    data,
     include: { items: true },
   });
 
@@ -100,6 +121,23 @@ export async function DELETE(
   if (!auth.authorized) return auth.response;
 
   const { id } = await params;
-  await prisma.order.delete({ where: { id } });
+
+  const order = await prisma.order.findUnique({
+    where: { id },
+    include: { items: true },
+  });
+  if (!order) {
+    return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 });
+  }
+
+  // Eliminar un pedido que aún tenía stock reservado (no entregado ni cancelado)
+  // debe devolver las unidades al inventario para no perder existencias.
+  await prisma.$transaction(async (tx) => {
+    if (shouldRestoreStockOnCancel(order.status, 'Cancelado')) {
+      await restoreOrderStockInTransaction(tx, order.items);
+    }
+    await tx.order.delete({ where: { id } });
+  });
+
   return NextResponse.json({ success: true });
 }

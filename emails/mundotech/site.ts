@@ -1,10 +1,10 @@
 /** URL pública usada en enlaces de correo (productos, cuenta, CTA). */
 export function emailSiteBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://jummper.pro';
+  return process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://mundotech.com.ve';
 }
 
 export function emailContactAddress(): string {
-  return process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || 'ventas@jummper.pro';
+  return process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || 'ventas@mundotech.com.ve';
 }
 
 /** Convierte rutas relativas en absolutas para clientes de correo. */
