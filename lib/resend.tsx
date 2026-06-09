@@ -30,7 +30,7 @@ const BRAND_SENDER_NAME = 'MundoTech';
  */
 function resolveFromAddress(): string {
   const raw = process.env.RESEND_FROM_ADDRESS?.trim();
-  if (!raw) return `${BRAND_SENDER_NAME} <noreply@mundotech.com.ve>`;
+  if (!raw) return `${BRAND_SENDER_NAME} <noreply@jummper.pro>`;
   if (raw.includes('<') && raw.includes('>')) return raw;
   return `${BRAND_SENDER_NAME} <${raw}>`;
 }
