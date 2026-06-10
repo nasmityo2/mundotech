@@ -52,7 +52,7 @@ export default function SearchMobileOverlay({ open, onClose }: Props) {
     if (!query.trim()) return;
     clear();
     onClose();
-    router.push(`/productos?q=${encodeURIComponent(query.trim())}`);
+    router.push(`/buscar?q=${encodeURIComponent(query.trim())}`);
   };
 
   const handleClose = () => {

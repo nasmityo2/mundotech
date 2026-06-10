@@ -84,8 +84,8 @@ export default function NewOrdersWatcher() {
     new Notification(`🛒 ${orders.length} pedido${orders.length !== 1 ? 's' : ''} nuevo${orders.length !== 1 ? 's' : ''}`, {
       body: `${main.customerName} · #${String(main.orderNumber).padStart(4, '0')} · ${formatOrderTotal(main)}`,
       tag: 'mt-new-order',
-      icon: '/logo.png',
-      badge: '/logo.png',
+      icon: '/icon.svg',
+      badge: '/icon.svg',
     });
   };
 

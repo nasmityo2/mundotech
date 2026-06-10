@@ -1,6 +1,18 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
+
+const promotionSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  subtitle: z.string().max(300).nullish(),
+  discountText: z.string().max(60).nullish(),
+  imageUrl: z.string().max(600).nullish(),
+  bgColor: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).optional(),
+  link: z.string().max(400).optional(),
+  active: z.boolean().optional(),
+  order: z.coerce.number().int().min(0).max(99).optional(),
+});
 
 export async function GET(request: Request) {
   try {
@@ -34,7 +46,11 @@ export async function POST(request: Request) {
   if (!auth.authorized) return auth.response;
 
   try {
-    const body = await request.json();
+    const parsed = promotionSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+    const body = parsed.data;
     const promo = await prisma.promotion.create({
       data: {
         title:        body.title,
@@ -44,11 +60,12 @@ export async function POST(request: Request) {
         bgColor:      body.bgColor      ?? '#FFD700',
         link:         body.link         ?? '/productos',
         active:       body.active       ?? true,
-        order:        Number(body.order ?? 1),
+        order:        body.order        ?? 1,
       },
     });
     return NextResponse.json(promo, { status: 201 });
-  } catch {
+  } catch (error) {
+    console.error('[/api/promotions][POST] Error al crear promoción:', error);
     return NextResponse.json({ error: 'Error al crear promoción' }, { status: 500 });
   }
 }

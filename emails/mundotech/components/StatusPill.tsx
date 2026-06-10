@@ -10,7 +10,7 @@ type Tone = 'neutral' | 'success';
  */
 export function StatusPill({ children, tone }: { children: React.ReactNode; tone: Tone }) {
   const bg =
-    tone === 'success' ? 'rgba(72, 187, 120, 0.18)' : 'rgba(148, 163, 184, 0.12)';
+    tone === 'success' ? 'rgba(31, 157, 91, 0.10)' : '#EEF1F6';
   const fg = tone === 'success' ? MT.success : MT.textMuted;
 
   return (

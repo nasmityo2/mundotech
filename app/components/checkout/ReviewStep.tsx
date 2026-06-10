@@ -9,6 +9,7 @@ import { useCart } from '@/context/CartContext';
 import { ShippingFormData } from './ShippingForm';
 import { PaymentFormData } from './PaymentForm';
 import { formatCurrency } from '@/lib/utils';
+import { markCartRecoveredAction } from '@/app/actions/abandonedCartActions';
 
 interface ReviewStepProps {
   shippingData: ShippingFormData | null;
@@ -142,6 +143,13 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
       }
 
       clearCart();
+
+      // Marcar carrito como recuperado (best-effort, no bloquea la redirección)
+      const confirmedEmail = orderPayload.customerEmail;
+      if (confirmedEmail) {
+        markCartRecoveredAction(confirmedEmail).catch(() => {});
+      }
+
       router.push(`/checkout/success?orderId=${body.id}`);
     } catch (err) {
       console.error('[checkout] handleConfirmOrder:', err);

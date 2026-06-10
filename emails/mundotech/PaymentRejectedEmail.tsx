@@ -31,7 +31,7 @@ export function PaymentRejectedEmail({ customerName, orderDisplayId, reason, ord
         <Text style={{ margin: '0 0 8px', fontSize: 16, lineHeight: 1.6, color: MT.textPrimary }}>
           Hola <strong>{customerName}</strong>,
         </Text>
-        <Text style={{ margin: '0 0 14px', fontSize: 18, lineHeight: 1.45, color: '#dc2626', fontWeight: 700 }}>
+        <Text style={{ margin: '0 0 14px', fontSize: 18, lineHeight: 1.45, color: MT.danger, fontWeight: 700 }}>
           No pudimos verificar el pago de tu pedido
         </Text>
         <Text style={{ margin: '0 0 12px', fontSize: 15, lineHeight: 1.7, color: MT.textMuted }}>
@@ -56,8 +56,10 @@ export function PaymentRejectedEmail({ customerName, orderDisplayId, reason, ord
           </Text>
         ) : null}
         <Text style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: MT.textMuted }}>
-          Si crees que se trata de un error o ya realizaste el pago, responde a este correo con tu comprobante y lo
-          revisaremos de inmediato. También puedes volver a realizar tu pedido cuando quieras.
+          Si ya pagaste o crees que es un error, tranquilo: responde a este
+          correo con tu comprobante o escríbenos por WhatsApp al 0412-1471338 y
+          lo revisamos de una vez. También puedes repetir el pedido cuando
+          quieras — el stock vuelve a estar disponible.
         </Text>
       </Section>
 

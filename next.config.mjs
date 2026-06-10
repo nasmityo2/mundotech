@@ -12,6 +12,9 @@ const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy',        value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy',     value: 'camera=(), microphone=(), geolocation=()' },
+  // HSTS: los navegadores lo ignoran sobre HTTP plano, así que es seguro
+  // emitirlo siempre; en producción (HTTPS) fuerza TLS por 1 año.
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
 ];
 
 const nextConfig = {
@@ -35,6 +38,13 @@ const nextConfig = {
         destination: '/icon.svg',
         permanent: false,
       },
+      // Alias en español de páginas legales/informativas (URLs memorables
+      // para clientes locales + evitan 404 desde material impreso).
+      { source: '/privacidad',    destination: '/privacy-policy',   permanent: true },
+      { source: '/terminos',      destination: '/terms-of-service', permanent: true },
+      { source: '/envios',        destination: '/shipping-policy',  permanent: true },
+      { source: '/about',         destination: '/nosotros',         permanent: true },
+      { source: '/quienes-somos', destination: '/nosotros',         permanent: true },
     ];
   },
 

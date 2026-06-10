@@ -6,7 +6,7 @@ import {
   ShoppingBag, Heart, Phone, Mail,
   UserCircle, LogOut, Package, Settings,
   LayoutDashboard, ChevronDown, Menu,
-  ShieldCheck, Truck, Search,
+  Store, Truck, Search,
 } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 import { useCart }     from '../context/CartContext';
@@ -17,7 +17,13 @@ import SearchMobileOverlay from './SearchMobileOverlay';
 import CategoryDrawer     from './layout/CategoryDrawer';
 import { isAdminRole } from '@/lib/is-admin-role';
 
-const Navbar = ({ onCartClick }: { onCartClick: () => void }) => {
+export interface NavbarContact {
+  phone: string;
+  phone2?: string;
+  email: string;
+}
+
+const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: NavbarContact }) => {
   const { data: session }                  = useSession();
   const { cart, isCartLoading, itemAdded } = useCart();
   const { wishlist }                       = useWishlist();
@@ -62,12 +68,14 @@ const Navbar = ({ onCartClick }: { onCartClick: () => void }) => {
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-[1400px]
                           flex justify-between items-center py-2 text-[11px]">
             <div className="flex items-center gap-5">
-              <span className="flex items-center gap-1.5"><Phone size={11} /> 0412-147-1338 · 0414-505-1662</span>
-              <span className="flex items-center gap-1.5"><Mail size={11} /> ventas@mundotech.com.ve</span>
+              <span className="flex items-center gap-1.5">
+                <Phone size={11} /> {contact.phone}{contact.phone2 ? ` · ${contact.phone2}` : ''}
+              </span>
+              <span className="flex items-center gap-1.5"><Mail size={11} /> {contact.email}</span>
             </div>
             <div className="flex items-center gap-4 text-white/80">
-              <span className="flex items-center gap-1.5"><ShieldCheck size={11} className="text-brand-yellow" /> Garantía oficial</span>
-              <span className="hidden md:flex items-center gap-1.5"><Truck size={11} className="text-brand-yellow" /> Envío seguro</span>
+              <span className="flex items-center gap-1.5"><Store size={11} className="text-brand-yellow" /> Tienda física: C.C. Minicentro 34, Barquisimeto</span>
+              <span className="hidden md:flex items-center gap-1.5"><Truck size={11} className="text-brand-yellow" /> Delivery en Barquisimeto en 24h</span>
             </div>
           </div>
         </div>

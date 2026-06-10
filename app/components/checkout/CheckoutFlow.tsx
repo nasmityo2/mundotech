@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSession } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ShieldCheck, Lock } from 'lucide-react';
 
@@ -13,6 +14,8 @@ import ReviewStep from '@/app/components/checkout/ReviewStep';
 import { useCart } from '@/context/CartContext';
 import { formatCurrency } from '@/lib/utils';
 import type { StoreSettings } from '@/lib/data-store';
+import { saveCartSnapshotAction } from '@/app/actions/abandonedCartActions';
+import type { AbandonedCartItem } from '@/lib/definitions';
 
 interface CheckoutFlowProps {
   pagoMovil: StoreSettings['pagoMovil'];
@@ -26,6 +29,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia }: CheckoutFlowProps) => {
   const [paymentData, setPaymentData]   = useState<PaymentFormData  | null>(null);
 
   const { cart, getCartTotal, isCartLoading } = useCart();
+  const { data: session } = useSession();
   const subtotal = getCartTotal();
   const total    = subtotal;
 
@@ -33,6 +37,20 @@ const CheckoutFlow = ({ pagoMovil, transferencia }: CheckoutFlowProps) => {
     setShippingData(data);
     setDirection(1);
     setCurrentStep(1);
+
+    // Guardar snapshot de carrito abandonado (best-effort, no bloquea el flujo)
+    if (data.email && cart.length > 0) {
+      const items: AbandonedCartItem[] = cart.map((item) => ({
+        id:       item.id,
+        name:     item.name,
+        slug:     item.slug ?? item.id,
+        price:    item.price,
+        quantity: item.quantity,
+        image:    item.image ?? item.images?.[0] ?? null,
+      }));
+      const userId = (session?.user as { id?: string })?.id ?? null;
+      saveCartSnapshotAction(data.email.trim(), userId, items, subtotal).catch(() => {});
+    }
   };
 
   const handlePaymentSubmit = (data: PaymentFormData) => {
@@ -176,9 +194,9 @@ const CheckoutFlow = ({ pagoMovil, transferencia }: CheckoutFlowProps) => {
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
-              <ShieldCheck size={11} className="text-emerald-500" />
-              SSL 256-bit · CSRF activo
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 text-center">
+              <ShieldCheck size={11} className="text-emerald-500 flex-shrink-0" />
+              ¿Dudas con tu pago? Escríbenos al 0412-1471338 y te acompañamos.
             </div>
           </div>
         </aside>

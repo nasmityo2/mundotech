@@ -23,28 +23,30 @@ export function WelcomeEmail({ customerName }: Props) {
 
   return (
     <MundoTechShell
-      preview="Bienvenido a MundoTech — tecnología premium en Barquisimeto."
+      preview="¡Bienvenido a MundoTech! La tienda del letrero amarillo, ahora en tu correo."
       title="Bienvenido a MundoTech"
       heroCustomerName={customerName}
     >
       <Section style={{ padding: '12px 24px 8px', fontFamily: fontSans }}>
         <Text style={{ margin: '0 0 12px', fontSize: 20, fontWeight: 700, color: MT.textPrimary }}>
-          Bienvenido a MundoTech
+          ¡Bienvenido a la familia MundoTech!
         </Text>
         <Text style={{ margin: 0, fontSize: 16, lineHeight: 1.6, color: MT.textPrimary }}>
           Hola <strong>{customerName}</strong>,
         </Text>
         <Text style={{ margin: '16px 0 0', fontSize: 15, lineHeight: 1.75, color: MT.textMuted }}>
-          Gracias por registrarte. Somos tu tienda de tecnología en{' '}
-          <strong style={{ color: MT.textPrimary }}>Barquisimeto</strong>: stock real, soporte cercano y
-          pedidos con respaldo.
+          Gracias por crear tu cuenta. Somos la tienda del letrero amarillo en el{' '}
+          <strong style={{ color: MT.textPrimary }}>C.C. Minicentro 34 de Barquisimeto</strong>:
+          tecnología, variedades y los productos virales del momento, con stock
+          real y atención de gente de verdad.
         </Text>
         <Text style={{ margin: '16px 0 0', fontSize: 15, lineHeight: 1.75, color: MT.textMuted }}>
-          Explora nuestro catálogo y compra con la tranquilidad de una marca local seria.
+          Con tu cuenta puedes seguir tus pedidos, guardar favoritos y pagar como
+          pagamos aquí: Pago Móvil, transferencia o Binance, en bolívares o dólares.
         </Text>
       </Section>
 
-      <PrimaryCta href={shopUrl} label="Explorar tienda" />
+      <PrimaryCta href={shopUrl} label="Explorar todo el catálogo" />
 
       {socialLinks.length > 0 ? (
         <Section style={{ padding: '8px 24px 28px', textAlign: 'center', fontFamily: fontSans }}>
@@ -65,8 +67,8 @@ export function WelcomeEmail({ customerName }: Props) {
                 <Link
                   href={l.url}
                   style={{
-                    color: MT.gold,
-                    fontWeight: 600,
+                    color: MT.goldText,
+                    fontWeight: 700,
                     textDecoration: 'none',
                     margin: '0 8px',
                   }}

@@ -3,12 +3,38 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ArrowRight, Tag } from 'lucide-react';
+import { ArrowRight, Tag, MapPin } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import type { HeroBannerRow } from '@/app/components/Hero';
+
+/** Fila del modelo Banner (type: 'hero') tal como llega de Prisma. */
+export interface HeroBannerRow {
+  id:       string;
+  imageUrl: string;
+  title:    string | null;
+  subtitle: string | null;
+  label:    string | null;
+  ctaText:  string | null;
+  tagText:  string | null;
+  link:     string | null;
+}
+
+/** Contenido editable desde /admin/personalizar. */
+export interface HeroFallbackContent {
+  badge: string;
+  title: string;
+  subtitle: string;
+  ctaText: string;
+  ctaLink: string;
+  imageUrl: string;
+}
+
+export interface BrandStripContent {
+  enabled: boolean;
+  slogan: string;
+  note: string;
+}
 
 type Slide = {
-  variant: 'welcome' | 'standard';
   badge: string;
   title: string;
   sub: string;
@@ -20,7 +46,6 @@ type Slide = {
 
 function toSlide(b: HeroBannerRow): Slide {
   return {
-    variant: b.title ? 'standard' : 'welcome',
     badge: b.label ?? '',
     title: b.title ?? '',
     sub: b.subtitle ?? '',
@@ -31,27 +56,10 @@ function toSlide(b: HeroBannerRow): Slide {
   };
 }
 
-const US = (id: string, w = 2400) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=max&w=${w}&q=95`;
-
-const FALLBACK_SLIDES: Slide[] = [
-  {
-    variant: 'welcome',
-    badge: 'Barquisimeto · Venezuela',
-    title: '',
-    sub:
-      'Tu tienda de tecnología en el C.C. Minicentro 34, Calle 22: gadgets, audio y accesorios. Envío seguro y garantía oficial.',
-    cta: 'Ver catálogo',
-    href: '/productos',
-    img: US('photo-1550745165-9bc0b252726f'),
-    tag: '',
-  },
-];
-
 function BadgePill({ label }: { label: string }) {
   if (!label.trim()) return null;
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md border border-[#E6C200] bg-[#FFD700] px-2.5 py-1 text-[10px] sm:text-[11px] font-bold text-[#0B0B0B] antialiased">
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-[#E6C200] bg-[#FFD700] px-2.5 py-1 text-[10px] sm:text-[11px] font-bold text-[#0B1220] antialiased">
       <Tag size={11} aria-hidden />
       {label}
     </span>
@@ -59,12 +67,51 @@ function BadgePill({ label }: { label: string }) {
 }
 
 /**
- * Hero adaptable: stack vertical en móvil, horizontal en desktop. Sin overflow.
+ * Resalta la última palabra del título en amarillo de marca
+ * ("CONECTADOS CONTIGO" → CONTIGO dorado, como en el letrero físico).
  */
-export default function HomeHeroCyber({ slides: dbSlides }: { slides?: HeroBannerRow[] }) {
+function AccentTitle({ title }: { title: string }) {
+  const words = title.trim().split(/\s+/);
+  if (words.length < 2) return <>{title}</>;
+  const last = words.pop();
+  return (
+    <>
+      {words.join(' ')} <span className="text-[#FFD700]">{last}</span>
+    </>
+  );
+}
+
+/**
+ * Hero principal. Las slides vienen del admin (/admin/banners); si no hay,
+ * usa el contenido de respaldo editable en /admin/personalizar. La franja
+ * inferior lleva el slogan real de la tienda y es visible siempre.
+ */
+export default function HomeHeroCyber({
+  slides: dbSlides,
+  fallback,
+  brandStrip,
+}: {
+  slides?: HeroBannerRow[];
+  fallback: HeroFallbackContent;
+  brandStrip: BrandStripContent;
+}) {
   const fromDatabase = Boolean(dbSlides && dbSlides.length > 0);
   const slides: Slide[] =
-    fromDatabase && dbSlides ? dbSlides.map(toSlide) : FALLBACK_SLIDES;
+    fromDatabase && dbSlides
+      ? dbSlides.map(toSlide)
+      : [
+          {
+            badge: fallback.badge,
+            title: fallback.title,
+            sub: fallback.subtitle,
+            cta: fallback.ctaText || 'Explorar todo el catálogo',
+            href: fallback.ctaLink || '/productos',
+            // Sin foto stock genérica: si el admin no subió imagen, el fondo
+            // es el panel de marca (navy + trazas doradas del logo).
+            img: fallback.imageUrl.trim(),
+            tag: '',
+          },
+        ];
 
   const [active, setActive] = useState(0);
 
@@ -83,34 +130,41 @@ export default function HomeHeroCyber({ slides: dbSlides }: { slides?: HeroBanne
     Boolean(slide.title?.trim());
 
   const altText =
-    slide.variant === 'welcome' && !slide.title.trim()
-      ? 'MundoTech — bienvenida'
-      : slide.title.replace(/\n/g, ' ') || slide.badge || 'Banner MundoTech';
+    slide.title.replace(/\n/g, ' ') || slide.badge || 'MundoTech — Conectados Contigo';
 
   return (
-    <section className="relative w-full max-w-full overflow-hidden rounded-none bg-[#0B0B0B] antialiased shadow-[0_18px_45px_-16px_rgba(0,0,0,0.28)] ring-0 sm:rounded-2xl sm:ring-1 sm:ring-black/10">
+    <section className="relative w-full max-w-full overflow-hidden rounded-none bg-[#0B1220] antialiased shadow-[0_18px_45px_-16px_rgba(11,18,32,0.28)] ring-0 sm:rounded-2xl sm:ring-1 sm:ring-black/10">
       <div className="relative w-full h-[260px] xs:h-[280px] sm:h-[320px] md:h-[380px] lg:h-[420px] xl:h-[460px]">
-        <Image
-          key={`hero-${slide.img}-${active}`}
-          src={slide.img}
-          alt={altText}
-          fill
-          priority={active === 0}
-          fetchPriority={active === 0 ? 'high' : 'auto'}
-          quality={90}
-          sizes="(max-width: 640px) 100vw, (max-width: 1400px) 100vw, 1400px"
-          className="object-cover object-center"
-        />
+        {slide.img ? (
+          <Image
+            key={`hero-${slide.img}-${active}`}
+            src={slide.img}
+            alt={altText}
+            fill
+            priority={active === 0}
+            fetchPriority={active === 0 ? 'high' : 'auto'}
+            quality={90}
+            sizes="(max-width: 640px) 100vw, (max-width: 1400px) 100vw, 1400px"
+            className="object-cover object-center"
+          />
+        ) : (
+          /* Panel de marca: el "letrero" de la tienda cuando no hay foto */
+          <div className="absolute inset-0" aria-hidden>
+            <div className="absolute inset-0 circuit-bg" />
+            <div className="absolute -top-24 -right-16 h-[340px] w-[340px] rounded-full bg-[#FFD700]/10 blur-3xl" />
+            <div className="absolute bottom-0 left-0 h-px w-full bg-gradient-to-r from-transparent via-[#FFD700]/40 to-transparent" />
+          </div>
+        )}
 
-        {showCopy && (
+        {showCopy && slide.img && (
           <div
-            className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-black/85 via-black/55 to-black/15 sm:bg-gradient-to-r sm:from-black/75 sm:via-black/40 sm:to-transparent"
+            className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-[#0B1220]/90 via-[#0B1220]/55 to-[#0B1220]/15 sm:bg-gradient-to-r sm:from-[#0B1220]/80 sm:via-[#0B1220]/40 sm:to-transparent"
             aria-hidden
           />
         )}
 
         {slide.tag?.trim() ? (
-          <span className="absolute right-3 top-3 sm:right-5 sm:top-5 z-[2] rounded-md border border-[#E6C200] bg-[#FFD700] px-2 py-1 text-[10px] sm:text-[11px] font-bold text-[#0B0B0B] shadow-lg">
+          <span className="absolute right-3 top-3 sm:right-5 sm:top-5 z-[2] rounded-md border border-[#E6C200] bg-[#FFD700] px-2 py-1 text-[10px] sm:text-[11px] font-bold text-[#0B1220] shadow-lg">
             {slide.tag}
           </span>
         ) : null}
@@ -118,7 +172,7 @@ export default function HomeHeroCyber({ slides: dbSlides }: { slides?: HeroBanne
         {/* Fallback h1 for screen readers when the hero has no visible copy */}
         {!showCopy && (
           <h1 className="sr-only">
-            Mundo Tech: Conectados Contigo · tecnología en Barquisimeto · gadgets y accesorios
+            MundoTech: Conectados Contigo · tecnología y variedades en Barquisimeto
           </h1>
         )}
 
@@ -135,15 +189,11 @@ export default function HomeHeroCyber({ slides: dbSlides }: { slides?: HeroBanne
 
               {slide.title.trim() ? (
                 <h1 className="mt-2 text-balance text-[1.4rem] xs:text-[1.55rem] sm:text-[1.85rem] md:text-[2rem] lg:text-[2.15rem] xl:text-[2.35rem] font-bold leading-[1.12] tracking-tight text-white whitespace-pre-line drop-shadow-[0_2px_22px_rgba(0,0,0,0.55)]">
-                  {slide.title}
-                </h1>
-              ) : !fromDatabase && slide.variant === 'welcome' ? (
-                <h1 className="mt-2 text-balance text-[1.4rem] xs:text-[1.55rem] sm:text-[1.85rem] md:text-[2rem] lg:text-[2.15rem] xl:text-[2.35rem] font-bold leading-[1.12] tracking-tight text-white drop-shadow-[0_2px_22px_rgba(0,0,0,0.55)]">
-                  ¡BIENVENIDOS A <span className="text-[#FFD700]">MUNDOTECH</span>!
+                  {fromDatabase ? slide.title : <AccentTitle title={slide.title} />}
                 </h1>
               ) : (
                 <h1 className="sr-only">
-                  Mundo Tech: Conectados Contigo · tecnología en Barquisimeto · gadgets y accesorios
+                  MundoTech: Conectados Contigo · tecnología y variedades en Barquisimeto
                 </h1>
               )}
 
@@ -161,10 +211,10 @@ export default function HomeHeroCyber({ slides: dbSlides }: { slides?: HeroBanne
                   {slide.cta} <ArrowRight size={16} strokeWidth={2.5} aria-hidden />
                 </Link>
                 <Link
-                  href="/productos"
+                  href="/nosotros"
                   className="hidden xs:inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-white/35 bg-white/10 px-4 sm:px-5 text-[13px] sm:text-sm font-semibold text-white backdrop-blur-sm transition-all duration-300 active:scale-[0.97] hover:border-[#FFD700]/45 hover:bg-white/15"
                 >
-                  Ver catálogo
+                  Conoce la tienda
                 </Link>
               </div>
             </motion.div>
@@ -187,6 +237,27 @@ export default function HomeHeroCyber({ slides: dbSlides }: { slides?: HeroBanne
           </div>
         ) : null}
       </div>
+
+      {/* Franja de marca: el slogan del letrero físico, visible siempre */}
+      {brandStrip.enabled && brandStrip.slogan.trim() ? (
+        <div className="relative border-t border-[#FFD700]/25 bg-[#0B1220]">
+          <div className="absolute inset-0 circuit-bg opacity-40" aria-hidden />
+          <div className="relative flex items-center justify-center gap-2.5 px-4 py-2.5 sm:py-3 text-center">
+            <span className="text-[11px] sm:text-[12.5px] font-black uppercase tracking-[0.22em] text-[#FFD700]">
+              {brandStrip.slogan}
+            </span>
+            {brandStrip.note.trim() ? (
+              <>
+                <span className="hidden sm:inline text-white/25" aria-hidden>·</span>
+                <span className="hidden sm:inline-flex items-center gap-1.5 text-[11.5px] font-medium text-white/65">
+                  <MapPin size={11} className="text-[#FFD700]/70" aria-hidden />
+                  {brandStrip.note}
+                </span>
+              </>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

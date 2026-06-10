@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { ShoppingCart, Zap, Minus, Plus, Heart, Check } from 'lucide-react';
+import { useState, useTransition } from 'react';
+import { ShoppingCart, Zap, Minus, Plus, Heart, Check, Bell, BellOff, Loader2 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { stashLoginRedirectForPathname } from '@/lib/auth-path';
+import { subscribeRestockAction } from '@/app/actions/restockActions';
 
 interface Product {
   id: string;
@@ -25,9 +26,15 @@ export default function ProductActions({ product }: { product: Product }) {
   const { addToCart, silentAddToCart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const router = useRouter();
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const [qty, setQty] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
+
+  // Restock form state
+  const [restockEmail, setRestockEmail]     = useState('');
+  const [restockStatus, setRestockStatus]   = useState<'idle' | 'success' | 'error'>('idle');
+  const [restockMessage, setRestockMessage] = useState('');
+  const [isPending, startTransition]        = useTransition();
 
   const isOut = product.stock === 0;
   const max   = Math.min(product.stock, 10);
@@ -58,6 +65,22 @@ export default function ProductActions({ product }: { product: Product }) {
     } else {
       addToWishlist(product as never);
     }
+  };
+
+  const handleRestockSubscribe = (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = restockEmail.trim() || session?.user?.email?.trim() || '';
+    if (!email) {
+      setRestockStatus('error');
+      setRestockMessage('Ingresa tu email para recibir el aviso.');
+      return;
+    }
+    startTransition(async () => {
+      const result = await subscribeRestockAction(email, product.id);
+      setRestockStatus(result.success ? 'success' : 'error');
+      setRestockMessage(result.message);
+      if (result.success) setRestockEmail('');
+    });
   };
 
   return (
@@ -121,28 +144,82 @@ export default function ProductActions({ product }: { product: Product }) {
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={handleAdd}
-          disabled={isOut}
-          className={`w-full inline-flex items-center justify-center gap-2 min-h-[48px] rounded-2xl text-sm font-semibold transition-all border active:scale-[0.98] ${
-            justAdded
-              ? 'bg-emerald-500 text-white border-emerald-500'
-              : 'bg-white text-navy border-navy/15 hover:border-navy hover:bg-slate-50'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
-        >
-          {justAdded ? (
-            <>
-              <Check size={16} /> Agregado al carrito
-            </>
-          ) : (
-            <>
-              <ShoppingCart size={16} />
-              {isOut ? 'Producto agotado' : 'Agregar al carrito'}
-            </>
-          )}
-        </button>
+        {!isOut && (
+          <button
+            type="button"
+            onClick={handleAdd}
+            className={`w-full inline-flex items-center justify-center gap-2 min-h-[48px] rounded-2xl text-sm font-semibold transition-all border active:scale-[0.98] ${
+              justAdded
+                ? 'bg-emerald-500 text-white border-emerald-500'
+                : 'bg-white text-navy border-navy/15 hover:border-navy hover:bg-slate-50'
+            }`}
+          >
+            {justAdded ? (
+              <>
+                <Check size={16} /> ¡Ya está en tu carrito!
+              </>
+            ) : (
+              <>
+                <ShoppingCart size={16} /> ¡Me lo llevo!
+              </>
+            )}
+          </button>
+        )}
       </div>
+
+      {/* ── Formulario "Avísame cuando haya stock" ── */}
+      {isOut && (
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          {restockStatus === 'success' ? (
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                <BellOff size={16} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-navy">¡Listo! Te avisaremos.</p>
+                <p className="mt-0.5 text-xs text-slate-500">{restockMessage}</p>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleRestockSubscribe} className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <Bell size={16} className="flex-shrink-0 text-amber-500" />
+                <p className="text-sm font-semibold text-navy">
+                  Avísame cuando esté disponible
+                </p>
+              </div>
+              <p className="text-xs text-slate-500">
+                Te escribimos por email apenas vuelva a la tienda. Sin spam, solo el aviso.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={restockEmail || (session?.user?.email ?? '')}
+                  onChange={(e) => setRestockEmail(e.target.value)}
+                  placeholder="tu@email.com"
+                  required
+                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-navy placeholder-slate-400 outline-none focus:border-navy focus:ring-1 focus:ring-navy/20 disabled:opacity-60"
+                  disabled={isPending}
+                />
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="inline-flex min-w-[80px] items-center justify-center gap-1.5 rounded-xl bg-navy px-4 py-2.5 text-xs font-bold text-white transition-all hover:bg-navy/90 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isPending ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    'Avisar'
+                  )}
+                </button>
+              </div>
+              {restockStatus === 'error' && (
+                <p className="text-xs text-rose-600">{restockMessage}</p>
+              )}
+            </form>
+          )}
+        </div>
+      )}
     </>
   );
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useTransition, useCallback } from 'react';
-import { searchProducts, type SearchResult } from '@/app/actions/search';
+import { searchProducts } from '@/app/actions/search';
+import type { SearchResult } from '@/lib/search-shared';
 
 function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);

@@ -9,10 +9,14 @@ export default function SidebarDesktop() {
 
   return (
     <aside className="hidden md:flex md:w-60 lg:w-64 bg-white border-r border-gray-200 flex-col flex-shrink-0 sticky top-0 h-screen">
-      <div className="p-5 border-b border-gray-100 flex-shrink-0">
+      <div className="p-5 border-b border-gray-100 flex-shrink-0 bg-navy">
         <Link href="/admin" className="block">
-          <h1 className="text-xl font-black text-navy tracking-tight">MundoTech</h1>
-          <p className="text-[11px] text-gray-400 mt-0.5 uppercase tracking-wider">Admin</p>
+          <h1 className="text-xl font-black tracking-tight text-white">
+            Mundo<span className="text-brand-yellow">Tech</span>
+          </h1>
+          <p className="text-[10px] text-brand-yellow/90 mt-0.5 uppercase tracking-[0.2em] font-bold">
+            Conectados Contigo
+          </p>
         </Link>
       </div>
 
@@ -39,7 +43,7 @@ export default function SidebarDesktop() {
                       <span className="truncate flex-1">{item.label}</span>
                       {item.badge === 'new' && (
                         <span className="text-[9px] font-black uppercase bg-brand-yellow text-navy px-1.5 py-0.5 rounded">
-                          new
+                          nuevo
                         </span>
                       )}
                     </Link>
@@ -58,6 +62,9 @@ export default function SidebarDesktop() {
         >
           ← Volver a la tienda
         </Link>
+        <p className="px-2 pt-1 text-[10px] leading-relaxed text-gray-300">
+          C.C. Minicentro 34 · Barquisimeto
+        </p>
       </div>
     </aside>
   );

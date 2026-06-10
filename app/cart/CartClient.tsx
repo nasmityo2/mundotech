@@ -243,8 +243,8 @@ const CartClient = () => {
               {/* Trust strip */}
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-5 space-y-3">
                 {[
-                  { icon: ShieldCheck, label: 'Pago 100% seguro', sub: 'Conexión cifrada SSL' },
-                  { icon: Truck,       label: 'Envío trackeable', sub: 'Despacho en 24-48 hs' },
+                  { icon: ShieldCheck, label: 'Pago Móvil · Transferencia · Binance', sub: 'Verificamos tu pago y te confirmamos por correo' },
+                  { icon: Truck,       label: 'Delivery en Barquisimeto en 24h',      sub: 'Y a todo el país por MRW o Zoom' },
                 ].map((trust) => (
                   <div key={trust.label} className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">

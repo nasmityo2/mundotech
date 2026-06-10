@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import { normalizePostgresUrlForNodePg } from '@/lib/normalize-postgres-url-for-node-pg';
+import '@/lib/env-validation';
 
 declare global {
   // allow global `var` declarations

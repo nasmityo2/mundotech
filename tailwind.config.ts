@@ -48,7 +48,7 @@ const config: Config = {
         border:         '#E2E8F0',
       },
       fontFamily: {
-        sans: ['Jost', 'Arial', 'Helvetica', 'sans-serif'],
+        sans: ['var(--font-jost)', 'Jost', 'Arial', 'Helvetica', 'sans-serif'],
       },
       letterSpacing: {
         tightest: '-0.04em',

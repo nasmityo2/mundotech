@@ -1,0 +1,36 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { requireUser } from '@/lib/api-auth';
+import { mergeCart } from '@/lib/cart';
+
+const bodySchema = z.object({
+  items: z.array(
+    z.object({
+      productId: z.string().min(1),
+      quantity: z.number().int().min(1),
+    }),
+  ),
+});
+
+/**
+ * POST /api/cart/merge
+ * Fusiona el carrito de localStorage con el carrito en BD al hacer login.
+ * Devuelve el carrito resultante enriquecido con datos de producto actualizados.
+ */
+export async function POST(request: Request) {
+  const auth = await requireUser();
+  if (!auth.authorized) return auth.response;
+
+  try {
+    const body = await request.json();
+    const { items } = bodySchema.parse(body);
+    const merged = await mergeCart(auth.session.user.id, items);
+    return NextResponse.json({ items: merged });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Datos inválidos.', details: error.issues }, { status: 400 });
+    }
+    console.error('[POST /api/cart/merge]', error);
+    return NextResponse.json({ error: 'Error al fusionar el carrito.' }, { status: 500 });
+  }
+}

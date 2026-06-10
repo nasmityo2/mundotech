@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Jost } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 import AuthProvider from "./components/AuthProvider";
@@ -10,13 +11,25 @@ import AppContent from "./AppContent";
 import Footer from "./components/Footer";
 import AppLayoutShell from "./components/AppLayoutShell";
 import AnnouncementBar from "./components/AnnouncementBar";
+import WhatsAppFab from "./components/WhatsAppFab";
+import PromoPopup from "./components/PromoPopup";
+import CookieConsent from "./components/CookieConsent";
 import { Toaster } from "@/components/ui/Toaster";
 import { readSeoLocal, buildLocalBusinessSchema } from "@/lib/seo-local";
 import { readSettings } from "@/lib/data-store";
 import { readAnnouncement } from "@/lib/announcement";
+import { readSiteContent } from "@/lib/site-content";
 import { googleMapsBusinessUrl } from "@/lib/google-maps";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mundotech.com.ve";
+
+// Jost es la tipografía de marca declarada en el sistema de diseño; antes se
+// referenciaba en CSS sin cargarse nunca (el sitio caía a Arial en silencio).
+const jost = Jost({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-jost",
+});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -48,6 +61,9 @@ export const metadata: Metadata = {
   creator: "MundoTech",
   publisher: "MundoTech",
   alternates: { canonical: SITE_URL },
+  // La imagen og:image / twitter:image la inyecta automáticamente
+  // app/opengraph-image.tsx (generada con la marca; el antiguo
+  // /og-default.jpg no existía y rompía las previews sociales).
   openGraph: {
     type: "website",
     locale: "es_VE",
@@ -56,21 +72,12 @@ export const metadata: Metadata = {
     title: "MundoTech — Tecnología en Barquisimeto, Venezuela",
     description:
       "Tecnología y gadgets en Barquisimeto. USD/Bs., garantía oficial y envío seguro.",
-    images: [
-      {
-        url: `${SITE_URL}/og-default.jpg`,
-        width: 1200,
-        height: 630,
-        alt: "MundoTech — Tecnología en Barquisimeto",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "MundoTech — Tecnología en Barquisimeto, Venezuela",
     description:
       "Tecnología y gadgets en Barquisimeto. Garantía oficial y envío seguro.",
-    images: [`${SITE_URL}/og-default.jpg`],
   },
   robots: {
     index: true,
@@ -105,11 +112,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Datos vivos editables desde /admin/settings/seo-local y /admin/settings.
-  const [seo, settings, announcement, headersList] = await Promise.all([
+  // Datos vivos editables desde /admin/settings/seo-local, /admin/settings
+  // y /admin/personalizar.
+  const [seo, settings, announcement, siteContent, headersList] = await Promise.all([
     readSeoLocal(),
     readSettings(),
     readAnnouncement(),
+    readSiteContent(),
     headers(),
   ]);
   // Nonce generado por middleware para CSP strict-dynamic (sin unsafe-inline en script-src).
@@ -139,8 +148,8 @@ export default async function RootLayout({
     "@type": "Organization",
     name: settings.storeName,
     url: SITE_URL,
-    logo: `${SITE_URL}/logo.png`,
-    image: `${SITE_URL}/og-default.jpg`,
+    logo: `${SITE_URL}/opengraph-image`,
+    image: `${SITE_URL}/opengraph-image`,
     ...(settings.email ? { email: settings.email } : {}),
     ...(settings.phone
       ? {
@@ -157,7 +166,7 @@ export default async function RootLayout({
   };
 
   return (
-    <html lang="es" data-scroll-behavior="smooth">
+    <html lang="es" data-scroll-behavior="smooth" className={jost.variable}>
       <body className="bg-surface-sunken text-navy antialiased nums" suppressHydrationWarning>
         <script
           nonce={nonce}
@@ -186,11 +195,25 @@ export default async function RootLayout({
                   */}
                   <div className="flex min-h-[100dvh] flex-col w-full max-w-full overflow-x-hidden">
                     <AnnouncementBar data={announcement} />
-                    <AppContent />
+                    <AppContent
+                      contact={{
+                        phone: settings.phone,
+                        phone2: settings.phone2,
+                        email: settings.email,
+                      }}
+                    />
                     <AppLayoutShell footer={<Footer />}>
                       {children}
                     </AppLayoutShell>
                   </div>
+                  {siteContent.whatsapp.enabled ? (
+                    <WhatsAppFab
+                      phone={siteContent.whatsapp.phone}
+                      message={siteContent.whatsapp.message}
+                    />
+                  ) : null}
+                  <PromoPopup popup={siteContent.popup} />
+                  <CookieConsent />
                 </ExchangeRateProvider>
               </ProductProvider>
             </WishlistProvider>

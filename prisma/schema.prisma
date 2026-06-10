@@ -6,32 +6,26 @@ datasource db {
   provider = "postgresql"
 }
 
-// ─────────────────────────────────────────────────────────────
-// CATÁLOGO
-// ─────────────────────────────────────────────────────────────
-enum ProductMediaType {
-  IMAGE
-  VIDEO
-}
-
 model Product {
-  id            String   @id @default(cuid())
+  id            String         @id @default(cuid())
   name          String
-  slug          String?  @unique
-  sku           String?  @unique
+  slug          String?        @unique
+  sku           String?        @unique
   description   String?
   price         Float
   originalPrice Float?
-  stock         Int      @default(0)
+  stock         Int            @default(0)
   category      String
   brand         String?
   images        String[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  views         ProductView[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  /// * Especificaciones técnicas: [{ name: string, value: string }]. Null = sin specs cargadas.
+  specs         Json?
   media         ProductMedia[]
+  views         ProductView[]
   reviews       Review[]
+  cartItems     CartItem[]
 
   @@index([slug])
   @@index([category])
@@ -39,13 +33,13 @@ model Product {
 }
 
 model ProductMedia {
-  id         String           @id @default(cuid())
-  productId  String
-  product    Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
-  type       ProductMediaType
-  url        String
-  posterUrl  String?
-  sortOrder  Int              @default(0)
+  id        String           @id @default(cuid())
+  productId String
+  type      ProductMediaType
+  url       String
+  posterUrl String?
+  sortOrder Int              @default(0)
+  product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId, sortOrder])
 }
@@ -87,7 +81,7 @@ model Banner {
   subtitle  String?
   label     String?
   ctaText   String?
-  tagText   String?   
+  tagText   String?
   link      String?  @default("/productos")
   active    Boolean  @default(true)
   order     Int      @default(0)
@@ -97,93 +91,102 @@ model Banner {
   @@index([type, active])
 }
 
-// ─────────────────────────────────────────────────────────────
-// USUARIOS
-// ─────────────────────────────────────────────────────────────
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String?
-  role      String   @default("client")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  password            String
+  name                String?
+  role                String               @default("client")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  orders              Order[]
+  passwordResetTokens PasswordResetToken[]
+  reviews             Review[]
+  savedAddresses      SavedAddress[]
+  abandonedCarts      AbandonedCart[]
+  cart                Cart?
+}
 
-  orders               Order[]
-  passwordResetTokens  PasswordResetToken[]
-  reviews              Review[]
+// ─────────────────────────────────────────────────────────────────────────────
+// LIBRO DE DIRECCIONES
+// ─────────────────────────────────────────────────────────────────────────────
+model SavedAddress {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  alias          String
+  firstName      String
+  lastName       String
+  idNumber       String
+  phoneNumber    String
+  shippingMethod String   @default("tienda")
+  mrwState       String?
+  mrwOffice      String?
+  isDefault      Boolean  @default(false)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model PasswordResetToken {
   id        String   @id @default(cuid())
   token     String   @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
-// ─────────────────────────────────────────────────────────────
-// PEDIDOS
-// ─────────────────────────────────────────────────────────────
 model Order {
-  id              String      @id @default(cuid())
-  orderNumber     Int         @default(autoincrement()) @unique
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-
-  customerId      String?
-  customer        User?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  customerName    String
-  customerEmail   String?
-  customerPhone   String?
-
-  items           OrderItem[]
-
-  total           Float
-  /** Tasa Bs/USD usada al crear el pedido. Si es null, `total` e ítems están en USD (pedidos antiguos). */
-  exchangeRateUsdBs Float?
-  status          String      @default("Pendiente")
-  paymentMethod   String
-
-  shippingAddress String
-  shippingCity    String
-  shippingState   String
-  shippingZipCode String      @default("N/A")
-  shippingCountry String      @default("Venezuela")
-
-  customerIdNumber    String?
-  paymentBank         String?
-  paymentHolderIdNumber String?
-  paymentHolderPhone  String?
-  paymentReference    String?
-  paymentProofUrl     String?
-
-  // Tracking de envío (opcional, se setea cuando el pedido pasa a "Enviado")
-  trackingNumber   String?
-  trackingCarrier  String?
-  trackingPhotoUrl String?
-  trackingUrl      String?
-  shippedAt        DateTime?
-  /** Fecha en que se validó el pago (Validar Pago / equivalente). Para reportes por día de cobro. */
-  paidAt           DateTime?
-
-  // Cupón aplicado (descuento calculado en el servidor, congelado en Bs).
-  /** Código del cupón aplicado al pedido (en mayúsculas). Null si no se usó cupón. */
-  couponCode       String?
-  /** Descuento aplicado por el cupón, en Bs (misma moneda que `total`). */
-  couponDiscount   Float?
-
-  // Auditoría de verificación de pago (quién validó/rechazó y por qué).
-  /** Email del admin que validó o rechazó el pago. Para trazabilidad. */
-  paymentVerifiedBy      String?
-  /** Motivo de rechazo del pago, si el pedido fue cancelado por pago no válido. */
+  id                     String            @id @default(cuid())
+  orderNumber            Int               @unique @default(autoincrement())
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  customerId             String?
+  customerName           String
+  customerEmail          String?
+  customerPhone          String?
+  total                  Float
+  status                 String            @default("Pendiente")
+  paymentMethod          String
+  shippingAddress        String
+  shippingCity           String
+  shippingState          String
+  shippingZipCode        String            @default("N/A")
+  shippingCountry        String            @default("Venezuela")
+  customerIdNumber       String?
+  paymentBank            String?
+  paymentHolderIdNumber  String?
+  paymentHolderPhone     String?
+  paymentReference       String?
+  paymentProofUrl        String?
+  notes                  String?
+  shippedAt              DateTime?
+  trackingCarrier        String?
+  trackingNumber         String?
+  trackingPhotoUrl       String?
+  trackingUrl            String?
+  /// * Tasa Bs/USD usada al crear el pedido. Si es null, `total` e ítems están en USD (pedidos antiguos).
+  exchangeRateUsdBs      Float?
+  /// * Fecha en que se validó el pago (Validar Pago / equivalente). Para reportes por día de cobro.
+  paidAt                 DateTime?
+  /// /** Código del cupón aplicado al pedido (en mayúsculas). Null si no se usó cupón.
+  couponCode             String?
+  /// * Descuento aplicado por el cupón, en Bs (misma moneda que `total`).
+  couponDiscount         Float?
+  /// * Motivo de rechazo del pago, si el pedido fue cancelado por pago no válido.
   paymentRejectionReason String?
+  /// /** Email del admin que validó o rechazó el pago. Para trazabilidad.
+  paymentVerifiedBy      String?
+  couponRedemption       CouponRedemption?
+  customer               User?             @relation(fields: [customerId], references: [id])
+  items                  OrderItem[]
 
-  notes           String?
-  couponRedemption CouponRedemption?
   @@index([customerId])
   @@index([status])
   @@index([createdAt])
@@ -193,13 +196,13 @@ model Order {
 model OrderItem {
   id          String  @id @default(cuid())
   orderId     String
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
   productId   String
   productName String
   quantity    Int
   price       Float
   imageUrl    String?
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
   @@index([orderId])
   @@index([productId])
 }
@@ -216,68 +219,55 @@ model AppConfig {
 model ProductView {
   id        String   @id @default(cuid())
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   sessionId String?
   createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
   @@index([createdAt])
 }
 
-// ─────────────────────────────────────────────────────────────
-// RESEÑAS / VALORACIONES
-// ─────────────────────────────────────────────────────────────
-// status: 'PENDING' | 'APPROVED' | 'REJECTED' — valores en lib/definitions.ts (ReviewStatus).
 model Review {
-  id          String   @id @default(cuid())
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  authorName  String
-  rating      Int
-  title       String?
-  comment     String
-
+  id               String   @id @default(cuid())
+  productId        String
+  userId           String?
+  authorName       String
+  rating           Int
+  title            String?
+  comment          String
   status           String   @default("PENDING")
   verifiedPurchase Boolean  @default(false)
   adminReply       String?
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user             User?    @relation(fields: [userId], references: [id])
 
   @@index([productId, status])
   @@index([status])
   @@index([createdAt])
 }
 
-// ─────────────────────────────────────────────────────────────
-// CUPONES DE DESCUENTO
-// ─────────────────────────────────────────────────────────────
-// discountType: 'PERCENT' | 'FIXED' — valores en lib/definitions.ts (CouponDiscountType).
-// FIXED se expresa en USD; PERCENT es un porcentaje 1-100.
 model Coupon {
-  id            String   @id @default(cuid())
-  code          String   @unique
+  id            String             @id @default(cuid())
+  code          String             @unique
   description   String?
   discountType  String
   discountValue Float
-  /** Compra mínima en USD (subtotal) para que aplique el cupón. */
-  minPurchase   Float    @default(0)
-  /** Tope máximo de descuento en USD (solo aplica a PERCENT). Null = sin tope. */
+  /// * Compra mínima en USD (subtotal) para que aplique el cupón.
+  minPurchase   Float              @default(0)
+  /// * Tope máximo de descuento en USD (solo aplica a PERCENT). Null = sin tope.
   maxDiscount   Float?
-  /** Usos totales permitidos. Null = ilimitado. */
+  /// * Usos totales permitidos. Null = ilimitado.
   maxUses       Int?
-  usedCount     Int      @default(0)
-  /** Usos máximos por usuario registrado. Null = sin límite por usuario. */
+  usedCount     Int                @default(0)
+  /// * Usos máximos por usuario registrado. Null = sin límite por usuario.
   perUserLimit  Int?
   startsAt      DateTime?
   expiresAt     DateTime?
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
+  active        Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
   redemptions   CouponRedemption[]
 
   @@index([active])
@@ -287,14 +277,85 @@ model Coupon {
 model CouponRedemption {
   id        String   @id @default(cuid())
   couponId  String
-  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
   orderId   String   @unique
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   userId    String?
-  /** Descuento aplicado, en Bs (misma moneda que Order.total). */
+  /// * Descuento aplicado, en Bs (misma moneda que Order.total).
   discount  Float
   createdAt DateTime @default(now())
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([couponId])
   @@index([userId])
+}
+
+model RestockSubscription {
+  id         String    @id @default(cuid())
+  email      String
+  productId  String
+  /// * Fecha en que se envió el aviso. Null = aún pendiente.
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([email, productId])
+  @@index([productId, notifiedAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CARRITO ABANDONADO
+// status: 'PENDING' | 'EMAILED_24H' | 'EMAILED_72H' | 'RECOVERED' | 'OPTED_OUT'
+// ─────────────────────────────────────────────────────────────────────────────
+model AbandonedCart {
+  id             String    @id @default(cuid())
+  email          String
+  userId         String?
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Items serializados: AbandonedCartItem[] { id, name, slug, price, quantity, image }
+  items          Json
+  totalUsd       Float
+  /// Token único para el enlace de recuperación / opt-out.
+  recoveryToken  String    @unique @default(cuid())
+  status         String    @default("PENDING")
+  /// Fecha del último email de abandono enviado.
+  emailSentAt    DateTime?
+  /// Última vez que se actualizó el carrito (se usa como T0 para la ventana de 24h/72h).
+  lastActivityAt DateTime  @default(now())
+  recoveredAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([email, status])
+  @@index([status, lastActivityAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CARRITO PERSISTENTE (sincronizado con cuenta)
+// ─────────────────────────────────────────────────────────────────────────────
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, productId])
+  @@index([cartId])
+  @@index([productId])
+}
+
+enum ProductMediaType {
+  IMAGE
+  VIDEO
 }

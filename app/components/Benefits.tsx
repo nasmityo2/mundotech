@@ -7,11 +7,12 @@ export interface BenefitItem {
 
 const ICON_LIST = [Truck, ShieldCheck, Headset, CreditCard];
 
+// Datos reales de la operación — nada de claims genéricos intercambiables.
 const DEFAULT_ITEMS: BenefitItem[] = [
-  { title: 'Envío rápido',     sub: 'Entrega segura y trackeable' },
-  { title: 'Garantía oficial', sub: 'Productos 100% originales'   },
-  { title: 'Soporte 24/7',     sub: 'Atención personalizada'      },
-  { title: 'Pago seguro',      sub: 'Pago Móvil · Transferencia'  },
+  { title: 'Delivery en Barquisimeto en 24h',    sub: 'Y a todo el país por MRW o Zoom'        },
+  { title: '12 meses de garantía directa',       sub: 'La gestionas con nosotros, sin vueltas' },
+  { title: 'WhatsApp directo con el equipo',     sub: '0412-1471338 · te respondemos rápido'   },
+  { title: 'Pago Móvil · Transferencia · Binance', sub: 'En bolívares o dólares, a tasa del día' },
 ];
 
 const Benefits = ({ items }: { items?: BenefitItem[] }) => {

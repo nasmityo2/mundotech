@@ -45,8 +45,9 @@ export function ShippingNotificationEmail({ customerName, trackingNumber, opts }
           ¡Hola <strong>{customerName}</strong>!
         </Text>
         <Text style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: MT.textMuted }}>
-          Tu pedido salió con <strong style={{ color: MT.textPrimary }}>{carrierRaw}</strong>. Usa el número de
-          seguimiento para ver el estado del envío.
+          ¡Tu pedido ya va en camino! Salió de nuestra tienda en Barquisimeto
+          con <strong style={{ color: MT.textPrimary }}>{carrierRaw}</strong>.
+          Guarda este número de guía para seguirlo:
         </Text>
       </Section>
 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Settings2, Truck, Star } from 'lucide-react';
+import type { ProductSpec } from '@/lib/definitions';
 
 interface Props {
   description: string | null;
@@ -11,6 +12,7 @@ interface Props {
   sku?: string | null;
   isOut: boolean;
   stock: number;
+  specs?: ProductSpec[] | null;
 }
 
 const tabs = [
@@ -29,6 +31,7 @@ export default function ProductTabs({
   sku,
   isOut,
   stock,
+  specs,
 }: Props) {
   const [active, setActive] = useState<TabId>('description');
 
@@ -77,6 +80,24 @@ export default function ProductTabs({
 
             {active === 'specs' && (
               <dl className="divide-y divide-slate-100">
+                {/* Especificaciones técnicas reales (del campo specs) */}
+                {specs && specs.length > 0 && specs.map((spec, i) => (
+                  <div key={i} className="flex justify-between py-3 gap-4">
+                    <dt className="text-sm text-slate-500 shrink-0">{spec.name}</dt>
+                    <dd className="text-sm font-semibold text-navy text-right">{spec.value}</dd>
+                  </div>
+                ))}
+
+                {/* Separador visual si hay specs técnicas + datos base */}
+                {specs && specs.length > 0 && (brand || sku) && (
+                  <div className="py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-300">
+                      Información general
+                    </p>
+                  </div>
+                )}
+
+                {/* Datos base siempre presentes */}
                 {brand && (
                   <div className="flex justify-between py-3">
                     <dt className="text-sm text-slate-500">Marca</dt>
@@ -97,6 +118,15 @@ export default function ProductTabs({
                   <div className="flex justify-between py-3">
                     <dt className="text-sm text-slate-500">SKU</dt>
                     <dd className="text-sm font-mono text-slate-700">{sku}</dd>
+                  </div>
+                )}
+
+                {/* Estado vacío si no hay ninguna spec técnica cargada */}
+                {(!specs || specs.length === 0) && !brand && !sku && (
+                  <div className="py-4 text-center">
+                    <p className="text-sm text-slate-400">
+                      Las especificaciones técnicas de este producto aún no están disponibles.
+                    </p>
                   </div>
                 )}
               </dl>

@@ -7,6 +7,22 @@ export function emailContactAddress(): string {
   return process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || 'ventas@mundotech.com.ve';
 }
 
+/** Datos verificables de la tienda física (overrideables por env). */
+export function emailStoreAddress(): string {
+  return (
+    process.env.NEXT_PUBLIC_STORE_ADDRESS?.trim() ||
+    'Calle 22 entre carreras 18 y 19, C.C. Minicentro 34 — Barquisimeto, Lara'
+  );
+}
+
+export function emailStorePhones(): string {
+  return process.env.NEXT_PUBLIC_CONTACT_PHONES?.trim() || '0412-1471338 · 0414-5709470';
+}
+
+export function emailInstagramHandle(): string {
+  return process.env.NEXT_PUBLIC_INSTAGRAM_HANDLE?.trim() || '@Mundotech39';
+}
+
 /** Convierte rutas relativas en absolutas para clientes de correo. */
 export function absoluteEmailUrl(pathOrUrl: string | null | undefined): string | null {
   const raw = pathOrUrl?.trim();

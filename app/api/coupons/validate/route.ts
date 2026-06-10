@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { verifySameOrigin } from '@/lib/security';
 import { validateCouponForCheckout } from '@/lib/coupons';
 import { loadExchangeRateUsdBsFromTx, roundMoney2 } from '@/lib/exchange-rate';
 
@@ -26,6 +27,10 @@ const schema = z.object({
  * No incrementa usos: solo previsualiza el descuento para la UI del checkout.
  */
 export async function POST(request: Request) {
+  if (!verifySameOrigin(request)) {
+    return NextResponse.json({ valid: false, reason: 'Origen no permitido.' }, { status: 403 });
+  }
+
   const ip = getClientIp(request);
   if (rateLimit(`coupons:validate:ip:${ip}`, { limit: 30, windowMs: 60_000 })) {
     return NextResponse.json(

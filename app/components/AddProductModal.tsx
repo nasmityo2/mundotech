@@ -2,8 +2,9 @@
 import { useTransition, useRef, useEffect, useState, useCallback } from 'react';
 import { createProductAction, updateProductAction } from '@/app/actions/productActions';
 import { CldUploadWidget } from 'next-cloudinary';
-import { X, GripVertical, ImagePlus, Star, Play, Video, Camera } from 'lucide-react';
+import { X, GripVertical, ImagePlus, Star, Play, Video, Camera, Plus, Trash2 } from 'lucide-react';
 import { deriveLegacyImagesFromSlots } from '@/lib/product-media';
+import { parseProductSpecs, type ProductSpec } from '@/lib/definitions';
 
 interface Product {
   id:          string;
@@ -15,6 +16,7 @@ interface Product {
   brand:       string;
   description: string;
   sku?:        string | null;
+  specs?:      unknown | null;
   media?:      {
     id:         string;
     type:       'IMAGE' | 'VIDEO';
@@ -48,6 +50,7 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
   const [serverUploading, setServerUploading] = useState(false);
   const [bunnyUrl, setBunnyUrl] = useState('');
   const [bunnyPoster, setBunnyPoster] = useState('');
+  const [specs, setSpecs] = useState<ProductSpec[]>([]);
   const hasCloudinary = Boolean(process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
 
   // Bloquear scroll del body con modal abierto
@@ -68,6 +71,7 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
       el.category.value    = product.category;
       el.brand.value       = product.brand;
       el.sku.value         = product.sku ?? '';
+      setSpecs(parseProductSpecs(product.specs));
       if (product.media && product.media.length > 0) {
         setSlots(
           [...product.media]
@@ -84,6 +88,7 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
     } else {
       formRef.current.reset();
       setSlots([]);
+      setSpecs([]);
     }
     setBunnyUrl('');
     setBunnyPoster('');
@@ -429,7 +434,8 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
               action={async (formData) => {
                 const legacyImages = deriveLegacyImagesFromSlots(slots);
                 formData.set('imagesJson', JSON.stringify(legacyImages));
-                formData.set('mediaJson', JSON.stringify(slots));
+                formData.set('mediaJson',  JSON.stringify(slots));
+                formData.set('specsJson',  JSON.stringify(specs));
                 startTransition(async () => {
                   const action = product
                     ? updateProductAction.bind(null, product.id)
@@ -498,6 +504,58 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                     Código interno. Si se define, debe ser único.
                   </p>
                 </div>
+              </div>
+
+              {/* ── Especificaciones técnicas ────────────────────── */}
+              <div className="mt-5">
+                <div className="flex items-center justify-between mb-2">
+                  <label className={labelCls}>
+                    Especificaciones técnicas
+                    <span className="ml-1.5 text-xs font-normal text-gray-400">(opcional)</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setSpecs(prev => [...prev, { name: '', value: '' }])}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-navy border border-navy/30 rounded-lg px-2.5 py-1.5 hover:bg-navy/5 transition"
+                  >
+                    <Plus size={13} /> Añadir fila
+                  </button>
+                </div>
+
+                {specs.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">
+                    Sin especificaciones. Añade filas como "RAM / 8 GB", "Pantalla / 6.7 pulgadas", etc.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {specs.map((spec, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          placeholder="Nombre (ej: RAM)"
+                          value={spec.name}
+                          onChange={e => setSpecs(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))}
+                          className={`${inputCls} flex-1`}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Valor (ej: 8 GB)"
+                          value={spec.value}
+                          onChange={e => setSpecs(prev => prev.map((s, i) => i === idx ? { ...s, value: e.target.value } : s))}
+                          className={`${inputCls} flex-1`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setSpecs(prev => prev.filter((_, i) => i !== idx))}
+                          className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 transition"
+                          aria-label="Eliminar fila"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
             </form>

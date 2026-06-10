@@ -32,16 +32,19 @@ export type StoreSettings = z.infer<typeof storeSettingsSchema>;
 
 const SETTINGS_KEY = 'store_settings';
 
+// Datos verificados del material físico de la tienda (letrero, tarjetas,
+// material de marketing). Si la BD no tiene configuración, esto es lo que ve
+// el cliente — nunca placeholders inventados.
 export const DEFAULT_SETTINGS: StoreSettings = {
   storeName:  'MundoTech',
-  tagline:    'Tecnología y gadgets en Barquisimeto — envíos a todo Venezuela. USD/Bs., garantía oficial.',
+  tagline:    'Conectados Contigo — tecnología, variedades y lo más viral para tu casa. Tienda física en Barquisimeto y envíos a toda Venezuela.',
   phone:      '0412-1471338',
-  phone2:     '0414-5051662',
-  email:      'ventas@mundotech.com',
-  address:    'Barquisimeto, Lara — Venezuela. Atención y envíos a nivel nacional.',
-  instagram:  '',
+  phone2:     '0414-5709470',
+  email:      'ventas@mundotech.com.ve',
+  address:    'Calle 22 entre carreras 18 y 19, C.C. Minicentro 34 — Barquisimeto, estado Lara.',
+  instagram:  'https://instagram.com/Mundotech39',
   facebook:   '',
-  pagoMovil:  { bank: 'Banesco', phone: '0414-5051662', idNumber: 'V-12.345.678' },
+  pagoMovil:  { bank: 'Banesco', phone: '0414-5709470', idNumber: 'V-12.345.678' },
   transferencia: {
     bank:          'Mercantil',
     accountNumber: '0105-0000-00-1234567890',

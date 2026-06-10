@@ -27,16 +27,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.85,
     },
     {
-      url: `${SITE_URL}/login`,
+      url: `${SITE_URL}/nosotros`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
-      priority: 0.3,
+      priority: 0.7,
     },
     {
-      url: `${SITE_URL}/registro`,
+      url: `${SITE_URL}/devoluciones`,
       lastModified: new Date(),
-      changeFrequency: 'monthly',
-      priority: 0.3,
+      changeFrequency: 'yearly',
+      priority: 0.5,
     },
     {
       url: `${SITE_URL}/privacy-policy`,

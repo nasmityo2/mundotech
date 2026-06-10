@@ -3,12 +3,22 @@ import HomeHeroCyber from '@/app/components/HomeHeroCyber';
 import Promotions from '@/app/components/Promotions';
 import ProductShelf from '@/app/components/ProductShelf';
 import FlashDeals from '@/app/components/FlashDeals';
+import Benefits, { type BenefitItem } from '@/app/components/Benefits';
+import { readSiteContent } from '@/lib/site-content';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, Sparkles } from 'lucide-react';
+import type { Metadata } from 'next';
 
 // ISR: reconstruye la home cada hora para TTFB óptimo sin datos obsoletos
 export const revalidate = 3600;
+
+export const metadata: Metadata = {
+  title: 'MundoTech Barquisimeto — Tecnología, gadgets y variedades | Conectados Contigo',
+  description:
+    'Tienda de tecnología en Barquisimeto con local físico en el C.C. Minicentro 34. Gadgets, audio, consolas y productos virales. Pagas en USD o Bs, con Pago Móvil, transferencia o Binance. Delivery en 24h.',
+  alternates: { canonical: '/' },
+};
 
 interface CtaBannerData {
   imageUrl: string;
@@ -32,7 +42,7 @@ interface ShelvesConfig {
 }
 
 async function getData() {
-  const [products, heroBanners, ctaBannerRow, activePromotions, configRows] =
+  const [products, heroBanners, ctaBannerRow, activePromotions, configRows, siteContent] =
     await Promise.all([
       prisma.product.findMany({
         orderBy: { createdAt: 'desc' },
@@ -63,8 +73,9 @@ async function getData() {
         take: 3,
       }),
       prisma.appConfig.findMany({
-        where: { key: { in: ['homepage_flashdeals', 'homepage_shelves'] } },
+        where: { key: { in: ['homepage_flashdeals', 'homepage_shelves', 'homepage_benefits'] } },
       }),
+      readSiteContent(),
     ]);
 
   const configMap = Object.fromEntries(
@@ -84,35 +95,36 @@ async function getData() {
     activePromotions,
     flashConfig: configMap['homepage_flashdeals'] as { title: string; endHour: number } | null,
     shelvesConfig: configMap['homepage_shelves'] as ShelvesConfig | null,
+    benefitsConfig: configMap['homepage_benefits'] as BenefitItem[] | null,
+    siteContent,
   };
 }
 
-const DEFAULT_CTA_IMAGE =
-  'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=max&w=1920&q=95';
-
 function CtaBanner({ data }: { data: CtaBannerData | null }) {
   const title =
-    data?.title ?? 'Todo lo que buscas en tecnología, en un solo lugar.';
+    data?.title ?? 'Lo que ves aquí, lo tenemos en la tienda.';
   const subtitle =
     data?.subtitle ??
-    'Filtra por categoría, marca y precio. Garantía oficial en cada producto.';
+    'Catálogo con stock real del local en el C.C. Minicentro 34. Si lo quieres ya, pásate por Barquisimeto; si no, te lo enviamos.';
   const badge = data?.label ?? 'Catálogo completo · Barquisimeto';
-  const ctaText = data?.ctaText ?? 'Ir al catálogo';
+  const ctaText = data?.ctaText ?? 'Explorar todo el catálogo';
   const link = data?.link ?? '/productos';
-  const img = data?.imageUrl ?? DEFAULT_CTA_IMAGE;
+  const img = data?.imageUrl ?? '';
 
   return (
     <div className="relative mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-card">
-      <Image
-        src={img}
-        alt="Tecnología MundoTech"
-        fill
-        sizes="100vw"
-        quality={90}
-        className="object-cover opacity-[0.07]"
-      />
+      {img ? (
+        <Image
+          src={img}
+          alt="Tecnología MundoTech"
+          fill
+          sizes="100vw"
+          quality={90}
+          className="object-cover opacity-[0.07]"
+        />
+      ) : null}
       <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 sm:h-72 sm:w-72 rounded-full bg-[#FFD700]/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-40 sm:h-56 sm:w-56 rounded-full bg-cyan-400/15 blur-2xl" />
+      <div className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-40 sm:h-56 sm:w-56 rounded-full bg-navy/10 blur-2xl" />
 
       <div className="relative flex flex-col items-center justify-between gap-4 sm:gap-5 px-5 py-7 sm:flex-row sm:px-10 sm:py-10 lg:px-12 lg:py-12">
         <div className="text-center sm:text-left w-full sm:w-auto sm:flex-1">
@@ -161,6 +173,8 @@ const HomePage = async () => {
     activePromotions,
     flashConfig,
     shelvesConfig,
+    benefitsConfig,
+    siteContent,
   } = await getData();
 
   const flashDeals = products
@@ -181,7 +195,16 @@ const HomePage = async () => {
         <div className="-mt-1 sm:-mt-2">
           <HomeHeroCyber
             slides={heroBanners.length > 0 ? heroBanners : undefined}
+            fallback={siteContent.heroFallback}
+            brandStrip={siteContent.brandStrip}
           />
+        </div>
+      </div>
+
+      {/* Barra de beneficios — editable desde Admin → Gestor Home */}
+      <div className="-mx-4 w-[calc(100%+2rem)] sm:mx-0 sm:w-full mt-4 sm:mt-6">
+        <div className="overflow-hidden rounded-none border-y border-slate-100 sm:rounded-2xl sm:border">
+          <Benefits items={benefitsConfig ?? undefined} />
         </div>
       </div>
 

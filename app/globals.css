@@ -22,7 +22,7 @@
   }
 
   body {
-    font-family: 'Jost', sans-serif;
+    font-family: var(--font-jost), 'Jost', sans-serif;
     font-size: 15px;
     line-height: 1.65;
     background-color: #F1F5F9;
@@ -55,7 +55,7 @@
   }
 
   h1 {
-    font-family: 'Jost', sans-serif;
+    font-family: var(--font-jost), 'Jost', sans-serif;
     font-weight: 700;
     letter-spacing: -0.02em;
     color: #0B1220;
@@ -63,7 +63,7 @@
   }
 
   h2 {
-    font-family: 'Jost', sans-serif;
+    font-family: var(--font-jost), 'Jost', sans-serif;
     font-weight: 600;
     letter-spacing: -0.015em;
     color: #0B1220;
@@ -71,7 +71,7 @@
   }
 
   h3 {
-    font-family: 'Jost', sans-serif;
+    font-family: var(--font-jost), 'Jost', sans-serif;
     font-weight: 600;
     letter-spacing: -0.01em;
     color: #0B1220;
@@ -180,18 +180,20 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* Cyber-tech: grid de circuito sutil sobre fondo oscuro */
+  /*
+   * Trazas de circuito del logo real de MundoTech: solo dorado sobre el navy
+   * de marca (#0B1220). Sin cyan ni acentos neón — el letrero físico de la
+   * tienda es negro mate + amarillo.
+   */
   .circuit-bg {
-    background-color: #0b0b0b;
+    background-color: #0B1220;
     background-image:
-      linear-gradient(rgba(255, 215, 0, 0.045) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 215, 0, 0.045) 1px, transparent 1px),
-      radial-gradient(ellipse 90% 60% at 70% 20%, rgba(0, 255, 255, 0.06), transparent 55%),
-      radial-gradient(ellipse 70% 50% at 20% 80%, rgba(255, 215, 0, 0.08), transparent 50%);
+      linear-gradient(rgba(255, 215, 0, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 215, 0, 0.05) 1px, transparent 1px),
+      radial-gradient(ellipse 70% 50% at 20% 80%, rgba(255, 215, 0, 0.07), transparent 50%);
     background-size:
       56px 56px,
       56px 56px,
-      100% 100%,
       100% 100%;
   }
 

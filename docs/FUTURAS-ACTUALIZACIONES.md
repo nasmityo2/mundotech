@@ -1,4 +1,4 @@
-# Futuras actualizaciones — MundoTech E-Commerce
+﻿# Futuras actualizaciones — MundoTech E-Commerce
 
 Documento de roadmap con mejoras detectadas tras auditoría del proyecto (junio 2026).  
 Organizado por prioridad e impacto. Cada ítem incluye el estado actual y qué falta implementar.
@@ -42,31 +42,26 @@ Lo que ya está sólido y no requiere rehacerse:
 
 ### 1. Boundaries de Next.js (`loading`, `error`, `not-found`)
 
-**Estado:** No existen `loading.tsx`, `error.tsx` ni `not-found.tsx` en `app/`.
+**Estado:** ✅ Completado — junio 2026.
 
-**Problema:** Errores y cargas lentas muestran pantallas genéricas de Next.js sin marca MundoTech.
-
-**Implementar:**
-- `app/loading.tsx` — skeleton global o spinner con identidad visual
-- `app/error.tsx` — página de error con CTA a inicio y soporte
-- `app/not-found.tsx` — 404 personalizado con búsqueda y categorías populares
-- Opcional: boundaries por segmento (`app/checkout/loading.tsx`, `app/product/[slug]/loading.tsx`)
-
-**Esfuerzo:** Bajo  
-**Archivos:** `app/loading.tsx`, `app/error.tsx`, `app/not-found.tsx`
+**Implementado:**
+- `app/loading.tsx` — skeleton global con grid de tarjetas de producto
+- `app/error.tsx` — página de error con botón retry + CTA inicio (`"use client"`)
+- `app/not-found.tsx` — 404 con buscador, botones de acción y categorías destacadas desde BD
+- `app/checkout/loading.tsx` — skeleton fiel del flujo de 3 pasos
+- `app/product/[slug]/loading.tsx` — skeleton galería + detalles layout de 2 columnas
 
 ---
 
 ### 2. Wishlist con persistencia
 
-**Estado:** `context/WishlistContext.tsx` guarda favoritos solo en memoria (`useState`). Se pierden al refrescar o cerrar pestaña.
+**Estado:** ✅ Fase 1 completada — `context/WishlistContext.tsx` persiste en `localStorage` (mismo patrón que `CartContext`). Se hidrata al montar y guarda en cada cambio. Incluye `isWishlistLoading`, `clearWishlist` y deduplicación en `addToWishlist`.
 
-**Implementar:**
-- Fase 1: `localStorage` (como `CartContext`)
+**Pendiente:**
 - Fase 2 (opcional): tabla `WishlistItem` en Prisma + sync al iniciar sesión
 
-**Esfuerzo:** Bajo (fase 1) / Medio (fase 2)  
-**Archivos:** `context/WishlistContext.tsx`, `prisma/schema.prisma` (fase 2)
+**Esfuerzo:** Medio (fase 2)  
+**Archivos:** `context/WishlistContext.tsx` ✅, `prisma/schema.prisma` (fase 2)
 
 ---
 
@@ -142,15 +137,27 @@ Lo que ya está sólido y no requiere rehacerse:
 
 ### 7. Carrito sincronizado con cuenta (BD)
 
-**Estado:** `CartContext` persiste en `localStorage` solamente. No hay modelo `Cart` en Prisma.
+**Estado:** ✅ Completado — junio 2026.
 
-**Implementar:**
-- Modelo `Cart` / `CartItem` vinculado a `User`
-- Merge al login (localStorage → BD, resolver conflictos)
-- API o Server Actions para CRUD del carrito
+**Implementado:**
+- Modelos `Cart` y `CartItem` en `prisma/schema.prisma` (relación `User → Cart → CartItem → Product`)
+- `lib/cart.ts` — lógica servidor: `getUserCart`, `upsertCartItem`, `removeCartItem`, `clearUserCart`, `mergeCart` (con transacción Prisma y max-quantity capped a stock)
+- `app/api/cart/route.ts` — `GET` (cargar carrito) y `DELETE` (vaciar)
+- `app/api/cart/items/route.ts` — `PATCH` (upsert ítem)
+- `app/api/cart/items/[productId]/route.ts` — `DELETE` (eliminar ítem)
+- `app/api/cart/merge/route.ts` — `POST` merge localStorage → BD al login
+- `lib/api-auth.ts` — añadido `requireUser()` para proteger rutas de usuario autenticado
+- `context/CartContext.tsx` — sync transparente con BD: merge al detectar sesión, fire-and-forget en mutaciones, localStorage como respaldo offline
+- `lib/definitions.ts` — tipo `CartItemAPI`
+
+**Comportamiento:**
+- Sin sesión: carrito persiste solo en `localStorage` (comportamiento anterior inalterado)
+- Al hacer login: merge `localStorage → BD` (estrategia `max(local, bd)` capado a stock)
+- Con sesión activa: todas las mutaciones se sincronizan con BD (fire-and-forget, UI optimista)
+- Al cerrar sesión: carrito local permanece, se re-mergea en el próximo login
 
 **Esfuerzo:** Alto  
-**Archivos:** `prisma/schema.prisma`, `context/CartContext.tsx`, nuevo `lib/cart.ts`
+**Archivos:** `prisma/schema.prisma` ✅, `context/CartContext.tsx` ✅, `lib/cart.ts` ✅, `app/api/cart/**` ✅
 
 ---
 
@@ -211,43 +218,57 @@ Lo que ya está sólido y no requiere rehacerse:
 
 ### 12. Aviso de restock al cliente
 
-**Estado:** Productos agotados muestran estado “Agotado” pero no capturan interés del cliente.
+**Estado:** ✅ Completado — junio 2026.
 
-**Implementar:**
-- Formulario “Avísame cuando haya stock” en ficha de producto
-- Tabla `RestockSubscription` (email, productId)
-- Email automático cuando `stock` pasa de 0 a N
+**Implementado:**
+- Modelo `RestockSubscription` en Prisma (email, productId, notifiedAt, unique constraint)
+- Formulario "Avísame cuando esté disponible" en `ProductActions.tsx` — visible solo cuando `stock === 0`; pre-rellena el email si hay sesión activa; rate limit 5/hora por IP
+- Server Action `subscribeRestockAction` — valida email con Zod, previene duplicados con upsert
+- `triggerRestockNotifications` — se llama en `updateProductAction` y `quickUpdateStockAction` cuando el stock pasa de 0 a > 0; marca `notifiedAt` para no reenviar
+- Template `RestockNotificationEmail.tsx` con imagen del producto, precio y CTA directo a la ficha
+- Función `sendRestockNotificationEmail` en `lib/resend.tsx` con patrón best-effort
 
-**Esfuerzo:** Medio  
-**Archivos:** `app/product/[slug]/ProductActions.tsx`, `prisma/schema.prisma`, `lib/resend.tsx`
-
+**Archivos:** `app/product/[slug]/ProductActions.tsx`, `app/actions/restockActions.ts`, `app/actions/productActions.ts`, `prisma/schema.prisma`, `lib/resend.tsx`, `emails/mundotech/RestockNotificationEmail.tsx`, `lib/definitions.ts`
 ---
 
 ### 13. Emails de carrito abandonado
 
-**Estado:** No hay tracking de carritos ni emails de recuperación.
+**Estado:** ✅ Completado — junio 2026.
 
-**Implementar:**
-- Snapshot de carrito + email (si usuario logueado o email capturado en checkout paso 1)
-- Job 24h / 72h con link de retorno al checkout
-- Respetar opt-out y rate limit
+**Implementado:**
+- Modelo `AbandonedCart` en Prisma con `recoveryToken` único y estados `PENDING → EMAILED_24H → EMAILED_72H → RECOVERED / OPTED_OUT`
+- `lib/abandoned-cart.ts` — lógica: upsert, markRecovered, markOptedOut, getCartsFor24hEmail, getCartsFor72hEmail
+- `emails/mundotech/AbandonedCartEmail.tsx` — plantilla email dark-mode con ítems, total estimado y enlace de baja
+- `lib/resend.tsx` — `sendAbandonedCartEmail()` integrada con el sistema de envío existente
+- `app/actions/abandonedCartActions.ts` — Server Actions `saveCartSnapshotAction` y `markCartRecoveredAction`
+- `app/api/cron/abandoned-cart/route.ts` — endpoint GET protegido por `CRON_SECRET` / header `x-vercel-cron`
+- `app/api/cart/unsubscribe/route.ts` — enlace de opt-out por token
+- `vercel.json` — cron configurado para ejecutar cada hora (`0 * * * *`)
+- `CheckoutFlow.tsx` — guarda snapshot al completar el paso 1 (ShippingForm con email)
+- `ReviewStep.tsx` — marca carrito como RECOVERED tras confirmar pedido
 
-**Esfuerzo:** Alto  
-**Archivos:** nuevo modelo, `emails/mundotech/AbandonedCartEmail.tsx`, cron
+**Variables de entorno requeridas:**
+- `CRON_SECRET` — token arbitrario para proteger el endpoint (en Vercel se puede omitir, usa `x-vercel-cron`)
+- `NEXT_PUBLIC_SITE_URL` — ya requerida para emails transaccionales
+
+**Pendiente (fase 2, opcional):**
+- Recuperación cross-device: leer items del `AbandonedCart` por `recoveryToken` en `/checkout?resumeCart=<token>` y recargar carrito en localStorage
 
 ---
 
 ### 14. Libro de direcciones del cliente
 
-**Estado:** `Order` guarda `shippingAddress` por pedido. `User` no tiene direcciones guardadas.
+**Estado:** ✅ Completado — junio 2026.
 
-**Implementar:**
-- Modelo `SavedAddress` (userId, alias, ciudad, estado, etc.)
-- CRUD en `/account/details` o `/account/addresses`
-- Selector en `ShippingForm` del checkout
-
-**Esfuerzo:** Medio  
-**Archivos:** `prisma/schema.prisma`, `app/components/checkout/ShippingForm.tsx`, `app/account/`
+**Implementado:**
+- Modelo `SavedAddress` en Prisma (userId, alias, firstName, lastName, idNumber, phoneNumber, shippingMethod, mrwState, mrwOffice, isDefault)
+- CRUD completo en `/account/addresses` con Server Actions (`app/actions/addressActions.ts`)
+- UI con tarjetas por dirección: editar, eliminar, marcar como predeterminada
+- Modal `AddressFormModal` con selección de método (tienda/MRW) y datos personales
+- Selector de direcciones guardadas en `ShippingForm` del checkout: auto-rellena el formulario al seleccionar
+- Primer dirección guardada se aplica automáticamente; la predeterminada tiene prioridad
+- Enlace "Mis direcciones" agregado al sidebar de cuenta (`AccountSidebar`)
+- Relación `User → SavedAddress[]` en schema, con `onDelete: Cascade`
 
 ---
 

@@ -63,15 +63,15 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
   const nextSteps: { title: string; desc: string }[] = [
     {
       title: 'Verificamos tu pago',
-      desc: 'Revisamos tu comprobante y confirmamos el pedido lo antes posible.',
+      desc: 'Cotejamos tu comprobante con el banco. En horario de tienda suele tomar menos de una hora.',
     },
     {
       title: 'Preparamos tu pedido',
-      desc: 'Empacamos tus productos y los dejamos listos para envío o retiro.',
+      desc: 'Lo empacamos en nuestra tienda del C.C. Minicentro 34 y lo dejamos listo para envío o retiro.',
     },
     {
       title: 'Te avisamos',
-      desc: 'Recibirás un correo con el número de seguimiento cuando salga tu pedido.',
+      desc: 'Te llega un correo con la guía de seguimiento apenas salga. Si es retiro en tienda, te escribimos cuando esté listo.',
     },
   ];
 
@@ -156,8 +156,9 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
                             style={{
                               fontSize: 16,
                               fontWeight: 700,
-                              color: MT.gold,
-                              textDecoration: 'none',
+                              color: MT.textPrimary,
+                              textDecoration: 'underline',
+                              textDecorationColor: MT.gold,
                               lineHeight: 1.35,
                             }}
                           >
@@ -339,9 +340,9 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
                                 width: 26,
                                 height: 26,
                                 borderRadius: 999,
-                                backgroundColor: 'rgba(255, 215, 0, 0.14)',
-                                border: `1px solid ${MT.gold}`,
-                                color: MT.gold,
+                                backgroundColor: MT.gold,
+                                border: `1px solid #e6c200`,
+                                color: MT.navy,
                                 fontSize: 13,
                                 fontWeight: 700,
                                 textAlign: 'center',
@@ -372,7 +373,8 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
 
       <Section style={{ padding: '10px 28px 4px', fontFamily: fontSans, textAlign: 'center' }}>
         <Text style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: MT.textMuted }}>
-          ¿Dudas con tu pedido? Responde a este correo y con gusto te ayudamos.
+          ¿Dudas con tu pedido? Responde a este correo o escríbenos por WhatsApp
+          al 0412-1471338 — atendemos nosotros mismos, no un bot.
         </Text>
       </Section>
 

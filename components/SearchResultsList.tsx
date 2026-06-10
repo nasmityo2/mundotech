@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Loader2, Tag } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import type { SearchResult } from '@/app/actions/search';
+import type { SearchResult } from '@/lib/search-shared';
 
 interface Props {
   query: string;
@@ -95,7 +95,7 @@ export default function SearchResultsList({
       </ul>
 
       <Link
-        href={`/productos?q=${encodeURIComponent(query)}`}
+        href={`/buscar?q=${encodeURIComponent(query)}`}
         onClick={onPick}
         className="flex items-center justify-center gap-2 px-4 py-4 bg-slate-50 hover:bg-slate-100 active:bg-slate-200 transition-colors text-sm font-semibold text-navy border-t border-slate-100 min-h-[52px]"
       >

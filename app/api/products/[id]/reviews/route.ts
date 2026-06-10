@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { verifySameOrigin } from '@/lib/security';
 import {
   reviewInputSchema,
   reviewToClient,
@@ -38,6 +39,10 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!verifySameOrigin(request)) {
+    return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
+  }
+
   const ip = getClientIp(request);
   if (rateLimit(`reviews:post:ip:${ip}`, { limit: 8, windowMs: 60_000 })) {
     return NextResponse.json({ error: 'Demasiadas solicitudes. Espera un momento.' }, { status: 429 });

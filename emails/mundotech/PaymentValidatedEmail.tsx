@@ -33,12 +33,13 @@ export function PaymentValidatedEmail({ customerName, orderDisplayId, orderUuid 
           Hola <strong>{customerName}</strong>,
         </Text>
         <Text style={{ margin: '0 0 14px', fontSize: 18, lineHeight: 1.45, color: MT.success, fontWeight: 700 }}>
-          Tu pago fue verificado correctamente
+          ¡Listo! Tu pago está verificado
         </Text>
         <Text style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: MT.textMuted }}>
-          Hemos confirmado el pago del pedido{' '}
-          <strong style={{ color: MT.textPrimary }}>#{orderDisplayId}</strong>. Ya estamos preparando tu envío con el
-          mayor cuidado.
+          Confirmamos el pago del pedido{' '}
+          <strong style={{ color: MT.textPrimary }}>#{orderDisplayId}</strong>. Ya
+          lo estamos preparando en la tienda; en el próximo correo te llega la
+          guía de envío o el aviso de retiro.
         </Text>
       </Section>
 

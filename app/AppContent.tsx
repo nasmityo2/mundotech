@@ -2,15 +2,17 @@
 
 import { usePathname } from 'next/navigation';
 import { useCart } from "../context/CartContext";
-import Navbar from "../components/Navbar";
+import Navbar, { type NavbarContact } from "../components/Navbar";
 import CartDrawer from "../components/CartDrawer";
 
 /**
  * Shell mínimo del cliente: solo gestiona la apertura del carrito
  * y renderiza Navbar + CartDrawer en rutas públicas.
  * En /admin/* ocultamos navbar y carrito (el admin usa su propio shell).
+ * Los datos de contacto llegan del servidor (readSettings) — regla R1:
+ * nada de teléfonos ni emails hardcodeados en componentes de UI.
  */
-export default function AppContent() {
+export default function AppContent({ contact }: { contact: NavbarContact }) {
   const { openCart } = useCart();
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith('/admin') ?? false;
@@ -19,7 +21,7 @@ export default function AppContent() {
 
   return (
     <>
-      <Navbar onCartClick={openCart} />
+      <Navbar onCartClick={openCart} contact={contact} />
       <CartDrawer />
     </>
   );

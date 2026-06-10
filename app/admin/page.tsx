@@ -28,6 +28,29 @@ const statusConfig: Record<string, string> = {
   Cancelado:    'bg-red-100 text-red-800 border border-red-200',
 };
 
+/** Saludo según la hora de Venezuela (VET), como en el mostrador. */
+function venezuelanGreeting(): string {
+  const hour = Number(
+    new Intl.DateTimeFormat('es-VE', {
+      timeZone: 'America/Caracas',
+      hour: 'numeric',
+      hour12: false,
+    }).format(new Date()),
+  );
+  if (hour < 12) return '¡Buenos días!';
+  if (hour < 19) return '¡Buenas tardes!';
+  return '¡Buenas noches!';
+}
+
+function venezuelanDate(): string {
+  return new Intl.DateTimeFormat('es-VE', {
+    timeZone: 'America/Caracas',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(new Date());
+}
+
 const AdminHomePage = () => {
   const { products } = useProducts();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -86,8 +109,8 @@ const AdminHomePage = () => {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl sm:text-2xl font-black text-navy">Panel principal</h1>
-        <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Bienvenido al panel de administración de MundoTech.</p>
+        <h1 className="text-xl sm:text-2xl font-black text-navy">{venezuelanGreeting()} Así va la tienda</h1>
+        <p className="text-xs sm:text-sm text-gray-500 mt-0.5 capitalize">{venezuelanDate()} · Barquisimeto</p>
       </div>
 
       {/* Hero ingresos */}
@@ -105,9 +128,9 @@ const AdminHomePage = () => {
       {/* KPIs grid 2 cols mobile / 4 cols desktop */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         <KpiCard label="Pedidos totales" value={loadingOrders ? '—' : totalOrders} icon={ShoppingCart} accent="navy" href="/admin/orders" />
-        <KpiCard label="Pendientes" value={loadingOrders ? '—' : pendingOrders} icon={Clock} accent="yellow" href="/admin/orders?tab=pending" />
-        <KpiCard label="En proceso" value={loadingOrders ? '—' : inProcessOrders} icon={TrendingUp} accent="navy" href="/admin/orders?tab=processing" />
-        <KpiCard label="Enviados" value={loadingOrders ? '—' : shippedOrders} icon={Truck} accent="success" href="/admin/orders?tab=shipped" />
+        <KpiCard label="Por verificar pago" value={loadingOrders ? '—' : pendingOrders} icon={Clock} accent="yellow" href="/admin/orders?tab=pending" />
+        <KpiCard label="Para despachar" value={loadingOrders ? '—' : inProcessOrders} icon={TrendingUp} accent="navy" href="/admin/orders?tab=processing" />
+        <KpiCard label="En camino" value={loadingOrders ? '—' : shippedOrders} icon={Truck} accent="success" href="/admin/orders?tab=shipped" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">

@@ -26,6 +26,7 @@ interface Product {
   images:      string[];
   brand:       string;
   description: string;
+  specs?:      unknown | null;
   media?:      {
     id:         string;
     type:       'IMAGE' | 'VIDEO';

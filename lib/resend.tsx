@@ -7,7 +7,10 @@ import {
   ShippingNotificationEmail,
   type ShippingNotificationOptions,
 } from '@/emails/mundotech/ShippingNotificationEmail';
+import { RestockNotificationEmail } from '@/emails/mundotech/RestockNotificationEmail';
+import { AbandonedCartEmail } from '@/emails/mundotech/AbandonedCartEmail';
 import type { OrderConfirmationPayload } from '@/emails/mundotech/types';
+import type { AbandonedCartItem } from '@/lib/definitions';
 import { emailSiteBaseUrl, emailContactAddress } from '@/emails/mundotech/site';
 import { WelcomeEmail } from '@/emails/mundotech/WelcomeEmail';
 import { render } from '@react-email/render';
@@ -191,7 +194,7 @@ export async function sendOrderConfirmationEmail(order: OrderConfirmationPayload
   await sendBrandedEmail({
     resend,
     to: trimmedEmail,
-    subject: `MundoTech · Pedido #${subjNo} recibido`,
+    subject: `MundoTech · Recibimos tu pedido #${subjNo} — ya lo estamos revisando`,
     logScope: 'order-confirmation-email',
     element: <OrderConfirmationEmail {...order} />,
   });
@@ -225,7 +228,7 @@ export async function sendShippingEmail(
   await sendBrandedEmail({
     resend,
     to: trimmedEmail,
-    subject: 'MundoTech · Tu pedido va en camino',
+    subject: 'MundoTech · Tu pedido salió de la tienda — aquí va tu guía',
     logScope: 'shipping-email',
     element: (
       <ShippingNotificationEmail
@@ -260,7 +263,7 @@ export async function sendOrderDeliveredEmail(email: string, firstName: string, 
   await sendBrandedEmail({
     resend,
     to: trimmedEmail,
-    subject: 'MundoTech · Tu pedido fue entregado',
+    subject: 'MundoTech · Tu pedido llegó — revisa que todo esté perfecto',
     logScope: 'order-delivered-email',
     element: <OrderDeliveredEmail customerName={trimmedName} orderRef={ref} />,
   });
@@ -287,9 +290,93 @@ export async function sendWelcomeEmail(email: string, firstName: string): Promis
   await sendBrandedEmail({
     resend,
     to: trimmedEmail,
-    subject: 'Bienvenido a MundoTech',
+    subject: '¡Bienvenido a MundoTech! Tu cuenta ya está lista',
     logScope: 'welcome-email',
     element: <WelcomeEmail customerName={trimmed} />,
+  });
+}
+
+/**
+ * Notificación de restock al cliente suscrito.
+ * Solo debe llamarse desde el servidor. Errores se registran; no relanza.
+ */
+export async function sendRestockNotificationEmail(params: {
+  email: string;
+  productName: string;
+  productUrl: string;
+  productImageUrl?: string;
+  productPrice?: string;
+}): Promise<void> {
+  const resend = getResend();
+  if (!resend) {
+    console.warn('[restock-email] RESEND_API_KEY no está configurada; se omite el envío para:', params.email);
+    return;
+  }
+
+  const trimmedEmail = params.email.trim();
+  if (!trimmedEmail) {
+    console.warn('[restock-email] Email vacío; se omite el envío.');
+    return;
+  }
+
+  await sendBrandedEmail({
+    resend,
+    to: trimmedEmail,
+    subject: `MundoTech · ¡${params.productName} volvió al stock!`,
+    logScope: 'restock-email',
+    element: (
+      <RestockNotificationEmail
+        productName={params.productName}
+        productUrl={params.productUrl}
+        productImageUrl={params.productImageUrl}
+        productPrice={params.productPrice}
+      />
+    ),
+  });
+}
+
+/**
+ * Recordatorio de carrito abandonado. El enlace de recuperación lleva al checkout.
+ * El token permite al usuario darse de baja de estos recordatorios.
+ * Errores se registran; no relanza.
+ */
+export async function sendAbandonedCartEmail(params: {
+  email:         string;
+  customerName:  string;
+  items:         AbandonedCartItem[];
+  totalUsd:      number;
+  recoveryToken: string;
+}): Promise<void> {
+  const resend = getResend();
+  if (!resend) {
+    console.warn('[abandoned-cart-email] RESEND_API_KEY no está configurada; se omite el envío para:', params.email);
+    return;
+  }
+
+  const trimmedEmail = params.email.trim();
+  if (!trimmedEmail || params.items.length === 0) {
+    console.warn('[abandoned-cart-email] Email vacío o carrito sin ítems; se omite el envío.');
+    return;
+  }
+
+  const base          = emailSiteBaseUrl().replace(/\/$/, '');
+  const recoveryUrl   = `${base}/checkout`;
+  const unsubscribeUrl = `${base}/api/cart/unsubscribe?token=${encodeURIComponent(params.recoveryToken)}`;
+
+  await sendBrandedEmail({
+    resend,
+    to:       trimmedEmail,
+    subject:  'MundoTech · Te guardamos el carrito tal como lo dejaste',
+    logScope: 'abandoned-cart-email',
+    element: (
+      <AbandonedCartEmail
+        customerName={params.customerName.trim() || 'Cliente'}
+        items={params.items}
+        totalUsd={params.totalUsd}
+        recoveryUrl={recoveryUrl}
+        unsubscribeUrl={unsubscribeUrl}
+      />
+    ),
   });
 }
 

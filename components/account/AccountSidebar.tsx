@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
-import { ShoppingBag, User, Lock, LogOut, Heart } from 'lucide-react';
+import { ShoppingBag, User, Lock, LogOut, Heart, MapPin } from 'lucide-react';
 
 const navItems = [
-  { href: '/account/orders',   label: 'Mis pedidos',    icon: ShoppingBag },
-  { href: '/account/details',  label: 'Mi perfil',      icon: User },
-  { href: '/account/password', label: 'Contraseña',     icon: Lock },
-  { href: '/wishlist',         label: 'Favoritos',      icon: Heart },
+  { href: '/account/orders',     label: 'Mis pedidos',    icon: ShoppingBag },
+  { href: '/account/details',    label: 'Mi perfil',      icon: User },
+  { href: '/account/addresses',  label: 'Mis direcciones', icon: MapPin },
+  { href: '/account/password',   label: 'Contraseña',     icon: Lock },
+  { href: '/wishlist',           label: 'Favoritos',      icon: Heart },
 ];
 
 const AccountSidebar = () => {

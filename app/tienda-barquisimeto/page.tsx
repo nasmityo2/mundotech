@@ -25,6 +25,7 @@ export const metadata: Metadata = {
     'consolas Barquisimeto',
   ],
   alternates: { canonical: PAGE_URL },
+  // og:image heredada de app/opengraph-image.tsx (imagen de marca generada)
   openGraph: {
     title: 'Mundo Tech Barquisimeto — Conectados Contigo',
     description:
@@ -33,21 +34,12 @@ export const metadata: Metadata = {
     siteName: 'Mundo Tech',
     locale: 'es_VE',
     type: 'website',
-    images: [
-      {
-        url: `${SITE_URL}/og-default.jpg`,
-        width: 1200,
-        height: 630,
-        alt: 'Mundo Tech — Tienda de Tecnología en Barquisimeto',
-      },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Mundo Tech Barquisimeto — Conectados Contigo',
     description:
       'Tecnología y gadgets en Barquisimeto. USD/Bs., garantía oficial.',
-    images: [`${SITE_URL}/og-default.jpg`],
   },
 };
 
@@ -124,7 +116,7 @@ export default async function TiendaBarquisimetoPage() {
         {/* Hero local */}
         <section className="relative overflow-hidden rounded-2xl bg-navy text-white px-6 py-10 sm:px-10 sm:py-14 lg:px-16 lg:py-20">
           <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-[#FFD700]/10 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-10 -left-10 h-56 w-56 rounded-full bg-cyan-400/10 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-10 -left-10 h-56 w-56 rounded-full bg-[#FFD700]/5 blur-3xl" />
 
           <nav className="flex items-center gap-2 text-[11px] text-white/50 mb-6" aria-label="Breadcrumb">
             <Link href="/" className="hover:text-brand-yellow transition-colors">Inicio</Link>

@@ -227,7 +227,7 @@ const CartDrawer = () => {
                     </Link>
                     <p className="flex items-center justify-center gap-1.5 pt-1 text-[11px] text-slate-400">
                       <ShieldCheck size={12} className="text-emerald-500" />
-                      Pago 100% seguro · Conexión cifrada
+                      Pago Móvil · Transferencia · Binance
                     </p>
                   </div>
                 </div>

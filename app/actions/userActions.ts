@@ -45,7 +45,7 @@ export async function listAdminUsers(): Promise<AdminUser[]> {
 const createUserSchema = z.object({
   name:     z.string().min(1, 'Nombre requerido.').max(80),
   email:    z.string().email('Email inválido.'),
-  password: z.string().min(6, 'Mínimo 6 caracteres.'),
+  password: z.string().min(8, 'Mínimo 8 caracteres.'),
   role:     z.enum(['ADMIN', 'CLIENT']).default('CLIENT'),
 });
 
@@ -58,7 +58,7 @@ export async function createAdminUser(input: unknown): Promise<{ success: boolea
   const exists = await prisma.user.findUnique({ where: { email: parsed.data.email } });
   if (exists) return { success: false, message: 'Ese email ya está registrado.' };
 
-  const hashed = await bcrypt.hash(parsed.data.password, 10);
+  const hashed = await bcrypt.hash(parsed.data.password, 12);
   await prisma.user.create({
     data: {
       name:     parsed.data.name,
@@ -95,7 +95,7 @@ export async function updateUserRole(
 
 const resetPasswordSchema = z.object({
   userId:   z.string().min(1),
-  password: z.string().min(6, 'Mínimo 6 caracteres.'),
+  password: z.string().min(8, 'Mínimo 8 caracteres.'),
 });
 
 export async function resetUserPassword(input: unknown): Promise<{ success: boolean; message: string }> {
@@ -104,7 +104,7 @@ export async function resetUserPassword(input: unknown): Promise<{ success: bool
   if (!parsed.success) {
     return { success: false, message: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
   }
-  const hashed = await bcrypt.hash(parsed.data.password, 10);
+  const hashed = await bcrypt.hash(parsed.data.password, 12);
   await prisma.user.update({ where: { id: parsed.data.userId }, data: { password: hashed } });
   return { success: true, message: 'Contraseña actualizada.' };
 }

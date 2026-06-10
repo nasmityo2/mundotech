@@ -16,10 +16,12 @@ interface Props {
   promotions?: PromoItem[];
 }
 
-const promoImg = (path: string) =>
-  `https://images.unsplash.com/${path}?auto=format&fit=max&w=1200&q=90`;
-
-/** Siempre 3 ideas distintas MundoTech — rellenan huecos cuando en admin hay 1–2 promos */
+/**
+ * Siempre 3 ideas distintas MundoTech — rellenan huecos cuando en admin hay
+ * 1–2 promos. Sin fotos stock: si el admin no subió imagen, la tarjeta usa
+ * el panel navy de marca (las fotos genéricas de Unsplash además quedaban
+ * bloqueadas por el CSP, que solo permite Cloudinary).
+ */
 const FALLBACK_PROMOS = [
   {
     label: 'Gaming',
@@ -27,23 +29,23 @@ const FALLBACK_PROMOS = [
     subtitle: 'R36S y más — envío seguro',
     cta: 'Ver gaming',
     href: '/productos?cat=Consolas',
-    img: promoImg('photo-1612288532018-60aa10ad7d5f'),
+    img: '',
   },
   {
     label: 'Gadgets & tech',
-    title: 'Gadgets trending\ne inventos',
-    subtitle: 'Lo que todos piden cada semana — stock real',
+    title: 'Lo más pedido\nde la semana',
+    subtitle: 'Lo que todos preguntan por WhatsApp — stock real',
     cta: 'Ver accesorios',
     href: '/productos?cat=Accesorios',
-    img: promoImg('photo-1523275335684-37898b6baf30'),
+    img: '',
   },
   {
-    label: 'Belleza tech',
-    title: 'Moldeadores\ny cuidado personal',
-    subtitle: 'Marcas que ya conoces',
-    cta: 'Ver belleza',
-    href: '/productos?cat=Belleza',
-    img: promoImg('photo-1522338242992-e1a54906a8da'),
+    label: 'Para la casa',
+    title: 'Productos virales\ny variedades',
+    subtitle: 'Del TikTok a tu casa en Barquisimeto',
+    cta: 'Ver variedades',
+    href: '/productos',
+    img: '',
   },
 ] as const;
 
@@ -105,7 +107,7 @@ function buildBoxes(promotions: PromoItem[] | undefined): Box[] {
 const PromoOverlay = () => (
   <>
     <div className="absolute inset-0 bg-gradient-to-t from-[#0B0B0B] via-[#0B0B0B]/80 to-[#0B0B0B]/45" />
-    <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#FFD700]/5 via-transparent to-cyan-500/5" />
+    <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#FFD700]/5 via-transparent to-transparent" />
   </>
 );
 
@@ -124,15 +126,21 @@ const Promotions = ({ promotions }: Props) => {
             className="group relative flex h-[180px] xs:h-[200px] sm:h-[260px] flex-col justify-end overflow-hidden rounded-2xl border border-slate-200/90 bg-[#111827] shadow-sm transition-all duration-300 active:scale-[0.99] hover:border-[#FFD700]/35 hover:shadow-xl"
           >
             <div className="absolute inset-0 overflow-hidden">
-              <Image
-                src={box.img}
-                alt={box.title.replace(/\n/g, ' ')}
-                fill
-                sizes="(max-width: 640px) 100vw, 33vw"
-                quality={92}
-                className="object-cover opacity-55 transition-[opacity,transform] duration-500 group-hover:scale-[1.04] group-hover:opacity-65"
-              />
-              <PromoOverlay />
+              {box.img ? (
+                <>
+                  <Image
+                    src={box.img}
+                    alt={box.title.replace(/\n/g, ' ')}
+                    fill
+                    sizes="(max-width: 640px) 100vw, 33vw"
+                    quality={92}
+                    className="object-cover opacity-55 transition-[opacity,transform] duration-500 group-hover:scale-[1.04] group-hover:opacity-65"
+                  />
+                  <PromoOverlay />
+                </>
+              ) : (
+                <div className="absolute inset-0 circuit-bg" aria-hidden />
+              )}
             </div>
 
             <div className="pointer-events-none absolute right-4 top-4 h-24 w-24 rounded-full bg-[#FFD700]/20 blur-2xl sm:right-5 sm:top-5" />

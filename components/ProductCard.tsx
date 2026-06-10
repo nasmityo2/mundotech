@@ -169,12 +169,12 @@ const ProductCard = ({ product }: { product: Product }) => {
               {justAdded ? (
                 <>
                   <Check size={15} />
-                  Agregado
+                  ¡En el carrito!
                 </>
               ) : (
                 <>
                   <ShoppingCart size={14} />
-                  {isOut ? 'Agotado' : 'Agregar'}
+                  {isOut ? 'Agotado' : '¡Me lo llevo!'}
                 </>
               )}
             </button>

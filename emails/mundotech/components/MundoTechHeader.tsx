@@ -8,6 +8,11 @@ type Props = {
   compact?: boolean;
 };
 
+/**
+ * Cabecera-letrero: la única zona oscura del correo. Reproduce el letrero
+ * físico de la tienda (fondo negro/navy + logo amarillo + slogan). El cuerpo
+ * del correo es claro por decisión del dueño.
+ */
 export function MundoTechHeader({ customerName, compact }: Props) {
   const name = !compact ? customerName?.trim() : undefined;
 
@@ -15,68 +20,48 @@ export function MundoTechHeader({ customerName, compact }: Props) {
     <Section
       style={{
         textAlign: 'center',
-        padding: compact ? '28px 24px 22px' : '36px 28px 28px',
-        backgroundColor: MT.cardBgAlt,
-        borderBottom: `1px solid ${MT.border}`,
+        padding: compact ? '26px 24px 22px' : '30px 28px 26px',
+        backgroundColor: MT.bandBg,
+        borderBottom: `3px solid ${MT.gold}`,
         fontFamily: fontSans,
       }}
     >
-      {/* Anillo sutil (sin sombras CSS complejas — Outlook-safe) */}
-      <table
-        role="presentation"
-        cellPadding={0}
-        cellSpacing={0}
-        style={{ margin: '0 auto', borderCollapse: 'collapse' }}
+      <Text
+        style={{
+          margin: '0 0 6px',
+          fontSize: 24,
+          fontWeight: 700,
+          letterSpacing: '-0.03em',
+          color: '#FFFFFF',
+          lineHeight: 1.2,
+        }}
       >
-        <tbody>
-          <tr>
-            <td
-              style={{
-                border: `1px solid ${MT.headerGlowRing}`,
-                borderRadius: 16,
-                padding: compact ? '16px 24px' : '20px 28px',
-                backgroundColor: MT.pageBg,
-              }}
-            >
-              <Text
-                style={{
-                  margin: '0 0 8px',
-                  fontSize: 24,
-                  fontWeight: 700,
-                  letterSpacing: '-0.03em',
-                  color: MT.textPrimary,
-                  lineHeight: 1.2,
-                }}
-              >
-                Mundo <span style={{ color: MT.gold }}>Tech</span>
-              </Text>
-              <Text
-                style={{
-                  margin: '0 0 16px',
-                  fontSize: 13,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  color: MT.textMuted,
-                }}
-              >
-                Conectados Contigo
-              </Text>
-              {name ? (
-                <Text
-                  style={{
-                    margin: 0,
-                    fontSize: 15,
-                    fontWeight: 700,
-                    color: MT.gold,
-                  }}
-                >
-                  {name}
-                </Text>
-              ) : null}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        Mundo <span style={{ color: MT.gold }}>Tech</span>
+      </Text>
+      <Text
+        style={{
+          margin: 0,
+          fontSize: 12,
+          letterSpacing: '0.18em',
+          textTransform: 'uppercase',
+          color: MT.gold,
+          fontWeight: 700,
+        }}
+      >
+        Conectados Contigo
+      </Text>
+      {name ? (
+        <Text
+          style={{
+            margin: '14px 0 0',
+            fontSize: 14,
+            fontWeight: 600,
+            color: 'rgba(255, 255, 255, 0.85)',
+          }}
+        >
+          {name}
+        </Text>
+      ) : null}
     </Section>
   );
 }

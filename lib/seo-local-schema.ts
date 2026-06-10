@@ -41,7 +41,7 @@ export const SEO_LOCAL_KEY = 'seo_local';
 export const DEFAULT_SEO_LOCAL: SeoLocal = {
   legalName:       'Mundo Tech',
   slogan:          'Conectados Contigo',
-  streetAddress:   'Carrera 21 con esquina Calle 21, Centro',
+  streetAddress:   'Calle 22 entre carreras 18 y 19, C.C. Minicentro 34',
   addressLocality: 'Barquisimeto',
   addressRegion:   'Lara',
   postalCode:      '3001',
@@ -96,8 +96,8 @@ export function buildLocalBusinessSchema(seo: SeoLocal, opts: LocalBusinessSchem
     url: opts.pageUrl ?? opts.siteUrl,
     telephone: opts.phone ?? undefined,
     email: opts.email ?? undefined,
-    logo: `${opts.siteUrl}/logo.png`,
-    image: opts.ogImage ?? `${opts.siteUrl}/og-default.jpg`,
+    logo: `${opts.siteUrl}/opengraph-image`,
+    image: opts.ogImage ?? `${opts.siteUrl}/opengraph-image`,
     description: opts.description,
     address: {
       '@type': 'PostalAddress',

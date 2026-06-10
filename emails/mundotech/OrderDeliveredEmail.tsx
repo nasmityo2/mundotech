@@ -29,10 +29,12 @@ export function OrderDeliveredEmail({ customerName, orderRef }: Props) {
           Hola <strong>{customerName}</strong>,
         </Text>
         <Text style={{ margin: '0 0 14px', fontSize: 18, lineHeight: 1.45, color: MT.textPrimary, fontWeight: 700 }}>
-          Tu pedido fue entregado
+          ¡Tu pedido llegó! Que lo disfrutes
         </Text>
         <Text style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: MT.textMuted }}>
-          Esperamos que disfrutes tu compra. Si necesitas ayuda con garantía o accesorios, escríbenos.
+          Recuerda que tienes 7 días para reportar cualquier detalle de fábrica
+          y 12 meses de garantía directa con nosotros. Si algo no cuadra,
+          responde a este correo y lo resolvemos.
         </Text>
       </Section>
 
@@ -45,15 +47,15 @@ export function OrderDeliveredEmail({ customerName, orderRef }: Props) {
             display: 'inline-block',
             padding: '12px 24px',
             fontSize: 14,
-            fontWeight: 600,
-            color: MT.gold,
-            backgroundColor: 'rgba(255, 215, 0, 0.08)',
+            fontWeight: 700,
+            color: MT.navy,
+            backgroundColor: 'rgba(255, 215, 0, 0.16)',
             borderRadius: 12,
             textDecoration: 'none',
-            border: `1px solid ${MT.gold}`,
+            border: `1px solid #e6c200`,
           }}
         >
-          Comprar nuevamente
+          Ver qué hay de nuevo en la tienda
         </Link>
       </Section>
     </MundoTechShell>

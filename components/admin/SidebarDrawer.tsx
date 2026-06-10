@@ -104,7 +104,7 @@ export default function SidebarDrawer({ open, onClose, userName, userEmail }: Si
                         <span className="flex-1 truncate">{item.label}</span>
                         {item.badge === 'new' && (
                           <span className="text-[9px] font-black uppercase bg-brand-yellow text-navy px-1.5 py-0.5 rounded">
-                            new
+                            nuevo
                           </span>
                         )}
                       </Link>

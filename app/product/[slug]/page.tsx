@@ -3,9 +3,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import {
-  ChevronRight, ShieldCheck, Truck, RefreshCcw,
-  Star, CheckCircle2, XCircle, Eye,
+  ChevronRight, ShieldCheck, Truck, Wallet, Store, Clock,
+  MessageCircle, Sparkles, Star, CheckCircle2, XCircle, Eye,
+  type LucideIcon,
 } from 'lucide-react';
+import { readSiteContent, type TrustIcon } from '@/lib/site-content';
 import ProductActions from './ProductActions';
 import ProductGallery from './ProductGallery';
 import { productToGalleryItems } from '@/lib/product-media';
@@ -19,6 +21,7 @@ import ProductJsonLd from '@/app/components/ProductJsonLd';
 import ProductReviews from './ProductReviews';
 import { Stars } from '@/components/reviews/Stars';
 import { getReviewSummary, getApprovedReviews, getReviewSummariesMap } from '@/lib/reviews';
+import { parseProductSpecs } from '@/lib/definitions';
 import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
 import { getExchangeRate } from '@/app/actions/configActions';
 
@@ -147,9 +150,24 @@ async function getRelatedProducts(category: string, excludeId: string) {
   });
 }
 
+// Iconos disponibles para los badges de confianza (editables en /admin/personalizar)
+const TRUST_ICONS: Record<TrustIcon, LucideIcon> = {
+  shield: ShieldCheck,
+  truck: Truck,
+  wallet: Wallet,
+  store: Store,
+  clock: Clock,
+  whatsapp: MessageCircle,
+  sparkles: Sparkles,
+};
+
 export default async function ProductDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const [product, bsRate] = await Promise.all([getProduct(slug), getExchangeRate()]);
+  const [product, bsRate, siteContent] = await Promise.all([
+    getProduct(slug),
+    getExchangeRate(),
+    readSiteContent(),
+  ]);
 
   if (!product) notFound();
 
@@ -299,21 +317,20 @@ export default async function ProductDetailPage({ params }: PageProps) {
             <ProductActions product={productForClient as any} />
           </div>
 
-          {/* Trust strip */}
-          <div className="mt-7 grid grid-cols-3 gap-3">
-            {[
-              { icon: ShieldCheck, label: 'Garantía oficial', sub: 'Producto original' },
-              { icon: Truck,       label: 'Envío seguro',     sub: 'Trackeable 24-48h' },
-              { icon: RefreshCcw,  label: 'Devolución 7d',   sub: 'Si llega defectuoso' },
-            ].map(({ icon: Icon, label, sub }) => (
-              <div key={label} className="bg-slate-50 rounded-2xl p-3.5 text-center">
-                <div className="w-9 h-9 mx-auto bg-white border border-slate-200 rounded-xl flex items-center justify-center text-navy mb-2">
-                  <Icon size={16} />
+          {/* Trust strip — datos reales de la operación, editables en el admin */}
+          <div className={`mt-7 grid gap-3 ${siteContent.productTrust.length >= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            {siteContent.productTrust.map(({ icon, title, sub }) => {
+              const Icon = TRUST_ICONS[icon] ?? ShieldCheck;
+              return (
+                <div key={title} className="bg-slate-50 rounded-2xl p-3.5 text-center">
+                  <div className="w-9 h-9 mx-auto bg-white border border-slate-200 rounded-xl flex items-center justify-center text-navy mb-2">
+                    <Icon size={16} />
+                  </div>
+                  <p className="text-[12px] font-semibold text-navy leading-tight">{title}</p>
+                  {sub ? <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{sub}</p> : null}
                 </div>
-                <p className="text-[12px] font-semibold text-navy leading-tight">{label}</p>
-                <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{sub}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -327,6 +344,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
           sku={product.sku}
           isOut={isOut}
           stock={product.stock}
+          specs={parseProductSpecs(product.specs)}
         />
       </div>
 

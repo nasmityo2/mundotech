@@ -1,3 +1,49 @@
+// ─────────────────────────────────────────────────────────────
+// ESPECIFICACIONES TÉCNICAS DE PRODUCTO
+// ─────────────────────────────────────────────────────────────
+export interface ProductSpec {
+  name:  string;
+  value: string;
+}
+
+/** Valida y convierte el campo Json? de Prisma a ProductSpec[]. Devuelve [] si el valor no es válido. */
+export function parseProductSpecs(raw: unknown): ProductSpec[] {
+  if (!raw || !Array.isArray(raw)) return [];
+  return raw.filter(
+    (s): s is ProductSpec =>
+      typeof s === 'object' &&
+      s !== null &&
+      typeof (s as ProductSpec).name  === 'string' &&
+      typeof (s as ProductSpec).value === 'string' &&
+      (s as ProductSpec).name.trim()  !== '' &&
+      (s as ProductSpec).value.trim() !== '',
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// CARRITO
+// ─────────────────────────────────────────────────────────────
+
+/** Ítem de carrito tal como lo devuelve la API /api/cart (con datos de producto enriquecidos). */
+export interface CartItemAPI {
+  /** ID del registro CartItem en BD. */
+  id: string;
+  productId: string;
+  quantity: number;
+  name: string;
+  slug: string | null;
+  price: number;
+  originalPrice: number | null;
+  stock: number;
+  category: string;
+  brand: string | null;
+  images: string[];
+}
+
+// ─────────────────────────────────────────────────────────────
+// PEDIDOS
+// ─────────────────────────────────────────────────────────────
+
 export type OrderStatus =
   | 'Pendiente verificación Binance'
   | 'Pendiente'
@@ -68,6 +114,39 @@ export interface Coupon {
   createdAt:     string;
 }
 
+// ─────────────────────────────────────────────────────────────
+// CARRITO ABANDONADO
+// ─────────────────────────────────────────────────────────────
+export type AbandonedCartStatus =
+  | 'PENDING'
+  | 'EMAILED_24H'
+  | 'EMAILED_72H'
+  | 'RECOVERED'
+  | 'OPTED_OUT';
+
+/** Estados en los que el carrito todavía puede recibir un email de recuperación. */
+export const ABANDONED_CART_EMAILABLE_STATUSES: AbandonedCartStatus[] = ['PENDING', 'EMAILED_24H'];
+
+export interface AbandonedCartItem {
+  id:       string;
+  name:     string;
+  slug:     string;
+  price:    number;
+  quantity: number;
+  image:    string | null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// RESTOCK
+// ─────────────────────────────────────────────────────────────
+export interface RestockSubscription {
+  id:         string;
+  email:      string;
+  productId:  string;
+  notifiedAt: string | null;
+  createdAt:  string;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -130,6 +209,37 @@ export interface Order {
   /** Motivo de rechazo del pago, si aplica. */
   paymentRejectionReason?:   string | null;
   notes?:          string | null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// LIBRO DE DIRECCIONES
+// ─────────────────────────────────────────────────────────────
+
+export interface SavedAddress {
+  id:             string;
+  userId:         string;
+  alias:          string;
+  firstName:      string;
+  lastName:       string;
+  idNumber:       string;
+  phoneNumber:    string;
+  shippingMethod: 'tienda' | 'mrw';
+  mrwState?:      string | null;
+  mrwOffice?:     string | null;
+  isDefault:      boolean;
+  createdAt:      string;
+}
+
+export interface SavedAddressInput {
+  alias:          string;
+  firstName:      string;
+  lastName:       string;
+  idNumber:       string;
+  phoneNumber:    string;
+  shippingMethod: 'tienda' | 'mrw';
+  mrwState?:      string | null;
+  mrwOffice?:     string | null;
+  isDefault?:     boolean;
 }
 
 /** Mapea un registro Prisma (con items incluidos) al tipo Order de la UI. */

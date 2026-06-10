@@ -6,9 +6,11 @@ import { isAdminRole } from '@/lib/is-admin-role';
 
 export { isAdminRole } from '@/lib/is-admin-role';
 
-type AdminAuthResult =
+type AuthResult =
   | { authorized: true; session: Session }
   | { authorized: false; response: NextResponse };
+
+type AdminAuthResult = AuthResult;
 
 /**
  * Verifica sesión activa + rol ADMIN.
@@ -23,6 +25,24 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
       response: NextResponse.json(
         { error: 'No autorizado. Se requiere rol ADMIN.' },
         { status: 403 }
+      ),
+    };
+  }
+  return { authorized: true, session };
+}
+
+/**
+ * Verifica que exista sesión activa (cualquier usuario autenticado).
+ * Uso (API route): const auth = await requireUser(); if (!auth.authorized) return auth.response;
+ */
+export async function requireUser(): Promise<AuthResult> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return {
+      authorized: false,
+      response: NextResponse.json(
+        { error: 'No autenticado.' },
+        { status: 401 }
       ),
     };
   }

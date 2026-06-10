@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
 import { pathnameToLoginNextSlug, pathFromLoginNextSlug } from '@/lib/auth-path';
+import { isAdminRole } from '@/lib/is-admin-role';
 import {
   LOGIN_RETURN_COOKIE_NAME,
   LOGIN_RETURN_PROMOTED_HEADER,
@@ -19,10 +20,12 @@ function buildCsp(nonce: string): string {
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://res.cloudinary.com",
+    // google-analytics/googletagmanager: solo se usan si el usuario aceptó
+    // cookies de medición y NEXT_PUBLIC_GA4_ID está configurado.
+    "img-src 'self' data: blob: https://res.cloudinary.com https://*.google-analytics.com https://*.googletagmanager.com",
     "media-src 'self' data: blob: https://res.cloudinary.com",
     "font-src 'self' data:",
-    "connect-src 'self' https://res.cloudinary.com",
+    "connect-src 'self' https://res.cloudinary.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
     "frame-src 'self' https://iframe.mediadelivery.net https://www.google.com https://maps.google.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
@@ -133,11 +136,9 @@ export async function middleware(req: NextRequest) {
         );
       }
 
-      const role = (
-        ((token as { role?: unknown }).role as string | undefined) ?? ''
-      ).toUpperCase();
+      const role = (token as { role?: unknown }).role as string | undefined;
 
-      if (role !== 'ADMIN') {
+      if (!isAdminRole(role)) {
         return withCsp(
           isApiAdminPath
             ? new NextResponse(JSON.stringify({ error: 'Forbidden' }), {

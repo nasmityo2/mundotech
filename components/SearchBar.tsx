@@ -39,7 +39,7 @@ export default function SearchBar({
     e.preventDefault();
     if (!query.trim()) return;
     setOpen(false);
-    router.push(`/productos?q=${encodeURIComponent(query.trim())}`);
+    router.push(`/buscar?q=${encodeURIComponent(query.trim())}`);
   };
 
   const handlePick = () => {

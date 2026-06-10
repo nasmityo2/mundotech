@@ -10,7 +10,8 @@
  */
 
 import { googleMapsBusinessUrl } from '@/lib/google-maps';
-import type { Review, ReviewSummary } from '@/lib/definitions';
+import type { Review, ReviewSummary, ProductSpec } from '@/lib/definitions';
+import { parseProductSpecs } from '@/lib/definitions';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
 
@@ -51,6 +52,7 @@ interface ProductForJsonLd {
   slug: string | null;
   sku: string | null;
   images: string[];
+  specs?: unknown | null;
   updatedAt: Date;
 }
 
@@ -110,6 +112,13 @@ export default function ProductJsonLd({ product, categoryPath, reviewSummary, re
     reviewBody: r.comment,
   }));
 
+  const parsedSpecs: ProductSpec[] = parseProductSpecs(product.specs);
+  const additionalProperty = parsedSpecs.map((s) => ({
+    '@type': 'PropertyValue',
+    name:  s.name,
+    value: s.value,
+  }));
+
   const productSchema = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -122,6 +131,7 @@ export default function ProductJsonLd({ product, categoryPath, reviewSummary, re
     }),
     category: product.category,
     url: productUrl,
+    ...(additionalProperty.length > 0 ? { additionalProperty } : {}),
     ...(aggregateRating ? { aggregateRating } : {}),
     ...(reviewSchema.length > 0 ? { review: reviewSchema } : {}),
     offers: {
@@ -233,8 +243,8 @@ export default function ProductJsonLd({ product, categoryPath, reviewSummary, re
     url: SITE_URL,
     telephone: process.env.NEXT_PUBLIC_CONTACT_PHONE ?? '+58-412-1471338',
     email: process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? 'ventas@mundotech.com.ve',
-    logo: `${SITE_URL}/logo.png`,
-    image: `${SITE_URL}/og-default.jpg`,
+    logo: `${SITE_URL}/opengraph-image`,
+    image: `${SITE_URL}/opengraph-image`,
     address: {
       '@type': 'PostalAddress',
       streetAddress: 'CARRERA 21 CON ESQUINA CALLE 21 CENTRO',

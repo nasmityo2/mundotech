@@ -228,7 +228,7 @@ export function AuthLoginForm({ callbackUrl, defaultEmail }: LoginPanelProps) {
               Inicia sesión
             </h1>
             <p className="mt-1 text-sm text-slate-600 leading-snug">
-              Pedidos, garantías y wishlist sincronizados con tu cuenta.
+              Tus pedidos, garantías y favoritos, todo en un solo lugar.
             </p>
           </div>
         </div>
@@ -366,7 +366,7 @@ export function AuthLoginForm({ callbackUrl, defaultEmail }: LoginPanelProps) {
 
       <p className="mt-5 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
         <ShieldCheck size={12} className="text-brand-green shrink-0" />
-        Conexión segura · Tus datos están protegidos
+        Tus datos solo se usan para tus pedidos — nada de spam
       </p>
     </div>
   );
@@ -480,7 +480,7 @@ export function AuthRegisterForm({ callbackUrl }: RegisterPanelProps) {
               Crear cuenta
             </h1>
             <p className="mt-1 text-sm text-slate-600 leading-snug">
-              Registro rápido · mismo checkout y garantías que en tienda física.
+              Toma un minuto · misma cuenta para la web y la tienda física.
             </p>
           </div>
         </div>

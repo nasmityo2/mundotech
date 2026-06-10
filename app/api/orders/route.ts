@@ -10,6 +10,7 @@ import { checkoutSchema, executeCheckoutInTransaction } from '@/lib/checkout-ord
 import { roundMoney2 } from '@/lib/exchange-rate';
 import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { verifySameOrigin } from '@/lib/security';
 
 /** Solo admins pueden ver el listado global de pedidos. */
 export async function GET() {
@@ -36,6 +37,11 @@ export async function GET() {
  * al cancelar (PUT o cambio masivo) se debe restaurar inventario cuando el pedido siga en ese estado pendiente Binance.
  */
 export async function POST(request: Request) {
+  // Mitigación CSRF: peticiones de navegador desde otro origen se rechazan
+  if (!verifySameOrigin(request)) {
+    return NextResponse.json({ message: 'Origen no permitido.' }, { status: 403 });
+  }
+
   const ip = getClientIp(request);
   if (rateLimit(`orders:post:ip:${ip}`, { limit: 5, windowMs: 60_000 })) {
     return NextResponse.json(

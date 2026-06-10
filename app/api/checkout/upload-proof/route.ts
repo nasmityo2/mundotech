@@ -3,12 +3,18 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import cloudinary from '@/lib/cloudinary';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { verifySameOrigin } from '@/lib/security';
 import { detectImageMimeFromBuffer, isAllowedProofMime } from '@/lib/detect-image-mime';
 
 const PROOF_FOLDER = 'mundotech/order-proofs';
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export async function POST(request: Request) {
+  // Mitigación CSRF (formularios cross-site con cookies de sesión)
+  if (!verifySameOrigin(request)) {
+    return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
+  }
+
   // Requiere sesión activa — rechazar invitados no autenticados
   const session = await getServerSession(authOptions);
   if (!session) {

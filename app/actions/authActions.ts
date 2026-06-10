@@ -4,6 +4,8 @@ import { randomUUID } from 'crypto';
 
 import { prisma } from '@/lib/prisma';
 import { sendPasswordResetEmail, sendWelcomeEmail } from '@/lib/resend';
+import { rateLimit } from '@/lib/rate-limit';
+import { getActionClientIp, hashToken } from '@/lib/security';
 import bcrypt from 'bcrypt';
 
 function firstNameFromName(displayName: string): string {
@@ -26,6 +28,15 @@ const RESET_INVALID_MESSAGE =
 
 export async function registerUserAction({ name, email, password }: Record<string, string>) {
   try {
+    // 0. Rate limit por IP: frena bots y la enumeración de correos vía registro
+    const ip = await getActionClientIp();
+    if (rateLimit(`register:${ip}`, { limit: 5, windowMs: 15 * 60_000 })) {
+      return {
+        success: false,
+        message: 'Demasiados intentos de registro. Espera unos minutos e intenta de nuevo.',
+      };
+    }
+
     // 1. Validar que los datos no estén vacíos
     if (!name || !email || !password) {
       return { success: false, message: 'Todos los campos son obligatorios.' };
@@ -49,7 +60,7 @@ export async function registerUserAction({ name, email, password }: Record<strin
     }
 
     // 4. Hashear la contraseña
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     // 5. Crear el usuario (rol normalizado en mayúsculas, consistente con isAdminRole)
     await prisma.user.create({
@@ -84,6 +95,13 @@ export async function requestPasswordReset(
     return { ok: false, message: 'Introduce un correo electrónico válido.' };
   }
 
+  // Rate limit por IP: evita spam de correos de reset y timing probes
+  const ip = await getActionClientIp();
+  if (rateLimit(`pw-reset:${ip}`, { limit: 5, windowMs: 15 * 60_000 })) {
+    // Mismo mensaje genérico: no revelar siquiera el rate limit exacto
+    return { ok: true, message: PASSWORD_RESET_GENERIC_MESSAGE };
+  }
+
   try {
     const user = await prisma.user.findUnique({
       where: { email: trimmed },
@@ -92,11 +110,13 @@ export async function requestPasswordReset(
 
     if (user) {
       await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+      // El token claro viaja SOLO en el email; en BD se guarda el hash SHA-256.
+      // Si la BD se filtra, los tokens activos no son utilizables.
       const token = randomUUID();
       const expiresAt = new Date(Date.now() + RESET_EXPIRY_MS);
       await prisma.passwordResetToken.create({
         data: {
-          token,
+          token: hashToken(token),
           userId: user.id,
           expiresAt,
         },
@@ -120,7 +140,7 @@ export async function verifyPasswordResetToken(token: string): Promise<boolean> 
   if (!t) return false;
   try {
     const row = await prisma.passwordResetToken.findUnique({
-      where: { token: t },
+      where: { token: hashToken(t) },
       select: { expiresAt: true },
     });
     return Boolean(row && row.expiresAt > new Date());
@@ -149,7 +169,7 @@ export async function resetPassword(
 
   try {
     const row = await prisma.passwordResetToken.findUnique({
-      where: { token: t },
+      where: { token: hashToken(t) },
       select: { id: true, userId: true, expiresAt: true },
     });
 
@@ -160,7 +180,7 @@ export async function resetPassword(
       return { ok: false, message: RESET_INVALID_MESSAGE };
     }
 
-    const hashedPassword = await bcrypt.hash(pw, 10);
+    const hashedPassword = await bcrypt.hash(pw, 12);
 
     await prisma.$transaction([
       prisma.user.update({

@@ -6,8 +6,10 @@ import { requireAdminAction } from '@/lib/api-auth';
 import { z } from 'zod';
 import Papa from 'papaparse';
 import { slugify } from '@/lib/slugify';
-import { ProductMediaType } from '@prisma/client';
+import { Prisma, ProductMediaType } from '@prisma/client';
 import { deriveLegacyImagesFromSlots } from '@/lib/product-media';
+import { triggerRestockNotifications } from '@/app/actions/restockActions';
+import { parseProductSpecs } from '@/lib/definitions';
 
 const absoluteUrl = z.string().refine(
   (s) => {
@@ -30,6 +32,16 @@ const gallerySlotSchema = z.discriminatedUnion('type', [
     posterUrl: z.union([absoluteUrl, z.literal('')]).optional(),
   }),
 ]);
+
+function parseSpecsFromFormData(formData: FormData) {
+  const raw = formData.get('specsJson');
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    return parseProductSpecs(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
 
 function parseGallerySlots(
   formData: FormData,
@@ -117,6 +129,7 @@ export async function createProductAction(formData: FormData) {
 
     const slots  = parseGallerySlots(formData, validated.data.imagesJson);
     const images = deriveLegacyImagesFromSlots(slots);
+    const specs  = parseSpecsFromFormData(formData);
 
     const { imagesJson: _, sku, ...rest } = validated.data;
     const slug = await getUniqueSlug(validated.data.name);
@@ -125,8 +138,10 @@ export async function createProductAction(formData: FormData) {
       data: {
         ...rest,
         slug,
-        sku: sku ?? null,
+        sku:   sku ?? null,
         images,
+        // Cast requerido: los interfaces TS no satisfacen InputJsonValue de Prisma
+        specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
         media: {
           create: slots.map((s, i) => ({
             type: s.type === 'VIDEO' ? ProductMediaType.VIDEO : ProductMediaType.IMAGE,
@@ -173,10 +188,16 @@ export async function updateProductAction(productId: string, formData: FormData)
 
     const slots  = parseGallerySlots(formData, validated.data.imagesJson);
     const images = deriveLegacyImagesFromSlots(slots);
+    const specs  = parseSpecsFromFormData(formData);
 
     const { imagesJson: _, sku, ...rest } = validated.data;
 
-    const current = await prisma.product.findUnique({ where: { id: productId }, select: { name: true, slug: true } });
+    const current = await prisma.product.findUnique({
+      where:  { id: productId },
+      select: { name: true, slug: true, stock: true, images: true },
+    });
+    const previousStock = current?.stock ?? 0;
+
     const slug = (current?.name !== validated.data.name || !current?.slug)
       ? await getUniqueSlug(validated.data.name, productId)
       : current.slug;
@@ -188,8 +209,9 @@ export async function updateProductAction(productId: string, formData: FormData)
         data: {
           ...rest,
           slug,
-          sku: sku ?? null,
+          sku:   sku ?? null,
           images,
+          specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
           media: {
             create: slots.map((s, i) => ({
               type: s.type === 'VIDEO' ? ProductMediaType.VIDEO : ProductMediaType.IMAGE,
@@ -202,6 +224,17 @@ export async function updateProductAction(productId: string, formData: FormData)
         },
       });
     });
+
+    // Notificar suscriptores si el producto pasó de agotado a disponible
+    if (previousStock === 0 && validated.data.stock > 0) {
+      void triggerRestockNotifications(
+        productId,
+        validated.data.name,
+        slug,
+        images[0] ?? null,
+        validated.data.price,
+      );
+    }
 
     revalidatePath('/admin/products');
     revalidatePath('/');
@@ -344,7 +377,26 @@ export async function quickUpdateStockAction(productId: string, stock: number) {
     if (!Number.isInteger(stock) || stock < 0) {
       return { success: false, message: 'Stock debe ser un entero ≥ 0.' };
     }
+
+    const current = await prisma.product.findUnique({
+      where:  { id: productId },
+      select: { stock: true, name: true, slug: true, images: true, price: true },
+    });
+    const previousStock = current?.stock ?? 0;
+
     await prisma.product.update({ where: { id: productId }, data: { stock } });
+
+    // Notificar suscriptores si el producto pasó de agotado a disponible
+    if (previousStock === 0 && stock > 0 && current) {
+      void triggerRestockNotifications(
+        productId,
+        current.name,
+        current.slug,
+        current.images[0] ?? null,
+        current.price,
+      );
+    }
+
     revalidatePath('/admin/products');
     revalidatePath('/');
     return { success: true };
@@ -382,6 +434,11 @@ export async function getProductsAdmin(params: {
   stockFilter?:  'all' | 'low' | 'out';
   lowThreshold?: number;
 }) {
+  // Las Server Actions son endpoints invocables directamente: la protección
+  // del layout /admin NO aplica aquí. Sin este check, cualquiera podía
+  // descargar el inventario completo (sku, specs, timestamps).
+  await verifyAdminSession();
+
   const { search, category, minPrice, maxPrice, stockFilter = 'all', lowThreshold = 3 } = params;
 
   const where: Record<string, unknown> = {};
