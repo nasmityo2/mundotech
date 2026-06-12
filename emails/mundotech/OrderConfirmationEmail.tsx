@@ -67,7 +67,7 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
     },
     {
       title: 'Preparamos tu pedido',
-      desc: 'Lo empacamos en nuestra tienda del C.C. Minicentro 34 y lo dejamos listo para envío o retiro.',
+      desc: 'Lo empacamos en nuestra tienda en Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001 y lo dejamos listo para envío o retiro.',
     },
     {
       title: 'Te avisamos',

@@ -71,8 +71,10 @@ export default function GlobalError({ error, reset }: ErrorProps) {
             Ir al inicio
           </Link>
 
+          {/* H23: /#contacto no existía (enlace muerto) — la página de la
+              tienda física tiene teléfonos, correo, horario y mapa */}
           <Link
-            href="/#contacto"
+            href="/tienda-barquisimeto"
             className="inline-flex items-center gap-2 text-navy-400 hover:text-navy text-sm font-medium transition-colors"
           >
             <MessageCircle className="w-4 h-4" />

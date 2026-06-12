@@ -1,17 +1,17 @@
 /** URL pública usada en enlaces de correo (productos, cuenta, CTA). */
 export function emailSiteBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://mundotech.com.ve';
+  return process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://mundotechve.com';
 }
 
 export function emailContactAddress(): string {
-  return process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || 'ventas@mundotech.com.ve';
+  return process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || 'ventas@mundotechve.com';
 }
 
 /** Datos verificables de la tienda física (overrideables por env). */
 export function emailStoreAddress(): string {
   return (
     process.env.NEXT_PUBLIC_STORE_ADDRESS?.trim() ||
-    'Calle 22 entre carreras 18 y 19, C.C. Minicentro 34 — Barquisimeto, Lara'
+    'Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001, estado Lara'
   );
 }
 

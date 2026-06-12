@@ -3,10 +3,33 @@ import type { Prisma } from '@prisma/client';
 export const EXCHANGE_RATE_APP_CONFIG_KEY = 'exchange_rate_usd_bs';
 export const DEFAULT_EXCHANGE_RATE_USD_BS = 36.5;
 
+/** Número decimal positivo COMPLETO (acepta coma o punto). Nada de sufijos basura. */
+const EXCHANGE_RATE_VALUE_REGEX = /^\d{1,7}(?:[.,]\d{1,6})?$/;
+
+/**
+ * PRD-203: validación estricta del valor persistido. `parseFloat` aceptaba
+ * prefijos numéricos de strings corruptos ("36.5abc" → 36.5) y eso silenciaba
+ * datos basura en una variable financiera. Ahora el string debe ser un número
+ * completo y positivo; cualquier otra cosa se registra y cae al default.
+ */
 export function parseExchangeRateFromConfigValue(value: string | null | undefined): number {
   if (value == null || value === '') return DEFAULT_EXCHANGE_RATE_USD_BS;
-  const parsed = parseFloat(value);
-  if (Number.isNaN(parsed) || parsed <= 0) return DEFAULT_EXCHANGE_RATE_USD_BS;
+
+  const normalized = value.trim().replace(',', '.');
+  if (!EXCHANGE_RATE_VALUE_REGEX.test(value.trim())) {
+    console.error(
+      `[exchange-rate] Valor inválido en AppConfig("${EXCHANGE_RATE_APP_CONFIG_KEY}"): "${value}". Se usa el default ${DEFAULT_EXCHANGE_RATE_USD_BS}.`
+    );
+    return DEFAULT_EXCHANGE_RATE_USD_BS;
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    console.error(
+      `[exchange-rate] Tasa no positiva en AppConfig("${EXCHANGE_RATE_APP_CONFIG_KEY}"): "${value}". Se usa el default ${DEFAULT_EXCHANGE_RATE_USD_BS}.`
+    );
+    return DEFAULT_EXCHANGE_RATE_USD_BS;
+  }
   return parsed;
 }
 

@@ -14,7 +14,7 @@ Lo que encontré, más allá del brief:
 2. **La fuente Jost está declarada pero nunca se carga** — todo el sitio se renderiza en Arial. El sistema de diseño entero está degradado y nadie lo notó (señal clásica de sesiones IA sin verificación visual).
 3. **Hay neón cyan en `.circuit-bg` y en el CTA banner de la home** — el logo real es amarillo/dorado sobre negro; el cyan es un cliché cyber que no pertenece a la marca. (El usuario lo prohibió explícitamente.)
 4. **Los emails son dark-mode** (`#0f1117`) — el usuario los quiere claros. Además tienen un voseo argentino ("si aplicás un cupón") que delata generación sin contexto venezolano.
-5. **Datos de contacto inconsistentes en 4 lugares**: `DEFAULT_SETTINGS` dice `0414-5051662` / `ventas@mundotech.com`; el Navbar hardcodea `0414-505-1662` / `ventas@mundotech.com.ve`; el material físico real dice `0414-5709470`. El footer lista "Efectivo" que el checkout no acepta.
+5. **Datos de contacto inconsistentes en 4 lugares**: `DEFAULT_SETTINGS` decía `0414-5051662` / `ventas@mundotech.com`; el Navbar hardcodea `0414-505-1662` / `ventas@mundotechve.com`; el material físico real dice `0414-5709470`. El footer lista "Efectivo" que el checkout no acepta.
 6. **No hay WhatsApp FAB** — en Venezuela es el canal de ventas #1.
 7. **No existe `/nosotros` ni `/devoluciones`**, ni cookie consent, ni GA4.
 8. **Auth con split-layout cyber** — el patrón #1 de generadores. El contenido es bueno; el contenedor lo delata.
@@ -31,7 +31,7 @@ Lo que encontré, más allá del brief:
 
 - [x] F1. Cargar **Jost** vía `next/font/google` con variable CSS; actualizar Tailwind y globals. *(Por qué: el sistema tipográfico entero está caído; arregla identidad + CLS.)*
 - [x] F2. **Eliminar el neón**: quitar el cyan de `.circuit-bg` (solo trazas doradas sobre navy real `#0B1220`) y el blur cyan del CtaBanner. *(Prohibición explícita del dueño.)*
-- [x] F3. Corregir `DEFAULT_SETTINGS` con los datos verificados del material físico: `0412-1471338` / `0414-5709470`, `ventas@mundotech.com.ve`, dirección completa CC Minicentro 34, Instagram `@Mundotech39`. *(Fuente única de verdad — regla R1.)*
+- [x] F3. Corregir `DEFAULT_SETTINGS` con los datos verificados del material físico: `0412-1471338` / `0414-5709470`, `ventas@mundotechve.com`, dirección completa Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001, Instagram `@Mundotech39`. *(Fuente única de verdad — regla R1.)*
 - [x] F4. Crear **`lib/site-content.ts`**: contenido editable del sitio (hero fallback, trust badges, WhatsApp FAB, popup promocional) con Zod + defaults reales, persistido en `AppConfig`. *(Base del editor visual del Dominio 4b.)*
 - [x] F5. Eliminar código muerto: `components/Footer.tsx`, `components/ProductGridAndFilters.tsx`, UI de `app/components/Hero.tsx` (conservar tipo), `FeaturedCategories.tsx`, `productActions.ts.txt`. *(La duplicación delata sesiones IA — brief §6.)*
 
@@ -39,7 +39,7 @@ Lo que encontré, más allá del brief:
 
 - [x] 1.1 **Hero**: franja de marca permanente con `CONECTADOS CONTIGO` + datos reales; fallback rediseñado con el slogan como protagonista; fondo unificado a navy de marca. *(Acción #1 del brief.)*
 - [x] 1.2 **WhatsApp FAB** global con `0412-1471338`, oculto en admin/checkout, mensaje precargado. *(Acción #2 del brief; canal de venta real.)*
-- [x] 1.3 **Navbar**: datos desde `readSettings()` (no hardcode), badges reales ("Tienda física · CC Minicentro 34", "Delivery en Barquisimeto"). *(Regla R1 + brief 2.3.)*
+- [x] 1.3 **Navbar**: datos desde `readSettings()` (no hardcode), badges reales ("Tienda física · Carrera 21 con esquina calle 21, Centro", "Delivery en Barquisimeto"). *(Regla R1 + brief 2.3.)*
 - [x] 1.4 **Footer**: slogan visible, dirección verificable, métodos de pago = los del checkout (sin "Efectivo"), Instagram real, horario, enlaces a `/nosotros` y `/devoluciones`. *(Acción #4 del brief.)*
 - [x] 1.5 **Copy de producto**: "¡Me lo llevo!" en card y ficha, trust strip con datos específicos (garantía 12 meses, delivery 24h Barquisimeto, métodos reales). *(Brief 2.3/2.4.)*
 - [x] 1.6 **Carrito/Checkout**: reemplazar claims falsos ("SSL 256-bit · CSRF activo") por información real y útil. *(Honestidad = humanidad.)*
@@ -197,7 +197,7 @@ falsos, previews sociales rotas, código muerto duplicado).
   editable desde el admin). Si el dueño quiere editarlos, extender
   `site_content` con una sección navbar.
 - **Fotos reales del local**: el hero de respaldo y `/nosotros` están listos
-  para recibir fotos reales vía Cloudinary, pero hoy no hay ninguna en el
+  para recibir fotos reales vía R2 (admin → subida o `site_content`), pero hoy no hay ninguna en el
   repositorio. Es el cambio de mayor impacto pendiente y solo el dueño puede
   aportarlo.
 
@@ -208,8 +208,9 @@ falsos, previews sociales rotas, código muerto duplicado).
 2. **Configura en `.env` de producción**: `CRON_SECRET`, `NEXT_PUBLIC_GA4_ID`
    (cuando crees la propiedad GA4), `DEPLOYMENT_ENV=vercel` y verifica
    `RESEND_FROM_ADDRESS` con tu dominio.
-3. **Reclama tu ficha de Google Business Profile** con la dirección del
-   Minicentro 34 y enlázala en Admin → SEO Local (URL de Maps + horarios).
+3. **Reclama tu ficha de Google Business Profile** con la dirección
+   Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001 y enlázala en
+   Admin → SEO Local (URL de Maps + horarios).
    Es lo que más mueve el ranking local.
 4. **Pide reseñas reales a clientes de la tienda física** (el sistema ya las
    modera en Admin → Reseñas). Las seeded son de arranque; las reales valen oro.

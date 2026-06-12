@@ -24,9 +24,12 @@ export async function GET(
       getReviewSummary(id),
       getApprovedReviews(id),
     ]);
+    // PRD-141: sin caché — al publicar/moderar una reseña (o al dejar la propia)
+    // el cliente debe verla de inmediato; el costo por request es bajo (groupBy +
+    // findMany limitado) y evita servir contadores/reseñas obsoletos.
     return NextResponse.json(
       { summary, reviews },
-      { headers: { 'Cache-Control': 'public, max-age=30, stale-while-revalidate=120' } }
+      { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
     console.error('[GET /api/products/[id]/reviews] Error inesperado:', error);
@@ -44,7 +47,7 @@ export async function POST(
   }
 
   const ip = getClientIp(request);
-  if (rateLimit(`reviews:post:ip:${ip}`, { limit: 8, windowMs: 60_000 })) {
+  if (await rateLimit(`reviews:post:ip:${ip}`, { limit: 8, windowMs: 60_000 })) {
     return NextResponse.json({ error: 'Demasiadas solicitudes. Espera un momento.' }, { status: 429 });
   }
 
@@ -94,6 +97,10 @@ export async function POST(
     const verifiedPurchase = await hasPurchasedProduct(prisma, userId, productId);
     const autoApprove = await readReviewsAutoApprove();
 
+    // PRD-161: el auto-approve solo aplica a compras verificadas. Una reseña
+    // sin compra siempre pasa por moderación — evita reseñas falsas públicas.
+    const approved = autoApprove && verifiedPurchase;
+
     const review = await prisma.review.create({
       data: {
         productId,
@@ -103,15 +110,15 @@ export async function POST(
         title: data.title?.trim() || null,
         comment: data.comment.trim(),
         verifiedPurchase,
-        status: autoApprove ? 'APPROVED' : 'PENDING',
+        status: approved ? 'APPROVED' : 'PENDING',
       },
     });
 
     return NextResponse.json(
       {
         review: reviewToClient(review),
-        moderated: !autoApprove,
-        message: autoApprove
+        moderated: !approved,
+        message: approved
           ? '¡Gracias por tu reseña!'
           : '¡Gracias! Tu reseña será publicada tras una breve revisión.',
       },

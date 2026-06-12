@@ -13,6 +13,7 @@ import { readSettings } from '@/lib/data-store';
 import { readSeoLocal, describeOpeningHours } from '@/lib/seo-local';
 import { readSiteContent } from '@/lib/site-content';
 import { whatsappHref } from '@/lib/mundotech-social';
+import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
 
 /**
  * Footer de la tienda. Todos los datos viven en el admin (settings, SEO local
@@ -20,10 +21,14 @@ import { whatsappHref } from '@/lib/mundotech-social';
  * son exactamente los que acepta el checkout: nada de prometer lo que no hay.
  */
 const Footer = async () => {
-  const [settings, seo, content] = await Promise.all([
+  // P46/H14: los accesos rápidos de categoría enlazan a la URL canónica
+  // /categoria/[slug] (con fallback /productos), no al filtro ?cat=.
+  const [settings, seo, content, gamingPath, accesoriosPath] = await Promise.all([
     readSettings(),
     readSeoLocal(),
     readSiteContent(),
+    resolveCategoryPathFromProductCategory('Consolas'),
+    resolveCategoryPathFromProductCategory('Accesorios'),
   ]);
 
   const hours = describeOpeningHours(seo);
@@ -111,8 +116,8 @@ const Footer = async () => {
               <li><Link href="/productos"                className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Catálogo</Link></li>
               <li><Link href="/nosotros"                 className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Quiénes somos</Link></li>
               <li><Link href="/tienda-barquisimeto"      className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Nuestra tienda</Link></li>
-              <li><Link href="/productos?cat=Consolas"   className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Gaming</Link></li>
-              <li><Link href="/productos?cat=Accesorios" className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Accesorios</Link></li>
+              <li><Link href={gamingPath}     className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Gaming</Link></li>
+              <li><Link href={accesoriosPath} className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Accesorios</Link></li>
             </ul>
           </div>
 
@@ -163,7 +168,7 @@ const Footer = async () => {
         </div>
 
         <div className="border-t border-white/5 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-gray-500 text-[12px]">
-          <p>&copy; {new Date().getFullYear()} {settings.storeName} · C.C. Minicentro 34, Barquisimeto, Venezuela</p>
+          <p>&copy; {new Date().getFullYear()} {settings.storeName}{settings.address ? ` · ${settings.address}` : ''}</p>
           <p className="text-gray-600">Hecho en Barquisimeto, con sabor a Lara.</p>
         </div>
       </div>

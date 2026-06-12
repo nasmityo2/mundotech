@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 const categorySchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -13,6 +14,13 @@ const categorySchema = z.object({
 
 export async function GET(request: Request) {
   try {
+    // PRD-278: GET público (lo usa el menú de categorías) — rate limit por IP
+    // y caché corta para frenar scraping masivo del catálogo.
+    const ip = getClientIp(request);
+    if (await rateLimit(`categories:get:${ip}`, { limit: 120, windowMs: 60_000 })) {
+      return NextResponse.json({ error: 'Demasiadas solicitudes.' }, { status: 429 });
+    }
+
     const { searchParams } = new URL(request.url);
     const featured = searchParams.get('featured');
     const where = featured === 'true' ? { isFeatured: true } : {};
@@ -20,8 +28,12 @@ export async function GET(request: Request) {
       where,
       orderBy: [{ order: 'asc' }, { name: 'asc' }],
     });
-    return NextResponse.json(categories);
-  } catch {
+    return NextResponse.json(categories, {
+      headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
+    });
+  } catch (error) {
+    // PRD-043: el catch silencioso ocultaba caídas de BD en un endpoint global.
+    console.error('[GET /api/categories]', error);
     return NextResponse.json({ error: 'Error al obtener categorías' }, { status: 500 });
   }
 }

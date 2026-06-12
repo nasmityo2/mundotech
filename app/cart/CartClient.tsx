@@ -28,7 +28,6 @@ const CartClient = () => {
   const { cart: cartItems, updateQuantity, removeFromCart, getCartTotal } = useCart();
   const router           = useRouter();
   const { status }       = useSession();
-  const [coupon, setCoupon] = useState('');
 
   const handleCheckout = () => {
     if (status !== 'authenticated') {
@@ -39,11 +38,12 @@ const CartClient = () => {
     router.push('/checkout');
   };
 
-  const subtotal       = getCartTotal();
-  const shippingCosts  = cartItems.length > 0 ? 5.0 : 0;
-  const estimatedTaxes = subtotal * 0.10;
-  const finalTotal     = subtotal + shippingCosts + estimatedTaxes;
-  const totalUnits     = cartItems.reduce((acc, i) => acc + i.quantity, 0);
+  // PRD-021: nada de "$5 de envío" ni "10% de impuestos" inventados — el
+  // checkout cobra exactamente el subtotal (precios con impuestos incluidos;
+  // retiro en tienda u oficina MRW sin recargo de la tienda).
+  const subtotal   = getCartTotal();
+  const finalTotal = subtotal;
+  const totalUnits = cartItems.reduce((acc, i) => acc + i.quantity, 0);
 
   return (
     <>
@@ -105,11 +105,11 @@ const CartClient = () => {
                 className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-3 sm:p-5 flex gap-3 sm:gap-5"
               >
                 <Link
-                  href={`/product/${(product as any).slug ?? product.id}`}
+                  href={`/product/${product.slug ?? product.id}`}
                   className="relative h-24 w-24 sm:h-32 sm:w-32 flex-shrink-0 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden"
                 >
                   <CartImageWithFallback
-                    src={product.image || (product as any).images?.[0] || '/placeholder-product.png'}
+                    src={product.image || product.images?.[0] || '/placeholder-product.png'}
                     alt={product.name}
                   />
                 </Link>
@@ -117,13 +117,13 @@ const CartClient = () => {
                 <div className="flex flex-1 flex-col min-w-0">
                   <div className="flex items-start justify-between gap-2 sm:gap-3">
                     <div className="min-w-0 flex-1">
-                      {(product as any).brand && (
+                      {product.brand && (
                         <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-400 truncate">
-                          {(product as any).brand}
+                          {product.brand}
                         </p>
                       )}
                       <Link
-                        href={`/product/${(product as any).slug ?? product.id}`}
+                        href={`/product/${product.slug ?? product.id}`}
                         className="block text-[13px] sm:text-base font-medium text-navy hover:text-navy/80 transition-colors leading-snug line-clamp-2"
                       >
                         {product.name}
@@ -183,25 +183,14 @@ const CartClient = () => {
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-6">
                 <h2 className="text-base font-semibold text-navy mb-5">Resumen del pedido</h2>
 
-                {/* Cupón */}
-                <div className="flex items-center gap-2 mb-5">
-                  <div className="relative flex-1 min-w-0">
-                    <Tag size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={coupon}
-                      onChange={(e) => setCoupon(e.target.value)}
-                      placeholder="Cupón"
-                      className="w-full min-h-[44px] pl-10 pr-3 text-base bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-navy/30 focus:shadow-ring-navy transition-all"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    disabled={!coupon.trim()}
-                    className="min-h-[44px] px-4 text-sm font-semibold rounded-xl bg-slate-100 text-navy hover:bg-slate-200 active:bg-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Aplicar
-                  </button>
+                {/* PRD-EXTRA-CHK-1: aquí había un input de cupón decorativo (el
+                    botón "Aplicar" no tenía handler). El cupón real se aplica en
+                    la revisión del checkout, donde se valida contra el servidor. */}
+                <div className="flex items-center gap-2 mb-5 rounded-xl bg-slate-50 border border-slate-100 px-3.5 py-2.5">
+                  <Tag size={14} className="text-slate-400 flex-shrink-0" />
+                  <p className="text-xs text-slate-500">
+                    ¿Tienes un cupón? Lo aplicas al revisar tu pedido en el checkout.
+                  </p>
                 </div>
 
                 <dl className="space-y-2.5 text-sm">
@@ -210,12 +199,10 @@ const CartClient = () => {
                     <dd className="text-navy font-medium nums">{formatCurrency(subtotal)}</dd>
                   </div>
                   <div className="flex items-center justify-between">
-                    <dt className="text-slate-500">Envío estimado</dt>
-                    <dd className="text-navy font-medium nums">{formatCurrency(shippingCosts)}</dd>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <dt className="text-slate-500">Impuestos estimados</dt>
-                    <dd className="text-navy font-medium nums">{formatCurrency(estimatedTaxes)}</dd>
+                    <dt className="text-slate-500">Envío</dt>
+                    <dd className="text-xs text-slate-500 text-right">
+                      Retiro en tienda gratis · MRW lo pagas al recibir
+                    </dd>
                   </div>
                   <div className="border-t border-slate-100 pt-3 mt-2 flex items-end justify-between">
                     <dt className="text-base font-semibold text-navy">Total</dt>

@@ -3,14 +3,13 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Search, SearchX } from 'lucide-react';
 import { searchProductsFull } from '@/app/actions/search';
-import { SEARCH_PAGE_SIZE } from '@/lib/search-shared';
+import { SEARCH_PAGE_SIZE, fullProductToCardModel } from '@/lib/search-shared';
 import ProductCard from '@/components/ProductCard';
 import ProductCardSkeleton from '@/components/ProductCardSkeleton';
 import SearchFiltersBar from './SearchFiltersBar';
 import SearchPagination from './SearchPagination';
-import type { Product } from '@/context/ProductContext';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 
 interface PageProps {
   searchParams: Promise<{
@@ -19,23 +18,39 @@ interface PageProps {
     brand?: string;
     sort?:  string;
     page?:  string;
+    /** PRD-167: disp=all incluye productos agotados (por defecto solo con stock). */
+    disp?:  string;
   }>;
 }
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
   const params = await searchParams;
-  const q = (params.q ?? '').trim();
+  const q     = (params.q ?? '').trim();
+  const cat   = (params.cat ?? '').trim();
+  const brand = (params.brand ?? '').trim();
+  const page  = (params.page ?? '').trim();
+
   const title = q
-    ? `"${q}" — Búsqueda · MundoTech`
-    : 'Resultados de búsqueda · MundoTech';
+    ? `"${q}" — Búsqueda`
+    : 'Resultados de búsqueda';
   const description = q
     ? `Resultados para "${q}" en MundoTech: tecnología, gadgets y accesorios en Barquisimeto.`
     : 'Busca productos de tecnología y gadgets en MundoTech Barquisimeto.';
+
+  // P97/H62: el canonical refleja la URL real (q, cat, brand, page) — sin
+  // señales contradictorias aunque la página sea noindex.
+  const canonicalParams = new URLSearchParams();
+  if (q)                       canonicalParams.set('q',     q);
+  if (cat)                     canonicalParams.set('cat',   cat);
+  if (brand)                   canonicalParams.set('brand', brand);
+  if (page && page !== '1')    canonicalParams.set('page',  page);
+  const qs = canonicalParams.toString();
+
   return {
     title,
     description,
-    alternates: { canonical: `${SITE_URL}/buscar${q ? `?q=${encodeURIComponent(q)}` : ''}` },
-    robots: { index: false },
+    alternates: { canonical: `${SITE_URL}/buscar${qs ? `?${qs}` : ''}` },
+    robots: { index: false, follow: true },
   };
 }
 
@@ -45,20 +60,29 @@ export default async function BuscarPage({ searchParams }: PageProps) {
   const cat   = (params.cat   ?? '').trim();
   const brand = (params.brand ?? '').trim();
   const sort  = (params.sort  ?? 'default').trim();
-  const page  = Math.max(1, parseInt(params.page ?? '1', 10));
+  const disp  = (params.disp  ?? '').trim();
+  const pageParsed = parseInt(params.page ?? '1', 10);
+  const page  = Math.max(1, Number.isFinite(pageParsed) ? pageParsed : 1);
+  const includeOutOfStock = disp === 'all';
 
-  const { products, totalCount, categories, brands } = await searchProductsFull({
-    query:    q,
-    category: cat   || undefined,
-    brand:    brand || undefined,
-    sort,
-    page,
-  });
+  // PRD-168: una consulta de 1 carácter no debe listar el catálogo completo.
+  const queryTooShort = q.length === 1;
+
+  const { products, totalCount, categories, brands } = queryTooShort
+    ? { products: [], totalCount: 0, categories: [], brands: [] }
+    : await searchProductsFull({
+        query:    q,
+        category: cat   || undefined,
+        brand:    brand || undefined,
+        sort,
+        page,
+        includeOutOfStock,
+      });
 
   const totalPages   = Math.ceil(totalCount / SEARCH_PAGE_SIZE);
   const hasFilters   = !!cat || !!brand;
-  const showEmpty    = !q && !hasFilters;
-  const activeCount  = (cat ? 1 : 0) + (brand ? 1 : 0);
+  const showEmpty    = (!q && !hasFilters) || queryTooShort;
+  const activeCount  = (cat ? 1 : 0) + (brand ? 1 : 0) + (includeOutOfStock ? 1 : 0);
 
   return (
     <div className="pb-10 sm:pb-12 w-full max-w-full">
@@ -110,9 +134,9 @@ export default async function BuscarPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      {/* ── Sin consulta: estado vacío ── */}
+      {/* ── Sin consulta (o consulta de 1 carácter): estado vacío ── */}
       {showEmpty ? (
-        <EmptySearchState />
+        <EmptySearchState tooShort={queryTooShort} />
       ) : (
         <section className="flex flex-col lg:flex-row gap-5 sm:gap-6 lg:gap-8 w-full max-w-full">
 
@@ -124,6 +148,7 @@ export default async function BuscarPage({ searchParams }: PageProps) {
                 currentCat={cat}
                 currentBrand={brand}
                 currentSort={sort}
+                includeOutOfStock={includeOutOfStock}
                 categories={categories}
                 brands={brands}
                 totalCount={totalCount}
@@ -141,6 +166,7 @@ export default async function BuscarPage({ searchParams }: PageProps) {
               currentCat={cat}
               currentBrand={brand}
               currentSort={sort}
+              includeOutOfStock={includeOutOfStock}
               categories={categories}
               brands={brands}
               totalCount={totalCount}
@@ -151,7 +177,13 @@ export default async function BuscarPage({ searchParams }: PageProps) {
 
             {/* Chips de filtros activos */}
             {activeCount > 0 && (
-              <ActiveFilterChips q={q} cat={cat} brand={brand} sort={sort} />
+              <ActiveFilterChips
+                q={q}
+                cat={cat}
+                brand={brand}
+                sort={sort}
+                includeOutOfStock={includeOutOfStock}
+              />
             )}
 
             {/* Grid */}
@@ -169,7 +201,7 @@ export default async function BuscarPage({ searchParams }: PageProps) {
               >
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
                   {products.map((product) => (
-                    <ProductCard key={product.id} product={product as Product} />
+                    <ProductCard key={product.id} product={fullProductToCardModel(product)} />
                   ))}
                 </div>
               </Suspense>
@@ -183,6 +215,7 @@ export default async function BuscarPage({ searchParams }: PageProps) {
                   cat={cat}
                   brand={brand}
                   sort={sort}
+                  disp={disp}
                   currentPage={page}
                   totalPages={totalPages}
                 />
@@ -199,7 +232,7 @@ export default async function BuscarPage({ searchParams }: PageProps) {
 // Sub-componentes de servidor (sin estado, sin "use client")
 // ─────────────────────────────────────────────────────────────
 
-function EmptySearchState() {
+function EmptySearchState({ tooShort = false }: { tooShort?: boolean }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft px-5 py-16 sm:py-24 text-center max-w-xl mx-auto">
       <div className="w-16 h-16 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-4">
@@ -207,7 +240,9 @@ function EmptySearchState() {
       </div>
       <h2 className="text-lg font-semibold text-navy">¿Qué estás buscando?</h2>
       <p className="text-sm text-slate-500 mt-2 max-w-sm mx-auto">
-        Ingresa el nombre de un producto, marca o categoría en la barra de búsqueda.
+        {tooShort
+          ? 'Escribe al menos 2 caracteres para buscar en el catálogo.'
+          : 'Ingresa el nombre de un producto, marca o categoría en la barra de búsqueda.'}
       </p>
       <Link
         href="/productos"
@@ -260,17 +295,20 @@ function ActiveFilterChips({
   cat,
   brand,
   sort,
+  includeOutOfStock,
 }: {
   q: string;
   cat: string;
   brand: string;
   sort: string;
+  includeOutOfStock: boolean;
 }) {
-  const base = (without: 'cat' | 'brand') => {
+  const base = (without: 'cat' | 'brand' | 'disp') => {
     const params = new URLSearchParams();
     if (q)                    params.set('q',     q);
     if (without !== 'cat'   && cat)   params.set('cat',   cat);
     if (without !== 'brand' && brand) params.set('brand', brand);
+    if (without !== 'disp'  && includeOutOfStock) params.set('disp', 'all');
     if (sort && sort !== 'default')   params.set('sort',  sort);
     const qs = params.toString();
     return `/buscar${qs ? `?${qs}` : ''}`;
@@ -294,6 +332,15 @@ function ActiveFilterChips({
           className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors"
         >
           {brand}
+          <span aria-hidden>×</span>
+        </Link>
+      )}
+      {includeOutOfStock && (
+        <Link
+          href={base('disp')}
+          className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors"
+        >
+          Incluye agotados
           <span aria-hidden>×</span>
         </Link>
       )}

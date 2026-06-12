@@ -1,3 +1,6 @@
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { isAdminRole } from '@/lib/is-admin-role';
 import { Order, OrderItem, prismaOrderToOrder } from '@/lib/definitions';
 import { prisma } from '@/lib/prisma';
 import SuccessClientPage from './SuccessClientPage';
@@ -32,7 +35,10 @@ export default async function SuccessPageWrapper({
 }: {
   searchParams: Promise<{ orderId?: string }>;
 }) {
-  const { orderId } = await searchParams;
+  const [session, { orderId }] = await Promise.all([
+    getServerSession(authOptions),
+    searchParams,
+  ]);
 
   if (!orderId) {
     return (
@@ -42,12 +48,35 @@ export default async function SuccessPageWrapper({
     );
   }
 
-  const order = await getEnrichedOrder(orderId);
-
-  if (!order) {
+  /*
+   * PRD-001: el middleware ya exige sesión en /checkout/*, pero esta página
+   * vuelve a comprobarla (defense-in-depth) y verifica la PROPIEDAD del
+   * pedido. Sin esto, cualquier usuario autenticado podía leer el pedido de
+   * otra persona (PII completa) con ?orderId={uuid}.
+   */
+  if (!session?.user?.id) {
     return (
       <div className="text-center py-20 text-red-500">
-        Error: No se pudo encontrar el pedido con ID {orderId}.
+        Acceso denegado. Por favor inicia sesión para ver tu pedido.
+      </div>
+    );
+  }
+
+  const order = await getEnrichedOrder(orderId);
+
+  /*
+   * Anti-enumeración: mismo mensaje para "no existe" y "no es tuyo", así un
+   * orderId ajeno no confirma la existencia del pedido. El admin sí puede
+   * abrirlo (soporte post-venta).
+   */
+  const isOwner = order?.customerId === session.user.id;
+  const isAdmin = isAdminRole((session.user as { role?: string }).role);
+
+  if (!order || (!isOwner && !isAdmin)) {
+    return (
+      <div className="text-center py-20 text-red-500">
+        No encontramos este pedido en tu cuenta. Si crees que es un error,
+        contáctanos con tu número de pedido.
       </div>
     );
   }

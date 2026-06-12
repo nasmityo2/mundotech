@@ -22,13 +22,15 @@ interface Props {
  * el panel navy de marca (las fotos genéricas de Unsplash además quedaban
  * bloqueadas por el CSP, que solo permite Cloudinary).
  */
+// P46/H14: los fallbacks enlazan al catálogo canónico — el filtro ?cat= se
+// aplica solo en cliente y diluía señales hacia URLs no canónicas.
 const FALLBACK_PROMOS = [
   {
     label: 'Gaming',
     title: 'Consolas portátiles\ny handheld',
     subtitle: 'R36S y más — envío seguro',
     cta: 'Ver gaming',
-    href: '/productos?cat=Consolas',
+    href: '/productos',
     img: '',
   },
   {
@@ -36,7 +38,7 @@ const FALLBACK_PROMOS = [
     title: 'Lo más pedido\nde la semana',
     subtitle: 'Lo que todos preguntan por WhatsApp — stock real',
     cta: 'Ver accesorios',
-    href: '/productos?cat=Accesorios',
+    href: '/productos',
     img: '',
   },
   {

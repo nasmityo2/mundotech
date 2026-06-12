@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
+import { isSafeEditableLink } from '@/lib/safe-link';
 
 const promotionSchema = z.object({
   title:        z.string().min(1, 'El título es obligatorio.').max(200),
@@ -13,7 +14,13 @@ const promotionSchema = z.object({
     .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, 'Color HEX inválido.')
     .optional()
     .default('#FFD700'),
-  link:   z.string().max(500).optional().default('/productos'),
+  // PRD-042/283: solo rutas internas (/...) o https — sin javascript:/data:.
+  link:   z
+    .string()
+    .max(500)
+    .refine((v) => isSafeEditableLink(v), 'Enlace no permitido: usa ruta interna (/...) o https.')
+    .optional()
+    .default('/productos'),
   active: z.boolean().optional().default(true),
   order:  z.number({ message: 'El orden debe ser un número.' }).int().min(0).max(9999).optional().default(1),
 });
@@ -42,7 +49,8 @@ export async function PUT(
       data:  parsed.data,
     });
     return NextResponse.json(promo);
-  } catch {
+  } catch (error) {
+    console.error('[PUT /api/promotions/[id]]', error);
     return NextResponse.json({ error: 'Error al actualizar la promoción.' }, { status: 500 });
   }
 }
@@ -58,7 +66,8 @@ export async function DELETE(
     const { id } = await params;
     await prisma.promotion.delete({ where: { id } });
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error('[DELETE /api/promotions/[id]]', error);
     return NextResponse.json({ error: 'Error al eliminar la promoción.' }, { status: 500 });
   }
 }

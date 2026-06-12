@@ -16,7 +16,7 @@ Slogan oficial:  CONECTADOS CONTIGO
 Teléfono 1:      0412-1471338
 Teléfono 2:      0414-5709470
 Instagram:       @Mundotech39
-Dirección:       Calle 22 entre carreras 18 y 19, CC Minicentro 34
+Dirección:       Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001
 Ciudad:          Barquisimeto, estado Lara
 ```
 
@@ -39,7 +39,6 @@ Ciudad:          Barquisimeto, estado Lara
 
 | Evitar (suena IA) | Usar (suena humano/local) |
 |-------------------|--------------------------|
-| "Agregar al carrito" | "¡Me lo llevo!" |
 | "Ver más productos" | "Explorar todo el catálogo" |
 | "Soporte 24/7" | "WhatsApp directo con el equipo" |
 | "Oferta especial" | "Tremendo precio" / "Lo más pedido" |
@@ -63,7 +62,7 @@ Ciudad:          Barquisimeto, estado Lara
 
 ## Páginas que no existen y bloquean el lanzamiento
 
-- `/privacidad` — Política de privacidad (requerida para Cloudinary + GA4)
+- `/privacidad` — Política de privacidad (requerida para almacenamiento de imágenes + GA4)
 - `/terminos` — Términos y condiciones de compra
 - `/devoluciones` — Política de devoluciones
 - Cookie consent banner — sin esto no puede activarse GA4

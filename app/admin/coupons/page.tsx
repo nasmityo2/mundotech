@@ -59,31 +59,53 @@ export default function AdminCouponsPage() {
   };
 
   const handleDelete = async (c: Coupon) => {
-    if (!confirm(`¿Eliminar el cupón "${c.code}"? Esta acción no se puede deshacer.`)) return;
+    // PRD-245: con usos registrados, borrar deja Order.couponCode huérfano
+    // (PRD-158 → 02). Advertencia explícita de pérdida de historial; la
+    // alternativa segura recomendada es desactivar.
+    const warning = c.usedCount > 0
+      ? `El cupón "${c.code}" ya fue usado en ${c.usedCount} pedido${c.usedCount !== 1 ? 's' : ''}.\n\nAl eliminarlo, esos pedidos conservarán el código pero se perderá el registro del cupón (historial/auditoría). Si solo quieres que deje de funcionar, usa «Desactivar».\n\n¿Eliminar de todas formas?`
+      : `¿Eliminar el cupón "${c.code}"? Esta acción no se puede deshacer.`;
+    if (!confirm(warning)) return;
     const res = await fetch(`/api/coupons/${c.id}`, { method: 'DELETE' });
     if (res.ok) { flash('success', 'Cupón eliminado.'); fetchCoupons(); }
     else flash('error', 'No se pudo eliminar.');
   };
 
   const handleToggleActive = async (c: Coupon) => {
-    const res = await fetch(`/api/coupons/${c.id}`, {
+    // PRD-244: el toggle reenviaba el cupón completo desde estado stale y podía
+    // pisar la edición concurrente de otro admin. Se relee el cupón justo antes
+    // de armar el PUT para reducir la ventana a milisegundos.
+    // // DEPENDENCIA-02: el fix definitivo es un PATCH parcial { active } en
+    // // /api/coupons/[id] (archivo de 02-CHECKOUT — hoy solo expone PUT/DELETE).
+    let fresh = c;
+    try {
+      const latest = await fetch('/api/coupons', { cache: 'no-store' });
+      if (latest.ok) {
+        const list: Coupon[] = await latest.json();
+        fresh = list.find(x => x.id === c.id) ?? c;
+      }
+    } catch (err) {
+      console.error('[admin/coupons] no se pudo refrescar el cupón antes del toggle:', err);
+    }
+
+    const res = await fetch(`/api/coupons/${fresh.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        code: c.code,
-        description: c.description ?? null,
-        discountType: c.discountType,
-        discountValue: c.discountValue,
-        minPurchase: c.minPurchase,
-        maxDiscount: c.maxDiscount ?? null,
-        maxUses: c.maxUses ?? null,
-        perUserLimit: c.perUserLimit ?? null,
-        startsAt: c.startsAt ?? null,
-        expiresAt: c.expiresAt ?? null,
-        active: !c.active,
+        code: fresh.code,
+        description: fresh.description ?? null,
+        discountType: fresh.discountType,
+        discountValue: fresh.discountValue,
+        minPurchase: fresh.minPurchase,
+        maxDiscount: fresh.maxDiscount ?? null,
+        maxUses: fresh.maxUses ?? null,
+        perUserLimit: fresh.perUserLimit ?? null,
+        startsAt: fresh.startsAt ?? null,
+        expiresAt: fresh.expiresAt ?? null,
+        active: !fresh.active,
       }),
     });
-    if (res.ok) { flash('success', c.active ? 'Cupón desactivado.' : 'Cupón activado.'); fetchCoupons(); }
+    if (res.ok) { flash('success', fresh.active ? 'Cupón desactivado.' : 'Cupón activado.'); fetchCoupons(); }
     else flash('error', 'No se pudo actualizar.');
   };
 

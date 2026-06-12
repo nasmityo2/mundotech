@@ -21,6 +21,17 @@ function normalizeUrl(raw: string | undefined): string | undefined {
   return raw.replace(/^prisma\+/, '');
 }
 
+// PRD-146: guard anti-producción. Las reseñas sembradas son contenido de
+// demostración; ejecutarlas contra la BD de producción contaminaría datos
+// reales. Para forzar conscientemente: SEED_REVIEWS_FORCE=1 npx tsx scripts/seed-reviews.ts
+if (process.env.NODE_ENV === 'production' && process.env.SEED_REVIEWS_FORCE !== '1') {
+  console.error(
+    '[seed-reviews] Bloqueado: NODE_ENV=production. ' +
+      'Si REALMENTE quieres sembrar reseñas demo en esta BD, ejecuta con SEED_REVIEWS_FORCE=1.',
+  );
+  process.exit(1);
+}
+
 const pool = new Pool({ connectionString: normalizeUrl(process.env.DATABASE_URL) });
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
@@ -57,7 +68,7 @@ const TEMPLATES: { rating: number; title: string; comment: string }[] = [
     rating: 5,
     title: 'Tienda seria',
     comment:
-      'Pasé primero por la tienda en el Minicentro 34 a verlo en persona y después lo compré por la web para que me lo enviaran. Todo en orden, factura y garantía.',
+      'Pasé primero por la tienda en Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001 a verlo en persona y después lo compré por la web para que me lo enviaran. Todo en orden, factura y garantía.',
   },
   {
     rating: 5,

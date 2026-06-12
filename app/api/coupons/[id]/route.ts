@@ -34,6 +34,24 @@ export async function PUT(
       );
     }
 
+    // PRD-159/PRD-243: maxUses no puede quedar por debajo de los canjes ya
+    // realizados — dejaría al cupón en un estado imposible (usedCount > maxUses).
+    const current = await prisma.coupon.findUnique({
+      where: { id },
+      select: { usedCount: true },
+    });
+    if (!current) {
+      return NextResponse.json({ error: 'Cupón no encontrado.' }, { status: 404 });
+    }
+    if (data.maxUses != null && data.maxUses < current.usedCount) {
+      return NextResponse.json(
+        {
+          error: `El límite de usos no puede ser menor que los canjes ya registrados (${current.usedCount}).`,
+        },
+        { status: 422 }
+      );
+    }
+
     const coupon = await prisma.coupon.update({
       where: { id },
       data: {
@@ -57,7 +75,14 @@ export async function PUT(
   }
 }
 
-/** DELETE /api/coupons/[id] — eliminar cupón (admin). */
+/**
+ * DELETE /api/coupons/[id] — eliminar cupón (admin).
+ *
+ * PRD-158: un cupón con canjes registrados NO se borra físicamente — borrar el
+ * registro destruiría en cascada los CouponRedemption (auditoría financiera) y
+ * dejaría `Order.couponCode` apuntando a un código inexistente. En ese caso se
+ * desactiva (soft-delete). Cupones nunca usados sí se eliminan de verdad.
+ */
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -67,8 +92,27 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+
+    const coupon = await prisma.coupon.findUnique({
+      where: { id },
+      select: { usedCount: true, _count: { select: { redemptions: true } } },
+    });
+    if (!coupon) {
+      return NextResponse.json({ error: 'Cupón no encontrado.' }, { status: 404 });
+    }
+
+    const wasUsed = coupon.usedCount > 0 || coupon._count.redemptions > 0;
+    if (wasUsed) {
+      await prisma.coupon.update({ where: { id }, data: { active: false } });
+      return NextResponse.json({
+        success: true,
+        softDeleted: true,
+        message: 'El cupón tiene canjes registrados: se desactivó para preservar el historial de pedidos.',
+      });
+    }
+
     await prisma.coupon.delete({ where: { id } });
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, softDeleted: false });
   } catch (error) {
     console.error('[DELETE /api/coupons/[id]] Error inesperado:', error);
     return NextResponse.json({ error: 'Error al eliminar el cupón.' }, { status: 500 });

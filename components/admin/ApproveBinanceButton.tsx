@@ -6,12 +6,13 @@ import { toast } from '@/components/ui/use-toast';
 import type { Order } from '@/lib/definitions';
 
 const CONFIRM_MSG =
-  '¿Confirmas que verificaste el pago en Binance? El pedido pasará a «Pendiente» (pago recibido) y luego podrás validarlo y prepararlo.';
+  '¿Confirmas que verificaste el pago en Binance? El pedido pasará directo a «En Proceso» (pago verificado) y el cliente recibirá la confirmación por correo.';
 
 /**
- * Aprueba un pago Binance pendiente de verificación manual. Llama a
- * POST /api/orders/[id]/approve-binance, que avanza el estado a "Pendiente"
- * y sella paidAt. Solo se muestra cuando el pedido está en verificación Binance.
+ * Aprueba un pago Binance pendiente de verificación manual en UN solo paso
+ * (PRD-028). Llama a POST /api/orders/[id]/approve-binance, que avanza el
+ * estado a "En Proceso", sella paidAt y notifica al cliente. Solo se muestra
+ * cuando el pedido está en verificación Binance.
  */
 export function ApproveBinanceButton({
   order,
@@ -35,8 +36,8 @@ export function ApproveBinanceButton({
       }
       onApproved(data as Order);
       toast({
-        title: 'Pago Binance aprobado',
-        description: 'El pedido quedó en «Pendiente». Valida el pago para preparar el envío.',
+        title: 'Pago Binance verificado',
+        description: 'El pedido quedó «En Proceso» y el cliente fue notificado. Ya puedes prepararlo.',
       });
     } catch (err) {
       toast({
@@ -57,7 +58,7 @@ export function ApproveBinanceButton({
       className="touch-manipulation select-none min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#F0B90B]/40 bg-[#F0B90B] px-3 sm:px-4 text-xs sm:text-sm font-bold text-navy shadow-sm hover:brightness-95 active:brightness-90 disabled:opacity-60"
     >
       {pending ? <Loader2 size={14} className="animate-spin" /> : <Wallet size={14} />}
-      Aprobar pago Binance
+      Aprobar y preparar
     </button>
   );
 }

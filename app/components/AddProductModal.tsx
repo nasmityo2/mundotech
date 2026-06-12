@@ -1,7 +1,6 @@
 'use client'
 import { useTransition, useRef, useEffect, useState, useCallback } from 'react';
 import { createProductAction, updateProductAction } from '@/app/actions/productActions';
-import { CldUploadWidget } from 'next-cloudinary';
 import { X, GripVertical, ImagePlus, Star, Play, Video, Camera, Plus, Trash2 } from 'lucide-react';
 import { deriveLegacyImagesFromSlots } from '@/lib/product-media';
 import { parseProductSpecs, type ProductSpec } from '@/lib/definitions';
@@ -51,8 +50,6 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
   const [bunnyUrl, setBunnyUrl] = useState('');
   const [bunnyPoster, setBunnyPoster] = useState('');
   const [specs, setSpecs] = useState<ProductSpec[]>([]);
-  const hasCloudinary = Boolean(process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME);
-
   // Bloquear scroll del body con modal abierto
   useEffect(() => {
     if (!isOpen) return;
@@ -362,62 +359,26 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                     </button>
                   </div>
                   {serverUploading && (
-                    <p className="text-xs text-center text-gray-500">Subiendo a Cloudinary…</p>
+                    <p className="text-xs text-center text-gray-500">Subiendo imagen…</p>
                   )}
 
-                  {hasCloudinary && (
-                    <CldUploadWidget
-                      uploadPreset="ml_default"
-                      options={{
-                        sources: ['local', 'url', 'camera'],
-                        multiple:  true,
-                        maxFiles:  MAX_SLOTS - slots.length,
-                        clientAllowedFormats: ['webp', 'avif', 'jpeg', 'png'],
-                        theme: 'minimal',
-                        showPoweredBy: false,
-                        styles: { palette: { action: '#1a1a2e' } },
-                      }}
-                      onSuccess={(result) => {
-                        if (
-                          typeof result.info === 'object' &&
-                          result.info !== null &&
-                          'secure_url' in result.info
-                        ) {
-                          addImages([result.info.secure_url as string]);
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">
+                      O pega la URL de una imagen (Enter para añadir):
+                    </p>
+                    <input
+                      type="url"
+                      placeholder="https://ejemplo.com/imagen.jpg"
+                      className={inputCls}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = (e.target as HTMLInputElement).value.trim();
+                          if (val) { addImages([val]); (e.target as HTMLInputElement).value = ''; }
                         }
                       }}
-                    >
-                      {({ open }) => (
-                        <button
-                          type="button"
-                          onClick={() => open()}
-                          className="w-full text-sm text-navy/80 font-medium py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-                        >
-                          O usar selector Cloudinary (cámara, URL…)
-                        </button>
-                      )}
-                    </CldUploadWidget>
-                  )}
-
-                  {!hasCloudinary && (
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1">
-                        O pega la URL de una imagen (Enter para añadir):
-                      </p>
-                      <input
-                        type="url"
-                        placeholder="https://ejemplo.com/imagen.jpg"
-                        className={inputCls}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const val = (e.target as HTMLInputElement).value.trim();
-                            if (val) { addImages([val]); (e.target as HTMLInputElement).value = ''; }
-                          }
-                        }}
-                      />
-                    </div>
-                  )}
+                    />
+                  </div>
                 </div>
               )}
 

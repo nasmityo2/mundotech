@@ -1,13 +1,46 @@
 import { NextResponse } from 'next/server';
-import cloudinary from '@/lib/cloudinary';
+import { z } from 'zod';
 import { requireAdmin } from '@/lib/api-auth';
+import { rateLimit } from '@/lib/rate-limit';
+import { verifySameOrigin } from '@/lib/security';
 import { detectImageMimeFromBuffer, isAllowedAdminUploadMime } from '@/lib/detect-image-mime';
+import { processImage } from '@/lib/image-processing';
+import { buildKey, uploadToR2, type R2Folder } from '@/lib/r2';
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
+/** PRD-047: enum estricto de destinos — un purpose libre permitía elegir folder arbitrario. */
+const purposeSchema = z.enum(['banner', 'product', 'products', 'category', 'tracking']);
+
+const UPLOAD_BY_PURPOSE: Record<
+  z.infer<typeof purposeSchema>,
+  { folder: R2Folder; maxWidth: number }
+> = {
+  banner:   { folder: 'banners',  maxWidth: 1920 },
+  product:  { folder: 'products', maxWidth: 1200 },
+  products: { folder: 'products', maxWidth: 1200 },
+  category: { folder: 'assets',   maxWidth: 1920 },
+  tracking: { folder: 'assets',   maxWidth: 1600 },
+};
+
 export async function POST(request: Request) {
+  // PRD-046: mitigación CSRF (sesión admin podría ser forzada cross-site).
+  if (!verifySameOrigin(request)) {
+    return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
+  }
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
+
+  // PRD-046: rate limit por admin — frena abuso del cupo de storage si la
+  // sesión se compromete (60 imágenes por 10 min es de sobra para operar).
+  const adminId = auth.session.user?.id ?? 'admin';
+  if (await rateLimit(`admin-upload:${adminId}`, { limit: 60, windowMs: 10 * 60_000 })) {
+    return NextResponse.json(
+      { error: 'Demasiadas subidas en poco tiempo. Espera unos minutos.' },
+      { status: 429 }
+    );
+  }
 
   try {
     const formData = await request.formData();
@@ -25,11 +58,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const purpose = String(formData.get('purpose') ?? 'banner');
-    const folder =
-      purpose === 'product' || purpose === 'products'
-        ? 'mundotech/products'
-        : 'mundotech/banners';
+    const parsedPurpose = purposeSchema.safeParse(String(formData.get('purpose') ?? 'banner'));
+    if (!parsedPurpose.success) {
+      return NextResponse.json(
+        { error: `purpose inválido. Valores permitidos: ${purposeSchema.options.join(', ')}.` },
+        { status: 400 }
+      );
+    }
+    const purpose = parsedPurpose.data;
+    const { folder, maxWidth } = UPLOAD_BY_PURPOSE[purpose];
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -43,33 +80,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const base64 = `data:${detectedMime};base64,${buffer.toString('base64')}`;
-
-    const isProduct = folder === 'mundotech/products';
-
-    const result = await cloudinary.uploader.upload(base64, {
-      folder,
-      resource_type: 'image',
-      transformation: [
-        {
-          quality:      'auto:good',
-          fetch_format: 'auto',
-          width:        isProduct ? 1200 : 1920,
-          crop:         'limit',
-        },
-      ],
-    });
+    const { buffer: processed, contentType, ext, width, height } = await processImage(buffer, { maxWidth });
+    const key = buildKey(folder, ext);
+    const url = await uploadToR2({ buffer: processed, key, contentType });
 
     return NextResponse.json({
-      url:      result.secure_url,
-      publicId: result.public_id,
-      width:    result.width,
-      height:   result.height,
+      url,
+      publicId: key,
+      width,
+      height,
     });
   } catch (err) {
-    console.error('[upload] Cloudinary error:', err);
+    console.error('[upload] R2 error:', err);
     return NextResponse.json(
-      { error: 'Error al subir imagen. Verifica las credenciales de Cloudinary.' },
+      { error: 'Error al subir imagen. Verifica la configuración de almacenamiento.' },
       { status: 500 }
     );
   }

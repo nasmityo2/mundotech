@@ -68,9 +68,13 @@ const PROMO_LABELS = ['Promo Grande (Amarilla)', 'Promo Pequeña 1 (Navy)', 'Pro
 
 // ─── Helper: subir imagen ─────────────────────────────────────────────────────
 
-async function uploadImage(file: File): Promise<string> {
+/** PRD-248: `purpose` explícito — sin él, todo caía al folder por defecto
+ *  `mundotech/banners` de /api/upload (upload/route.ts, dueño 01). Mismo
+ *  convenio que PhotoUploader (`category`, `banner`, …). */
+async function uploadImage(file: File, purpose: string): Promise<string> {
   const fd = new FormData();
   fd.append('file', file);
+  fd.append('purpose', purpose);
   const res  = await fetch('/api/upload', { method: 'POST', body: fd });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? 'Error al subir imagen');
@@ -79,7 +83,9 @@ async function uploadImage(file: File): Promise<string> {
 
 // ─── ImagePicker ──────────────────────────────────────────────────────────────
 
-function ImagePicker({ value, onChange, label }: { value: string; onChange: (url: string) => void; label?: string }) {
+function ImagePicker({ value, onChange, label, purpose }: {
+  value: string; onChange: (url: string) => void; label?: string; purpose: string;
+}) {
   const [uploading, setUploading] = useState(false);
   const [error, setError]         = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -88,7 +94,7 @@ function ImagePicker({ value, onChange, label }: { value: string; onChange: (url
     const file = e.target.files?.[0];
     if (!file) return;
     setError(''); setUploading(true);
-    try   { onChange(await uploadImage(file)); }
+    try   { onChange(await uploadImage(file, purpose)); }
     catch (err: unknown) { setError(err instanceof Error ? err.message : 'Error'); }
     finally { setUploading(false); }
   };
@@ -323,7 +329,7 @@ export default function HomeManagerPage() {
                         onChange={e => updateCat(cat.id, { order: Number(e.target.value) })}
                         className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-navy/30" />
                     </div>
-                    <ImagePicker label="Imagen de portada" value={cat.imageUrl ?? ''} onChange={url => updateCat(cat.id, { imageUrl: url || null })} />
+                    <ImagePicker label="Imagen de portada" purpose="category" value={cat.imageUrl ?? ''} onChange={url => updateCat(cat.id, { imageUrl: url || null })} />
                     <button onClick={() => saveCategory(cat)} disabled={savingCat === cat.id}
                       className="w-full flex items-center justify-center gap-2 bg-navy text-white text-xs font-bold py-2.5 rounded-xl hover:bg-navy/90 disabled:opacity-50 transition-colors">
                       {savingCat === cat.id ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
@@ -398,7 +404,7 @@ export default function HomeManagerPage() {
                         placeholder="/productos"
                         className="w-full text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-navy/20" />
                     </div>
-                    <ImagePicker label="Imagen del producto (opcional)" value={promo.imageUrl ?? ''} onChange={url => updatePromo(i, { imageUrl: url || null })} />
+                    <ImagePicker label="Imagen del producto (opcional)" purpose="banner" value={promo.imageUrl ?? ''} onChange={url => updatePromo(i, { imageUrl: url || null })} />
                     <button onClick={() => savePromo(i)} disabled={savingPro === i}
                       className="w-full flex items-center justify-center gap-2 bg-navy text-white text-xs font-bold py-2.5 rounded-xl hover:bg-navy/90 disabled:opacity-50 transition-colors">
                       {savingPro === i ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}

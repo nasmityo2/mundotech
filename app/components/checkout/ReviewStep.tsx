@@ -1,27 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 import { Loader2, CheckCircle2, Store, Building2, CreditCard, Tag, X } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
+import { useExchangeRate } from '@/context/ExchangeRateContext';
 import { ShippingFormData } from './ShippingForm';
 import { PaymentFormData } from './PaymentForm';
 import { formatCurrency } from '@/lib/utils';
-import { markCartRecoveredAction } from '@/app/actions/abandonedCartActions';
 
 interface ReviewStepProps {
   shippingData: ShippingFormData | null;
   paymentData: PaymentFormData | null;
 }
 
+/** Equivalente referencial en bolívares (PRD-022). El monto autoritativo en Bs lo congela el servidor con la tasa de BD. */
+function formatBsApprox(amountUsd: number, rate: number): string {
+  return `Bs. ${new Intl.NumberFormat('es-VE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amountUsd * rate)}`;
+}
+
 const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
   const { data: session } = useSession();
   const { cart, clearCart, getCartTotal, isCartLoading } = useCart();
+  const { rate: exchangeRate } = useExchangeRate();
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // PRD-049: si el pedido falla DESPUÉS de subir el comprobante, el reintento
+  // reutiliza la URL ya subida en vez de duplicar la imagen en Cloudinary.
+  const uploadedProofRef = useRef<{ file: File; url: string } | null>(null);
 
   // Cupón de descuento (validado contra el servidor).
   const [couponInput, setCouponInput] = useState('');
@@ -76,6 +88,24 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
     setCouponMessage(null);
   };
 
+  /** PRD-049: sube el comprobante justo antes de crear el pedido (con caché de reintento). */
+  const uploadProofIfNeeded = async (): Promise<string | null> => {
+    const file = paymentData?.proofFile ?? null;
+    if (!file) return null;
+    if (uploadedProofRef.current?.file === file) {
+      return uploadedProofRef.current.url;
+    }
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/checkout/upload-proof', { method: 'POST', body: fd });
+    const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+    if (!res.ok || !data.url) {
+      throw new Error(data.error ?? 'No pudimos subir el comprobante. Intenta de nuevo.');
+    }
+    uploadedProofRef.current = { file, url: data.url };
+    return data.url;
+  };
+
   const handleConfirmOrder = async () => {
     if (!shippingData || !paymentData) {
       setError('Faltan datos de envío o pago.');
@@ -85,45 +115,48 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
     setIsProcessing(true);
     setError(null);
 
-    const orderPayload = {
-      customerId: session?.user?.id || 'guest',
-      customerName: `${shippingData.firstName} ${shippingData.lastName}`,
-      customerEmail: shippingData.email?.trim() || session?.user?.email?.trim() || null,
-      customerPhone: shippingData.phoneNumber,
-      customerIdNumber: shippingData.idNumber,
-      shippingDetails: {
-        address:
-          shippingData.shippingMethod === 'tienda'
-            ? 'Retiro en tienda MundoTech'
-            : 'Retiro en Oficina MRW',
-        city: shippingData.shippingMethod === 'mrw' ? (shippingData.mrwOffice ?? '') : 'Barquisimeto',
-        state: shippingData.shippingMethod === 'mrw' ? (shippingData.mrwState ?? '') : 'Lara',
-        zipCode: 'N/A',
-        country: 'Venezuela',
-      },
-      paymentMethod:
-        paymentData.paymentMethod === 'pagomovil'
-          ? 'Pago Móvil'
-          : paymentData.paymentMethod === 'binancepay'
-            ? 'Binance Pay'
-            : 'Transferencia Bancaria',
-      paymentBank: paymentData.bank || null,
-      paymentHolderIdNumber: paymentData.holderIdNumber || null,
-      paymentHolderPhone: paymentData.holderPhone || null,
-      paymentReference: paymentData.referenceNumber || null,
-      paymentProofUrl: paymentData.proofImageUrl || null,
-      couponCode: appliedCoupon || null,
-      items: cart.map((item) => ({
-        productId: item.id,
-        productName: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        imageUrl: item.image || item.images?.[0] || '',
-      })),
-      total,
-    };
-
     try {
+      const proofUrl = await uploadProofIfNeeded();
+
+      // El servidor recalcula precios/total desde BD e ignora cualquier monto
+      // del cliente; para retiro en tienda también resuelve la dirección desde
+      // la configuración (PRD-128).
+      const orderPayload = {
+        customerId: session?.user?.id || 'guest',
+        customerName: `${shippingData.firstName} ${shippingData.lastName}`,
+        customerEmail: shippingData.email?.trim() || session?.user?.email?.trim() || null,
+        customerPhone: shippingData.phoneNumber,
+        customerIdNumber: shippingData.idNumber,
+        shippingMethod: shippingData.shippingMethod,
+        shippingDetails: {
+          address:
+            shippingData.shippingMethod === 'tienda'
+              ? 'Retiro en tienda'
+              : 'Retiro en Oficina MRW',
+          city: shippingData.shippingMethod === 'mrw' ? (shippingData.mrwOffice ?? '') : 'Barquisimeto',
+          state: shippingData.shippingMethod === 'mrw' ? (shippingData.mrwState ?? '') : 'Lara',
+          zipCode: 'N/A',
+          country: 'Venezuela',
+        },
+        paymentMethod:
+          paymentData.paymentMethod === 'pagomovil'
+            ? 'Pago Móvil'
+            : paymentData.paymentMethod === 'binancepay'
+              ? 'Binance Pay'
+              : 'Transferencia Bancaria',
+        paymentBank: paymentData.bank || null,
+        paymentHolderIdNumber: paymentData.holderIdNumber || null,
+        paymentHolderPhone: paymentData.holderPhone || null,
+        paymentReference: paymentData.referenceNumber || null,
+        paymentProofUrl: proofUrl,
+        couponCode: appliedCoupon || null,
+        items: cart.map((item) => ({
+          productId: item.id,
+          quantity: item.quantity,
+          imageUrl: item.image || item.images?.[0] || '',
+        })),
+      };
+
       const response = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -142,13 +175,9 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
         throw new Error(apiMsg);
       }
 
+      // PRD-180: el carrito abandonado se marca RECOVERED en el servidor
+      // (POST /api/orders) — aquí ya no se invoca ninguna Server Action pública.
       clearCart();
-
-      // Marcar carrito como recuperado (best-effort, no bloquea la redirección)
-      const confirmedEmail = orderPayload.customerEmail;
-      if (confirmedEmail) {
-        markCartRecoveredAction(confirmedEmail).catch(() => {});
-      }
 
       router.push(`/checkout/success?orderId=${body.id}`);
     } catch (err) {
@@ -288,12 +317,12 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
               </>
             )}
           </dl>
-          {paymentData?.proofImageUrl ? (
+          {paymentData?.proofPreviewUrl ? (
             <div className="mt-3">
               <p className="text-[11px] text-slate-500 mb-1.5">Captura adjunta</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={paymentData.proofImageUrl}
+                src={paymentData.proofPreviewUrl}
                 alt="Comprobante"
                 className="w-24 h-24 object-cover rounded-xl border border-slate-200"
               />
@@ -359,7 +388,7 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
         )}
       </div>
 
-      {/* Resumen de totales */}
+      {/* Resumen de totales — dual USD/Bs (PRD-022): el cobro real es en Bs. */}
       <div className="rounded-2xl border border-slate-200 p-5 space-y-2">
         <div className="flex justify-between text-sm">
           <span className="text-slate-500">Subtotal</span>
@@ -375,6 +404,16 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
           <span className="text-navy">Total</span>
           <span className="text-navy nums">{formatCurrency(total)}</span>
         </div>
+        {exchangeRate > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-500">Total a pagar en bolívares</span>
+            <span className="text-navy font-semibold nums">{formatBsApprox(total, exchangeRate)}</span>
+          </div>
+        )}
+        <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+          El pago se realiza en bolívares. Tasa del día: Bs. {exchangeRate.toFixed(2)}/USD — el
+          monto definitivo en Bs. se fija al confirmar y te llega por correo.
+        </p>
       </div>
 
       {error && (
@@ -396,7 +435,10 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
             <Loader2 size={16} className="animate-spin" /> Enviando pedido…
           </>
         ) : (
-          <>Confirmar pedido — {formatCurrency(total)}</>
+          <>
+            Confirmar pedido — {formatCurrency(total)}
+            {exchangeRate > 0 ? ` (≈ ${formatBsApprox(total, exchangeRate)})` : ''}
+          </>
         )}
       </button>
       </div>

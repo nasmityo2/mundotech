@@ -7,21 +7,19 @@ export interface BenefitItem {
 
 const ICON_LIST = [Truck, ShieldCheck, Headset, CreditCard];
 
-// Datos reales de la operación — nada de claims genéricos intercambiables.
-const DEFAULT_ITEMS: BenefitItem[] = [
-  { title: 'Delivery en Barquisimeto en 24h',    sub: 'Y a todo el país por MRW o Zoom'        },
-  { title: '12 meses de garantía directa',       sub: 'La gestionas con nosotros, sin vueltas' },
-  { title: 'WhatsApp directo con el equipo',     sub: '0412-1471338 · te respondemos rápido'   },
-  { title: 'Pago Móvil · Transferencia · Binance', sub: 'En bolívares o dólares, a tasa del día' },
-];
-
-const Benefits = ({ items }: { items?: BenefitItem[] }) => {
-  const list = items && items.length > 0 ? items : DEFAULT_ITEMS;
+/**
+ * Barra de beneficios de la home — solo presentación (R1).
+ * Los ítems llegan SIEMPRE del Server Component padre: o la config del admin
+ * (homepage_benefits) o el fallback construido desde site-content + settings
+ * (PRD-113/PRD-258: aquí no viven teléfonos ni claims hardcodeados).
+ */
+const Benefits = ({ items }: { items: BenefitItem[] }) => {
+  if (!items || items.length === 0) return null;
 
   return (
     <div className="bg-white border-b border-slate-100">
       <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-slate-100">
-        {list.map((item, i) => {
+        {items.map((item, i) => {
           const Icon = ICON_LIST[i % ICON_LIST.length];
           return (
             <div key={i} className="flex items-center gap-3 px-4 sm:px-6 py-3.5 sm:py-4">

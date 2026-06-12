@@ -11,6 +11,7 @@ import { EnrichedOrder } from '@/app/account/orders/[id]/page';
 import { Badge } from '@/components/ui/Badge';
 import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
 import { DualOrderMoney, OrderFrozenRateBanner } from '@/components/order/DualOrderMoney';
+import type { OrderStatus } from '@/lib/definitions';
 
 interface OrderDetailClientProps {
   order: EnrichedOrder;
@@ -21,13 +22,16 @@ const formatDate = (dateString: string) =>
     year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
   });
 
-const statusConfig: Record<string, { label: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'neutral' }> = {
+// PRD-038: cubre TODOS los estados de OrderStatus (incluido el flujo Binance) —
+// el tipo viene de lib/definitions.ts (R2), sin strings sueltos sin cubrir.
+const statusConfig = {
+  'Pendiente verificación Binance': { label: 'Verificando pago Binance', variant: 'warning' },
   Pendiente:    { label: 'Pendiente',  variant: 'warning' },
   'En Proceso': { label: 'En proceso', variant: 'info'    },
   Enviado:      { label: 'Enviado',    variant: 'info'    },
   Entregado:    { label: 'Entregado',  variant: 'success' },
   Cancelado:    { label: 'Cancelado',  variant: 'danger'  },
-};
+} satisfies Record<OrderStatus, { label: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'neutral' }>;
 
 const timelineSteps = [
   { id: 'Pendiente',    label: 'Pedido recibido',  icon: CheckCircle2 },
@@ -45,10 +49,17 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
   const router = useRouter();
   const [trackingCopied, setTrackingCopied] = useState(false);
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const status = statusConfig[order.status] ?? { label: order.status, variant: 'neutral' as const };
+  const status =
+    statusConfig[order.status as keyof typeof statusConfig] ??
+    { label: order.status, variant: 'neutral' as const };
   const currentStepIdx = timelineIndex(order.status);
-  const isCancelled = order.status === 'Cancelado';
+  const isCancelled = order.status === ('Cancelado' satisfies OrderStatus);
   const hasTracking = !!(order.trackingNumber || order.trackingCarrier || order.trackingUrl || order.trackingPhotoUrl);
+
+  // PRD-093: la cancelación de pedido por el cliente requiere el endpoint de
+  // cancelación con reversión de stock/cupón — vive en el segmento 02.
+  // DEPENDENCIA-02 (app/api/orders/[id] DELETE es admin-only hoy): no se
+  // implementa el botón "Cancelar pedido" desde este segmento.
 
   const copyTrackingNumber = async () => {
     if (!order.trackingNumber) return;
@@ -56,7 +67,10 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
       await navigator.clipboard.writeText(order.trackingNumber);
       setTrackingCopied(true);
       window.setTimeout(() => setTrackingCopied(false), 2000);
-    } catch {}
+    } catch (err) {
+      // PRD-275: sin catch mudo — el clipboard puede fallar (permisos/HTTP).
+      console.error('[OrderDetailClient] No se pudo copiar el tracking:', err);
+    }
   };
 
   return (
@@ -203,7 +217,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
               <li key={item.productId} className="flex items-center gap-4 px-6 py-4">
                 <div className="relative h-16 w-16 rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex-shrink-0">
                   <Image
-                    src={item.imageUrl || '/placeholder.png'}
+                    src={item.imageUrl || '/placeholder-product.png'}
                     alt={item.productName}
                     fill
                     sizes="64px"

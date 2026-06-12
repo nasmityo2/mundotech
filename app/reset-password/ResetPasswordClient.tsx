@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, type FormEvent } from 'react';
+import { useEffect, useState, useTransition, type FormEvent } from 'react';
 import Link from 'next/link';
 import {
   AlertCircle,
@@ -13,18 +13,24 @@ import {
 } from 'lucide-react';
 
 import AuthSplitLayout from '@/components/auth/AuthSplitLayout';
-import { resetPassword } from '@/app/actions/authActions';
+import { resetPassword, verifyPasswordResetToken } from '@/app/actions/authActions';
 import { cn } from '@/lib/utils';
 
-interface ResetPasswordClientProps {
-  token: string;
-  initiallyValid: boolean;
+/**
+ * PRD-172 / PRD-224: extrae el token SOLO en el cliente.
+ * Preferencia: fragmento `#token=...` (no llega al servidor). Compatibilidad
+ * transitoria: `?token=` de correos enviados antes del cambio (15 min de vida).
+ */
+function readTokenFromLocation(): string {
+  if (typeof window === 'undefined') return '';
+  const hash = window.location.hash.replace(/^#/, '');
+  const fromHash = new URLSearchParams(hash).get('token');
+  if (fromHash?.trim()) return fromHash.trim();
+  const fromQuery = new URLSearchParams(window.location.search).get('token');
+  return fromQuery?.trim() ?? '';
 }
 
-export default function ResetPasswordClient({
-  token,
-  initiallyValid,
-}: ResetPasswordClientProps) {
+export default function ResetPasswordClient() {
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
@@ -32,7 +38,31 @@ export default function ResetPasswordClient({
   const [fieldErr, setFieldErr] = useState<string | null>(null);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
 
-  const invalidLink = !token || !initiallyValid;
+  const [token, setToken] = useState('');
+  const [linkState, setLinkState] = useState<'checking' | 'valid' | 'invalid'>('checking');
+
+  useEffect(() => {
+    const t = readTokenFromLocation();
+    if (!t) {
+      setLinkState('invalid');
+      return;
+    }
+    setToken(t);
+    let cancelled = false;
+    // Validación vía Server Action (viaja en el body del POST, no en la URL).
+    verifyPasswordResetToken(t)
+      .then((ok) => {
+        if (!cancelled) setLinkState(ok ? 'valid' : 'invalid');
+      })
+      .catch(() => {
+        if (!cancelled) setLinkState('invalid');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const invalidLink = linkState === 'invalid';
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -79,6 +109,17 @@ export default function ResetPasswordClient({
           >
             Iniciar sesión
           </Link>
+        </div>
+      </AuthSplitLayout>
+    );
+  }
+
+  if (linkState === 'checking') {
+    return (
+      <AuthSplitLayout variant="recovery" breadcrumbLast="Verificando enlace">
+        <div className="flex items-center gap-3 py-10 justify-center text-slate-500">
+          <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+          <span className="text-sm font-medium">Verificando el enlace…</span>
         </div>
       </AuthSplitLayout>
     );

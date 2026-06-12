@@ -2,6 +2,21 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 
+/** Tope de antigüedad del polling: nada anterior a 24 h cuenta como «nuevo». */
+const MAX_SINCE_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * PRD-226: el polling viaja con frecuencia y alimenta notificaciones; el nombre
+ * se enmascara (nombre de pila + inicial) para minimizar la PII expuesta.
+ */
+function maskCustomerName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'Cliente';
+  const first = parts[0];
+  const lastInitial = parts.length > 1 ? ` ${parts[parts.length - 1][0]}.` : '';
+  return `${first}${lastInitial}`;
+}
+
 /**
  * GET /api/orders/new-count?since=ISO
  * Devuelve la cantidad de pedidos creados después de `since`.
@@ -9,6 +24,9 @@ import { requireAdmin } from '@/lib/api-auth';
  *
  * Uso: polling cada 15-30s desde el panel admin para mostrar
  * notificaciones (sonido + vibración + badge).
+ *
+ * PRD-222: `since` se acota en servidor a 24 h hacia atrás — un localStorage
+ * borrado o muy viejo en el watcher ya no re-alerta pedidos antiguos en masa.
  */
 export async function GET(request: Request) {
   const auth = await requireAdmin();
@@ -16,11 +34,15 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const since = searchParams.get('since');
-  const sinceDate = since ? new Date(since) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+  let sinceDate = since ? new Date(since) : new Date(Date.now() - MAX_SINCE_AGE_MS);
 
   if (Number.isNaN(sinceDate.getTime())) {
     return NextResponse.json({ error: 'Parámetro since inválido.' }, { status: 400 });
   }
+
+  // PRD-222: clamp server-side, no depende del estado local del navegador admin
+  const floor = Date.now() - MAX_SINCE_AGE_MS;
+  if (sinceDate.getTime() < floor) sinceDate = new Date(floor);
 
   const [count, latest] = await Promise.all([
     prisma.order.count({
@@ -42,5 +64,12 @@ export async function GET(request: Request) {
     }),
   ]);
 
-  return NextResponse.json({ count, latest });
+  return NextResponse.json({
+    count,
+    latest: latest.map(o => ({
+      ...o,
+      // PRD-226: nombre minimizado en el payload de polling
+      customerName: maskCustomerName(o.customerName),
+    })),
+  });
 }

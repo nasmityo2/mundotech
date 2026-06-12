@@ -1,14 +1,24 @@
 import { NextResponse } from 'next/server';
 import { readSettings, writeSettings, storeSettingsSchema } from '@/lib/data-store';
 import { requireAdmin } from '@/lib/api-auth';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
 /**
  * GET /api/settings
  * Public callers receive only the non-sensitive storefront fields.
  * Authenticated ADMIN callers receive the full settings object.
+ * PRD-281: el subset público va con rate limit por IP (anti-enumeración
+ * de datos de contacto / scraping).
  */
-export async function GET() {
+export async function GET(request: Request) {
   const auth = await requireAdmin();
+
+  if (!auth.authorized) {
+    const ip = getClientIp(request);
+    if (await rateLimit(`settings:get:${ip}`, { limit: 60, windowMs: 60_000 })) {
+      return NextResponse.json({ error: 'Demasiadas solicitudes.' }, { status: 429 });
+    }
+  }
 
   const settings = await readSettings();
 
@@ -39,7 +49,9 @@ export async function PUT(request: Request) {
     }
     await writeSettings(parsed.data);
     return NextResponse.json({ success: true, message: 'Configuración guardada.' });
-  } catch {
+  } catch (error) {
+    // PRD-043: logging del fallo (antes el catch tragaba el error).
+    console.error('[PUT /api/settings]', error);
     return NextResponse.json(
       { success: false, message: 'Error al guardar la configuración.' },
       { status: 500 }

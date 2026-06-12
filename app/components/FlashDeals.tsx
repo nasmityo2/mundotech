@@ -23,20 +23,31 @@ interface Props {
   endHour?: number;
 }
 
+// PRD-189: la oferta "termina" a una hora de Venezuela (America/Caracas, UTC-4),
+// no a la hora local del visitante. Calcula los segundos restantes proyectando
+// el reloj del dispositivo a la zona horaria de la tienda.
+function getSecondsLeftVet(targetHour: number): number {
+  const now = new Date();
+  let vetNow: Date;
+  try {
+    vetNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Caracas' }));
+  } catch {
+    // Entornos sin datos ICU completos: VET es UTC-4 fija (sin horario de verano).
+    vetNow = new Date(now.getTime() + (now.getTimezoneOffset() - 240) * 60_000);
+  }
+  const end = new Date(vetNow);
+  end.setHours(targetHour, 0, 0, 0);
+  if (end <= vetNow) end.setDate(end.getDate() + 1);
+  return Math.max(0, Math.floor((end.getTime() - vetNow.getTime()) / 1000));
+}
+
 function useCountdown(targetHour: number) {
   // null hasta después del mount: servidor y primer paint del cliente muestran 00:00:00
   // y evitan hydration mismatch (Date difiere entre SSR y hidratación).
   const [secs, setSecs] = useState<number | null>(null);
 
   useEffect(() => {
-    const getSecondsLeft = () => {
-      const now = new Date();
-      const end = new Date();
-      end.setHours(targetHour, 0, 0, 0);
-      if (end <= now) end.setDate(end.getDate() + 1);
-      return Math.max(0, Math.floor((end.getTime() - now.getTime()) / 1000));
-    };
-    const tick = () => setSecs(getSecondsLeft());
+    const tick = () => setSecs(getSecondsLeftVet(targetHour));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
@@ -58,7 +69,9 @@ function DiscountBadge({ pct }: { pct: number }) {
 }
 
 function FlashCard({ product }: { product: FlashProduct }) {
-  const href     = product.slug ? `/product/${product.slug}` : '/productos';
+  // PRD-EXTRA-SEO-1: patrón `slug ?? id` como en el resto del sitio — antes un
+  // producto sin slug enlazaba al catálogo en vez de a su propia ficha.
+  const href     = `/product/${product.slug ?? product.id}`;
   const img      = product.images[0] || '/placeholder-product.png';
   const pct      = product.originalPrice
     ? Math.round((1 - product.price / product.originalPrice) * 100)

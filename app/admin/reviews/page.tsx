@@ -76,6 +76,14 @@ export default function AdminReviewsPage() {
 
   const toggleAutoApprove = async () => {
     const next = !autoApprove;
+    // PRD-247: activar publica reseñas nuevas sin moderación previa — exige
+    // confirmación explícita (el cambio queda auditado en servidor, PRD-229).
+    if (next) {
+      const ok = window.confirm(
+        'Con auto-aprobación activa, toda reseña nueva se publica de inmediato en la tienda sin pasar por moderación (incluidas las de usuarios sin compra verificada).\n\n¿Activar auto-aprobación?',
+      );
+      if (!ok) return;
+    }
     const res = await fetch('/api/reviews/auto-approve', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

@@ -16,6 +16,7 @@ export default async function CheckoutPage() {
     <CheckoutFlow
       pagoMovil={settings.pagoMovil}
       transferencia={settings.transferencia}
+      supportPhone={settings.phone}
     />
   );
 }

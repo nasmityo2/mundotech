@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, Clock, Zap, Sparkles, Tag } from 'lucide-react';
-import { useProducts } from '@/context/ProductContext';
 import { useRouter }   from 'next/navigation';
 
 interface PromoData {
@@ -63,12 +62,29 @@ const FALLBACK_PROMO: PromoData = {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
-  const { products, setFilterCategory } = useProducts();
   const router = useRouter();
   const [promo, setPromo] = useState<PromoData | null>(null);
+  // PRD-095: el menú ya no depende del catálogo completo (ProductContext);
+  // usa el endpoint liviano de categorías y solo carga al abrir el drawer.
+  const [categories, setCategories] = useState<string[]>([]);
+  const categoriesLoadedRef = useRef(false);
   const firstCatRef = useRef<HTMLButtonElement>(null);
 
-  const categories = Array.from(new Set(products.map(p => p.category))).sort();
+  useEffect(() => {
+    if (!open || categoriesLoadedRef.current) return;
+    categoriesLoadedRef.current = true;
+    fetch('/api/categories')
+      .then(r => r.json())
+      .then((data: unknown) => {
+        if (Array.isArray(data)) {
+          const names = (data as { name?: unknown }[])
+            .map(c => (typeof c.name === 'string' ? c.name : null))
+            .filter((n): n is string => !!n);
+          setCategories([...new Set(names)].sort());
+        }
+      })
+      .catch((err) => console.error('[CategoryDrawer] Error al cargar categorías:', err));
+  }, [open]);
 
   useEffect(() => {
     fetch('/api/promotions?active=true')
@@ -96,9 +112,9 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
   }, [onClose]);
 
   const handleCategoryClick = (cat: string) => {
-    setFilterCategory(cat);
     onClose();
-    router.push('/productos');
+    // El filtro viaja por URL (?cat=) — ProductGridAndFilters lo lee en /productos.
+    router.push(cat === 'all' ? '/productos' : `/productos?cat=${encodeURIComponent(cat)}`);
   };
 
   const display = promo ?? FALLBACK_PROMO;

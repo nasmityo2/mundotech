@@ -3,10 +3,11 @@
 import { prisma } from '@/lib/prisma';
 import { sendRestockNotificationEmail } from '@/lib/resend';
 import { rateLimit } from '@/lib/rate-limit';
-import { headers } from 'next/headers';
+import { requireAdminAction } from '@/lib/api-auth';
+import { getActionClientIp } from '@/lib/security';
 import { z } from 'zod';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 
 const subscribeSchema = z.object({
   email:     z.string().email('Email inválido'),
@@ -22,15 +23,12 @@ export async function subscribeRestockAction(
   email: string,
   productId: string,
 ): Promise<{ success: boolean; message: string }> {
-  // Rate limiting por IP para evitar spam
-  const headersList = await headers();
-  const ip =
-    headersList.get('x-vercel-forwarded-for')?.split(',')[0]?.trim() ??
-    headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    headersList.get('x-real-ip')?.trim() ??
-    'unknown';
+  // Rate limiting por IP para evitar spam.
+  // PRD-019: getActionClientIp respeta DEPLOYMENT_ENV y toma el último valor
+  // de x-forwarded-for (el primero es falsificable por el cliente).
+  const ip = await getActionClientIp();
 
-  const blocked = rateLimit(`restock:${ip}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+  const blocked = await rateLimit(`restock:${ip}`, { limit: 5, windowMs: 60 * 60 * 1000 });
   if (blocked) {
     return { success: false, message: 'Demasiados intentos. Inténtalo más tarde.' };
   }
@@ -84,6 +82,22 @@ export async function triggerRestockNotifications(
   productImageUrl?: string | null,
   productPrice?: number,
 ): Promise<void> {
+  /*
+   * PRD-006: este archivo es 'use server' → toda función exportada es un
+   * endpoint RPC público. Sin este guard, cualquiera podía disparar email
+   * bombing a los suscriptores de restock. Los llamadores legítimos
+   * (quickUpdateStockAction / updateProductAction) ya corren con sesión
+   * admin, así que el guard no altera el flujo normal.
+   */
+  try {
+    await requireAdminAction();
+  } catch {
+    console.warn(
+      '[restock] Invocación no autorizada de triggerRestockNotifications; ignorada.',
+    );
+    return;
+  }
+
   try {
     const subscribers = await prisma.restockSubscription.findMany({
       where: { productId, notifiedAt: null },

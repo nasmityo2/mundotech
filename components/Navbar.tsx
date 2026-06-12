@@ -21,6 +21,10 @@ export interface NavbarContact {
   phone: string;
   phone2?: string;
   email: string;
+  /** PRD-112: dirección física desde readSettings() — nada hardcodeado aquí. */
+  address: string;
+  /** PRD-285: claim logístico desde site-content (admin) — vacío = no se muestra. */
+  deliveryNote?: string;
 }
 
 const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: NavbarContact }) => {
@@ -74,8 +78,12 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
               <span className="flex items-center gap-1.5"><Mail size={11} /> {contact.email}</span>
             </div>
             <div className="flex items-center gap-4 text-white/80">
-              <span className="flex items-center gap-1.5"><Store size={11} className="text-brand-yellow" /> Tienda física: C.C. Minicentro 34, Barquisimeto</span>
-              <span className="hidden md:flex items-center gap-1.5"><Truck size={11} className="text-brand-yellow" /> Delivery en Barquisimeto en 24h</span>
+              {contact.address ? (
+                <span className="flex items-center gap-1.5"><Store size={11} className="text-brand-yellow" /> Tienda física: {contact.address}</span>
+              ) : null}
+              {contact.deliveryNote ? (
+                <span className="hidden md:flex items-center gap-1.5"><Truck size={11} className="text-brand-yellow" /> {contact.deliveryNote}</span>
+              ) : null}
             </div>
           </div>
         </div>
@@ -126,8 +134,11 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                 <SearchBar placeholder="Buscar productos, marcas y más..." />
               </div>
 
-              {/* Acciones derecha */}
-              <div className="flex items-center gap-0.5 sm:gap-1 ml-auto md:ml-0 flex-shrink-0">
+              {/* Acciones derecha — <nav> semántico con aria-label (navegación principal) */}
+              <nav
+                aria-label="Navegación principal"
+                className="flex items-center gap-0.5 sm:gap-1 ml-auto md:ml-0 flex-shrink-0"
+              >
 
                 {/* Búsqueda móvil */}
                 <button
@@ -162,6 +173,8 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                       className="flex items-center gap-2 min-w-[44px] min-h-[44px] px-2 sm:pl-2 sm:pr-3 text-navy
                                  hover:bg-slate-100 active:bg-slate-200 rounded-xl transition-colors"
                       aria-label="Mi cuenta"
+                      aria-haspopup="menu"
+                      aria-expanded={userMenuOpen}
                     >
                       <div className="w-7 h-7 rounded-full bg-navy text-brand-yellow flex items-center justify-center text-[11px] font-bold flex-shrink-0">
                         {(session.user?.name?.[0] ?? 'U').toUpperCase()}
@@ -253,7 +266,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                     </span>
                   )}
                 </motion.button>
-              </div>
+              </nav>
             </div>
           </div>
         </div>

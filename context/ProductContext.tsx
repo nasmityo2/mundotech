@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect, useRef } from 'react';
 import { getProducts } from '@/app/actions/productActions';
 
 // Definimos una interfaz de Producto que coincida con Prisma
@@ -25,6 +25,26 @@ export interface Product {
   reviewCount?:  number;
 }
 
+/** PRD-271: producto tal como lo devuelve la Server Action getProducts (Prisma, sin `any`). */
+type FetchedProduct = Awaited<ReturnType<typeof getProducts>>['products'][number];
+
+function fetchedToProduct(p: FetchedProduct): Product {
+  return {
+    id:            p.id,
+    slug:          p.slug,
+    name:          p.name,
+    description:   p.description ?? '',
+    price:         p.price,
+    originalPrice: p.originalPrice,
+    stock:         p.stock,
+    category:      p.category,
+    brand:         p.brand,
+    image:         p.images?.[0] || '/placeholder-product.png',
+    images:        p.images ?? [],
+    details:       {},
+  };
+}
+
 // El tipo para el valor del contexto
 interface ProductContextType {
   products: Product[];
@@ -41,6 +61,11 @@ interface ProductContextType {
   deleteProduct: (productId: string) => void;
   getProductById: (id: string) => Product | undefined;
   refreshProducts: () => Promise<void>;
+  /**
+   * PRD-095/063: el catálogo ya NO se descarga al montar el layout global.
+   * El primer consumidor real (vía useProducts) dispara la carga una sola vez.
+   */
+  ensureLoaded: () => void;
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
@@ -51,20 +76,14 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
   const [sortOption, setSortOption] = useState('default');
   const [filterCategory, setFilterCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const hasLoadedRef = useRef(false);
 
   const refreshProducts = useCallback(async () => {
+    hasLoadedRef.current = true;
     setLoading(true);
     try {
       const { products: fetchedProducts } = await getProducts();
-      // Mapeamos para asegurar que coincida con nuestra interfaz Product
-      const mappedProducts = (fetchedProducts as any[]).map(p => ({
-        ...p,
-        image: p.images?.[0] || '/placeholder.png',
-        images: p.images || [],
-        description: p.description || '',
-        details: p.details || {},
-      }));
-      setProducts(mappedProducts);
+      setProducts(fetchedProducts.map(fetchedToProduct));
     } catch (error) {
       console.error('Error fetching products:', error);
     } finally {
@@ -72,8 +91,10 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  useEffect(() => {
-    refreshProducts();
+  /** Carga perezosa e idempotente: solo el primer consumidor dispara el fetch. */
+  const ensureLoaded = useCallback(() => {
+    if (hasLoadedRef.current) return;
+    void refreshProducts();
   }, [refreshProducts]);
 
   const filteredAndSortedProducts = useMemo(() => {
@@ -114,7 +135,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     return result;
   }, [products, searchTerm, sortOption, filterCategory]);
 
-  const addProduct = useCallback((product: Omit<Product, 'id' | 'image'> & { image?: string }) => {
+  const addProduct = useCallback((_product: Omit<Product, 'id' | 'image'> & { image?: string }) => {
     // Nota: El producto real se añade vía Server Action en el Admin
     // Aquí solo actualizamos el estado local si fuera necesario, 
     // pero refreshProducts() es más fiable.
@@ -150,6 +171,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     deleteProduct,
     getProductById,
     refreshProducts,
+    ensureLoaded,
   };
 
   return (
@@ -164,5 +186,11 @@ export const useProducts = () => {
   if (context === undefined) {
     throw new Error('useProducts must be used within a ProductProvider');
   }
+  // Dispara la carga del catálogo solo cuando un componente lo consume de
+  // verdad (PRD-095: antes se descargaba el catálogo completo en cada visita).
+  const { ensureLoaded } = context;
+  useEffect(() => {
+    ensureLoaded();
+  }, [ensureLoaded]);
   return context;
 };

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { Bell, BellOff, Truck, X } from 'lucide-react';
 import { formatOrderDualInline } from '@/lib/order-pricing';
 
@@ -15,6 +16,11 @@ interface NewOrder {
   status:       string;
 }
 
+/*
+ * PRD-265: las claves de localStorage van sufijadas por operador (user id).
+ * En un PC de mostrador compartido por varios admins, el "visto hasta" y el
+ * mute de notificaciones de un operador no pisan los del siguiente.
+ */
 const STORAGE_KEY      = 'mt-admin-orders-since';
 const ENABLED_KEY      = 'mt-admin-orders-notify';
 const POLL_INTERVAL_MS = 25_000;
@@ -32,6 +38,11 @@ const formatOrderTotal = (o: Pick<NewOrder, 'total' | 'exchangeRateUsdBs'>) =>
  * - Botón flotante para silenciar/activar (persiste en localStorage)
  */
 export default function NewOrdersWatcher() {
+  const { data: session } = useSession();
+  const operatorId = session?.user?.id ?? null;
+  const sinceKey   = operatorId ? `${STORAGE_KEY}:${operatorId}`  : null;
+  const enabledKey = operatorId ? `${ENABLED_KEY}:${operatorId}`  : null;
+
   const [enabled, setEnabled] = useState(true);
   const [hasPermission, setHasPermission] = useState(false);
   const [pendingOrders, setPendingOrders] = useState<NewOrder[]>([]);
@@ -40,12 +51,16 @@ export default function NewOrdersWatcher() {
   const seenIdsRef = useRef<Set<string>>(new Set());
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Cargar estado persistido
+  // Cargar estado persistido del operador actual (PRD-265)
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!sinceKey || !enabledKey) return;
+    const stored = localStorage.getItem(sinceKey);
     if (stored) sinceRef.current = stored;
-    const enabledStored = localStorage.getItem(ENABLED_KEY);
+    const enabledStored = localStorage.getItem(enabledKey);
     if (enabledStored !== null) setEnabled(enabledStored === '1');
+  }, [sinceKey, enabledKey]);
+
+  useEffect(() => {
     if ('Notification' in window) {
       setHasPermission(Notification.permission === 'granted');
     }
@@ -59,10 +74,11 @@ export default function NewOrdersWatcher() {
     );
   }, []);
 
-  // Persistir enabled
+  // Persistir enabled (por operador — PRD-265)
   useEffect(() => {
-    localStorage.setItem(ENABLED_KEY, enabled ? '1' : '0');
-  }, [enabled]);
+    if (!enabledKey) return;
+    localStorage.setItem(enabledKey, enabled ? '1' : '0');
+  }, [enabled, enabledKey]);
 
   const requestPermission = async () => {
     if (!('Notification' in window)) return;
@@ -81,8 +97,11 @@ export default function NewOrdersWatcher() {
   const showNativeNotification = (orders: NewOrder[]) => {
     if (!hasPermission || !('Notification' in window)) return;
     const main = orders[0];
+    // PRD-227: la notificación del sistema operativo persiste en el centro de
+    // notificaciones y se ve en pantalla bloqueada → solo número de pedido,
+    // sin nombre de cliente ni montos. El detalle vive en el toast in-app.
     new Notification(`🛒 ${orders.length} pedido${orders.length !== 1 ? 's' : ''} nuevo${orders.length !== 1 ? 's' : ''}`, {
-      body: `${main.customerName} · #${String(main.orderNumber).padStart(4, '0')} · ${formatOrderTotal(main)}`,
+      body: `Pedido #${String(main.orderNumber).padStart(4, '0')}${orders.length > 1 ? ` y ${orders.length - 1} más` : ''} · abre el panel para ver el detalle`,
       tag: 'mt-new-order',
       icon: '/icon.svg',
       badge: '/icon.svg',
@@ -93,6 +112,8 @@ export default function NewOrdersWatcher() {
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
+      // PRD-230: con la pestaña oculta no se gasta batería/datos del admin móvil
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       try {
         const res = await fetch(`/api/orders/new-count?since=${encodeURIComponent(sinceRef.current)}`, {
           cache: 'no-store',
@@ -108,12 +129,22 @@ export default function NewOrdersWatcher() {
           playAlert();
           showNativeNotification(trulyNew);
         }
-      } catch {}
+      } catch (err) {
+        // PRD-221: el polling de pedidos no puede fallar en silencio absoluto
+        console.error('[NewOrdersWatcher] error consultando pedidos nuevos:', err);
+      }
     };
 
     poll();
     const interval = setInterval(poll, POLL_INTERVAL_MS);
-    return () => { cancelled = true; clearInterval(interval); };
+    // PRD-230: al volver a la pestaña se consulta de inmediato (compensa los polls saltados)
+    const onVisible = () => { if (document.visibilityState === 'visible') poll(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, hasPermission]);
 
@@ -121,7 +152,7 @@ export default function NewOrdersWatcher() {
     setShowToast(false);
     setPendingOrders([]);
     sinceRef.current = new Date().toISOString();
-    localStorage.setItem(STORAGE_KEY, sinceRef.current);
+    if (sinceKey) localStorage.setItem(sinceKey, sinceRef.current);
   };
 
   return (

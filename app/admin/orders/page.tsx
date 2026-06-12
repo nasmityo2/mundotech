@@ -8,7 +8,6 @@ import { StatusUpdateMenu } from '@/app/components/admin/StatusUpdateMenu';
 import ShipOrderDialog from '@/app/components/admin/ShipOrderDialog';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
 import { Search, Truck, Download } from 'lucide-react';
-import { downloadCsv, csvDateStamp } from '@/lib/csv-export';
 
 const statusConfig: Record<string, string> = {
   'Pendiente verificación Binance': 'bg-amber-100 text-amber-900 border border-amber-200',
@@ -252,27 +251,24 @@ function OrdersPageContent() {
 
   const hasFilters = Boolean(searchTerm) || tab !== 'all';
 
+  // PRD-084/156/213: el CSV se genera en el servidor (audit log de PII incluido)
+  // y el operador confirma explícitamente el alcance de la vista filtrada.
   const handleExportCsv = useCallback(() => {
-    const rows = filteredOrders.map(o => ({
-      Pedido: String(o.orderNumber).padStart(4, '0'),
-      Fecha: new Date(o.createdAt).toLocaleString('es-VE'),
-      Cliente: o.customerName,
-      Email: o.customerEmail ?? '',
-      Teléfono: o.customerPhone ?? '',
-      Estado: o.status,
-      'Método de pago': o.paymentMethod,
-      Banco: o.paymentBank ?? '',
-      Referencia: o.paymentReference ?? '',
-      'Total (Bs/USD)': o.total,
-      'Tasa USD/Bs': o.exchangeRateUsdBs ?? '',
-      Tracking: o.trackingNumber ?? '',
-      Transportista: o.trackingCarrier ?? '',
-      Ciudad: o.shippingDetails.city,
-      'Estado/Región': o.shippingDetails.state,
-      Artículos: o.items.map(i => `${i.quantity}× ${i.productName}`).join(' | '),
-    }));
-    downloadCsv(`pedidos-mundotech-${csvDateStamp()}.csv`, rows);
-  }, [filteredOrders]);
+    const scope =
+      tab !== 'all' || searchTerm
+        ? `Se exportará SOLO la vista filtrada actual (${filteredOrders.length} pedido${filteredOrders.length !== 1 ? 's' : ''} · filtro: ${TAB_LABELS[tab]}${searchTerm ? ` · búsqueda «${searchTerm}»` : ''}).`
+        : `Se exportarán TODOS los pedidos (${filteredOrders.length}).`;
+    const ok = window.confirm(
+      `${scope}\n\nEl archivo incluye datos personales de clientes y la exportación queda registrada. ¿Continuar?`,
+    );
+    if (!ok) return;
+
+    const params = new URLSearchParams();
+    if (tab !== 'all') params.set('tab', tab);
+    if (searchTerm) params.set('q', searchTerm);
+    const qs = params.toString();
+    window.location.href = `/api/orders/export.csv${qs ? `?${qs}` : ''}`;
+  }, [filteredOrders.length, tab, searchTerm]);
 
   return (
     <div className="space-y-5">
@@ -288,9 +284,14 @@ function OrdersPageContent() {
           onClick={handleExportCsv}
           disabled={filteredOrders.length === 0}
           className="touch-manipulation select-none min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-navy shadow-soft hover:border-slate-300 hover:shadow-card active:bg-slate-50 transition-all disabled:opacity-40 disabled:pointer-events-none"
-          title="Exportar los pedidos visibles a CSV"
+          title="Exportar la vista filtrada actual a CSV (incluye datos personales; queda registrado)"
         >
           <Download size={15} /> Exportar CSV
+          {hasFilters && (
+            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">
+              vista filtrada
+            </span>
+          )}
         </button>
       </div>
 

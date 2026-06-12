@@ -7,10 +7,16 @@ out/
 build/
 
 # Base de datos y Prisma
+# PRD-004: prisma/migrations/ DEBE versionarse (reproducibilidad de BD entre entornos).
 /lib/generated/prisma
-prisma/migrations/
 *.db
 *.db-journal
+
+# PRD-003/143: volcado legacy con PII real — nunca volver a trackear
+lib/db.json
+
+# PRD-148: artefactos de debug de Playwright (capturas de resultado)
+scripts/playwright-*.png
 
 # Variables de Entorno (¡SEGURIDAD CRÍTICA!)
 .env

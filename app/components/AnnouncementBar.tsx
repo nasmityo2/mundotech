@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import type { Announcement } from '@/lib/announcement';
+import { isInternalPath, isSafeEditableLink } from '@/lib/safe-link';
 
 /**
  * Barra de anuncios superior. Descartable por el usuario (recordado en
@@ -37,13 +38,29 @@ export default function AnnouncementBar({ data }: { data: Announcement }) {
   };
 
   const text = data.text.trim();
-  const inner = data.link.trim() ? (
-    <Link href={data.link.trim()} className="underline-offset-2 hover:underline">
-      {text}
-    </Link>
-  ) : (
-    <span>{text}</span>
-  );
+  const link = data.link.trim();
+
+  /*
+   * PRD-283: defensa en el sink — además del schema, el render solo enlaza
+   * rutas internas o https. Cualquier otro valor (javascript:, data:, //host)
+   * se muestra como texto plano sin enlace.
+   */
+  let inner: React.ReactNode;
+  if (link && isInternalPath(link)) {
+    inner = (
+      <Link href={link} className="underline-offset-2 hover:underline">
+        {text}
+      </Link>
+    );
+  } else if (link && isSafeEditableLink(link)) {
+    inner = (
+      <a href={link} rel="noopener noreferrer" className="underline-offset-2 hover:underline">
+        {text}
+      </a>
+    );
+  } else {
+    inner = <span>{text}</span>;
+  }
 
   return (
     <div

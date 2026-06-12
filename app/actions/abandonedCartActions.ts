@@ -1,6 +1,8 @@
 'use server';
 
 import { z } from 'zod';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { upsertAbandonedCart, markCartRecovered } from '@/lib/abandoned-cart';
 import { rateLimit } from '@/lib/rate-limit';
 import { getActionClientIp } from '@/lib/security';
@@ -30,24 +32,40 @@ const snapshotSchema = z.object({
  * completa el paso 1 del checkout (tiene email + artículos).
  *
  * Llamada best-effort desde CheckoutFlow: los errores no deben
- * bloquear el flujo de compra. Endpoint público → rate limit por IP
- * y validación Zod (sin esto, cualquiera podía registrar emails ajenos
- * que luego reciben correos de carrito abandonado).
+ * bloquear el flujo de compra.
+ *
+ * PRD-017: el email y el userId del snapshot se toman SIEMPRE de la sesión
+ * del servidor (el checkout exige login). Los parámetros del cliente se
+ * ignoran para identidad — sin esto, cualquiera podía registrar correos
+ * ajenos que luego recibían los recordatorios de carrito abandonado.
  */
 export async function saveCartSnapshotAction(
-  email:    string,
-  userId:   string | null,
+  _email:   string,
+  _userId:  string | null,
   items:    AbandonedCartItem[],
   totalUsd: number,
 ): Promise<void> {
   try {
+    const session = await getServerSession(authOptions);
+    const sessionEmail = session?.user?.email?.trim().toLowerCase() ?? '';
+    const sessionUserId = session?.user?.id ?? null;
+    if (!sessionEmail || !sessionUserId) {
+      // Sin sesión no hay snapshot: el checkout requiere login (middleware).
+      return;
+    }
+
     const ip = await getActionClientIp();
-    if (rateLimit(`cart-snapshot:${ip}`, { limit: 10, windowMs: 10 * 60_000 })) {
+    if (await rateLimit(`cart-snapshot:${ip}`, { limit: 10, windowMs: 10 * 60_000 })) {
       console.warn('[saveCartSnapshotAction] Rate limit alcanzado para IP:', ip);
       return;
     }
 
-    const parsed = snapshotSchema.safeParse({ email, userId, items, totalUsd });
+    const parsed = snapshotSchema.safeParse({
+      email: sessionEmail,
+      userId: sessionUserId,
+      items,
+      totalUsd,
+    });
     if (!parsed.success) {
       console.warn('[saveCartSnapshotAction] Payload inválido; snapshot ignorado.');
       return;
@@ -61,11 +79,26 @@ export async function saveCartSnapshotAction(
 }
 
 /**
- * Marca todos los carritos activos del email como RECOVERED.
+ * Marca todos los carritos activos del usuario como RECOVERED.
  * Debe llamarse justo después de crear el pedido con éxito.
+ *
+ * PRD-016: acción pública ('use server') — antes aceptaba cualquier email y
+ * permitía sabotear el remarketing de terceros. Ahora exige sesión y opera
+ * solo sobre el email de la PROPIA sesión (coherente con el snapshot).
  */
-export async function markCartRecoveredAction(email: string): Promise<void> {
-  const parsed = z.string().email().max(254).safeParse(email);
-  if (!parsed.success) return;
-  await markCartRecovered(parsed.data);
+export async function markCartRecoveredAction(_email: string): Promise<void> {
+  try {
+    const session = await getServerSession(authOptions);
+    const sessionEmail = session?.user?.email?.trim().toLowerCase() ?? '';
+    if (!sessionEmail) return;
+
+    const ip = await getActionClientIp();
+    if (await rateLimit(`cart-recovered:${ip}`, { limit: 10, windowMs: 10 * 60_000 })) {
+      return;
+    }
+
+    await markCartRecovered(sessionEmail);
+  } catch (error) {
+    console.error('[markCartRecoveredAction] Error no crítico:', error);
+  }
 }

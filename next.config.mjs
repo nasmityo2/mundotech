@@ -1,7 +1,4 @@
 /** @type {import('next').NextConfig} */
-/** Image loader: see lib/cloudinaryLoader.js (f_auto, q_*, w_*, c_limit, dpr_auto). */
-
-/** @type {import('next').NextConfig} */
 /**
  * Headers estáticos que no requieren nonce por petición.
  * El Content-Security-Policy (con nonce dinámico por request) lo genera middleware.ts,
@@ -17,8 +14,28 @@ const securityHeaders = [
   { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
 ];
 
+/** Hostname del CDN público de R2 (R2_PUBLIC_BASE_URL). */
+function r2RemotePattern() {
+  const base = process.env.R2_PUBLIC_BASE_URL?.trim();
+  if (!base) return null;
+  try {
+    const u = new URL(base);
+    if (u.protocol !== 'https:') return null;
+    return { protocol: 'https', hostname: u.hostname, pathname: '/**' };
+  } catch {
+    return null;
+  }
+}
+
+const remotePatterns = [];
+
+const r2Pattern = r2RemotePattern();
+if (r2Pattern) {
+  remotePatterns.push(r2Pattern);
+}
+
 const nextConfig = {
-  serverExternalPackages: ['@prisma/client', '.prisma/client'],
+  serverExternalPackages: ['@prisma/client', '.prisma/client', 'sharp', '@aws-sdk/client-s3'],
 
   async headers() {
     return [
@@ -49,12 +66,9 @@ const nextConfig = {
   },
 
   images: {
-    loader: 'custom',
-    loaderFile: './lib/cloudinaryLoader.js',
-    remotePatterns: [
-      // Solo dominios activamente usados en producción
-      { protocol: 'https', hostname: 'res.cloudinary.com', pathname: '/**' },
-    ],
+    // Optimizador por defecto de Next.js contra el dominio público de R2.
+    // TODO: transformación on-the-fly opcional con Cloudflare Image Resizing (cdn-cgi/image).
+    remotePatterns,
   },
 };
 

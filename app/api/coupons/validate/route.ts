@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   const ip = getClientIp(request);
-  if (rateLimit(`coupons:validate:ip:${ip}`, { limit: 30, windowMs: 60_000 })) {
+  if (await rateLimit(`coupons:validate:ip:${ip}`, { limit: 30, windowMs: 60_000 })) {
     return NextResponse.json(
       { valid: false, reason: 'Demasiados intentos. Espera un momento.' },
       { status: 429 }
@@ -50,6 +50,17 @@ export async function POST(request: Request) {
 
     const session = await getServerSession(authOptions);
     const userId = session?.user?.id ?? null;
+    const userEmail = session?.user?.email ?? null;
+
+    // PRD-160: límite adicional POR USUARIO — el límite por IP no frena fuerza
+    // bruta de códigos desde redes compartidas/rotativas con sesión válida.
+    if (userId && (await rateLimit(`coupons:validate:user:${userId}`, { limit: 15, windowMs: 60_000 }))) {
+      return NextResponse.json(
+        { valid: false, reason: 'Demasiados intentos. Espera un momento.' },
+        { status: 429 }
+      );
+    }
+
     const { code, items } = parsed.data;
 
     const productIds = [...new Set(items.map((i) => i.productId))];
@@ -72,7 +83,9 @@ export async function POST(request: Request) {
     }
     subtotalUsd = roundMoney2(subtotalUsd);
 
-    const result = await validateCouponForCheckout(prisma, code, subtotalUsd, userId);
+    // PRD-157: se pasa el email para que el límite por comprador aplique aun
+    // cuando la sesión no tenga id utilizable (la regla por email vive en lib/coupons).
+    const result = await validateCouponForCheckout(prisma, code, subtotalUsd, userId, userEmail);
     if (!result.ok) {
       return NextResponse.json({ valid: false, reason: result.reason });
     }

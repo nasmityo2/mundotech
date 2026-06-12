@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Settings2, Truck, Star } from 'lucide-react';
+import { FileText, Settings2, Truck, Star, MessageSquareText } from 'lucide-react';
+import { Stars } from '@/components/reviews/Stars';
 import type { ProductSpec } from '@/lib/definitions';
 
 interface Props {
@@ -13,6 +14,9 @@ interface Props {
   isOut: boolean;
   stock: number;
   specs?: ProductSpec[] | null;
+  /** PRD-037: resumen real de reseñas — la tab deja de decir "Próximamente". */
+  reviewsCount?: number;
+  reviewsAverage?: number;
 }
 
 const tabs = [
@@ -24,6 +28,27 @@ const tabs = [
 
 type TabId = (typeof tabs)[number]['id'];
 
+/**
+ * PRD-053: la descripción puede traer HTML (imports CSV / pegado desde otra
+ * web). En vez de mostrar las etiquetas literalmente, las convertimos a texto
+ * plano con saltos de línea — sin `dangerouslySetInnerHTML` (cero riesgo XSS).
+ */
+function htmlToPlainText(value: string): string {
+  if (!/[<>]/.test(value)) return value;
+  return value
+    .replace(/<\s*(br|\/p|\/div|\/li|\/h[1-6])\s*\/?\s*>/gi, '\n')
+    .replace(/<\s*li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export default function ProductTabs({
   description,
   brand,
@@ -32,25 +57,69 @@ export default function ProductTabs({
   isOut,
   stock,
   specs,
+  reviewsCount = 0,
+  reviewsAverage = 0,
 }: Props) {
   const [active, setActive] = useState<TabId>('description');
+  const tabRefs = useRef<Map<TabId, HTMLButtonElement>>(new Map());
+
+  // PRD-054: navegación por teclado del patrón WAI-ARIA Tabs
+  // (flechas ←/→, Home/End; activación automática al mover el foco).
+  const onKeyDown = (e: React.KeyboardEvent, current: TabId) => {
+    const idx = tabs.findIndex((t) => t.id === current);
+    let nextIdx: number | null = null;
+    if (e.key === 'ArrowRight') nextIdx = (idx + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + tabs.length) % tabs.length;
+    else if (e.key === 'Home') nextIdx = 0;
+    else if (e.key === 'End') nextIdx = tabs.length - 1;
+    if (nextIdx === null) return;
+    e.preventDefault();
+    const next = tabs[nextIdx].id;
+    setActive(next);
+    tabRefs.current.get(next)?.focus();
+  };
+
+  const plainDescription = description ? htmlToPlainText(description) : '';
+
+  const scrollToReviews = () => {
+    document.getElementById('reviews')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200/80 shadow-soft overflow-hidden">
       {/* Tab strip */}
-      <div className="flex items-center gap-1 px-3 sm:px-5 pt-3 border-b border-slate-100 overflow-x-auto scrollbar-hide">
+      <div
+        role="tablist"
+        aria-label="Información del producto"
+        className="flex items-center gap-1 px-3 sm:px-5 pt-3 border-b border-slate-100 overflow-x-auto scrollbar-hide"
+      >
         {tabs.map((tab) => {
           const isActive = active === tab.id;
           return (
             <button
               key={tab.id}
+              ref={(el) => {
+                if (el) tabRefs.current.set(tab.id, el);
+                else tabRefs.current.delete(tab.id);
+              }}
+              role="tab"
+              id={`tab-${tab.id}`}
+              aria-selected={isActive}
+              aria-controls={`tabpanel-${tab.id}`}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => setActive(tab.id)}
-              className={`relative inline-flex items-center gap-2 px-4 h-12 text-sm font-semibold whitespace-nowrap transition-colors ${
+              onKeyDown={(e) => onKeyDown(e, tab.id)}
+              className={`relative inline-flex items-center gap-2 px-4 h-12 text-sm font-semibold whitespace-nowrap transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-navy/40 rounded-t-lg ${
                 isActive ? 'text-navy' : 'text-slate-500 hover:text-navy'
               }`}
             >
-              <tab.icon size={15} />
+              <tab.icon size={15} aria-hidden />
               {tab.label}
+              {tab.id === 'reviews' && reviewsCount > 0 && (
+                <span className="text-[10px] font-bold bg-slate-100 text-slate-500 rounded-full px-1.5 py-0.5 nums">
+                  {reviewsCount}
+                </span>
+              )}
               {isActive && (
                 <motion.span
                   layoutId="tab-underline"
@@ -67,6 +136,11 @@ export default function ProductTabs({
         <AnimatePresence mode="wait">
           <motion.div
             key={active}
+            role="tabpanel"
+            id={`tabpanel-${active}`}
+            aria-labelledby={`tab-${active}`}
+            tabIndex={0}
+            className="focus:outline-none"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
@@ -74,7 +148,7 @@ export default function ProductTabs({
           >
             {active === 'description' && (
               <p className="text-[15px] text-slate-600 leading-relaxed text-pretty whitespace-pre-line">
-                {description || 'Este producto aún no tiene una descripción detallada. Pronto añadiremos más información.'}
+                {plainDescription || 'Este producto aún no tiene una descripción detallada. Pronto añadiremos más información.'}
               </p>
             )}
 
@@ -155,13 +229,35 @@ export default function ProductTabs({
               </div>
             )}
 
+            {/* PRD-037: tab conectada al sistema real de reseñas (sección #reviews). */}
             {active === 'reviews' && (
               <div className="text-center py-6">
-                <p className="text-sm font-semibold text-navy">Sé el primero en reseñar este producto</p>
-                <p className="text-[13px] text-slate-500 mt-1 max-w-md mx-auto">
-                  Las reseñas ayudan a otros clientes a tomar una mejor decisión. Próximamente activaremos
-                  esta función.
-                </p>
+                {reviewsCount > 0 ? (
+                  <>
+                    <div className="flex items-center justify-center gap-2">
+                      <Stars rating={reviewsAverage} size={18} />
+                      <span className="text-lg font-bold text-navy nums">{reviewsAverage.toFixed(1)}</span>
+                    </div>
+                    <p className="text-sm text-slate-500 mt-1.5">
+                      {reviewsCount} {reviewsCount === 1 ? 'opinión de cliente' : 'opiniones de clientes'} sobre este producto.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-navy">Sé el primero en reseñar este producto</p>
+                    <p className="text-[13px] text-slate-500 mt-1 max-w-md mx-auto">
+                      Las reseñas ayudan a otros clientes a tomar una mejor decisión.
+                    </p>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={scrollToReviews}
+                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-navy text-white text-sm font-semibold px-5 py-2.5 hover:bg-navy-700 active:scale-[0.98] transition-all"
+                >
+                  <MessageSquareText size={15} />
+                  {reviewsCount > 0 ? 'Ver opiniones' : 'Escribir la primera reseña'}
+                </button>
               </div>
             )}
           </motion.div>

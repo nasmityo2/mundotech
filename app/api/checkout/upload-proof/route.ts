@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import cloudinary from '@/lib/cloudinary';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { verifySameOrigin } from '@/lib/security';
 import { detectImageMimeFromBuffer, isAllowedProofMime } from '@/lib/detect-image-mime';
+import { processImage } from '@/lib/image-processing';
+import { buildKey, uploadToR2 } from '@/lib/r2';
 
-const PROOF_FOLDER = 'mundotech/order-proofs';
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export async function POST(request: Request) {
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
   // Rate limit: máx 10 uploads por usuario por 10 minutos
   const userId = session.user?.id ?? getClientIp(request);
-  if (rateLimit(`upload-proof:${userId}`, { limit: 10, windowMs: 10 * 60_000 })) {
+  if (await rateLimit(`upload-proof:${userId}`, { limit: 10, windowMs: 10 * 60_000 })) {
     return NextResponse.json(
       { error: 'Demasiadas solicitudes de subida. Espera unos minutos.' },
       { status: 429 }
@@ -65,29 +65,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const base64 = `data:${detectedMime};base64,${buffer.toString('base64')}`;
-
-    const result = await cloudinary.uploader.upload(base64, {
-      folder: PROOF_FOLDER,
-      resource_type: 'image',
-      transformation: [
-        {
-          quality: 'auto:good',
-          fetch_format: 'auto',
-          width: 1600,
-          crop: 'limit',
-        },
-      ],
+    const { buffer: processed, contentType, ext, width, height } = await processImage(buffer, {
+      maxWidth: 1600,
     });
+    const key = buildKey('proofs', ext);
+    const url = await uploadToR2({ buffer: processed, key, contentType });
 
     return NextResponse.json({
-      url: result.secure_url,
-      publicId: result.public_id,
-      width: result.width,
-      height: result.height,
+      url,
+      publicId: key,
+      width,
+      height,
     });
   } catch (err) {
-    console.error('[checkout/upload-proof] Cloudinary error:', err);
+    console.error('[checkout/upload-proof] R2 error:', err);
     return NextResponse.json(
       { error: 'No pudimos subir el comprobante. Intenta con otra imagen o más tarde.' },
       { status: 500 }

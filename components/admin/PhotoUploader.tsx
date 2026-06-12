@@ -8,7 +8,7 @@ interface PhotoUploaderProps {
   /** URL actual (cuando ya hay una foto subida). */
   value: string | null | undefined;
   onChange: (url: string | null) => void;
-  /** Folder en Cloudinary (vía /api/upload?purpose=...). */
+  /** Carpeta lógica en R2 (vía /api/upload?purpose=...). */
   purpose?: 'banner' | 'product' | 'tracking' | 'seo' | 'category';
   /** Texto del label/title. */
   label?: string;
@@ -28,7 +28,7 @@ interface PhotoUploaderProps {
  * - Botón "Tomar foto" usa `capture="environment"` (cámara trasera).
  * - Botón "Galería" no usa `capture`, dejando elegir desde el carrete.
  * - Compresión client-side ligera (canvas, sin libs externas) si la foto > 1.5 MB.
- * - Soporta HEIC/HEIF nativos (iOS los entrega como `image/heic`; Cloudinary los convierte).
+ * - HEIC/HEIF: el servidor convierte a WebP vía sharp en /api/upload.
  */
 export default function PhotoUploader({
   value,

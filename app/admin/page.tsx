@@ -1,15 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useProducts } from '@/context/ProductContext';
-import { Order } from '@/lib/definitions';
+// PRD-083/225: el dashboard ya no consume el catálogo completo del
+// ProductContext global ni GET /api/orders entero — solo KPIs agregados.
 import {
-  orderCountsTowardValidatedRevenue,
-  orderStoredRevenueTotal,
-} from '@/lib/analytics-orders';
+  getAdminDashboardData,
+  type AdminDashboardData,
+  type DashboardRecentOrder,
+} from '@/app/actions/adminDashboardActions';
 import {
   Package, Tag, ShoppingCart, Clock, TrendingUp, AlertCircle,
-  ArrowRight, Truck, Users,
+  ArrowRight, Truck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
@@ -52,34 +53,36 @@ function venezuelanDate(): string {
 }
 
 const AdminHomePage = () => {
-  const { products } = useProducts();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [data, setData] = useState<AdminDashboardData | null>(null);
   const [loadingOrders, setLoadingOrders] = useState(true);
 
   useEffect(() => {
-    fetch('/api/orders')
-      .then(r => r.json())
-      .then(data => { setOrders(data); setLoadingOrders(false); })
-      .catch(() => setLoadingOrders(false));
+    let cancelled = false;
+    getAdminDashboardData()
+      .then(d => { if (!cancelled) { setData(d); setLoadingOrders(false); } })
+      .catch(err => {
+        // PRD-221: nunca tragar errores del panel en silencio
+        console.error('[admin-dashboard] error cargando KPIs:', err);
+        if (!cancelled) setLoadingOrders(false);
+      });
+    return () => { cancelled = true; };
   }, []);
 
-  const totalProducts = products.length;
-  const totalCategories = new Set(products.map(p => p.category)).size;
-  const lowStock = products.filter(p => p.stock < 3 && p.stock > 0).length;
-  const outOfStock = products.filter(p => p.stock === 0).length;
+  const totalProducts = data?.totalProducts ?? 0;
+  const totalCategories = data?.totalCategories ?? 0;
+  const lowStock = data?.lowStock ?? 0;
+  const outOfStock = data?.outOfStock ?? 0;
 
-  const totalOrders = orders.length;
-  const pendingOrders = orders.filter(o => o.status === 'Pendiente' || o.status === 'Pendiente verificación Binance').length;
-  const inProcessOrders = orders.filter(o => o.status === 'En Proceso').length;
-  const shippedOrders = orders.filter(o => o.status === 'Enviado').length;
-  const revenue = orders
-    .filter(o => orderCountsTowardValidatedRevenue(o.status))
-    .reduce((acc, o) => acc + orderStoredRevenueTotal(o), 0);
+  const totalOrders = data?.totalOrders ?? 0;
+  const pendingOrders = data?.pendingOrders ?? 0;
+  const inProcessOrders = data?.inProcessOrders ?? 0;
+  const shippedOrders = data?.shippedOrders ?? 0;
+  const revenue = data?.revenue ?? 0;
 
-  const recentOrders = orders.slice(0, 8);
-  const lowStockProducts = products.filter(p => p.stock < 3).slice(0, 10);
+  const recentOrders = data?.recentOrders ?? [];
+  const lowStockProducts = data?.lowStockProducts ?? [];
 
-  const orderColumns: DataTableColumn<Order>[] = [
+  const orderColumns: DataTableColumn<DashboardRecentOrder>[] = [
     {
       key: 'orderNumber', header: '#', primary: true,
       cell: o => <span className="font-mono font-bold text-navy">#{String(o.orderNumber).padStart(4, '0')}</span>,
@@ -148,7 +151,7 @@ const AdminHomePage = () => {
             Ver todos <ArrowRight size={12} />
           </Link>
         </div>
-        <DataTable<Order>
+        <DataTable<DashboardRecentOrder>
           data={recentOrders}
           columns={orderColumns}
           rowKey={o => o.id}

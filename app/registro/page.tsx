@@ -11,6 +11,9 @@ import { readLoginReturnPathFromPromotedHeader } from '@/lib/login-return-cookie
 export const metadata: Metadata = {
   title: 'Crear cuenta',
   description: 'Regístrate en MundoTech para comprar con garantía y seguimiento de pedidos.',
+  // H12/P96/H03: página de auth — noindex + canonical propio.
+  alternates: { canonical: '/registro' },
+  robots: { index: false, follow: true },
 };
 
 function RegistroFallback() {

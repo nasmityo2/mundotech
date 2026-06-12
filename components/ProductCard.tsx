@@ -25,10 +25,16 @@ function formatBs(amount: number, rate: number): string {
   }).format(bs)}`;
 }
 
+/**
+ * PRD-114: el card usa el patrón "stretched link" — el enlace vive en el
+ * título y se extiende con un pseudo-elemento sobre toda la tarjeta. Los
+ * botones (wishlist / carrito) quedan FUERA del enlace (HTML válido, sin
+ * controles interactivos anidados) elevados con z-10.
+ */
 const ProductCard = ({ product }: { product: Product }) => {
   const { addToCart }                                      = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  const { rate }                                           = useExchangeRate();
+  const { rate, stale }                                    = useExchangeRate();
   const [justAdded, setJustAdded] = useState(false);
 
   const isFav      = isInWishlist(product.id);
@@ -41,9 +47,7 @@ const ProductCard = ({ product }: { product: Product }) => {
       ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
       : null;
 
-  const handleWishlist = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleWishlist = () => {
     if (isFav) {
       removeFromWishlist(product.id);
     } else {
@@ -51,9 +55,7 @@ const ProductCard = ({ product }: { product: Product }) => {
     }
   };
 
-  const handleCart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleCart = () => {
     if (isOut) return;
     addToCart(product, 1);
     setJustAdded(true);
@@ -61,12 +63,10 @@ const ProductCard = ({ product }: { product: Product }) => {
   };
 
   return (
-    <Link
-      href={`/product/${product.slug ?? product.id}`}
-      className="group block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-navy rounded-2xl"
-    >
+    <div className="group block h-full rounded-2xl">
       <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-soft
-                      transition-all duration-300 active:scale-[0.99] hover:-translate-y-0.5 hover:border-slate-300/90 hover:shadow-card">
+                      transition-all duration-300 active:scale-[0.99] hover:-translate-y-0.5 hover:border-slate-300/90 hover:shadow-card
+                      focus-within:ring-2 focus-within:ring-navy">
 
         {/* Imagen */}
         <div className="relative aspect-[4/5] overflow-hidden bg-white">
@@ -98,11 +98,11 @@ const ProductCard = ({ product }: { product: Product }) => {
             )}
           </div>
 
-          {/* Wishlist — siempre visible, 40px touch */}
+          {/* Wishlist — fuera del link (PRD-114), por encima del overlay */}
           <button
             type="button"
             onClick={handleWishlist}
-            className="absolute top-1.5 right-1.5 min-w-[40px] min-h-[40px] rounded-full bg-white/90 backdrop-blur
+            className="absolute z-10 top-1.5 right-1.5 min-w-[40px] min-h-[40px] rounded-full bg-white/90 backdrop-blur
                        border border-slate-200/70 shadow-soft flex items-center justify-center
                        text-slate-400 hover:text-rose-500 active:text-rose-600 active:scale-95 hover:bg-white transition-all"
             aria-label={isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
@@ -127,7 +127,12 @@ const ProductCard = ({ product }: { product: Product }) => {
           </p>
 
           <h3 className="text-[13px] sm:text-sm font-medium text-[#0f172a] leading-snug line-clamp-2 transition-colors min-h-[2.4rem]">
-            {product.name}
+            <Link
+              href={`/product/${product.slug ?? product.id}`}
+              className="focus:outline-none after:absolute after:inset-0 after:content-[''] after:rounded-2xl"
+            >
+              {product.name}
+            </Link>
           </h3>
 
           {/* Rating — solo cuando hay reseñas reales aprobadas */}
@@ -150,15 +155,20 @@ const ProductCard = ({ product }: { product: Product }) => {
                 </span>
               )}
             </div>
-            <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 nums truncate">
+            <p
+              className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 nums truncate"
+              title={stale ? 'Tasa USD/Bs referencial — se confirma al pagar' : undefined}
+            >
               {formatBs(product.price, rate)}
+              {/* PRD-215: la tasa mostrada no se pudo refrescar — monto referencial */}
+              {stale ? <span className="text-slate-400"> (ref.)</span> : null}
             </p>
 
             <button
               type="button"
               onClick={handleCart}
               disabled={isOut}
-              className={`mt-2.5 sm:mt-3 w-full inline-flex items-center justify-center gap-1.5 min-h-[42px] sm:min-h-[44px] rounded-xl
+              className={`relative z-10 mt-2.5 sm:mt-3 w-full inline-flex items-center justify-center gap-1.5 min-h-[42px] sm:min-h-[44px] rounded-xl
                           text-[12px] sm:text-[13px] font-bold transition-all duration-200 border
                           active:scale-[0.97]
                           disabled:opacity-50 disabled:cursor-not-allowed
@@ -181,7 +191,7 @@ const ProductCard = ({ product }: { product: Product }) => {
           </div>
         </div>
       </div>
-    </Link>
+    </div>
   );
 };
 

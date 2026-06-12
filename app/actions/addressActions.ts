@@ -5,10 +5,29 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import type { SavedAddress, SavedAddressInput } from '@/lib/definitions';
+import { mrwOffices } from '@/lib/mrw-offices';
 
 interface ActionResult {
   success: boolean;
   message: string;
+}
+
+/** PRD-216: tope de direcciones guardadas por usuario (anti-spam de BD). */
+const MAX_ADDRESSES_PER_USER = 20;
+
+/**
+ * PRD-210: valida estado y oficina MRW contra la lista blanca oficial de
+ * lib/mrw-offices.ts — evita oficinas inventadas persistidas en BD.
+ * Devuelve un mensaje de error o null si es válido.
+ */
+function validateMrwSelection(data: SavedAddressInput): string | null {
+  if (data.shippingMethod !== 'mrw') return null;
+  const offices = (mrwOffices as Record<string, string[]>)[data.mrwState?.trim() ?? ''];
+  if (!offices) return 'El estado MRW seleccionado no es válido.';
+  if (!offices.includes(data.mrwOffice?.trim() ?? '')) {
+    return 'La oficina MRW seleccionada no corresponde a ese estado.';
+  }
+  return null;
 }
 
 function toSavedAddress(row: {
@@ -52,6 +71,10 @@ export async function getSavedAddresses(): Promise<SavedAddress[]> {
     });
     return rows.map(toSavedAddress);
   } catch (error) {
+    // PRD-137: el [] en error de BD es indistinguible de «sin direcciones».
+    // Cambiar el contrato exige actualizar consumidores ajenos a este segmento:
+    // // DEPENDENCIA-02: app/components/checkout/ShippingForm.tsx (checkout)
+    // // DEPENDENCIA-04: app/account/addresses/page.tsx (cuenta cliente)
     console.error('[addressActions] getSavedAddresses:', error);
     return [];
   }
@@ -78,9 +101,17 @@ export async function createSavedAddress(
   if (data.shippingMethod === 'mrw' && !data.mrwOffice?.trim()) {
     return { success: false, message: 'Selecciona una oficina MRW.' };
   }
+  const mrwError = validateMrwSelection(data);
+  if (mrwError) return { success: false, message: mrwError };
 
   try {
     const count = await prisma.savedAddress.count({ where: { userId } });
+    if (count >= MAX_ADDRESSES_PER_USER) {
+      return {
+        success: false,
+        message: `Alcanzaste el límite de ${MAX_ADDRESSES_PER_USER} direcciones guardadas. Elimina alguna para agregar otra.`,
+      };
+    }
     const isFirst = count === 0;
     const makeDefault = data.isDefault || isFirst;
 
@@ -134,6 +165,8 @@ export async function updateSavedAddress(
   if (data.shippingMethod === 'mrw' && !data.mrwOffice?.trim()) {
     return { success: false, message: 'Selecciona una oficina MRW.' };
   }
+  const mrwError = validateMrwSelection(data);
+  if (mrwError) return { success: false, message: mrwError };
 
   try {
     const existing = await prisma.savedAddress.findUnique({ where: { id } });

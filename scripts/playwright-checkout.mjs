@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BASE_URL = 'https://www.jummper.pro';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'https://mundotechve.com';
 const PRODUCT_PATH = '/product/intercomunicador-para-casco-q58-max';
 const PROOF_IMAGE = path.join(__dirname, 'test-proof.png');
 const PROOF_PNG_B64 =

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import type { Order } from '@/lib/definitions';
+import { isTrustedPaymentProofUrl } from '@/lib/payment-proof';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import { ApproveBinanceButton } from '@/components/admin/ApproveBinanceButton';
 import { ValidatePaymentAdminButton } from '@/components/admin/ValidatePaymentAdminButton';
@@ -73,20 +74,31 @@ export function PaymentVerificationPanel({
         </div>
       </dl>
 
-      {/* Comprobante */}
+      {/* Comprobante: solo renderiza si la URL proviene del CDN R2 (upload-proof). */}
       <div className="mt-3">
         {order.paymentProofUrl ? (
-          <a href={order.paymentProofUrl} target="_blank" rel="noreferrer" className="group block relative">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={order.paymentProofUrl}
-              alt="Comprobante de pago"
-              className="w-full rounded-xl border border-gray-200 max-h-72 object-contain bg-slate-50"
-            />
-            <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-black/60 rounded-md px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              Ampliar <ExternalLink size={11} />
-            </span>
-          </a>
+          isTrustedPaymentProofUrl(order.paymentProofUrl) ? (
+            <a href={order.paymentProofUrl} target="_blank" rel="noreferrer" className="group block relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={order.paymentProofUrl}
+                alt="Comprobante de pago"
+                className="w-full rounded-xl border border-gray-200 max-h-72 object-contain bg-slate-50"
+              />
+              <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-black/60 rounded-md px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                Ampliar <ExternalLink size={11} />
+              </span>
+            </a>
+          ) : (
+            <div className="flex items-start gap-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs px-3 py-2.5">
+              <ShieldAlert size={14} className="shrink-0 mt-0.5" />
+              <span>
+                El comprobante adjunto apunta a un origen no confiable y fue bloqueado
+                por seguridad. No abras el enlace. Verifica el pago directamente en el
+                banco antes de validar.
+              </span>
+            </div>
+          )
         ) : (
           <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2.5">
             <ImageOff size={14} className="shrink-0" />

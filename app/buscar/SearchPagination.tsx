@@ -8,6 +8,8 @@ interface Props {
   cat:         string;
   brand:       string;
   sort:        string;
+  /** PRD-167: 'all' = incluye productos agotados al paginar. */
+  disp:        string;
   currentPage: number;
   totalPages:  number;
 }
@@ -17,12 +19,14 @@ function pageHref(
   cat: string,
   brand: string,
   sort: string,
+  disp: string,
   page: number,
 ): string {
   const params = new URLSearchParams();
   if (q)                      params.set('q',     q);
   if (cat)                    params.set('cat',   cat);
   if (brand)                  params.set('brand', brand);
+  if (disp === 'all')         params.set('disp',  'all');
   if (sort && sort !== 'default') params.set('sort', sort);
   if (page > 1)               params.set('page',  String(page));
   const qs = params.toString();
@@ -34,6 +38,7 @@ export default function SearchPagination({
   cat,
   brand,
   sort,
+  disp,
   currentPage,
   totalPages,
 }: Props) {
@@ -47,7 +52,7 @@ export default function SearchPagination({
       {/* Anterior */}
       {currentPage > 1 ? (
         <Link
-          href={pageHref(q, cat, brand, sort, currentPage - 1)}
+          href={pageHref(q, cat, brand, sort, disp, currentPage - 1)}
           className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-slate-200/80 text-navy hover:bg-slate-50 hover:border-navy/20 shadow-soft transition-all"
           aria-label="Página anterior"
         >
@@ -71,7 +76,7 @@ export default function SearchPagination({
         ) : (
           <Link
             key={p}
-            href={pageHref(q, cat, brand, sort, p as number)}
+            href={pageHref(q, cat, brand, sort, disp, p as number)}
             aria-current={p === currentPage ? 'page' : undefined}
             className={`inline-flex items-center justify-center w-10 h-10 rounded-xl text-sm font-semibold transition-all shadow-soft ${
               p === currentPage
@@ -87,7 +92,7 @@ export default function SearchPagination({
       {/* Siguiente */}
       {currentPage < totalPages ? (
         <Link
-          href={pageHref(q, cat, brand, sort, currentPage + 1)}
+          href={pageHref(q, cat, brand, sort, disp, currentPage + 1)}
           className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-slate-200/80 text-navy hover:bg-slate-50 hover:border-navy/20 shadow-soft transition-all"
           aria-label="Página siguiente"
         >

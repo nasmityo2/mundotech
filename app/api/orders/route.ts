@@ -6,8 +6,15 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prismaOrderToOrder } from '@/lib/definitions';
-import { checkoutSchema, executeCheckoutInTransaction } from '@/lib/checkout-order';
+import {
+  checkoutSchema,
+  executeCheckoutInTransaction,
+  findRecentDuplicateOrderInTransaction,
+} from '@/lib/checkout-order';
+import { CheckoutError } from '@/lib/checkout-error';
 import { roundMoney2 } from '@/lib/exchange-rate';
+import { readSettings } from '@/lib/data-store';
+import { markCartRecovered } from '@/lib/abandoned-cart';
 import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { verifySameOrigin } from '@/lib/security';
@@ -29,12 +36,14 @@ export async function GET() {
  *
  * El customerId del body es ignorado: siempre se usa session.user.id
  * del servidor para evitar que un cliente vincule un pedido al ID de
- * otra cuenta. Si no hay sesión, se trata como pedido de invitado.
+ * otra cuenta. Sin sesión se responde 401 (PRD-069): la tienda exige login
+ * para comprar, igual que la UI.
  *
  * Binance Pay: el pedido inicia como "Pendiente verificación Binance".
  * El stock se descuenta atómicamente en esta misma transacción (`updateMany`
- * con `stock >= cantidad`). `approve-binance` solo avanza estado y `paidAt`;
- * al cancelar (PUT o cambio masivo) se debe restaurar inventario cuando el pedido siga en ese estado pendiente Binance.
+ * con `stock >= cantidad`). `approve-binance` verifica el pago en UN paso
+ * (→ "En Proceso" + `paidAt`); al cancelar se restaura inventario cuando el
+ * pedido seguía con stock reservado (ver `shouldRestoreStockOnCancel`).
  */
 export async function POST(request: Request) {
   // Mitigación CSRF: peticiones de navegador desde otro origen se rechazan
@@ -43,7 +52,7 @@ export async function POST(request: Request) {
   }
 
   const ip = getClientIp(request);
-  if (rateLimit(`orders:post:ip:${ip}`, { limit: 5, windowMs: 60_000 })) {
+  if (await rateLimit(`orders:post:ip:${ip}`, { limit: 5, windowMs: 60_000 })) {
     return NextResponse.json(
       { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
       { status: 429 }
@@ -52,13 +61,21 @@ export async function POST(request: Request) {
 
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
-  if (userId && userId !== 'guest') {
-    if (rateLimit(`orders:post:user:${userId}`, { limit: 5, windowMs: 60_000 })) {
-      return NextResponse.json(
-        { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
-        { status: 429 }
-      );
-    }
+
+  // PRD-069: la tienda exige iniciar sesión para comprar (middleware protege
+  // /checkout). Un POST directo sin sesión no debe poder crear pedidos "guest".
+  if (!userId || userId === 'guest') {
+    return NextResponse.json(
+      { message: 'Inicia sesión para completar tu compra.' },
+      { status: 401 }
+    );
+  }
+
+  if (await rateLimit(`orders:post:user:${userId}`, { limit: 5, windowMs: 60_000 })) {
+    return NextResponse.json(
+      { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
+      { status: 429 }
+    );
   }
 
   try {
@@ -76,17 +93,53 @@ export async function POST(request: Request) {
     // Ignorar el customerId enviado por el cliente; usar siempre la sesión del servidor
     const safeData = {
       ...parsed.data,
-      customerId: session?.user?.id ?? 'guest',
+      customerId: userId,
     };
+
+    // PRD-128 (R1): para retiro en tienda la dirección NUNCA viene del cliente —
+    // se resuelve desde la configuración persistida de la tienda.
+    if (safeData.shippingMethod === 'tienda') {
+      const settings = await readSettings();
+      safeData.shippingDetails = {
+        ...safeData.shippingDetails,
+        address: `Retiro en tienda ${settings.storeName} — ${settings.address}`,
+      };
+    }
 
     const isBinanceManual = safeData.paymentMethod === 'Binance Pay';
 
-    const order = await prisma.$transaction(async (tx) =>
-      executeCheckoutInTransaction(tx, safeData, {
-        deferStockDeduction: false,
+    // PRD-131: reintentos (doble clic, recarga, retry de red) con la misma
+    // referencia de pago devuelven el pedido ya creado en vez de duplicarlo.
+    const { order, reused } = await prisma.$transaction(async (tx) => {
+      const duplicate = await findRecentDuplicateOrderInTransaction(tx, {
+        customerId: userId,
+        paymentReference: safeData.paymentReference,
+      });
+      if (duplicate) return { order: duplicate, reused: true };
+
+      const created = await executeCheckoutInTransaction(tx, safeData, {
         orderStatus: isBinanceManual ? 'Pendiente verificación Binance' : 'Pendiente',
-      })
+      });
+      return { order: created, reused: false };
+    });
+
+    if (reused) {
+      console.warn('[POST /api/orders] Pedido duplicado evitado; se reutiliza:', order.id);
+      return NextResponse.json(prismaOrderToOrder(order), { status: 200 });
+    }
+
+    // PRD-180: marcar el carrito abandonado como recuperado SOLO server-side,
+    // tras confirmar el pedido (best-effort; markCartRecovered nunca lanza).
+    // Se cubren ambos correos: el de contacto del pedido y el de la sesión
+    // (el snapshot se guarda con el email de sesión — ver saveCartSnapshotAction).
+    const recoveredEmails = new Set(
+      [order.customerEmail, session?.user?.email]
+        .map((e) => e?.trim().toLowerCase())
+        .filter((e): e is string => !!e)
     );
+    for (const email of recoveredEmails) {
+      await markCartRecovered(email);
+    }
 
     let recipientEmail = order.customerEmail?.trim() ?? '';
     if (!recipientEmail && order.customerId) {
@@ -141,6 +194,10 @@ export async function POST(request: Request) {
       const subtotalUsd = totalUsd;
       const shippingUsd = 0;
 
+      // DEPENDENCIA-06 (PRD-202): OrderConfirmationPayload solo transporta USD +
+      // tasa y la plantilla recalcula los Bs. Cuando 06-EMAILS agregue campos de
+      // montos Bs congelados al payload, aquí debe pasarse order.total (Bs)
+      // directamente en vez de derivarlo de totalUsd × tasa.
       const confirmationPayload: OrderConfirmationPayload = {
         id: order.id,
         orderNumber: order.orderNumber,
@@ -165,7 +222,13 @@ export async function POST(request: Request) {
         shippingMethod: order.trackingCarrier ?? null,
       };
 
-      await sendOrderConfirmationEmail(confirmationPayload);
+      // Best-effort: el pedido YA está confirmado en BD; un fallo de Resend
+      // jamás debe presentarse al cliente como checkout fallido.
+      try {
+        await sendOrderConfirmationEmail(confirmationPayload);
+      } catch (emailError) {
+        console.error('[order-confirmation-email] Fallo no crítico:', emailError);
+      }
     } else {
       console.warn(
         '[order-confirmation-email] Pedido',
@@ -177,7 +240,16 @@ export async function POST(request: Request) {
     return NextResponse.json(prismaOrderToOrder(order), { status: 201 });
   } catch (error) {
     console.error('[POST /api/orders]', error);
-    const message = error instanceof Error ? error.message : 'Error al procesar la solicitud.';
-    return NextResponse.json({ message }, { status: 400 });
+
+    // PRD-029/PRD-070: solo los errores de negocio (CheckoutError) exponen su
+    // mensaje y status (400/404/409). Cualquier error interno responde 500 con
+    // mensaje genérico para no filtrar detalles de BD/inventario.
+    if (error instanceof CheckoutError) {
+      return NextResponse.json({ message: error.message }, { status: error.httpStatus });
+    }
+    return NextResponse.json(
+      { message: 'No pudimos procesar tu pedido en este momento. Intenta de nuevo en unos minutos.' },
+      { status: 500 }
+    );
   }
 }

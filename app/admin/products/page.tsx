@@ -44,6 +44,15 @@ interface InlineEdit {
   value: string;
 }
 
+/** Resultado del import CSV mostrado en panel (PRD-085: detalle por fila, no alert). */
+interface ImportResult {
+  success:      boolean;
+  message:      string;
+  createdCount: number;
+  updatedCount: number;
+  errors:       string[];
+}
+
 const LOW_STOCK_THRESHOLD = 3;
 
 function StockBadge({ stock }: { stock: number }) {
@@ -61,7 +70,9 @@ function AdminProductsContent() {
   const [isModalOpen, setIsModalOpen]     = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isImporting, startImportTr]      = useTransition();
+  const [importResult, setImportResult]   = useState<ImportResult | null>(null);
   const [inlineEdit, setInlineEdit]       = useState<InlineEdit | null>(null);
+  const [inlineError, setInlineError]     = useState<string | null>(null);
   const [savingInline, startInlineTr]     = useTransition();
   const fileInputRef                      = useRef<HTMLInputElement>(null);
   const inlineInputRef                    = useRef<HTMLInputElement>(null);
@@ -112,15 +123,18 @@ function AdminProductsContent() {
     if (inlineEdit) inlineInputRef.current?.focus();
   }, [inlineEdit]);
 
+  // PRD-153: cabeceras canónicas idénticas a las que espera importProductsFromCSV
+  // → round-trip completo exportar → editar → importar, con SKU como clave.
   const handleExportCsv = useCallback(() => {
     const rows = products.map(p => ({
-      SKU: p.sku ?? '',
-      Nombre: p.name,
-      Marca: p.brand,
-      Categoría: p.category,
-      'Precio USD': p.price,
-      Stock: p.stock,
-      Estado: p.stock === 0 ? 'Agotado' : p.stock < LOW_STOCK_THRESHOLD ? 'Bajo' : 'Disponible',
+      sku: p.sku ?? '',
+      name: p.name,
+      brand: p.brand,
+      category: p.category,
+      price: p.price,
+      stock: p.stock,
+      description: p.description ?? '',
+      imageUrl: p.images?.[0] ?? '',
     }));
     downloadCsv(`inventario-mundotech-${csvDateStamp()}.csv`, rows);
   }, [products]);
@@ -148,8 +162,9 @@ function AdminProductsContent() {
     reader.onload = (ev) => {
       const csv = ev.target?.result as string;
       startImportTr(async () => {
+        // PRD-085: resultado en panel con detalle por fila (antes: alert sin contexto)
         const res = await importProductsFromCSV(csv);
-        alert(res.message);
+        setImportResult(res);
         if (res.success) loadProducts();
         if (fileInputRef.current) fileInputRef.current.value = '';
       });
@@ -166,13 +181,23 @@ function AdminProductsContent() {
     const { id, field, value } = inlineEdit;
     const parsed = parseFloat(value);
     if (isNaN(parsed) || parsed < 0) { cancelInlineEdit(); return; }
+    // PRD-086: la tabla solo refleja el nuevo valor si el servidor confirmó el
+    // guardado; en error se conserva el valor real y se avisa al operador.
     startInlineTr(async () => {
-      if (field === 'stock') {
-        await quickUpdateStockAction(id, Math.floor(parsed));
+      const nextValue = field === 'stock' ? Math.floor(parsed) : parsed;
+      const res = field === 'stock'
+        ? await quickUpdateStockAction(id, nextValue)
+        : await quickUpdatePriceAction(id, nextValue);
+
+      if (res.success) {
+        setInlineError(null);
+        setProducts(prev => prev.map(p => p.id === id ? { ...p, [field]: nextValue } : p));
       } else {
-        await quickUpdatePriceAction(id, parsed);
+        const target = products.find(p => p.id === id);
+        setInlineError(
+          `No se guardó el ${field === 'stock' ? 'stock' : 'precio'}${target ? ` de «${target.name}»` : ''}: ${('message' in res && res.message) || 'error desconocido'}. El valor mostrado es el actual.`,
+        );
       }
-      setProducts(prev => prev.map(p => p.id === id ? { ...p, [field]: parsed } : p));
       setInlineEdit(null);
     });
   };
@@ -409,6 +434,49 @@ function AdminProductsContent() {
           </div>
         )}
       </div>
+
+      {/* PRD-085: resultado del import con detalle por fila */}
+      {importResult && (
+        <div className={`rounded-xl border px-4 py-3 text-sm ${
+          importResult.success
+            ? 'bg-green-50 border-green-200 text-green-800'
+            : 'bg-red-50 border-red-200 text-red-800'
+        }`}>
+          <div className="flex items-start justify-between gap-3">
+            <p className="font-semibold">{importResult.message}</p>
+            <button
+              type="button"
+              onClick={() => setImportResult(null)}
+              aria-label="Cerrar resultado de importación"
+              className="flex-shrink-0 w-8 h-8 inline-flex items-center justify-center rounded-full active:bg-black/10"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          {importResult.errors.length > 0 && (
+            <ul className="mt-2 max-h-48 overflow-y-auto space-y-1 text-[12px] font-mono list-disc list-inside">
+              {importResult.errors.map((err, i) => (
+                <li key={i}>{err}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* PRD-086: error de edición inline (el valor en tabla sigue siendo el real) */}
+      {inlineError && (
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <p>{inlineError}</p>
+          <button
+            type="button"
+            onClick={() => setInlineError(null)}
+            aria-label="Cerrar aviso"
+            className="flex-shrink-0 w-8 h-8 inline-flex items-center justify-center rounded-full active:bg-black/10"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       <DataTable<Product>
         data={products}

@@ -67,7 +67,7 @@ export default async function OpengraphImage() {
             fontSize: 26,
           }}
         >
-          Tecnología y variedades · C.C. Minicentro 34, Barquisimeto
+          Tecnología y variedades · Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001
         </div>
 
         <div

@@ -43,21 +43,34 @@ const schemas: Record<HomepageKey, z.ZodTypeAny> = {
 
 // ── GET — returns all three keys at once ─────────────────────────────────────
 
+/**
+ * PRD-255: este GET solo lo consume el editor /admin/home-manager — la home
+ * pública lee estas claves server-side. Se exige admin para no exponer la
+ * configuración editorial (benefits, flash deals, shelves) a scraping.
+ */
 export async function GET() {
-  const records = await prisma.appConfig.findMany({
-    where: { key: { in: [...HOMEPAGE_KEYS] } },
-  });
+  const auth = await requireAdmin();
+  if (!auth.authorized) return auth.response;
 
-  const result: Record<string, unknown> = {};
-  for (const key of HOMEPAGE_KEYS) {
-    const row = records.find(r => r.key === key);
-    try {
-      result[key] = row ? JSON.parse(row.value) : null;
-    } catch {
-      result[key] = null;
+  try {
+    const records = await prisma.appConfig.findMany({
+      where: { key: { in: [...HOMEPAGE_KEYS] } },
+    });
+
+    const result: Record<string, unknown> = {};
+    for (const key of HOMEPAGE_KEYS) {
+      const row = records.find(r => r.key === key);
+      try {
+        result[key] = row ? JSON.parse(row.value) : null;
+      } catch {
+        result[key] = null;
+      }
     }
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error('[GET /api/config/homepage]', error);
+    return NextResponse.json({ error: 'Error al leer la configuración.' }, { status: 500 });
   }
-  return NextResponse.json(result);
 }
 
 // ── PUT — upserts a single key ────────────────────────────────────────────────

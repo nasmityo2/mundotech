@@ -10,6 +10,7 @@ import { Prisma, ProductMediaType } from '@prisma/client';
 import { deriveLegacyImagesFromSlots } from '@/lib/product-media';
 import { triggerRestockNotifications } from '@/app/actions/restockActions';
 import { parseProductSpecs } from '@/lib/definitions';
+import { saveSlugRedirect } from '@/lib/slug-redirects';
 
 const absoluteUrl = z.string().refine(
   (s) => {
@@ -236,9 +237,17 @@ export async function updateProductAction(productId: string, formData: FormData)
       );
     }
 
+    // PRD-066: al renombrar el slug, registrar redirect 301 para que la URL
+    // vieja (indexada o compartida) siga funcionando en la ficha de producto.
+    const slugChanged = !!current?.slug && current.slug !== slug;
+    if (slugChanged && current?.slug) {
+      await saveSlugRedirect(current.slug, slug);
+    }
+
     revalidatePath('/admin/products');
     revalidatePath('/');
     revalidatePath(`/product/${slug}`);
+    if (slugChanged && current?.slug) revalidatePath(`/product/${current.slug}`);
     return { success: true, message: 'Producto actualizado con éxito.' };
   } catch (error) {
     console.error('Error al actualizar el producto:', error);
@@ -265,6 +274,12 @@ export async function deleteProductAction(productId: string) {
   }
 }
 
+/**
+ * Catálogo PÚBLICO (lo consume ProductContext sin auth).
+ * PRD-012 / PRD-104: `select` acotado a los campos que la tienda muestra —
+ * sin `sku`, `specs` ni timestamps internos. El inventario completo solo se
+ * obtiene vía `getProductsAdmin()` (con sesión admin).
+ */
 export async function getProducts(searchTerm?: string, categoryFilter?: string) {
   const where: Record<string, unknown> = {};
 
@@ -278,6 +293,18 @@ export async function getProducts(searchTerm?: string, categoryFilter?: string) 
   const products = await prisma.product.findMany({
     where,
     orderBy: { createdAt: 'desc' },
+    select: {
+      id:            true,
+      slug:          true,
+      name:          true,
+      description:   true,
+      price:         true,
+      originalPrice: true,
+      stock:         true,
+      category:      true,
+      brand:         true,
+      images:        true,
+    },
   });
 
   const categories = await prisma.product
@@ -288,72 +315,247 @@ export async function getProducts(searchTerm?: string, categoryFilter?: string) 
 }
 
 // ── CSV Import ──────────────────────────────────────────────────────────────
+// PRD-153: round-trip completo con el export del panel — el SKU es la clave de
+//          upsert (el nombre solo es fallback para catálogos legados sin SKU).
+// PRD-154: en productos existentes se actualizan TODOS los campos del archivo
+//          (nombre, precio, stock, categoría, marca, descripción y SKU).
+// PRD-155: aplicación transaccional todo-o-nada — un error revierte el import
+//          completo, nunca queda inventario a medias.
+
+/** Cabeceras aceptadas (canónicas en inglés + alias en español de exports previos). */
+const CSV_HEADER_ALIASES: Record<string, string> = {
+  sku: 'sku',
+  name: 'name', nombre: 'name',
+  brand: 'brand', marca: 'brand',
+  category: 'category', categoria: 'category', 'categoría': 'category',
+  price: 'price', precio: 'price', 'precio usd': 'price',
+  stock: 'stock',
+  description: 'description', descripcion: 'description', 'descripción': 'description',
+  imageurl: 'imageUrl', imagen: 'imageUrl', 'image url': 'imageUrl',
+};
+
+function normalizeCsvHeader(header: string): string {
+  const key = header.trim().toLowerCase();
+  return CSV_HEADER_ALIASES[key] ?? header.trim();
+}
+
+const emptyToUndef = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
 
 const csvProductSchema = z.object({
-  name:        z.string().min(1),
-  price:       z.coerce.number().positive(),
-  stock:       z.coerce.number().int().nonnegative(),
-  category:    z.string().optional().default('General'),
-  brand:       z.string().optional().default('Sin Marca'),
-  description: z.string().optional().default('Sin descripción'),
-  imageUrl:    z.string().url().optional().default('/placeholder-product.png'),
+  sku: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null),
+    z.string().min(1).max(64).nullable(),
+  ),
+  name:  z.string().trim().min(1, 'name es obligatorio'),
+  price: z.coerce.number().positive('price debe ser mayor que 0'),
+  stock: z.coerce.number().int().nonnegative('stock debe ser un entero ≥ 0'),
+  category:    z.preprocess(emptyToUndef, z.string().trim().min(1).default('General')),
+  brand:       z.preprocess(emptyToUndef, z.string().trim().min(1).default('Sin Marca')),
+  description: z.preprocess(emptyToUndef, z.string().trim().min(1).default('Sin descripción')),
+  imageUrl: z.preprocess(
+    emptyToUndef,
+    z.string().trim()
+      .refine((s) => s.startsWith('/') || /^https?:\/\//i.test(s), 'imageUrl inválida')
+      .default('/placeholder-product.png'),
+  ),
 });
+
+type CsvProductRow = z.infer<typeof csvProductSchema>;
+
+/** Slug único que además evita duplicados dentro del mismo archivo importado. */
+async function getUniqueSlugForImport(
+  name: string,
+  taken: Set<string>,
+  excludeId?: string,
+): Promise<string> {
+  const base = slugify(name) || `producto-${Date.now()}`;
+  let candidate = base;
+  let counter = 2;
+  while (true) {
+    if (!taken.has(candidate)) {
+      const existing = await prisma.product.findUnique({
+        where: { slug: candidate },
+        select: { id: true },
+      });
+      if (!existing || existing.id === excludeId) break;
+    }
+    candidate = `${base}-${counter}`;
+    counter++;
+  }
+  taken.add(candidate);
+  return candidate;
+}
 
 export async function importProductsFromCSV(csvData: string) {
   await verifyAdminSession();
 
-  const parsed = Papa.parse(csvData, { header: true, skipEmptyLines: true });
+  const parsed = Papa.parse<Record<string, string>>(csvData, {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: normalizeCsvHeader,
+  });
+
+  const rows: { data: CsvProductRow; lineNo: number }[] = [];
+  const errors: string[] = [];
+
+  parsed.data.forEach((raw, idx) => {
+    const lineNo = idx + 2; // +1 por la cabecera, +1 por índice base 0
+    const validation = csvProductSchema.safeParse(raw);
+    if (!validation.success) {
+      const detail = validation.error.issues
+        .map((i) => `${i.path.join('.') || 'fila'}: ${i.message}`)
+        .join('; ');
+      const label = (raw?.name ?? '').toString().trim().slice(0, 40) || 'sin nombre';
+      errors.push(`Fila ${lineNo} («${label}»): ${detail}`);
+      return;
+    }
+    rows.push({ data: validation.data, lineNo });
+  });
+
+  // Duplicados dentro del archivo → upsert ambiguo, se rechaza con detalle
+  const seenSkus = new Map<string, number>();
+  const seenNames = new Map<string, number>();
+  for (const { data, lineNo } of rows) {
+    if (data.sku) {
+      const key = data.sku.toLowerCase();
+      const prev = seenSkus.get(key);
+      if (prev) errors.push(`Fila ${lineNo}: SKU «${data.sku}» duplicado en el archivo (ya aparece en la fila ${prev}).`);
+      else seenSkus.set(key, lineNo);
+    } else {
+      const key = data.name.toLowerCase();
+      const prev = seenNames.get(key);
+      if (prev) errors.push(`Fila ${lineNo}: nombre «${data.name}» duplicado sin SKU (ya aparece en la fila ${prev}).`);
+      else seenNames.set(key, lineNo);
+    }
+  }
+
+  if (rows.length === 0) {
+    errors.push('El archivo no contiene filas válidas. Cabeceras esperadas: sku, name, brand, category, price, stock, description, imageUrl.');
+  }
+
+  // PRD-155: con errores de validación no se toca la BD (todo-o-nada)
+  if (errors.length > 0) {
+    return {
+      success: false,
+      createdCount: 0,
+      updatedCount: 0,
+      errors,
+      message: `Importación cancelada: ${errors.length} error(es) en el archivo. No se modificó ningún producto.`,
+    };
+  }
+
+  // Resolución de coincidencias (solo lecturas, fuera de la transacción)
+  const skus = rows.map((r) => r.data.sku).filter((s): s is string => !!s);
+  const names = rows.map((r) => r.data.name);
+
+  const [bySkuList, byNameList] = await Promise.all([
+    skus.length
+      ? prisma.product.findMany({
+          where: { sku: { in: skus } },
+          select: { id: true, sku: true, slug: true, name: true, stock: true, images: true },
+        })
+      : Promise.resolve([]),
+    prisma.product.findMany({
+      where: { name: { in: names } },
+      select: { id: true, sku: true, slug: true, name: true, stock: true, images: true },
+    }),
+  ]);
+
+  const bySku = new Map(bySkuList.map((p) => [p.sku!.toLowerCase(), p]));
+  const byName = new Map<string, (typeof byNameList)[number]>();
+  for (const p of byNameList) {
+    const k = p.name.toLowerCase();
+    if (!byName.has(k)) byName.set(k, p);
+  }
+
+  type ImportPlan =
+    | { kind: 'update'; id: string; previousStock: number; previousImage: string | null; data: CsvProductRow; slug: string }
+    | { kind: 'create'; data: CsvProductRow; slug: string };
+
+  const usedSlugs = new Set<string>();
+  const plans: ImportPlan[] = [];
+
+  for (const { data } of rows) {
+    // SKU primero; nombre como fallback (incluye el caso «asignar SKU vía CSV»)
+    const existing =
+      (data.sku ? bySku.get(data.sku.toLowerCase()) : undefined) ??
+      byName.get(data.name.toLowerCase());
+
+    if (existing) {
+      // El slug existente se conserva (estabilidad de URL); solo se genera si faltaba
+      const slug = existing.slug || (await getUniqueSlugForImport(data.name, usedSlugs, existing.id));
+      plans.push({
+        kind: 'update',
+        id: existing.id,
+        previousStock: existing.stock,
+        previousImage: existing.images[0] ?? null,
+        data,
+        slug,
+      });
+    } else {
+      const slug = await getUniqueSlugForImport(data.name, usedSlugs);
+      plans.push({ kind: 'create', data, slug });
+    }
+  }
 
   let createdCount = 0;
   let updatedCount = 0;
-  const errors: string[] = [];
 
-  for (const row of parsed.data) {
-    const validation = csvProductSchema.safeParse(row);
-    if (!validation.success) {
-      errors.push(`Fila inválida: ${JSON.stringify(row)} - Error: ${validation.error.message}`);
-      continue;
-    }
-
-    const { name, price, stock, category, brand, description, imageUrl } = validation.data;
-
-    try {
-      // Buscar producto existente por nombre para el upsert
-      const existing = await prisma.product.findFirst({ where: { name }, select: { id: true, slug: true } });
-      const slug = existing?.slug || await getUniqueSlug(name, existing?.id);
-
-      if (existing) {
-        await prisma.product.update({
-          where: { id: existing.id },
-          data:  { price, stock, slug },
-        });
-        updatedCount++;
-      } else {
-        await prisma.product.create({
-          data: {
-            name,
-            price,
-            stock,
-            category: category!,
-            brand: brand!,
-            description: description!,
-            images: [imageUrl!],
-            slug,
-            media: {
-              create: [
-                {
-                  type: ProductMediaType.IMAGE,
-                  url: imageUrl!,
-                  sortOrder: 0,
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        for (const plan of plans) {
+          const { name, price, stock, category, brand, description, sku, imageUrl } = plan.data;
+          if (plan.kind === 'update') {
+            await tx.product.update({
+              where: { id: plan.id },
+              data: {
+                name, price, stock, category, brand, description,
+                slug: plan.slug,
+                ...(sku ? { sku } : {}),
+                // La galería (images/media) no se toca en updates: se gestiona en el modal
+              },
+            });
+            updatedCount++;
+          } else {
+            await tx.product.create({
+              data: {
+                name, price, stock, category, brand, description,
+                sku: sku ?? null,
+                slug: plan.slug,
+                images: [imageUrl],
+                media: {
+                  create: [{ type: ProductMediaType.IMAGE, url: imageUrl, sortOrder: 0 }],
                 },
-              ],
-            },
-          },
-        });
-        createdCount++;
-      }
-    } catch (dbError) {
-      errors.push(`Error en base de datos para ${name}: ${(dbError as Error).message}`);
+              },
+            });
+            createdCount++;
+          }
+        }
+      },
+      { timeout: 60_000 },
+    );
+  } catch (dbError) {
+    console.error('[importProductsFromCSV] transacción revertida:', dbError);
+    return {
+      success: false,
+      createdCount: 0,
+      updatedCount: 0,
+      errors: [`Error de base de datos: ${(dbError as Error).message}`],
+      message: 'Importación revertida por un error de base de datos. No se modificó ningún producto.',
+    };
+  }
+
+  // Igual que quickUpdateStockAction: avisar a suscriptores si pasó de agotado a disponible
+  for (const plan of plans) {
+    if (plan.kind === 'update' && plan.previousStock === 0 && plan.data.stock > 0) {
+      void triggerRestockNotifications(
+        plan.id,
+        plan.data.name,
+        plan.slug,
+        plan.previousImage,
+        plan.data.price,
+      );
     }
   }
 
@@ -361,11 +563,11 @@ export async function importProductsFromCSV(csvData: string) {
   revalidatePath('/');
 
   return {
-    success: errors.length === 0,
+    success: true,
     createdCount,
     updatedCount,
-    errors,
-    message: `Importación completada. Creados: ${createdCount}, Actualizados: ${updatedCount}. Errores: ${errors.length}`,
+    errors: [],
+    message: `Importación completada. Creados: ${createdCount} · Actualizados: ${updatedCount}.`,
   };
 }
 
@@ -399,6 +601,10 @@ export async function quickUpdateStockAction(productId: string, stock: number) {
 
     revalidatePath('/admin/products');
     revalidatePath('/');
+    // PRD-024: sin esto, la ficha del producto y el catálogo (ISR) siguen
+    // mostrando el stock anterior hasta 1 hora.
+    revalidatePath(`/product/${current?.slug?.trim() || productId}`);
+    revalidatePath('/productos');
     return { success: true };
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
@@ -414,9 +620,17 @@ export async function quickUpdatePriceAction(productId: string, price: number) {
     if (typeof price !== 'number' || isNaN(price) || price < 0) {
       return { success: false, message: 'Precio inválido.' };
     }
-    await prisma.product.update({ where: { id: productId }, data: { price } });
+    const updated = await prisma.product.update({
+      where: { id: productId },
+      data: { price },
+      select: { slug: true },
+    });
     revalidatePath('/admin/products');
     revalidatePath('/');
+    // PRD-024: invalidar la ficha y el catálogo para no vender al precio viejo
+    // durante la ventana de ISR.
+    revalidatePath(`/product/${updated.slug?.trim() || productId}`);
+    revalidatePath('/productos');
     return { success: true };
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('No autorizado')) {

@@ -7,6 +7,7 @@ import { prismaOrderToOrder, type OrderStatus, VALID_ORDER_STATUSES } from '@/li
 import { orderPathSegment } from '@/lib/order-ref';
 import { sendOrderDeliveredEmail, sendShippingEmail } from '@/lib/resend';
 import { restoreOrderStockInTransaction, shouldRestoreStockOnCancel } from '@/lib/checkout-order';
+import { trackingUrlSchema, trackingPhotoUrlSchema } from '@/lib/tracking-url-validation';
 
 type OrderWithRelations = Prisma.OrderGetPayload<{
   include: { items: true; customer: { select: { email: true; name: true } } };
@@ -24,8 +25,9 @@ const bodySchema = z.object({
   status: z.string(),
   trackingNumber:   z.string().trim().max(80).optional().nullable(),
   trackingCarrier:  z.string().trim().max(80).optional().nullable(),
-  trackingUrl:      z.string().url().max(500).optional().nullable(),
-  trackingPhotoUrl: z.string().url().max(500).optional().nullable(),
+  // PRD-267: solo https. PRD-268: foto restringida a Cloudinary.
+  trackingUrl:      trackingUrlSchema.optional().nullable(),
+  trackingPhotoUrl: trackingPhotoUrlSchema.optional().nullable(),
 });
 
 export async function PUT(

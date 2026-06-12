@@ -5,6 +5,7 @@ import { Order } from '@/lib/definitions';
 import {
   orderAnalyticsPeriodDate,
   orderCountsTowardValidatedRevenue,
+  orderStoredRevenueTotal,
 } from '@/lib/analytics-orders';
 import { BarChart2, TrendingUp, Package, ShoppingCart, Award, Eye } from 'lucide-react';
 
@@ -107,11 +108,19 @@ export default function AdminStatsPage() {
   }, [filteredOrders, sortBy]);
 
   const totalUnits = productStats.reduce((s, p) => s + p.unitsSold, 0);
-  const totalRevenue = productStats.reduce((s, p) => s + p.revenue, 0);
+  // PRD-220: misma lógica que el dashboard home — total almacenado del pedido
+  // (incluye descuento de cupón), no la suma de líneas. Así ambas pantallas
+  // muestran la misma cifra para el mismo período.
+  const totalRevenue = filteredOrders.reduce((s, o) => s + orderStoredRevenueTotal(o), 0);
+  // Denominador del % por producto: suma de líneas (sin cupón), para que los
+  // porcentajes del ranking sigan sumando 100%.
+  const itemRevenueTotal = productStats.reduce((s, p) => s + p.revenue, 0);
   const totalOrdersInPeriod = filteredOrders.length;
 
-  const maxUnits = productStats[0]?.unitsSold ?? 1;
-  const maxRevenue = productStats[0]?.revenue ?? 1;
+  // PRD-EXTRA-ADM-1: los máximos deben calcularse sobre cada métrica, no sobre
+  // la primera fila del orden activo (antes la barra podía superar el 100%).
+  const maxUnits = Math.max(1, ...productStats.map(p => p.unitsSold));
+  const maxRevenue = Math.max(1, ...productStats.map(p => p.revenue));
 
   const MEDAL_COLORS = ['text-yellow-500', 'text-gray-400', 'text-amber-600'];
 
@@ -220,8 +229,8 @@ export default function AdminStatsPage() {
               const barWidth = sortBy === 'units'
                 ? (stat.unitsSold / maxUnits) * 100
                 : (stat.revenue / maxRevenue) * 100;
-              const revenueShare = totalRevenue > 0
-                ? ((stat.revenue / totalRevenue) * 100).toFixed(1)
+              const revenueShare = itemRevenueTotal > 0
+                ? ((stat.revenue / itemRevenueTotal) * 100).toFixed(1)
                 : '0';
 
               return (
@@ -277,7 +286,8 @@ export default function AdminStatsPage() {
         <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-100">
           <Eye size={18} className="text-navy" />
           <h2 className="font-semibold text-gray-800">Productos Más Vistos</h2>
-          <span className="ml-2 text-xs text-gray-400">(datos servidor — todas las sesiones)</span>
+          {/* PRD-184: el endpoint solo cuenta vistas con sesión válida (filtro anti-bot) */}
+          <span className="ml-2 text-xs text-gray-400">(vistas con sesión · últimos 90 días)</span>
         </div>
         {loadingViews ? (
           <div className="py-8 text-center text-gray-400 text-sm">Cargando vistas…</div>

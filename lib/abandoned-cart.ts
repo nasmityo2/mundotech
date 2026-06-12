@@ -1,5 +1,22 @@
+import { createHash, randomBytes } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import type { AbandonedCartItem, AbandonedCartStatus } from '@/lib/definitions';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRD-178 — Tokens de recuperación hasheados.
+// En BD solo se guarda SHA-256 del token (igual que PasswordResetToken); el
+// token en claro existe únicamente dentro del email enviado. Toda búsqueda por
+// token debe pasar por estas funciones (hashean internamente).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function hashRecoveryToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function generateRecoveryToken(): { token: string; hash: string } {
+  const token = randomBytes(32).toString('hex');
+  return { token, hash: hashRecoveryToken(token) };
+}
 
 /** Crea o actualiza el snapshot de carrito para el email dado.
  *
@@ -27,6 +44,9 @@ export async function upsertAbandonedCart(params: {
     });
 
     if (existing) {
+      // PRD-177: actualizar ítems/total/actividad SIN reiniciar el ciclo de
+      // emails. Antes esto devolvía EMAILED_24H → PENDING y borraba emailSentAt,
+      // con lo que el cron re-enviaba el correo de 24h casi de inmediato.
       await prisma.abandonedCart.update({
         where: { id: existing.id },
         data: {
@@ -34,8 +54,6 @@ export async function upsertAbandonedCart(params: {
           totalUsd,
           lastActivityAt: new Date(),
           userId:         userId ?? existing.userId,
-          status:         'PENDING',
-          emailSentAt:    null,
         },
       });
     } else {
@@ -46,6 +64,9 @@ export async function upsertAbandonedCart(params: {
           items:    items as object[],
           totalUsd,
           status:   'PENDING' satisfies AbandonedCartStatus,
+          // El token definitivo se genera (y rota) al enviar cada email; este
+          // valor inicial nunca sale de la BD y no es recuperable (solo hash).
+          recoveryTokenHash: generateRecoveryToken().hash,
         },
       });
     }
@@ -73,16 +94,38 @@ export async function markCartRecovered(email: string): Promise<void> {
   }
 }
 
-/** Marca el carrito como OPTED_OUT por su recoveryToken (enlace de baja en el email). */
+/** Marca el carrito como OPTED_OUT por su token de recuperación (enlace de baja
+ *  del email). Recibe el token EN CLARO y lo hashea para buscar en BD. */
 export async function markCartOptedOut(recoveryToken: string): Promise<void> {
   if (!recoveryToken.trim()) return;
   try {
     await prisma.abandonedCart.updateMany({
-      where:  { recoveryToken: recoveryToken.trim() },
+      where:  { recoveryTokenHash: hashRecoveryToken(recoveryToken.trim()) },
       data:   { status: 'OPTED_OUT' satisfies AbandonedCartStatus },
     });
   } catch (err) {
     console.error('[abandoned-cart] markCartOptedOut error:', err);
+  }
+}
+
+/** Busca un carrito abandonado por su token en claro (para el flujo de
+ *  recuperación — PRD-175, segmento 02). Hashea internamente: el llamador
+ *  nunca toca el hash. Devuelve null si el token no corresponde a un carrito. */
+export async function findAbandonedCartByRecoveryToken(recoveryToken: string): Promise<{
+  id:     string;
+  email:  string;
+  items:  unknown;
+  status: string;
+} | null> {
+  if (!recoveryToken.trim()) return null;
+  try {
+    return await prisma.abandonedCart.findUnique({
+      where:  { recoveryTokenHash: hashRecoveryToken(recoveryToken.trim()) },
+      select: { id: true, email: true, items: true, status: true },
+    });
+  } catch (err) {
+    console.error('[abandoned-cart] findAbandonedCartByRecoveryToken error:', err);
+    return null;
   }
 }
 
@@ -91,11 +134,10 @@ export async function markCartOptedOut(recoveryToken: string): Promise<void> {
  *  - lastActivityAt < ahora − 24h
  */
 export async function getCartsFor24hEmail(): Promise<{
-  id:            string;
-  email:         string;
-  items:         unknown;
-  totalUsd:      number;
-  recoveryToken: string;
+  id:       string;
+  email:    string;
+  items:    unknown;
+  totalUsd: number;
 }[]> {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
   return prisma.abandonedCart.findMany({
@@ -103,7 +145,7 @@ export async function getCartsFor24hEmail(): Promise<{
       status:          'PENDING',
       lastActivityAt:  { lt: cutoff },
     },
-    select: { id: true, email: true, items: true, totalUsd: true, recoveryToken: true },
+    select: { id: true, email: true, items: true, totalUsd: true },
   });
 }
 
@@ -112,11 +154,10 @@ export async function getCartsFor24hEmail(): Promise<{
  *  - emailSentAt < ahora − 48h  (es decir, 72h desde la última actividad aprox.)
  */
 export async function getCartsFor72hEmail(): Promise<{
-  id:            string;
-  email:         string;
-  items:         unknown;
-  totalUsd:      number;
-  recoveryToken: string;
+  id:       string;
+  email:    string;
+  items:    unknown;
+  totalUsd: number;
 }[]> {
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
   return prisma.abandonedCart.findMany({
@@ -124,23 +165,26 @@ export async function getCartsFor72hEmail(): Promise<{
       status:      'EMAILED_24H',
       emailSentAt: { lt: cutoff },
     },
-    select: { id: true, email: true, items: true, totalUsd: true, recoveryToken: true },
+    select: { id: true, email: true, items: true, totalUsd: true },
   });
 }
 
-/** Actualiza el estado del carrito tras enviar el email de recuperación. */
-export async function markCartEmailed(
+/** Marca el carrito como emailado y rota su token de recuperación, ANTES de
+ *  enviar el email (PRD-211: si el envío falla tras marcar, no se duplican
+ *  emails; la oleada de 72h sigue cubriendo al cliente).
+ *
+ *  Devuelve el token EN CLARO que debe ir en el email (PRD-178: en BD solo
+ *  queda el hash). Lanza si la BD falla — el llamador debe abortar el envío. */
+export async function markCartEmailedAndRotateToken(
   cartId: string,
   status: 'EMAILED_24H' | 'EMAILED_72H',
-): Promise<void> {
-  try {
-    await prisma.abandonedCart.update({
-      where: { id: cartId },
-      data:  { status, emailSentAt: new Date() },
-    });
-  } catch (err) {
-    console.error('[abandoned-cart] markCartEmailed error:', err);
-  }
+): Promise<string> {
+  const { token, hash } = generateRecoveryToken();
+  await prisma.abandonedCart.update({
+    where: { id: cartId },
+    data:  { status, emailSentAt: new Date(), recoveryTokenHash: hash },
+  });
+  return token;
 }
 
 /** Convierte items del JSON de Prisma al tipo tipado AbandonedCartItem[].
@@ -156,4 +200,46 @@ export function parseAbandonedCartItems(raw: unknown): AbandonedCartItem[] {
       typeof (i as AbandonedCartItem).price    === 'number' &&
       typeof (i as AbandonedCartItem).quantity === 'number',
   );
+}
+
+/**
+ * PRD-176 / PRD-181: refresca el snapshot contra el catálogo ANTES de enviar el
+ * email de recuperación:
+ *  - precios y nombres actuales de BD (no los del momento del abandono),
+ *  - slugs actuales (un slug renombrado generaba 404 desde el correo),
+ *  - descarta productos eliminados o sin stock (no se promociona lo invendible).
+ * Devuelve null si no queda ningún ítem ofertable (mejor no enviar el email).
+ */
+export async function refreshAbandonedCartItems(
+  raw: unknown,
+): Promise<{ items: AbandonedCartItem[]; totalUsd: number } | null> {
+  const snapshot = parseAbandonedCartItems(raw);
+  if (snapshot.length === 0) return null;
+
+  const products = await prisma.product.findMany({
+    where: { id: { in: [...new Set(snapshot.map((i) => i.id))] } },
+    select: { id: true, name: true, slug: true, price: true, stock: true, images: true },
+  });
+  const productById = new Map(products.map((p) => [p.id, p]));
+
+  const items: AbandonedCartItem[] = [];
+  let totalUsd = 0;
+  for (const snap of snapshot) {
+    const product = productById.get(snap.id);
+    if (!product || product.stock <= 0) continue;
+
+    const quantity = Math.min(snap.quantity, product.stock);
+    items.push({
+      id:       product.id,
+      name:     product.name,
+      slug:     product.slug?.trim() || product.id,
+      price:    product.price,
+      quantity,
+      image:    product.images?.[0]?.trim() || snap.image || null,
+    });
+    totalUsd += product.price * quantity;
+  }
+
+  if (items.length === 0) return null;
+  return { items, totalUsd: Math.round(totalUsd * 100) / 100 };
 }

@@ -52,9 +52,10 @@ export default async function NotFound() {
         </p>
       </div>
 
-      {/* Buscador rápido */}
+      {/* Buscador rápido — H22: apunta a la búsqueda real /buscar (la misma
+          que SearchBar y el SearchAction del schema), no al catálogo */}
       <form
-        action="/productos"
+        action="/buscar"
         method="GET"
         className="w-full max-w-md mb-10"
       >
@@ -123,7 +124,7 @@ export default async function NotFound() {
         <span className="font-black tracking-tight">
           Mundo<span className="text-brand-yellow">Tech</span>
         </span>{" "}
-        — Conectados Contigo · C.C. Minicentro 34, Barquisimeto
+        — Conectados Contigo · Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001
       </p>
     </div>
   );

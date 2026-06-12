@@ -47,11 +47,16 @@ export async function updateExchangeRate(rate: unknown) {
     create: { key: EXCHANGE_RATE_APP_CONFIG_KEY, value: parsed.data.toString() },
   });
 
-  // Invalidate the full layout so every page recalculates prices
+  // PRD-142: la tasa afecta TODAS las páginas ISR con precios. El layout-level
+  // invalida el árbol completo y las entradas 'page' cubren explícitamente las
+  // rutas dinámicas pre-renderizadas (ficha de producto y categorías).
   revalidatePath('/', 'layout');
+  revalidatePath('/');
   revalidatePath('/productos');
+  revalidatePath('/buscar');
   revalidatePath('/admin/settings');
   revalidatePath('/product/[slug]', 'page');
+  revalidatePath('/categoria/[slug]', 'page');
 
   return { success: true, message: `Tasa actualizada a Bs. ${parsed.data.toFixed(2)}/USD.` };
 }

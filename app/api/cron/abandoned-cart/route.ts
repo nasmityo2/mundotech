@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getCartsFor24hEmail,
   getCartsFor72hEmail,
-  markCartEmailed,
-  parseAbandonedCartItems,
+  markCartEmailedAndRotateToken,
+  refreshAbandonedCartItems,
 } from '@/lib/abandoned-cart';
 import { sendAbandonedCartEmail } from '@/lib/resend';
 
@@ -57,20 +57,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const carts24h = await getCartsFor24hEmail();
 
     for (const cart of carts24h) {
-      const items = parseAbandonedCartItems(cart.items);
-      if (items.length === 0) continue;
+      // PRD-176/PRD-181: el email se arma con precios, nombres y slugs ACTUALES
+      // de BD; productos eliminados o agotados se omiten. Sin ítems vigentes no
+      // se envía nada (se reintenta en la próxima corrida por si hay restock).
+      const refreshed = await refreshAbandonedCartItems(cart.items);
+      if (!refreshed) continue;
 
       const firstName = cart.email.split('@')[0] ?? 'Cliente';
 
       try {
+        // PRD-211: marcar ANTES de enviar — si el envío falla tras marcar no se
+        // duplica el email (la oleada de 72h sigue cubriendo a este carrito).
+        // PRD-178: el token se genera aquí en claro y en BD solo queda su hash.
+        const recoveryToken = await markCartEmailedAndRotateToken(cart.id, 'EMAILED_24H');
         await sendAbandonedCartEmail({
           email:         cart.email,
           customerName:  firstName,
-          items,
-          totalUsd:      cart.totalUsd,
-          recoveryToken: cart.recoveryToken,
+          items:         refreshed.items,
+          totalUsd:      refreshed.totalUsd,
+          recoveryToken,
         });
-        await markCartEmailed(cart.id, 'EMAILED_24H');
         sent24h++;
       } catch (err) {
         console.error('[cron/abandoned-cart] Error enviando 24h a', cart.email, err);
@@ -82,20 +88,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const carts72h = await getCartsFor72hEmail();
 
     for (const cart of carts72h) {
-      const items = parseAbandonedCartItems(cart.items);
-      if (items.length === 0) continue;
+      // PRD-176/PRD-181: mismo refresco contra catálogo que la oleada de 24h.
+      const refreshed = await refreshAbandonedCartItems(cart.items);
+      if (!refreshed) continue;
 
       const firstName = cart.email.split('@')[0] ?? 'Cliente';
 
       try {
+        // PRD-211 + PRD-178: marcar y rotar token antes de enviar (ver oleada 24h).
+        const recoveryToken = await markCartEmailedAndRotateToken(cart.id, 'EMAILED_72H');
         await sendAbandonedCartEmail({
           email:         cart.email,
           customerName:  firstName,
-          items,
-          totalUsd:      cart.totalUsd,
-          recoveryToken: cart.recoveryToken,
+          items:         refreshed.items,
+          totalUsd:      refreshed.totalUsd,
+          recoveryToken,
         });
-        await markCartEmailed(cart.id, 'EMAILED_72H');
         sent72h++;
       } catch (err) {
         console.error('[cron/abandoned-cart] Error enviando 72h a', cart.email, err);

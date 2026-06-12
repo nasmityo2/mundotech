@@ -1,6 +1,6 @@
 'use client';
 
-import { Order } from '@/lib/definitions';
+import { Order, type OrderStatus } from '@/lib/definitions';
 import { orderPathSegment } from '@/lib/order-ref';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import { useRouter } from 'next/navigation';
@@ -14,16 +14,15 @@ interface OrderHistoryClientProps {
 const formatDate = (dateString: string) =>
   new Date(dateString).toLocaleDateString('es-VE', { year: 'numeric', month: 'long', day: 'numeric' });
 
-const statusConfig: Record<
-  string,
-  { label: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'neutral' }
-> = {
+// PRD-038: incluye el estado del flujo Binance; tipado contra OrderStatus (R2).
+const statusConfig = {
+  'Pendiente verificación Binance': { label: 'Verificando pago Binance', variant: 'warning' },
   Pendiente:    { label: 'Pendiente',  variant: 'warning' },
   'En Proceso': { label: 'En proceso', variant: 'info'    },
   Enviado:      { label: 'Enviado',    variant: 'info'    },
   Entregado:    { label: 'Entregado',  variant: 'success' },
   Cancelado:    { label: 'Cancelado',  variant: 'danger'  },
-};
+} satisfies Record<OrderStatus, { label: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'neutral' }>;
 
 export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) {
   const router = useRouter();
@@ -63,7 +62,9 @@ export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) 
 
       <div className="space-y-3">
         {orders.map((order) => {
-          const status = statusConfig[order.status] ?? { label: order.status, variant: 'neutral' as const };
+          const status =
+            statusConfig[order.status as keyof typeof statusConfig] ??
+            { label: order.status, variant: 'neutral' as const };
           const itemCount = order.items.reduce((acc, item) => acc + item.quantity, 0);
           const previewNames = order.items.slice(0, 2).map((i) => i.productName).join(', ');
           const hasMore = order.items.length > 2;

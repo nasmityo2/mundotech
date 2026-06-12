@@ -114,7 +114,13 @@ export async function deleteAdminUser(userId: string): Promise<{ success: boolea
   if (session.user?.id === userId) {
     return { success: false, message: 'No puedes eliminar tu propio usuario.' };
   }
-  const target = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      role: true,
+      _count: { select: { orders: true, reviews: true } },
+    },
+  });
   if (!target) return { success: false, message: 'Usuario no encontrado.' };
 
   if (isAdminRole(target.role)) {
@@ -122,6 +128,17 @@ export async function deleteAdminUser(userId: string): Promise<{ success: boolea
     if (adminCount <= 1) {
       return { success: false, message: 'No puedes eliminar al último administrador.' };
     }
+  }
+
+  // PRD-209 / PRD-246: pre-check de historial — nunca un error Prisma crudo ni
+  // pedidos/reseñas huérfanos sin que el admin lo sepa. El historial financiero
+  // se conserva manteniendo la cuenta (sin soft-delete: requeriría schema → 03).
+  const { orders: orderCount, reviews: reviewCount } = target._count;
+  if (orderCount > 0 || reviewCount > 0) {
+    return {
+      success: false,
+      message: `No se puede eliminar: el usuario tiene ${orderCount} pedido${orderCount !== 1 ? 's' : ''} y ${reviewCount} reseña${reviewCount !== 1 ? 's' : ''} asociados. Conserva la cuenta (o cámbiale el rol) para no perder el historial.`,
+    };
   }
 
   await prisma.user.delete({ where: { id: userId } });

@@ -140,7 +140,7 @@ export default function SeoLocalEditor({ initial }: SeoLocalEditorProps) {
           label="Dirección de calle"
           value={data.streetAddress}
           onChange={v => set('streetAddress', v)}
-          placeholder="Carrera 21 con esquina Calle 21, Centro"
+          placeholder="Carrera 21 con esquina calle 21, Centro"
           error={errors.streetAddress}
         />
         <div className="grid grid-cols-2 gap-3">

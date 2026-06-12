@@ -2,16 +2,30 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 
+/** Ventana de calidad del ranking: solo vistas de los últimos 90 días. */
+const RANKING_WINDOW_DAYS = 90;
+
 /**
  * GET /api/events/top-viewed
  * Devuelve los 20 productos más vistos (requiere admin).
+ *
+ * PRD-184: filtro de calidad — solo cuentan vistas con sessionId (las vistas
+ * antiguas sin sesión / infladas por bots quedan fuera) y dentro de la ventana
+ * de 90 días, para que el admin no decida merchandising con datos falsos.
+ * // DEPENDENCIA-03: la purga/TTL física de ProductView vive en 03-INFRA (PRD-126).
  */
 export async function GET() {
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
+  const windowStart = new Date(Date.now() - RANKING_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
   const grouped = await prisma.productView.groupBy({
     by:        ['productId'],
+    where:     {
+      sessionId: { not: null },
+      createdAt: { gte: windowStart },
+    },
     _count:    { productId: true },
     orderBy:   { _count: { productId: 'desc' } },
     take:      20,

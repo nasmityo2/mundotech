@@ -27,13 +27,21 @@ const BRAND_SENDER_NAME = 'MundoTech';
 
 /**
  * Remitente de los correos. Se lee de `RESEND_FROM_ADDRESS` (dominio verificado en
- * Resend, p. ej. `noreply@mundotech.com.ve`). Si el valor ya trae nombre visible
+ * Resend, p. ej. `noreply@mundotechve.com`). Si el valor ya trae nombre visible
  * (`Nombre <correo>`) se respeta; si es solo el correo, se antepone la marca.
- * El fallback usa el dominio de la tienda, nunca un dominio de terceros.
+ *
+ * PRD-020: sin la variable NO hay fallback a dominios de terceros
+ * (`jummper.pro`) — se devuelve null y el envío se OMITE con log.
  */
-function resolveFromAddress(): string {
+function resolveFromAddress(): string | null {
   const raw = process.env.RESEND_FROM_ADDRESS?.trim();
-  if (!raw) return `${BRAND_SENDER_NAME} <noreply@jummper.pro>`;
+  if (!raw) {
+    console.error(
+      '[resend] RESEND_FROM_ADDRESS no está configurada; los correos se omitirán. ' +
+        'Configura un remitente con dominio propio verificado en Resend.',
+    );
+    return null;
+  }
   if (raw.includes('<') && raw.includes('>')) return raw;
   return `${BRAND_SENDER_NAME} <${raw}>`;
 }
@@ -65,6 +73,14 @@ async function sendBrandedEmail(params: {
   logScope: string;
 }): Promise<void> {
   const { resend, to, subject, element, logScope } = params;
+
+  // PRD-020: sin remitente propio configurado no se envía nada (nunca se usa
+  // un dominio de terceros como From).
+  if (!FROM_ADDRESS) {
+    console.warn(`[${logScope}] RESEND_FROM_ADDRESS ausente; se omite el envío a`, to);
+    return;
+  }
+
   try {
     const [html, text] = await Promise.all([
       render(element),
@@ -360,7 +376,10 @@ export async function sendAbandonedCartEmail(params: {
   }
 
   const base          = emailSiteBaseUrl().replace(/\/$/, '');
-  const recoveryUrl   = `${base}/checkout`;
+  // PRD-175: el CTA lleva a la ruta de recuperación con token, que rehidrata el
+  // carrito del cliente desde el snapshot y lo deja en /cart listo para pagar.
+  // Apuntar a /checkout "a secas" llegaba con el carrito vacío.
+  const recoveryUrl   = `${base}/api/cart/recover?token=${encodeURIComponent(params.recoveryToken)}`;
   const unsubscribeUrl = `${base}/api/cart/unsubscribe?token=${encodeURIComponent(params.recoveryToken)}`;
 
   await sendBrandedEmail({
@@ -394,7 +413,10 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
     return;
   }
 
-  const resetUrl = `${emailSiteBaseUrl().replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(token.trim())}`;
+  // PRD-172 / PRD-224: el token viaja en el FRAGMENTO (#token=...) — el
+  // navegador nunca lo envía al servidor, así que no queda en logs de Vercel,
+  // historial de proxies ni cabeceras Referer. Lo lee el cliente de reset.
+  const resetUrl = `${emailSiteBaseUrl().replace(/\/$/, '')}/reset-password#token=${encodeURIComponent(token.trim())}`;
 
   await sendBrandedEmail({
     resend,

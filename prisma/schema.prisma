@@ -9,15 +9,24 @@ datasource db {
 model Product {
   id            String         @id @default(cuid())
   name          String
-  slug          String?        @unique
+  /// PRD-065: slug obligatorio (backfill en migración `prd_infra_datos_cache`).
+  slug          String         @unique
   sku           String?        @unique
   description   String?
+  /// DEPENDENCIA-02/05/06 (PRD-204): price/originalPrice (y montos de Order/Coupon)
+  /// deberían migrar a Decimal; el cambio de tipo del cliente Prisma rompe la
+  /// aritmética de checkout (02), stats admin (05) y emails (06) → coordinar.
   price         Float
   originalPrice Float?
   stock         Int            @default(0)
+  /// PRD-124: categoría por nombre (string); enlazada a Category por slug/nombre en la app.
   category      String
   brand         String?
   images        String[]
+  /// PRD-064/121: despublicar/soft-delete sin borrar — preserva carritos,
+  /// historial de pedidos y URLs. DEPENDENCIA-01 (getProducts) / 02 (checkout)
+  /// / 05 (admin): filtrar `isActive: true` en listados públicos y compra.
+  isActive      Boolean        @default(true)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   /// * Especificaciones técnicas: [{ name: string, value: string }]. Null = sin specs cargadas.
@@ -26,10 +35,12 @@ model Product {
   views         ProductView[]
   reviews       Review[]
   cartItems     CartItem[]
+  orderItems    OrderItem[]
 
   @@index([slug])
   @@index([category])
   @@index([sku])
+  @@index([isActive])
 }
 
 model ProductMedia {
@@ -45,14 +56,14 @@ model ProductMedia {
 }
 
 model Category {
-  id         String   @id @default(cuid())
-  name       String   @unique
-  slug       String   @unique
+  id         String    @id @default(cuid())
+  name       String    @unique
+  slug       String    @unique
   imageUrl   String?
-  isFeatured Boolean  @default(false)
-  order      Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  isFeatured Boolean   @default(false)
+  order      Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([isFeatured])
 }
@@ -96,7 +107,9 @@ model User {
   email               String               @unique
   password            String
   name                String?
-  role                String               @default("client")
+  /// PRD-127: roles canónicos en MAYÚSCULAS ('CLIENT' | 'ADMIN').
+  /// DEPENDENCIA-01 (PRD-048): el callback OAuth aún escribe 'client' en minúsculas.
+  role                String               @default("CLIENT")
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   orders              Order[]
@@ -151,7 +164,12 @@ model Order {
   customerName           String
   customerEmail          String?
   customerPhone          String?
+  /// DEPENDENCIA-02/05/06 (PRD-204): Float → Decimal requiere refactor de consumidores.
   total                  Float
+  /// PRD-122: valores válidos = OrderStatus de lib/definitions.ts. No se puede usar
+  /// enum Prisma sin romper runtime de 02/05 ('En Proceso' y 'Pendiente verificación
+  /// Binance' llevan espacios → el cliente devolvería otros literales). La migración
+  /// `prd_infra_datos_cache` añade CHECK "Order_status_valid" a nivel de BD.
   status                 String            @default("Pendiente")
   paymentMethod          String
   shippingAddress        String
@@ -191,6 +209,8 @@ model Order {
   @@index([status])
   @@index([createdAt])
   @@index([paidAt])
+  /// PRD-125: lookups de pedidos por email (guest, soporte, cron) sin full scan.
+  @@index([customerEmail])
 }
 
 model OrderItem {
@@ -199,9 +219,15 @@ model OrderItem {
   productId   String
   productName String
   quantity    Int
+  /// DEPENDENCIA-02/05/06 (PRD-204): Float → Decimal requiere refactor de consumidores.
   price       Float
   imageUrl    String?
   order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// PRD-123: FK real hacia Product. Restrict = no se puede borrar (hard-delete)
+  /// un producto con historial de pedidos — usar `isActive: false` (soft-delete).
+  /// Preserva la auditoría financiera. DEPENDENCIA-05: deleteProductAction debe
+  /// mostrar error amable / ofrecer despublicar.
+  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
   @@index([productId])
@@ -228,20 +254,24 @@ model ProductView {
 }
 
 model Review {
-  id               String   @id @default(cuid())
+  id               String       @id @default(cuid())
   productId        String
   userId           String?
   authorName       String
   rating           Int
   title            String?
   comment          String
-  status           String   @default("PENDING")
-  verifiedPurchase Boolean  @default(false)
+  /// PRD-122: enum nativo — los literales 'PENDING'/'APPROVED'/'REJECTED' no
+  /// cambian en runtime, así que el resto de segmentos compila sin cambios.
+  status           ReviewStatus @default(PENDING)
+  verifiedPurchase Boolean      @default(false)
   adminReply       String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  user             User?    @relation(fields: [userId], references: [id])
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  product          Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// PRD-217: SetNull explícito — borrar un usuario anonimiza sus reseñas
+  /// (queda authorName) en vez de bloquear o perder el historial.
+  user             User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([productId, status])
   @@index([status])
@@ -313,8 +343,9 @@ model AbandonedCart {
   /// Items serializados: AbandonedCartItem[] { id, name, slug, price, quantity, image }
   items          Json
   totalUsd       Float
-  /// Token único para el enlace de recuperación / opt-out.
-  recoveryToken  String    @unique @default(cuid())
+  /// PRD-178: SHA-256 (hex) del token de recuperación/opt-out. El token en claro
+  /// solo existe en el email enviado; se genera y rota en lib/abandoned-cart.ts.
+  recoveryTokenHash String @unique
   status         String    @default("PENDING")
   /// Fecha del último email de abandono enviado.
   emailSentAt    DateTime?
@@ -345,7 +376,11 @@ model CartItem {
   cartId    String
   cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// PRD-232: antes Cascade — borrar un producto vaciaba ítems de carritos de
+  /// clientes sin aviso. Restrict bloquea el hard-delete si hay carritos con el
+  /// producto: el flujo correcto es despublicar (`isActive: false`).
+  /// DEPENDENCIA-05: deleteProductAction debe manejar el error y sugerirlo.
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
   quantity  Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -358,4 +393,12 @@ model CartItem {
 enum ProductMediaType {
   IMAGE
   VIDEO
+}
+
+/// PRD-122: estados de moderación de reseñas (coincide 1:1 con ReviewStatus de
+/// lib/definitions.ts — mismos literales en runtime).
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }

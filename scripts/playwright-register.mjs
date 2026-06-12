@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 
-const BASE_URL = 'https://www.jummper.pro';
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'https://mundotechve.com';
 const keepOpen = process.argv.includes('--keep-open');
 const headless = process.argv.includes('--headless');
 const timestamp = Date.now();

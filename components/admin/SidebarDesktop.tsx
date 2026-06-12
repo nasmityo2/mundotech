@@ -63,7 +63,7 @@ export default function SidebarDesktop() {
           ← Volver a la tienda
         </Link>
         <p className="px-2 pt-1 text-[10px] leading-relaxed text-gray-300">
-          C.C. Minicentro 34 · Barquisimeto
+          Carrera 21 con esquina calle 21, Centro · Barquisimeto 3001
         </p>
       </div>
     </aside>

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { ChevronRight, Eye } from 'lucide-react';
@@ -6,6 +7,15 @@ import CartClient from './CartClient';
 import RecentlyViewed from '@/components/RecentlyViewed';
 
 export const dynamic = 'force-dynamic';
+
+// H03/H11: página transaccional — noindex + canonical propio (antes heredaba
+// el canonical de la home y robots.txt la dejaba rastreable).
+export const metadata: Metadata = {
+  title: 'Tu carrito',
+  description: 'Revisa los productos de tu carrito MundoTech y finaliza tu compra en USD o Bs.',
+  alternates: { canonical: '/cart' },
+  robots: { index: false, follow: true },
+};
 
 async function getRecommendedProducts() {
   return prisma.product.findMany({

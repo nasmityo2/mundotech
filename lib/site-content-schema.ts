@@ -7,8 +7,24 @@
  * (letrero, tarjetas, marketing) — nunca placeholders.
  */
 import { z } from 'zod';
+import { isInternalEditableLink, isSafeEditableImageUrl } from '@/lib/safe-link';
 
 export const SITE_CONTENT_KEY = 'site_content';
+
+/** PRD-212 / PRD-257: CTAs del hero y del popup solo navegan dentro del sitio. */
+const internalCtaLink = (fallback: string) =>
+  z
+    .string()
+    .max(300)
+    .refine(isInternalEditableLink, 'El enlace debe ser una ruta interna que empiece por "/".')
+    .default(fallback);
+
+/** PRD-259: imagen vacía, ruta interna o URL https válida (no rompe next/image). */
+const editableImageUrl = z
+  .string()
+  .max(500)
+  .refine(isSafeEditableImageUrl, 'Usa una URL https válida o deja el campo vacío.')
+  .default('');
 
 export const trustIconSchema = z.enum([
   'shield',
@@ -28,8 +44,8 @@ export const siteContentSchema = z.object({
     title: z.string().max(90).default(''),
     subtitle: z.string().max(240).default(''),
     ctaText: z.string().max(40).default('Explorar todo el catálogo'),
-    ctaLink: z.string().max(300).default('/productos'),
-    imageUrl: z.string().max(500).default(''),
+    ctaLink: internalCtaLink('/productos'),
+    imageUrl: editableImageUrl,
   }),
   /** Franja fina bajo el hero con el slogan real — visible siempre. */
   brandStrip: z.object({
@@ -61,8 +77,8 @@ export const siteContentSchema = z.object({
     title: z.string().max(90).default(''),
     text: z.string().max(240).default(''),
     ctaText: z.string().max(40).default(''),
-    ctaLink: z.string().max(300).default('/productos'),
-    imageUrl: z.string().max(500).default(''),
+    ctaLink: internalCtaLink('/productos'),
+    imageUrl: editableImageUrl,
     /** Días que esperamos antes de volver a mostrarlo tras cerrarse. */
     frequencyDays: z.number().int().min(1).max(90).default(7),
     /** Segundos de navegación antes de aparecer. */
@@ -77,7 +93,7 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     badge: 'Tienda física en Barquisimeto',
     title: 'CONECTADOS CONTIGO',
     subtitle:
-      'Tecnología, variedades y los productos virales del momento. Visítanos en el C.C. Minicentro 34, Calle 22 — o pide por la web y te lo enviamos a cualquier parte de Venezuela.',
+      'Tecnología, variedades y los productos virales del momento. Visítanos en Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001 — o pide por la web y te lo enviamos a cualquier parte de Venezuela.',
     ctaText: 'Explorar todo el catálogo',
     ctaLink: '/productos',
     imageUrl: '',
@@ -85,7 +101,7 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
   brandStrip: {
     enabled: true,
     slogan: 'CONECTADOS CONTIGO',
-    note: 'C.C. Minicentro 34, Calle 22 · Barquisimeto · 0412-1471338',
+    note: 'Carrera 21 con esquina calle 21, Centro · Barquisimeto 3001 · 0412-1471338',
   },
   whatsapp: {
     enabled: true,
@@ -99,8 +115,9 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
       sub: 'La gestionas con nosotros, sin intermediarios',
     },
     {
+      // P89–P92: sin promesa "24h" — /shipping-policy define plazos orientativos.
       icon: 'truck',
-      title: 'Delivery en Barquisimeto en 24h',
+      title: 'Delivery en Barquisimeto',
       sub: 'Y envíos a todo el país por MRW o Zoom',
     },
     {

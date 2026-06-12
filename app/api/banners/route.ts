@@ -2,22 +2,42 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { isSafeEditableImageUrl, isSafeEditableLink } from '@/lib/safe-link';
 
 const bannerSchema = z.object({
   type: z.enum(['hero', 'ad_box', 'cta_banner', 'promo_large', 'promo_small_1', 'promo_small_2']),
-  imageUrl: z.string().trim().min(1).max(600),
+  // PRD-042: la imagen debe ser una URL https válida (Cloudinary) o ruta
+  // interna — un string basura rompe next/image en la home.
+  imageUrl: z
+    .string()
+    .trim()
+    .min(1)
+    .max(600)
+    .refine(isSafeEditableImageUrl, 'imageUrl debe ser una URL https válida o una ruta interna.'),
   title: z.string().max(160).nullish(),
   subtitle: z.string().max(300).nullish(),
   label: z.string().max(80).nullish(),
   ctaText: z.string().max(60).nullish(),
   tagText: z.string().max(60).nullish(),
-  link: z.string().max(400).nullish(),
+  link: z
+    .string()
+    .max(400)
+    .nullish()
+    .refine((v) => v == null || isSafeEditableLink(v), 'Enlace no permitido: usa ruta interna (/...) o https.'),
   active: z.boolean().optional(),
   order: z.number().int().min(0).max(9999).optional(),
 });
 
 export async function GET(request: Request) {
   try {
+    // PRD-280: GET público — rate limit por IP contra scraping de la
+    // configuración editorial (hero, CTAs).
+    const ip = getClientIp(request);
+    if (await rateLimit(`banners:get:${ip}`, { limit: 120, windowMs: 60_000 })) {
+      return NextResponse.json({ error: 'Demasiadas solicitudes.' }, { status: 429 });
+    }
+
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
 
@@ -39,7 +59,11 @@ export async function GET(request: Request) {
       where,
       orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
     });
-    return NextResponse.json(banners);
+    return NextResponse.json(banners, {
+      headers: showAll
+        ? { 'Cache-Control': 'no-store' }
+        : { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
+    });
   } catch (error) {
     console.error('[GET /api/banners] Error inesperado:', error);
     return NextResponse.json({ error: 'Error al obtener banners' }, { status: 500 });

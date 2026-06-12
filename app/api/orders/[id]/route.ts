@@ -6,7 +6,8 @@ import { prismaOrderToOrder } from '@/lib/definitions';
 import { requireAdmin, isAdminRole } from '@/lib/api-auth';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { restoreOrderStockInTransaction, shouldRestoreStockOnCancel } from '@/lib/checkout-order';
+import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order';
+import { trackingUrlSchema, trackingPhotoUrlSchema } from '@/lib/tracking-url-validation';
 
 export async function GET(
   _request: Request,
@@ -46,8 +47,9 @@ export async function GET(
 const patchSchema = z.object({
   trackingNumber:   z.string().trim().max(80).optional().nullable(),
   trackingCarrier:  z.string().trim().max(80).optional().nullable(),
-  trackingUrl:      z.string().url().max(500).optional().nullable(),
-  trackingPhotoUrl: z.string().url().max(500).optional().nullable(),
+  // PRD-267: solo https. PRD-268: foto restringida a Cloudinary.
+  trackingUrl:      trackingUrlSchema.optional().nullable(),
+  trackingPhotoUrl: trackingPhotoUrlSchema.optional().nullable(),
   notes:            z.string().trim().max(2000).optional().nullable(),
 });
 
@@ -130,12 +132,11 @@ export async function DELETE(
     return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 });
   }
 
-  // Eliminar un pedido que aún tenía stock reservado (no entregado ni cancelado)
-  // debe devolver las unidades al inventario para no perder existencias.
+  // Eliminar un pedido cuyo stock seguía reservado debe devolver las unidades al
+  // inventario y revertir el cupón (PRD-190) ANTES de borrar el registro —
+  // el delete en cascada de CouponRedemption no decrementa usedCount por sí solo.
   await prisma.$transaction(async (tx) => {
-    if (shouldRestoreStockOnCancel(order.status, 'Cancelado')) {
-      await restoreOrderStockInTransaction(tx, order.items);
-    }
+    await applyOrderCancellationEffectsInTransaction(tx, order);
     await tx.order.delete({ where: { id } });
   });
 

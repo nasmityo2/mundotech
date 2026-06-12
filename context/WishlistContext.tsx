@@ -1,9 +1,16 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
 import { Product } from './ProductContext';
 
 const STORAGE_KEY = 'wishlist';
+
+/**
+ * PRD-100: tope de ítems persistidos en localStorage. Al superarlo se descarta
+ * el más antiguo — evita crecer sin límite hasta agotar la cuota del navegador.
+ */
+const MAX_WISHLIST_ITEMS = 100;
 
 interface WishlistContextType {
   wishlist: Product[];
@@ -17,8 +24,12 @@ interface WishlistContextType {
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
 export const WishlistProvider = ({ children }: { children: ReactNode }) => {
+  const { data: session, status: sessionStatus } = useSession();
   const [wishlist, setWishlist] = useState<Product[]>([]);
   const [isWishlistLoading, setIsWishlistLoading] = useState(true);
+
+  /** Última sesión vista — para detectar logout real (PRD-262). */
+  const prevUserIdRef = useRef<string | null>(null);
 
   // Hidratación desde localStorage (solo en cliente)
   useEffect(() => {
@@ -34,6 +45,30 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  /*
+   * PRD-262: al cerrar sesión en un dispositivo compartido, la wishlist del
+   * cliente anterior no debe quedar visible para el siguiente. Solo se limpia
+   * en el logout real — al visitante anónimo no se le toca su lista.
+   */
+  useEffect(() => {
+    if (sessionStatus === 'loading' || isWishlistLoading) return;
+
+    const userId = session?.user?.id ?? null;
+    if (!userId) {
+      if (prevUserIdRef.current) {
+        prevUserIdRef.current = null;
+        setWishlist([]);
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          /* Safari modo privado */
+        }
+      }
+      return;
+    }
+    prevUserIdRef.current = userId;
+  }, [session?.user?.id, sessionStatus, isWishlistLoading]);
+
   // Persistencia: guardar cada vez que cambia wishlist (después de hidratar)
   useEffect(() => {
     if (isWishlistLoading) return;
@@ -47,7 +82,10 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
   const addToWishlist = (product: Product) => {
     setWishlist(prev => {
       if (prev.some(p => p.id === product.id)) return prev;
-      return [...prev, product];
+      const next = [...prev, product];
+      return next.length > MAX_WISHLIST_ITEMS
+        ? next.slice(next.length - MAX_WISHLIST_ITEMS)
+        : next;
     });
   };
 

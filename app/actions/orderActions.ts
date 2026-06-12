@@ -2,11 +2,11 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { prismaOrderToOrder, type Order } from '@/lib/definitions';
+import { prismaOrderToOrder, type Order, type OrderStatus } from '@/lib/definitions';
 import { requireAdminAction } from '@/lib/api-auth';
 import { orderPathSegment } from '@/lib/order-ref';
 import { sendPaymentValidatedEmail, sendPaymentRejectedEmail } from '@/lib/resend';
-import { restoreOrderStockInTransaction, shouldRestoreStockOnCancel } from '@/lib/checkout-order';
+import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order';
 
 function firstNameFromCustomerName(displayName: string): string {
   const t = displayName.trim();
@@ -20,6 +20,11 @@ export type ValidateOrderPaymentResult =
 
 /**
  * Confirma pago manual: Pendiente → En Proceso, y notifica al cliente por correo (si hay email).
+ *
+ * PRD-197: idempotente — si el pago ya fue validado (doble clic u otro admin),
+ * responde éxito silencioso en vez de error.
+ * PRD-196: locking optimista — la transición usa `updateMany` condicionado al
+ * estado esperado; si otro admin lo cambió en paralelo, no hay last-write-wins.
  */
 export async function validateOrderPayment(orderId: string): Promise<ValidateOrderPaymentResult> {
   let adminEmail: string | null = null;
@@ -29,6 +34,15 @@ export async function validateOrderPayment(orderId: string): Promise<ValidateOrd
   } catch {
     return { success: false, message: 'No autorizado.' };
   }
+
+  const loadFullOrder = (id: string) =>
+    prisma.order.findUnique({
+      where: { id },
+      include: {
+        items: true,
+        customer: { select: { email: true, name: true } },
+      },
+    });
 
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
@@ -42,21 +56,45 @@ export async function validateOrderPayment(orderId: string): Promise<ValidateOrd
     return { success: false, message: 'Pedido no encontrado.' };
   }
 
-  if (existing.status !== 'Pendiente') {
+  if (existing.status === ('En Proceso' satisfies OrderStatus)) {
+    const already = await loadFullOrder(orderId);
+    return {
+      success: true,
+      message: 'El pago ya estaba validado.',
+      order: prismaOrderToOrder(already!),
+    };
+  }
+
+  if (existing.status !== ('Pendiente' satisfies OrderStatus)) {
     return {
       success: false,
       message: 'Este pedido no está pendiente de verificación de pago.',
     };
   }
 
-  const updated = await prisma.order.update({
-    where: { id: orderId },
-    data: { status: 'En Proceso', paidAt: new Date(), paymentVerifiedBy: adminEmail, paymentRejectionReason: null },
-    include: {
-      items: true,
-      customer: { select: { email: true, name: true } },
-    },
+  const transition = await prisma.order.updateMany({
+    where: { id: orderId, status: 'Pendiente' satisfies OrderStatus },
+    data: { status: 'En Proceso' satisfies OrderStatus, paidAt: new Date(), paymentVerifiedBy: adminEmail, paymentRejectionReason: null },
   });
+
+  if (transition.count === 0) {
+    // Otro admin movió el pedido entre la lectura y la escritura.
+    const current = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
+    if (current?.status === ('En Proceso' satisfies OrderStatus)) {
+      const already = await loadFullOrder(orderId);
+      return {
+        success: true,
+        message: 'El pago ya estaba validado.',
+        order: prismaOrderToOrder(already!),
+      };
+    }
+    return {
+      success: false,
+      message: 'El pedido cambió de estado mientras se validaba. Recarga e intenta de nuevo.',
+    };
+  }
+
+  const updated = (await loadFullOrder(orderId))!;
 
   const recipientEmail =
     updated.customerEmail?.trim() || updated.customer?.email?.trim() || '';
@@ -82,9 +120,20 @@ export async function validateOrderPayment(orderId: string): Promise<ValidateOrd
   };
 }
 
+/** PRD-026: el rechazo de pago solo aplica mientras el pago está en revisión. */
+const REJECTABLE_STATUSES: readonly OrderStatus[] = [
+  'Pendiente verificación Binance',
+  'Pendiente',
+];
+
 /**
- * Rechaza el pago de un pedido pendiente: lo cancela, registra el motivo y al
- * admin que lo rechazó, restaura el stock reservado y notifica al cliente.
+ * Rechaza el pago de un pedido en revisión: lo cancela, registra el motivo y al
+ * admin que lo rechazó, restaura el stock reservado, revierte el cupón
+ * (PRD-190) y notifica al cliente.
+ *
+ * PRD-026: prohibido rechazar pedidos ya avanzados (`En Proceso`, `Enviado`,
+ * `Entregado`) — para esos casos el flujo correcto es el cambio de estado /
+ * cancelación formal del panel, no el rechazo de pago.
  */
 export async function rejectOrderPayment(
   orderId: string,
@@ -112,30 +161,53 @@ export async function rejectOrderPayment(
   if (!existing) {
     return { success: false, message: 'Pedido no encontrado.' };
   }
-  if (existing.status === 'Cancelado') {
+  if (existing.status === ('Cancelado' satisfies OrderStatus)) {
     return { success: false, message: 'El pedido ya está cancelado.' };
   }
-  if (existing.status === 'Entregado') {
-    return { success: false, message: 'No se puede rechazar el pago de un pedido entregado.' };
+  if (!REJECTABLE_STATUSES.includes(existing.status as OrderStatus)) {
+    return {
+      success: false,
+      message:
+        'Solo se puede rechazar el pago de pedidos en verificación (Pendiente o Binance). ' +
+        'Para pedidos avanzados usa el cambio de estado a Cancelado.',
+    };
   }
 
   const updated = await prisma.$transaction(async (tx) => {
-    if (shouldRestoreStockOnCancel(existing.status, 'Cancelado')) {
-      await restoreOrderStockInTransaction(tx, existing.items);
-    }
-    return tx.order.update({
-      where: { id: orderId },
+    // PRD-196: transición condicionada al estado leído — si otro admin lo
+    // movió en paralelo (p. ej. ya validó el pago), no se toca nada.
+    const transition = await tx.order.updateMany({
+      where: { id: orderId, status: { in: [...REJECTABLE_STATUSES] } },
       data: {
-        status: 'Cancelado',
+        status: 'Cancelado' satisfies OrderStatus,
         paymentRejectionReason: cleanReason,
         paymentVerifiedBy: adminEmail,
       },
+    });
+    if (transition.count === 0) return null;
+
+    // Estados rechazables siempre tenían stock reservado → restaurar + cupón.
+    await applyOrderCancellationEffectsInTransaction(tx, {
+      id: orderId,
+      status: existing.status,
+      items: existing.items,
+    });
+
+    return tx.order.findUnique({
+      where: { id: orderId },
       include: {
         items: true,
         customer: { select: { email: true, name: true } },
       },
     });
   });
+
+  if (!updated) {
+    return {
+      success: false,
+      message: 'El pedido cambió de estado mientras se rechazaba. Recarga e intenta de nuevo.',
+    };
+  }
 
   const recipientEmail =
     updated.customerEmail?.trim() || updated.customer?.email?.trim() || '';

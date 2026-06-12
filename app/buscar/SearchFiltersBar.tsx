@@ -9,6 +9,7 @@ import {
   ArrowUpDown,
   Cpu,
   X,
+  PackageCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -27,6 +28,8 @@ interface Props {
   currentCat:   string;
   currentBrand: string;
   currentSort:  string;
+  /** PRD-167: true = la URL lleva disp=all (incluye productos agotados). */
+  includeOutOfStock: boolean;
   categories:   string[];
   brands:       string[];
   totalCount:   number;
@@ -41,12 +44,14 @@ function buildHref(
   cat: string,
   brand: string,
   sort: string,
+  includeOutOfStock: boolean,
   page?: number,
 ): string {
   const params = new URLSearchParams();
   if (q)                      params.set('q',     q);
   if (cat)                    params.set('cat',   cat);
   if (brand)                  params.set('brand', brand);
+  if (includeOutOfStock)      params.set('disp',  'all');
   if (sort && sort !== 'default') params.set('sort', sort);
   if (page && page > 1)       params.set('page',  String(page));
   const qs = params.toString();
@@ -57,14 +62,15 @@ function buildHref(
 // Panel de filtros reutilizable (sidebar y drawer móvil)
 // ─────────────────────────────────────────────────────────────
 interface FilterPanelProps {
-  q:          string;
-  currentCat: string;
-  currentBrand: string;
-  currentSort: string;
-  categories: string[];
-  brands:     string[];
-  totalCount: number;
-  onApply?:   () => void;
+  q:                 string;
+  currentCat:        string;
+  currentBrand:      string;
+  currentSort:         string;
+  includeOutOfStock: boolean;
+  categories:        string[];
+  brands:            string[];
+  totalCount:        number;
+  onApply?:          () => void;
 }
 
 function FilterPanel({
@@ -72,6 +78,7 @@ function FilterPanel({
   currentCat,
   currentBrand,
   currentSort,
+  includeOutOfStock,
   categories,
   brands,
   totalCount,
@@ -83,7 +90,7 @@ function FilterPanel({
   const [sortOpen,  setSortOpen]  = useState(false);
 
   const navigate = (cat: string, brand: string, sort: string) => {
-    router.push(buildHref(q, cat, brand, sort));
+    router.push(buildHref(q, cat, brand, sort, includeOutOfStock));
     onApply?.();
   };
 
@@ -265,7 +272,7 @@ function FilterPanel({
 // Componente principal exportado
 // ─────────────────────────────────────────────────────────────
 export default function SearchFiltersBar(props: Props) {
-  const { variant, q, currentCat, currentBrand, currentSort, filteredCount } = props;
+  const { variant, q, currentCat, currentBrand, currentSort, includeOutOfStock, filteredCount } = props;
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -315,7 +322,7 @@ export default function SearchFiltersBar(props: Props) {
           <select
             value={currentSort}
             onChange={(e) =>
-              router.push(buildHref(q, currentCat, currentBrand, e.target.value))
+              router.push(buildHref(q, currentCat, currentBrand, e.target.value, includeOutOfStock))
             }
             aria-label="Ordenar resultados"
             className="appearance-none bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-navy text-base font-semibold pl-3 pr-8 min-h-[44px] rounded-xl cursor-pointer transition-colors focus:outline-none focus:bg-white focus:shadow-ring-navy max-w-[160px] xs:max-w-none truncate"

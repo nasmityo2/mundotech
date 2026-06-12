@@ -37,3 +37,36 @@ export interface FullSearchResult {
   categories: string[];
   brands:     string[];
 }
+
+/** Mapeo explícito FullProduct → ProductCard (misma forma que productos/page). */
+export interface ProductCardModel {
+  id:            string;
+  slug?:         string | null;
+  name:          string;
+  description:   string;
+  price:         number;
+  originalPrice?: number | null;
+  stock:         number;
+  category:      string;
+  brand?:        string | null;
+  image:         string;
+  images:        string[];
+  details:       Record<string, string>;
+}
+
+export function fullProductToCardModel(p: FullProduct): ProductCardModel {
+  return {
+    id:            p.id,
+    slug:          p.slug,
+    name:          p.name,
+    description:   p.description,
+    price:         p.price,
+    originalPrice: p.originalPrice,
+    stock:         p.stock,
+    category:      p.category,
+    brand:         p.brand,
+    image:         p.image,
+    images:        p.images,
+    details:       p.details,
+  };
+}

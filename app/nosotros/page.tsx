@@ -18,7 +18,7 @@ import { readSeoLocal, describeOpeningHours } from '@/lib/seo-local';
 import { readSettings } from '@/lib/data-store';
 import { whatsappHref } from '@/lib/mundotech-social';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 const PAGE_URL = `${SITE_URL}/nosotros`;
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +26,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Quiénes somos — la tienda detrás del letrero amarillo',
   description:
-    'MundoTech es una tienda real en el C.C. Minicentro 34 de Barquisimeto: tecnología, variedades y productos virales para el hogar. Conócenos, visítanos o escríbenos por WhatsApp.',
+    'MundoTech es una tienda real de tecnología en el centro de Barquisimeto: gadgets, variedades y productos virales. Visítanos o escríbenos por WhatsApp.',
   alternates: { canonical: PAGE_URL },
   openGraph: {
     title: 'Quiénes somos — MundoTech Barquisimeto',
@@ -54,6 +54,8 @@ export default async function NosotrosPage() {
     url: PAGE_URL,
     mainEntity: {
       '@type': 'ElectronicsStore',
+      // P78/H54: mismo @id que el LocalBusiness global — una sola entidad local.
+      '@id': `${SITE_URL}/#localbusiness`,
       name: settings.storeName,
       slogan: seo.slogan,
       telephone: settings.phone,
@@ -106,7 +108,7 @@ export default async function NosotrosPage() {
               Conectados Contigo
             </p>
             <h1 className="mt-3 max-w-2xl text-balance text-[1.7rem] sm:text-4xl lg:text-[2.6rem] font-bold leading-[1.12] tracking-tight text-white">
-              Somos la tienda detrás del letrero amarillo del Minicentro 34.
+              Somos la tienda detrás del letrero amarillo en el centro de Barquisimeto.
             </h1>
             <p className="mt-4 max-w-xl text-[14.5px] sm:text-base leading-relaxed text-white/75">
               MundoTech no es un marketplace ni una tienda fantasma: es un local
@@ -171,7 +173,7 @@ export default async function NosotrosPage() {
               {
                 icon: Store,
                 title: 'Local físico verificable',
-                desc: 'C.C. Minicentro 34, Calle 22, Barquisimeto. Búscanos en Google Maps o pasa a saludar.',
+                desc: 'Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001. Búscanos en Google Maps o pasa a saludar.',
               },
               {
                 icon: ShieldCheck,
@@ -185,7 +187,7 @@ export default async function NosotrosPage() {
               },
               {
                 icon: Truck,
-                title: 'Delivery en 24h en la ciudad',
+                title: 'Delivery rápido en la ciudad',
                 desc: 'Y envíos a todo el país por MRW o Zoom, con número de seguimiento.',
               },
             ].map(({ icon: Icon, title, desc }) => (
@@ -290,7 +292,7 @@ export default async function NosotrosPage() {
               {
                 step: '3',
                 title: 'Retira o recibe',
-                desc: 'Retiro en tienda el mismo día, delivery en Barquisimeto en 24h o envío nacional con tracking.',
+                desc: 'Retiro en tienda el mismo día, delivery en Barquisimeto o envío nacional con tracking.',
               },
             ].map(({ step, title, desc }) => (
               <div key={step} className="text-center">

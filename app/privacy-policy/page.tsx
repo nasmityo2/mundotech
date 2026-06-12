@@ -3,13 +3,13 @@ import Link from 'next/link';
 import LegalPageLayout from '@/app/components/LegalPageLayout';
 import { readSettings } from '@/lib/data-store';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 const PAGE_URL = `${SITE_URL}/privacy-policy`;
 
 export const metadata: Metadata = {
   title: 'Política de privacidad',
   description:
-    'Información sobre el tratamiento de datos personales en la tienda en línea MundoTech.',
+    'Conoce cómo MundoTech Barquisimeto trata tus datos personales: qué recopilamos, para qué los usamos, cookies de medición y tus derechos como cliente.',
   alternates: { canonical: PAGE_URL },
   robots: { index: true, follow: true },
 };

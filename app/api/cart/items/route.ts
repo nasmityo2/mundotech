@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUser } from '@/lib/api-auth';
+import { verifySameOrigin } from '@/lib/security';
 import { upsertCartItem } from '@/lib/cart';
 
 const bodySchema = z.object({
@@ -13,6 +14,11 @@ const bodySchema = z.object({
  * Si quantity === 0 el ítem se elimina.
  */
 export async function PATCH(request: Request) {
+  // PRD-011: mitigación CSRF en mutaciones del carrito.
+  if (!verifySameOrigin(request)) {
+    return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
+  }
+
   const auth = await requireUser();
   if (!auth.authorized) return auth.response;
 

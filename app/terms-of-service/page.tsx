@@ -3,13 +3,13 @@ import Link from 'next/link';
 import LegalPageLayout from '@/app/components/LegalPageLayout';
 import { readSettings } from '@/lib/data-store';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 const PAGE_URL = `${SITE_URL}/terms-of-service`;
 
 export const metadata: Metadata = {
   title: 'Términos y condiciones',
   description:
-    'Condiciones generales de uso de la tienda en línea MundoTech y contratación de productos.',
+    'Condiciones generales de compra en MundoTech Barquisimeto: pedidos, precios en USD y Bs, métodos de pago, envíos nacionales, garantía y devoluciones.',
   alternates: { canonical: PAGE_URL },
   robots: { index: true, follow: true },
 };

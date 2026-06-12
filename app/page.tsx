@@ -4,20 +4,39 @@ import Promotions from '@/app/components/Promotions';
 import ProductShelf from '@/app/components/ProductShelf';
 import FlashDeals from '@/app/components/FlashDeals';
 import Benefits, { type BenefitItem } from '@/app/components/Benefits';
-import { readSiteContent } from '@/lib/site-content';
+import { readSiteContent, DEFAULT_SITE_CONTENT } from '@/lib/site-content';
+import { readSettings, DEFAULT_SETTINGS } from '@/lib/data-store';
+import type { SiteContent } from '@/lib/site-content-schema';
+import type { StoreSettings } from '@/lib/data-store';
+import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import type { Metadata } from 'next';
 
-// ISR: reconstruye la home cada hora para TTFB óptimo sin datos obsoletos
-export const revalidate = 3600;
+// PRD-140 — ISR: 5 min máximo de obsolescencia para precio/stock visibles.
+// Las mutaciones relevantes también revalidan on-demand: tasa USD/Bs en
+// configActions.updateExchangeRate (PRD-142); precio/stock de producto en
+// quickUpdate* (PRD-024, segmento 02) y delete (PRD-233, ver DEPENDENCIA-05).
+export const revalidate = 300;
 
 export const metadata: Metadata = {
-  title: 'MundoTech Barquisimeto — Tecnología, gadgets y variedades | Conectados Contigo',
+  // H02/P08: título absoluto — ya lleva la marca, el template no la duplica.
+  title: { absolute: 'MundoTech Barquisimeto | Tecnología, gadgets y variedades' },
+  // P89/H58: sin la promesa "Delivery en 24h" (contradecía /shipping-policy);
+  // 140–160 chars con keyword principal "tecnología en Barquisimeto".
   description:
-    'Tienda de tecnología en Barquisimeto con local físico en el C.C. Minicentro 34. Gadgets, audio, consolas y productos virales. Pagas en USD o Bs, con Pago Móvil, transferencia o Binance. Delivery en 24h.',
+    'Tienda de tecnología en Barquisimeto: gadgets, audio, consolas y productos virales. Pagas en USD o Bs por Pago Móvil o Binance. Envíos a todo el país.',
   alternates: { canonical: '/' },
+  openGraph: {
+    title: 'MundoTech Barquisimeto | Tecnología, gadgets y variedades',
+    description:
+      'Gadgets, audio, consolas y productos virales en Barquisimeto. Pagas en USD o Bs. Envíos a toda Venezuela.',
+    url: '/',
+    siteName: 'MundoTech',
+    locale: 'es_VE',
+    type: 'website',
+  },
 };
 
 interface CtaBannerData {
@@ -41,63 +60,113 @@ interface ShelvesConfig {
   recommended: ShelfConfig;
 }
 
-async function getData() {
-  const [products, heroBanners, ctaBannerRow, activePromotions, configRows, siteContent] =
-    await Promise.all([
-      prisma.product.findMany({
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          slug: true,
-          name: true,
-          price: true,
-          originalPrice: true,
-          images: true,
-          category: true,
-          brand: true,
-          stock: true,
-        },
-      }),
-      prisma.banner.findMany({
-        where: { type: 'hero', active: true },
-        orderBy: [{ order: 'asc' }],
-        take: 10,
-      }),
-      prisma.banner.findFirst({
-        where: { type: 'cta_banner', active: true },
-        orderBy: [{ order: 'asc' }],
-      }),
-      prisma.promotion.findMany({
-        where: { active: true },
-        orderBy: [{ order: 'asc' }],
-        take: 3,
-      }),
-      prisma.appConfig.findMany({
-        where: { key: { in: ['homepage_flashdeals', 'homepage_shelves', 'homepage_benefits'] } },
-      }),
-      readSiteContent(),
-    ]);
-
-  const configMap = Object.fromEntries(
-    configRows.map((r) => {
-      try {
-        return [r.key, JSON.parse(r.value)];
-      } catch {
-        return [r.key, null];
+/**
+ * PRD-113 / PRD-258: fallback de beneficios construido desde las fuentes de
+ * verdad vivas (site-content + settings) — una sola versión del claim de
+ * delivery y del teléfono en home y ficha de producto, sin hardcode en UI.
+ */
+function buildBenefitsFallback(siteContent: SiteContent, settings: StoreSettings): BenefitItem[] {
+  const trustItems: BenefitItem[] = siteContent.productTrust.map((t) => ({
+    title: t.title,
+    sub:   t.sub,
+  }));
+  const whatsappItem: BenefitItem | null = settings.phone
+    ? {
+        title: 'WhatsApp directo con el equipo',
+        sub:   `${settings.phone} · te respondemos rápido`,
       }
-    })
-  );
+    : null;
+  // Orden visual: delivery primero si existe, luego garantía, WhatsApp y pagos (máx. 4).
+  const ordered = [
+    ...trustItems.slice(0, 2),
+    ...(whatsappItem ? [whatsappItem] : []),
+    ...trustItems.slice(2),
+  ];
+  return ordered.slice(0, 4);
+}
 
-  return {
-    products,
-    heroBanners,
-    ctaBannerRow,
-    activePromotions,
-    flashConfig: configMap['homepage_flashdeals'] as { title: string; endHour: number } | null,
-    shelvesConfig: configMap['homepage_shelves'] as ShelvesConfig | null,
-    benefitsConfig: configMap['homepage_benefits'] as BenefitItem[] | null,
-    siteContent,
-  };
+async function getData() {
+  // PRD-138: la home es ISR — sin try/catch, un fallo puntual de BD durante la
+  // regeneración rompe la página completa. Con fallbacks seguros, la home
+  // renderiza vacía-pero-viva y el error queda registrado.
+  try {
+    const [products, heroBanners, ctaBannerRow, activePromotions, configRows, siteContent, settings, gamingPath] =
+      await Promise.all([
+        prisma.product.findMany({
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            slug: true,
+            name: true,
+            price: true,
+            originalPrice: true,
+            images: true,
+            category: true,
+            brand: true,
+            stock: true,
+          },
+        }),
+        prisma.banner.findMany({
+          where: { type: 'hero', active: true },
+          orderBy: [{ order: 'asc' }],
+          take: 10,
+        }),
+        prisma.banner.findFirst({
+          where: { type: 'cta_banner', active: true },
+          orderBy: [{ order: 'asc' }],
+        }),
+        prisma.promotion.findMany({
+          where: { active: true },
+          orderBy: [{ order: 'asc' }],
+          take: 3,
+        }),
+        prisma.appConfig.findMany({
+          where: { key: { in: ['homepage_flashdeals', 'homepage_shelves', 'homepage_benefits'] } },
+        }),
+        readSiteContent(),
+        readSettings(),
+        // P46/H14: el shelf de gaming enlaza a la URL canónica /categoria/[slug]
+        // (con fallback /productos si la categoría no existe en BD).
+        resolveCategoryPathFromProductCategory('Consolas'),
+      ]);
+
+    const configMap = Object.fromEntries(
+      configRows.map((r) => {
+        try {
+          return [r.key, JSON.parse(r.value)];
+        } catch {
+          return [r.key, null];
+        }
+      })
+    );
+
+    return {
+      products,
+      heroBanners,
+      ctaBannerRow,
+      activePromotions,
+      flashConfig: configMap['homepage_flashdeals'] as { title: string; endHour: number } | null,
+      shelvesConfig: configMap['homepage_shelves'] as ShelvesConfig | null,
+      benefitsConfig: configMap['homepage_benefits'] as BenefitItem[] | null,
+      siteContent,
+      settings,
+      gamingPath,
+    };
+  } catch (error) {
+    console.error('[home] getData falló — se renderiza con fallbacks seguros:', error);
+    return {
+      products: [],
+      heroBanners: [],
+      ctaBannerRow: null,
+      activePromotions: [],
+      flashConfig: null,
+      shelvesConfig: null,
+      benefitsConfig: null,
+      siteContent: DEFAULT_SITE_CONTENT,
+      settings: DEFAULT_SETTINGS,
+      gamingPath: '/productos',
+    };
+  }
 }
 
 function CtaBanner({ data }: { data: CtaBannerData | null }) {
@@ -105,7 +174,7 @@ function CtaBanner({ data }: { data: CtaBannerData | null }) {
     data?.title ?? 'Lo que ves aquí, lo tenemos en la tienda.';
   const subtitle =
     data?.subtitle ??
-    'Catálogo con stock real del local en el C.C. Minicentro 34. Si lo quieres ya, pásate por Barquisimeto; si no, te lo enviamos.';
+    'Catálogo con stock real del local en Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001. Si lo quieres ya, pásate por la tienda; si no, te lo enviamos.';
   const badge = data?.label ?? 'Catálogo completo · Barquisimeto';
   const ctaText = data?.ctaText ?? 'Explorar todo el catálogo';
   const link = data?.link ?? '/productos';
@@ -175,7 +244,16 @@ const HomePage = async () => {
     shelvesConfig,
     benefitsConfig,
     siteContent,
+    settings,
+    gamingPath,
   } = await getData();
+
+  // Beneficios: config del admin si existe; si no, fallback desde las fuentes
+  // vivas (site-content + settings) — PRD-113 / PRD-258.
+  const benefitsItems =
+    benefitsConfig && benefitsConfig.length > 0
+      ? benefitsConfig
+      : buildBenefitsFallback(siteContent, settings);
 
   const flashDeals = products
     .filter((p) => p.originalPrice && p.originalPrice > p.price)
@@ -204,7 +282,7 @@ const HomePage = async () => {
       {/* Barra de beneficios — editable desde Admin → Gestor Home */}
       <div className="-mx-4 w-[calc(100%+2rem)] sm:mx-0 sm:w-full mt-4 sm:mt-6">
         <div className="overflow-hidden rounded-none border-y border-slate-100 sm:rounded-2xl sm:border">
-          <Benefits items={benefitsConfig ?? undefined} />
+          <Benefits items={benefitsItems} />
         </div>
       </div>
 
@@ -227,7 +305,7 @@ const HomePage = async () => {
             title="Consolas y gaming"
             subtitle="Consolas portátiles y accesorios para jugar donde quieras."
             products={gaming}
-            viewAllHref="/productos?cat=Consolas"
+            viewAllHref={gamingPath}
             viewAllLabel="Ver gaming"
             theme="light"
             maxItems={8}

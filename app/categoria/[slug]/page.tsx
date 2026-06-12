@@ -5,12 +5,14 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { ChevronRight, Tag } from 'lucide-react';
 import ProductCard from '@/components/ProductCard';
+import JsonLd from '@/app/components/JsonLd';
 import type { Product } from '@/context/ProductContext';
 
-// ISR: reconstruye cada categoría cada hora
-export const revalidate = 3600;
+// PRD-140 — ISR: 5 min máximo de obsolescencia para precio/stock por categoría
+// (complementado con revalidación on-demand al cambiar tasa — PRD-142).
+export const revalidate = 300;
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -24,8 +26,10 @@ async function getCategory(slug: string) {
 }
 
 async function getCategoryProducts(categoryName: string): Promise<Product[]> {
+  // Bug 29.11: match case-insensitive — "consolas" vs "Consolas" dejaba la
+  // página de categoría vacía (thin content indexable) aunque hubiera stock.
   const rows = await prisma.product.findMany({
-    where: { category: categoryName },
+    where: { category: { equals: categoryName, mode: 'insensitive' } },
     orderBy: { createdAt: 'desc' },
     select: {
       id:            true,
@@ -71,12 +75,26 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const category = await getCategory(slug);
 
   if (!category) {
-    return { title: 'Categoría no encontrada — MundoTech' };
+    return {
+      title: 'Categoría no encontrada',
+      robots: { index: false, follow: false },
+    };
   }
 
+  // P50/H27: categoría sin productos → noindex temporal (thin content). El
+  // count usa el mismo match insensitive que el grid para no desalinearse.
+  const productCount = await prisma.product.count({
+    where: { category: { equals: category.name, mode: 'insensitive' } },
+  });
+
   const canonicalUrl = `${SITE_URL}/categoria/${category.slug}`;
-  const title        = `${category.name} en Barquisimeto — MundoTech | Mejor precio Venezuela`;
-  const description  = `Compra ${category.name} en MundoTech Barquisimeto. Líderes en tecnología en el estado Lara. Precio en USD y Bs., garantía oficial, stock disponible y envío seguro a todo Venezuela.`;
+  // Formato corto "[Categoría] - Tecnología | MundoTech" — la marca la añade
+  // el template del layout una sola vez (H02/P08).
+  const title       = `${category.name} - Tecnología`;
+  const ogTitle     = `${category.name} - Tecnología | MundoTech`;
+  const description = `Compra ${category.name} al mejor precio de Venezuela en MundoTech Barquisimeto. Pagas en USD o Bs, con garantía real, retiro en tienda y envío seguro a todo el país.`;
+  // H16: Twitter siempre con imagen — la de la categoría o la de marca.
+  const socialImage = category.imageUrl || `${SITE_URL}/og-default.png`;
 
   return {
     title,
@@ -86,31 +104,38 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       `${category.name} Barquisimeto`,
       `${category.name} Venezuela`,
       `${category.name} precio`,
+      `comprar ${category.name}`,
       'MundoTech',
       'tecnología Barquisimeto',
       'estado Lara tecnología',
     ],
     alternates: { canonical: canonicalUrl },
     openGraph: {
-      title,
+      title: ogTitle,
       description,
       url: canonicalUrl,
       siteName: 'MundoTech',
       locale: 'es_VE',
       type: 'website',
-      ...(category.imageUrl && {
-        images: [{ url: category.imageUrl, width: 1200, height: 630, alt: category.name }],
-      }),
+      images: [{ url: socialImage, width: 1200, height: 630, alt: category.name }],
     },
     twitter: {
       card: 'summary_large_image',
-      title,
+      title: ogTitle,
       description,
+      images: [socialImage],
     },
+    robots: productCount === 0
+      ? { index: false, follow: true }
+      : {
+          index: true,
+          follow: true,
+          googleBot: { index: true, follow: true, 'max-snippet': -1, 'max-image-preview': 'large' as const },
+        },
   };
 }
 
-// ── JSON-LD CollectionPage ─────────────────────────────────────────────────
+// ── JSON-LD CollectionPage + ItemList + BreadcrumbList ─────────────────────
 function CategoryJsonLd({
   category,
   products,
@@ -130,6 +155,7 @@ function CategoryJsonLd({
       category.description ??
       `Catálogo de ${category.name} en MundoTech, líderes en tecnología en el estado Lara, Barquisimeto.`,
     url,
+    // Alineado con el breadcrumb visual: Inicio → Catálogo → Categoría.
     breadcrumb: {
       '@type': 'BreadcrumbList',
       itemListElement: [
@@ -138,10 +164,13 @@ function CategoryJsonLd({
         { '@type': 'ListItem', position: 3, name: category.name, item: url },
       ],
     },
+    // P49 + P90/H65: el ItemList lista TODOS los productos que la página
+    // renderiza (el grid no pagina), y numberOfItems coincide exactamente
+    // con las entradas emitidas — schema coherente para Google.
     mainEntity: {
       '@type': 'ItemList',
       numberOfItems: products.length,
-      itemListElement: products.slice(0, 20).map((p, i) => ({
+      itemListElement: products.map((p, i) => ({
         '@type': 'ListItem',
         position: i + 1,
         url: `${SITE_URL}/product/${p.slug ?? p.id}`,
@@ -150,12 +179,7 @@ function CategoryJsonLd({
     },
   };
 
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
-    />
-  );
+  return <JsonLd data={schema} />;
 }
 
 // ── Página ─────────────────────────────────────────────────────────────────

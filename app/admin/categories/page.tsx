@@ -52,7 +52,11 @@ export default function AdminCategoriesPage() {
           }, {});
           for (const c of data) c.productCount = counts[(c.name ?? '').toLowerCase()] ?? 0;
         }
-      } catch {}
+      } catch (err) {
+        // PRD-221: el conteo de productos es enriquecimiento opcional, pero el
+        // fallo debe quedar visible para el operador en consola
+        console.error('[admin/categories] no se pudo calcular productCount:', err);
+      }
       setCategories(data);
     }
     setLoading(false);

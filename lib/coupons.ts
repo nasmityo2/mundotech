@@ -6,7 +6,7 @@
  */
 import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import type { Coupon as CouponClient, CouponDiscountType } from '@/lib/definitions';
+import type { Coupon as CouponClient, CouponDiscountType, OrderStatus } from '@/lib/definitions';
 import { roundMoney2 } from '@/lib/exchange-rate';
 
 /** Cliente Prisma o cliente de transacción: ambos exponen los modelos necesarios. */
@@ -131,12 +131,16 @@ export type CouponValidationResult =
 /**
  * Valida un cupón contra el subtotal (USD) y el usuario. NO incrementa usos
  * (eso lo hace `redeemCouponInTransaction` de forma atómica al confirmar).
+ *
+ * PRD-157: `perUserLimit` también aplica a compradores sin cuenta — se cuenta
+ * por email contra pedidos no cancelados con ese cupón.
  */
 export async function validateCouponForCheckout(
   db: DbClient,
   rawCode: string,
   subtotalUsd: number,
   userId: string | null,
+  customerEmail?: string | null,
 ): Promise<CouponValidationResult> {
   const code = normalizeCouponCode(rawCode);
   if (!code) return { ok: false, reason: 'Ingresa un código de cupón.' };
@@ -162,12 +166,26 @@ export async function validateCouponForCheckout(
       reason: `Requiere una compra mínima de $${coupon.minPurchase.toFixed(2)}.`,
     };
   }
-  if (coupon.perUserLimit != null && userId && userId !== 'guest') {
-    const used = await db.couponRedemption.count({
-      where: { couponId: coupon.id, userId },
-    });
-    if (used >= coupon.perUserLimit) {
-      return { ok: false, reason: 'Ya usaste este cupón el máximo de veces permitido.' };
+  if (coupon.perUserLimit != null) {
+    if (userId && userId !== 'guest') {
+      const used = await db.couponRedemption.count({
+        where: { couponId: coupon.id, userId },
+      });
+      if (used >= coupon.perUserLimit) {
+        return { ok: false, reason: 'Ya usaste este cupón el máximo de veces permitido.' };
+      }
+    } else if (customerEmail?.trim()) {
+      // Invitado: limitar por email contra pedidos reales no cancelados.
+      const usedByEmail = await db.order.count({
+        where: {
+          couponCode: coupon.code,
+          customerEmail: { equals: customerEmail.trim(), mode: 'insensitive' },
+          status: { not: 'Cancelado' satisfies OrderStatus },
+        },
+      });
+      if (usedByEmail >= coupon.perUserLimit) {
+        return { ok: false, reason: 'Este cupón ya fue usado el máximo de veces con ese correo.' };
+      }
     }
   }
 
@@ -219,4 +237,28 @@ export async function redeemCouponInTransaction(
       discount: roundMoney2(discountBs),
     },
   });
+}
+
+/**
+ * PRD-190: revierte el canje del cupón al cancelar/eliminar un pedido.
+ * Decrementa `usedCount` (sin bajar de 0) y elimina el registro de canje, de
+ * modo que el límite global Y el límite por usuario vuelven a liberarse.
+ * Idempotente: si el pedido no tenía cupón (o ya se revirtió), no hace nada.
+ * Debe ejecutarse DENTRO de la transacción de cancelación.
+ */
+export async function revertCouponRedemptionInTransaction(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+): Promise<void> {
+  const redemption = await tx.couponRedemption.findUnique({
+    where: { orderId },
+    select: { id: true, couponId: true },
+  });
+  if (!redemption) return;
+
+  await tx.coupon.updateMany({
+    where: { id: redemption.couponId, usedCount: { gt: 0 } },
+    data: { usedCount: { decrement: 1 } },
+  });
+  await tx.couponRedemption.delete({ where: { id: redemption.id } });
 }

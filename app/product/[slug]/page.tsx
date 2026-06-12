@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { readSettings } from '@/lib/data-store';
 import {
   ChevronRight, ShieldCheck, Truck, Wallet, Store, Clock,
   MessageCircle, Sparkles, Star, CheckCircle2, XCircle, Eye,
@@ -24,29 +25,42 @@ import { getReviewSummary, getApprovedReviews, getReviewSummariesMap } from '@/l
 import { parseProductSpecs } from '@/lib/definitions';
 import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
 import { getExchangeRate } from '@/app/actions/configActions';
+import { resolveSlugRedirect } from '@/lib/slug-redirects';
+import type { Product as CatalogProduct } from '@/context/ProductContext';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-// ISR: regenera la ficha cada hora — mantiene precio/stock actualizados sin full-dynamic
-export const revalidate = 3600;
+// PRD-140 — ISR: la ficha muestra stock/precio con máximo 5 min de retraso sin
+// volverse full-dynamic. Revalidación on-demand adicional: tasa (PRD-142, propio),
+// quickUpdatePrice/Stock (PRD-024 → segmento 02) y delete (PRD-233 → DEPENDENCIA-05).
+export const revalidate = 300;
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 
-// Helper: construye URL de Cloudinary optimizada para Open Graph (1200×630)
+// H38: pre-genera las fichas en build (el ISR sigue activo para productos
+// nuevos vía dynamicParams). Usa slug ?? id — mismo patrón que sitemap y enlaces.
+export async function generateStaticParams() {
+  const products = await prisma.product.findMany({
+    select: { slug: true, id: true },
+  });
+  return products.map((p) => ({ slug: p.slug ?? p.id }));
+}
+
+// Clamp de meta description: 140–160 chars, corta en palabra completa y solo
+// añade elipsis cuando trunca de verdad (P11/P84: nada de "…" arbitrario).
+function clampDescription(text: string, max = 158): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max);
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${cut.slice(0, lastSpace > 110 ? lastSpace : max).trim()}…`;
+}
+
+// Las imágenes en R2 ya vienen optimizadas (webp, maxWidth en upload); usar URL tal cual.
 function buildOgImageUrl(src: string): string {
-  const CLOUDINARY_BASE = 'https://res.cloudinary.com';
-  if (!src.startsWith(CLOUDINARY_BASE)) return src;
-  const uploadMarker = '/image/upload/';
-  const uploadIndex  = src.indexOf(uploadMarker);
-  if (uploadIndex === -1) return src;
-  const base       = src.slice(0, uploadIndex + uploadMarker.length);
-  const publicPart = src.slice(uploadIndex + uploadMarker.length);
-  const firstSeg   = publicPart.split('/')[0];
-  const hasTransforms = firstSeg.includes(',') || firstSeg.includes('_');
-  const cleanPart  = hasTransforms ? publicPart.replace(/^[^/]+\//, '') : publicPart;
-  return `${base}f_auto,q_auto:good,w_1200,h_630,c_fill/${cleanPart}`;
+  return src;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -54,20 +68,41 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const product   = await getProduct(slug);
 
   if (!product) {
-    return { title: 'Producto no encontrado — MundoTech' };
+    // P19/H28: el 404 de producto no debe quedar como soft-404 indexable.
+    return {
+      title: 'Producto no encontrado',
+      robots: { index: false, follow: false },
+    };
   }
 
+  // P01/H05: el canonical SIEMPRE apunta a la URL con slug (la versión por id
+  // además redirige 308 en el page component).
   const canonicalUrl = `${SITE_URL}/product/${product.slug ?? product.id}`;
   const mainImage    = product.images[0] ?? '';
-  const ogImage      = mainImage ? buildOgImageUrl(mainImage) : '';
+  // P15: si el producto no tiene foto, la preview social usa la imagen de marca.
+  const ogImage      = mainImage ? buildOgImageUrl(mainImage) : `${SITE_URL}/og-default.png`;
 
-  const title =
-    `${product.name}${product.brand ? ` — ${product.brand}` : ''} | Precio en Venezuela · MundoTech Barquisimeto`;
+  // P08/P09 + H02: formato corto "[Producto] | MundoTech" — la marca la añade
+  // una sola vez el template del layout ("%s | MundoTech").
+  const title   = product.name;
+  const ogTitle = `${product.name} | MundoTech`;
 
-  const rawDesc = product.description?.replace(/<[^>]+>/g, '').trim() ?? '';
-  const description = rawDesc
-    ? `${rawDesc.slice(0, 130).trim()}… Cómpralo en MundoTech Barquisimeto con garantía oficial y envío seguro.`
-    : `Compra ${product.name} en MundoTech, Barquisimeto. Precio en USD y Bs., garantía oficial, stock disponible y envío seguro a todo Venezuela.`;
+  // P11/P12/P84: description única por producto, 140–160 chars, desde el campo
+  // real de la BD; el fallback incluye el nombre (keyword principal) y varía
+  // por ficha — nunca la misma meta duplicada.
+  const rawDesc = product.description?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() ?? '';
+  let description: string;
+  if (rawDesc.length >= 140) {
+    description = clampDescription(rawDesc);
+  } else if (rawDesc.length > 0) {
+    description = clampDescription(
+      `${rawDesc.replace(/[.!\s]+$/, '')}. Cómpralo en MundoTech Barquisimeto: precio en USD y Bs, garantía real y envío seguro a toda Venezuela.`,
+    );
+  } else {
+    description = clampDescription(
+      `Compra ${product.name} en MundoTech Barquisimeto: precio en USD y Bs, 12 meses de garantía, retiro en tienda y envío seguro a toda Venezuela.`,
+    );
+  }
 
   const keywords = [
     product.name,
@@ -77,7 +112,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     `${product.name} Barquisimeto`,
     'tecnología Barquisimeto',
     'MundoTech',
-    'tienda tecnología Venezuela',
   ].filter(Boolean);
 
   return {
@@ -87,34 +121,36 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     alternates: {
       canonical: canonicalUrl,
     },
+    // P13/H20: sin `type: 'website'` — el único og:type emitido es `product`
+    // (vía `other`), coherente con el namespace product:* y los rich pins.
     openGraph: {
-      title,
+      title: ogTitle,
       description,
       url: canonicalUrl,
       siteName: 'MundoTech',
       locale: 'es_VE',
-      type: 'website' as const,
-      ...(ogImage && {
-        images: [
-          {
-            url: ogImage,
-            width: 1200,
-            height: 630,
-            alt: `${product.name} — MundoTech Barquisimeto`,
-            type: 'image/jpeg',
-          },
-        ],
-      }),
+      images: [
+        {
+          url: ogImage,
+          width: 1200,
+          height: 630,
+          alt: `${product.name} — MundoTech Barquisimeto`,
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',
-      title,
+      title: ogTitle,
       description,
-      ...(ogImage && { images: [ogImage] }),
+      images: [ogImage],
     },
-    // Metadatos específicos de producto para redes sociales (Open Graph product namespace)
+    // Open Graph de producto: og:type=product + precio, moneda y disponibilidad
+    // (og:price:* / product:*) para previews de compra y Google Shopping.
     other: {
       'og:type': 'product',
+      'og:price:amount': product.price.toFixed(2),
+      'og:price:currency': 'USD',
+      'og:availability': product.stock > 0 ? 'instock' : 'out of stock',
       'product:price:amount': product.price.toFixed(2),
       'product:price:currency': 'USD',
       'product:category': product.category,
@@ -163,13 +199,29 @@ const TRUST_ICONS: Record<TrustIcon, LucideIcon> = {
 
 export default async function ProductDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const [product, bsRate, siteContent] = await Promise.all([
+  const [product, bsRate, siteContent, settings] = await Promise.all([
     getProduct(slug),
     getExchangeRate(),
     readSiteContent(),
+    readSettings(),
   ]);
 
-  if (!product) notFound();
+  if (!product) {
+    // PRD-066: slug renombrado en el admin → redirect permanente a la URL vigente
+    const redirectTarget = await resolveSlugRedirect(slug);
+    if (redirectTarget) permanentRedirect(`/product/${redirectTarget}`);
+    notFound();
+  }
+
+  // P01/H05: una sola URL canónica por producto. Si se accede por id (u otro
+  // alias distinto al slug vigente), redirect permanente 308 hacia el slug —
+  // elimina el contenido duplicado /product/{id} vs /product/{slug}.
+  // DEPENDENCIA-05 (PRD-066): el redirect 301 de slug VIEJO → slug nuevo al
+  // renombrar un producto requiere registrar el alias en productActions.ts
+  // (segmento Admin) — aquí solo se cubre el acceso por id.
+  if (product.slug && slug !== product.slug) {
+    permanentRedirect(`/product/${product.slug}`);
+  }
 
   const categoryPath = await resolveCategoryPathFromProductCategory(product.category);
 
@@ -180,8 +232,11 @@ export default async function ProductDetailPage({ params }: PageProps) {
     ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
     : null;
 
+  // PRD-223: shape explícito (sin `as any`) — coincide con el Product que
+  // esperan ProductActions y el carrito (description nunca null).
   const productForClient = {
     ...product,
+    description: product.description ?? '',
     image:   mainImage,
     details: {} as Record<string, string>,
   };
@@ -198,7 +253,13 @@ export default async function ProductDetailPage({ params }: PageProps) {
     <div className="pb-24 lg:pb-12 w-full max-w-full">
 
       {/* ── Datos estructurados JSON-LD ── */}
-      <ProductJsonLd product={product} categoryPath={categoryPath} reviewSummary={reviewSummary} reviews={productReviews} />
+      <ProductJsonLd
+        product={product}
+        categoryPath={categoryPath}
+        storeName={settings.storeName}
+        reviewSummary={reviewSummary}
+        reviews={productReviews}
+      />
 
       {/* ── Breadcrumb ── */}
       <nav className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6 overflow-hidden whitespace-nowrap" aria-label="Breadcrumb">
@@ -314,7 +375,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
 
           {/* Acciones */}
           <div className="mt-6">
-            <ProductActions product={productForClient as any} />
+            <ProductActions product={productForClient} />
           </div>
 
           {/* Trust strip — datos reales de la operación, editables en el admin */}
@@ -345,6 +406,8 @@ export default async function ProductDetailPage({ params }: PageProps) {
           isOut={isOut}
           stock={product.stock}
           specs={parseProductSpecs(product.specs)}
+          reviewsCount={reviewSummary.count}
+          reviewsAverage={reviewSummary.average}
         />
       </div>
 
@@ -369,19 +432,24 @@ export default async function ProductDetailPage({ params }: PageProps) {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
             {relatedProducts.map(related => {
               const s = relatedSummaries.get(related.id);
-              return (
-                <ProductCard
-                  key={related.id}
-                  product={{
-                    ...related,
-                    image: related.images[0] || '/placeholder-product.png',
-                    description: related.description || '',
-                    details: {},
-                    rating: s?.average,
-                    reviewCount: s?.count,
-                  } as any}
-                />
-              );
+              // PRD-223: mapeo tipado al Product del catálogo (sin `as any`)
+              const cardProduct: CatalogProduct = {
+                id:            related.id,
+                slug:          related.slug,
+                name:          related.name,
+                description:   related.description ?? '',
+                price:         related.price,
+                originalPrice: related.originalPrice,
+                stock:         related.stock,
+                category:      related.category,
+                brand:         related.brand,
+                image:         related.images[0] || '/placeholder-product.png',
+                images:        related.images,
+                details:       {},
+                rating:        s?.average,
+                reviewCount:   s?.count,
+              };
+              return <ProductCard key={related.id} product={cardProduct} />;
             })}
           </div>
         </div>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
+import { isSafeEditableLink } from '@/lib/safe-link';
 
 /**
  * Tipos de banner válidos según la UI del panel admin.
@@ -26,7 +27,14 @@ const bannerSchema = z.object({
   label:    z.string().max(100).optional().nullable(),
   ctaText:  z.string().max(100).optional().nullable(),
   tagText:  z.string().max(100).optional().nullable(),
-  link:     z.string().max(500).optional().nullable().default('/productos'),
+  // PRD-042/283: solo rutas internas (/...) o https — sin javascript:/data:.
+  link:     z
+    .string()
+    .max(500)
+    .refine((v) => isSafeEditableLink(v), 'Enlace no permitido: usa ruta interna (/...) o https.')
+    .optional()
+    .nullable()
+    .default('/productos'),
   active:   z.boolean().optional().default(true),
   order:    z.number({ message: 'El orden debe ser un número.' }).int().min(0).max(9999).optional().default(0),
 });
@@ -76,7 +84,8 @@ export async function PUT(
       data:  parsed.data,
     });
     return NextResponse.json(banner);
-  } catch {
+  } catch (error) {
+    console.error('[PUT /api/banners/[id]]', error);
     return NextResponse.json({ error: 'Error al actualizar el banner.' }, { status: 500 });
   }
 }
@@ -92,7 +101,8 @@ export async function DELETE(
     const { id } = await params;
     await prisma.banner.delete({ where: { id } });
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error('[DELETE /api/banners/[id]]', error);
     return NextResponse.json({ error: 'Error al eliminar el banner.' }, { status: 500 });
   }
 }

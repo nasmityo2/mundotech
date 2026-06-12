@@ -8,19 +8,9 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { stashLoginRedirectForPathname } from '@/lib/auth-path';
 import { subscribeRestockAction } from '@/app/actions/restockActions';
-
-interface Product {
-  id: string;
-  name: string;
-  price: number;
-  stock: number;
-  image: string;
-  images: string[];
-  category: string;
-  description: string;
-  details: Record<string, string>;
-  slug?: string | null;
-}
+// PRD-236: tipo compartido del catálogo — antes había una interfaz local
+// incompleta que obligaba a castear `product as never` hacia el carrito.
+import type { Product } from '@/context/ProductContext';
 
 export default function ProductActions({ product }: { product: Product }) {
   const { addToCart, silentAddToCart } = useCart();
@@ -42,7 +32,7 @@ export default function ProductActions({ product }: { product: Product }) {
 
   const handleAdd = () => {
     if (isOut) return;
-    addToCart(product as never, qty);
+    addToCart(product, qty);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1600);
   };
@@ -50,12 +40,12 @@ export default function ProductActions({ product }: { product: Product }) {
   const handleBuyNow = () => {
     if (isOut) return;
     if (status !== 'authenticated') {
-      silentAddToCart(product as never, qty);
+      silentAddToCart(product, qty);
       stashLoginRedirectForPathname('/checkout');
       router.push('/login');
       return;
     }
-    silentAddToCart(product as never, qty);
+    silentAddToCart(product, qty);
     router.push('/checkout');
   };
 
@@ -63,7 +53,7 @@ export default function ProductActions({ product }: { product: Product }) {
     if (isFav) {
       removeFromWishlist(product.id);
     } else {
-      addToWishlist(product as never);
+      addToWishlist(product);
     }
   };
 

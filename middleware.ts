@@ -10,22 +10,34 @@ import {
   loginReturnCookieOptions,
 } from '@/lib/login-return-cookie-shared';
 
+function r2CspOrigin(): string {
+  const base = process.env.R2_PUBLIC_BASE_URL?.trim();
+  if (!base) return '';
+  try {
+    const u = new URL(base);
+    return u.protocol === 'https:' ? ` https://${u.hostname}` : '';
+  } catch {
+    return '';
+  }
+}
+
 /**
  * CSP con nonce por petición. Se elimina unsafe-eval y unsafe-inline de script-src.
  * strict-dynamic permite que scripts cargados por un script con nonce válido también se ejecuten.
- * img-src restringido a dominios concretos (cloudinary + data/blob para previews locales).
+ * img-src restringido a dominios concretos (R2 + data/blob para previews).
  */
 function buildCsp(nonce: string): string {
+  const r2Origin = r2CspOrigin();
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     "style-src 'self' 'unsafe-inline'",
     // google-analytics/googletagmanager: solo se usan si el usuario aceptó
     // cookies de medición y NEXT_PUBLIC_GA4_ID está configurado.
-    "img-src 'self' data: blob: https://res.cloudinary.com https://*.google-analytics.com https://*.googletagmanager.com",
-    "media-src 'self' data: blob: https://res.cloudinary.com",
+    `img-src 'self' data: blob:${r2Origin} https://*.google-analytics.com https://*.googletagmanager.com`,
+    `media-src 'self' data: blob:${r2Origin}`,
     "font-src 'self' data:",
-    "connect-src 'self' https://res.cloudinary.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
+    `connect-src 'self'${r2Origin} https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com`,
     "frame-src 'self' https://iframe.mediadelivery.net https://www.google.com https://maps.google.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
@@ -84,10 +96,37 @@ function promoteLoginReturnCookieToRequestHeader(
 }
 
 /**
+ * PRD-018 / PRD-119: prefijos de API cuyas MUTACIONES (no-GET) son siempre de
+ * admin. Capa uniforme de defense-in-depth — cada route handler mantiene su
+ * propio requireAdmin(). Las rutas públicas de mutación del flujo de compra
+ * (cupones validate, reviews de producto, events/view, cron) NO están aquí.
+ */
+const ADMIN_WRITE_API_PREFIXES = [
+  '/api/settings',
+  '/api/banners',
+  '/api/promotions',
+  '/api/categories',
+  '/api/upload',
+  '/api/config',
+  '/api/reviews',
+  '/api/coupons',
+] as const;
+
+/** Mutaciones públicas legítimas exentas de la capa admin del middleware. */
+const ADMIN_WRITE_API_EXCEPTIONS = ['/api/coupons/validate'] as const;
+
+function matchesPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+/**
  * Rutas protegidas.
  * - `/login`, `/registro`       → promueve cookie→header (nonce inyectado)
  * - `/admin/*`                  → JWT requerido + rol ADMIN; redirect /login o /
  * - `/api/admin/*`              → JWT requerido + rol ADMIN; 401/403 JSON (no redirect)
+ * - Mutaciones API admin (lista arriba) → JWT + rol ADMIN; 401/403 JSON (PRD-018)
+ * - `/api/orders*`, `/api/cart*` (salvo unsubscribe), `/api/checkout*`
+ *                               → JWT requerido; 401 JSON (PRD-118 / PRD-119)
  * - `/account/*` | `/checkout*` → JWT requerido; redirect /login con cookie opcional
  * - Resto de rutas              → pasa con nonce (sin auth check para no penalizar perf)
  */
@@ -118,16 +157,32 @@ export async function middleware(req: NextRequest) {
   const isProtectedPath =
     pathname.startsWith('/account') || pathname.startsWith('/checkout');
 
-  if (isAdminUiPath || isApiAdminPath || isProtectedPath) {
+  /* PRD-018: mutaciones de APIs de configuración/catálogo → solo admin. */
+  const isWriteMethod = !['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase());
+  const isAdminWriteApi =
+    isWriteMethod &&
+    ADMIN_WRITE_API_PREFIXES.some((p) => matchesPrefix(pathname, p)) &&
+    !ADMIN_WRITE_API_EXCEPTIONS.some((p) => matchesPrefix(pathname, p));
+
+  /* PRD-118 / PRD-119: APIs de pedidos, carrito y checkout exigen sesión.
+     `/api/cart/unsubscribe` queda fuera: es el enlace GET de baja en emails. */
+  const isUserTokenApi =
+    matchesPrefix(pathname, '/api/orders') ||
+    (matchesPrefix(pathname, '/api/cart') && !matchesPrefix(pathname, '/api/cart/unsubscribe')) ||
+    matchesPrefix(pathname, '/api/checkout');
+
+  if (isAdminUiPath || isApiAdminPath || isProtectedPath || isAdminWriteApi || isUserTokenApi) {
     const token = await getToken({
       req,
       secret: process.env.NEXTAUTH_SECRET,
     });
 
-    if (isAdminUiPath || isApiAdminPath) {
+    if (isAdminUiPath || isApiAdminPath || isAdminWriteApi) {
+      const isApiResponse = isApiAdminPath || isAdminWriteApi;
+
       if (!token) {
         return withCsp(
-          isApiAdminPath
+          isApiResponse
             ? new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
                 status: 401,
                 headers: { 'Content-Type': 'application/json' },
@@ -140,7 +195,7 @@ export async function middleware(req: NextRequest) {
 
       if (!isAdminRole(role)) {
         return withCsp(
-          isApiAdminPath
+          isApiResponse
             ? new NextResponse(JSON.stringify({ error: 'Forbidden' }), {
                 status: 403,
                 headers: { 'Content-Type': 'application/json' },
@@ -149,6 +204,18 @@ export async function middleware(req: NextRequest) {
         );
       }
 
+      return withCsp(nextWithNonce());
+    }
+
+    if (isUserTokenApi) {
+      if (!token) {
+        return withCsp(
+          new NextResponse(JSON.stringify({ error: 'No autenticado.' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
+      }
       return withCsp(nextWithNonce());
     }
 

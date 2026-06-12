@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { Star, Loader2, CheckCircle2, ShieldCheck, MessageSquarePlus, X } from 'lucide-react';
+import { Star, Loader2, CheckCircle2, ShieldCheck, MessageSquarePlus, X, Pencil, Trash2 } from 'lucide-react';
 import { Stars } from '@/components/reviews/Stars';
 import type { Review, ReviewSummary } from '@/lib/definitions';
 
@@ -26,15 +26,19 @@ export default function ProductReviews({ productId, productName, initialSummary,
   const [reviews, setReviews] = useState<Review[]>(initialReviews);
 
   const [showForm, setShowForm] = useState(false);
+  /** PRD-162: id de la reseña propia en edición (null = creando una nueva). */
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
   const [hover, setHover] = useState(0);
   const [title, setTitle] = useState('');
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [doneMsg, setDoneMsg] = useState<string | null>(null);
 
   const isAuthed = status === 'authenticated' && !!session?.user;
+  const sessionUserId = session?.user?.id ?? null;
 
   const refresh = async () => {
     try {
@@ -44,7 +48,25 @@ export default function ProductReviews({ productId, productName, initialSummary,
         setSummary(data.summary);
         setReviews(data.reviews);
       }
-    } catch { /* no-op */ }
+    } catch (err) {
+      console.error('[ProductReviews] Error al refrescar reseñas:', err);
+    }
+  };
+
+  const resetForm = () => {
+    setShowForm(false);
+    setEditingId(null);
+    setRating(0); setTitle(''); setComment('');
+  };
+
+  const startEdit = (r: Review) => {
+    setDoneMsg(null);
+    setError(null);
+    setEditingId(r.id);
+    setRating(r.rating);
+    setTitle(r.title ?? '');
+    setComment(r.comment);
+    setShowForm(true);
   };
 
   const submit = async () => {
@@ -54,24 +76,48 @@ export default function ProductReviews({ productId, productName, initialSummary,
 
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/products/${productId}/reviews`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rating, title: title.trim() || null, comment: comment.trim() }),
-      });
+      // PRD-162: misma forma para crear (POST) o editar la reseña propia (PATCH).
+      const res = await fetch(
+        editingId ? `/api/reviews/${editingId}` : `/api/products/${productId}/reviews`,
+        {
+          method: editingId ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rating, title: title.trim() || null, comment: comment.trim() }),
+        },
+      );
       const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string; moderated?: boolean };
       if (!res.ok) {
         setError(data.error ?? 'No se pudo enviar la reseña.');
         return;
       }
       setDoneMsg(data.message ?? '¡Gracias por tu reseña!');
-      setShowForm(false);
-      setRating(0); setTitle(''); setComment('');
-      if (!data.moderated) await refresh();
+      resetForm();
+      await refresh();
     } catch {
       setError('Hubo un problema. Intenta de nuevo.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  /** PRD-162: el autor elimina su propia reseña. */
+  const deleteOwn = async (reviewId: string) => {
+    if (!window.confirm('¿Eliminar tu reseña? Esta acción no se puede deshacer.')) return;
+    setDeletingId(reviewId);
+    try {
+      const res = await fetch(`/api/reviews/${reviewId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setError(data.error ?? 'No se pudo eliminar la reseña.');
+        return;
+      }
+      setDoneMsg('Tu reseña fue eliminada.');
+      if (editingId === reviewId) resetForm();
+      await refresh();
+    } catch {
+      setError('Hubo un problema al eliminar. Intenta de nuevo.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -87,7 +133,7 @@ export default function ProductReviews({ productId, productName, initialSummary,
         {!showForm && (
           <button
             type="button"
-            onClick={() => { setDoneMsg(null); setShowForm(true); }}
+            onClick={() => { setDoneMsg(null); setEditingId(null); setShowForm(true); }}
             className="inline-flex items-center gap-1.5 rounded-xl bg-navy text-white text-sm font-semibold px-4 py-2.5 hover:bg-navy-700 active:scale-[0.98] transition-all"
           >
             <MessageSquarePlus size={16} /> Escribir reseña
@@ -140,8 +186,10 @@ export default function ProductReviews({ productId, productName, initialSummary,
       {showForm && (
         <div className="rounded-2xl border border-slate-200 p-5 sm:p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-navy">Tu reseña de {productName}</h3>
-            <button type="button" onClick={() => setShowForm(false)} aria-label="Cerrar" className="text-slate-400 hover:text-navy">
+            <h3 className="text-sm font-semibold text-navy">
+              {editingId ? `Editar tu reseña de ${productName}` : `Tu reseña de ${productName}`}
+            </h3>
+            <button type="button" onClick={resetForm} aria-label="Cerrar" className="text-slate-400 hover:text-navy">
               <X size={18} />
             </button>
           </div>
@@ -161,20 +209,26 @@ export default function ProductReviews({ productId, productName, initialSummary,
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tu valoración</label>
-                <div className="flex gap-1">
+                {/* PRD-135: patrón radiogroup — cada estrella anuncia su valor y estado. */}
+                <p id="review-rating-label" className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Tu valoración
+                </p>
+                <div role="radiogroup" aria-labelledby="review-rating-label" className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((s) => (
                     <button
                       key={s}
                       type="button"
+                      role="radio"
+                      aria-checked={rating === s}
                       onClick={() => setRating(s)}
                       onMouseEnter={() => setHover(s)}
                       onMouseLeave={() => setHover(0)}
-                      aria-label={`${s} estrellas`}
-                      className="p-0.5"
+                      aria-label={`${s} ${s === 1 ? 'estrella' : 'estrellas'}`}
+                      className="p-0.5 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-navy/40"
                     >
                       <Star
                         size={28}
+                        aria-hidden
                         className={
                           (hover || rating) >= s
                             ? 'text-amber-400 fill-amber-400'
@@ -187,8 +241,11 @@ export default function ProductReviews({ productId, productName, initialSummary,
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Título (opcional)</label>
+                <label htmlFor="review-title" className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Título (opcional)
+                </label>
                 <input
+                  id="review-title"
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -199,8 +256,11 @@ export default function ProductReviews({ productId, productName, initialSummary,
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Tu comentario</label>
+                <label htmlFor="review-comment" className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Tu comentario
+                </label>
                 <textarea
+                  id="review-comment"
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   maxLength={2000}
@@ -218,7 +278,9 @@ export default function ProductReviews({ productId, productName, initialSummary,
                 disabled={submitting}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-navy text-white text-sm font-semibold px-6 py-2.5 hover:bg-navy-700 active:scale-[0.98] transition-all disabled:opacity-50"
               >
-                {submitting ? <><Loader2 size={15} className="animate-spin" /> Enviando…</> : 'Publicar reseña'}
+                {submitting
+                  ? <><Loader2 size={15} className="animate-spin" /> Enviando…</>
+                  : editingId ? 'Guardar cambios' : 'Publicar reseña'}
               </button>
             </div>
           )}
@@ -239,7 +301,33 @@ export default function ProductReviews({ productId, productName, initialSummary,
                     </span>
                   )}
                 </div>
-                <span className="text-[11px] text-slate-400">{formatDate(r.createdAt)}</span>
+                <div className="flex items-center gap-2">
+                  {/* PRD-162: acciones del autor sobre su propia reseña */}
+                  {sessionUserId && r.userId === sessionUserId && (
+                    <span className="inline-flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(r)}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-navy px-1.5 py-1 rounded transition-colors"
+                        aria-label="Editar tu reseña"
+                      >
+                        <Pencil size={11} /> Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteOwn(r.id)}
+                        disabled={deletingId === r.id}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-rose-600 px-1.5 py-1 rounded transition-colors disabled:opacity-50"
+                        aria-label="Eliminar tu reseña"
+                      >
+                        {deletingId === r.id
+                          ? <Loader2 size={11} className="animate-spin" />
+                          : <Trash2 size={11} />} Eliminar
+                      </button>
+                    </span>
+                  )}
+                  <span className="text-[11px] text-slate-400">{formatDate(r.createdAt)}</span>
+                </div>
               </div>
               <div className="mt-1.5">
                 <Stars rating={r.rating} size={13} />

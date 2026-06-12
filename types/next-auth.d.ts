@@ -12,12 +12,18 @@ declare module 'next-auth' {
   interface User {
     id:    string;
     role?: string;
+    /** Huella corta del hash de contraseña — invalida sesiones al cambiarla. */
+    pwv?:  string;
   }
 }
 
 declare module 'next-auth/jwt' {
   interface JWT {
-    id?:   string;
-    role?: string;
+    id?:    string;
+    role?:  string;
+    /** Huella corta del hash de contraseña vigente (PRD-173/240). */
+    pwv?:   string;
+    /** Epoch ms de la última re-validación del JWT contra BD. */
+    pwvAt?: number;
   }
 }

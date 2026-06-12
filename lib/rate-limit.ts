@@ -1,16 +1,16 @@
 /**
- * Rate limiter en memoria basado en Map.
+ * Rate limiter global (PRD-005 / PRD-102).
  *
- * Apropiado para desarrollo y deployments de instancia única.
+ * Estrategia:
+ *  1. Si `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` están configuradas,
+ *     usa Upstash Redis vía REST (ventana fija con INCR + PEXPIRE NX). El límite
+ *     es GLOBAL entre todas las instancias serverless (Vercel multi-lambda).
+ *  2. Sin Upstash (dev / instancia única) cae al Map en memoria de siempre.
+ *  3. Si Redis falla en runtime (timeout, 5xx) se degrada al Map en memoria y
+ *     se registra el error: fail-open controlado — nunca bloquea el checkout
+ *     por una caída del rate limiter.
  *
- * TODO (PRODUCCIÓN MULTI-INSTANCIA): migrar a Upstash Redis para rate limit global.
- * En Vercel serverless cada instancia tiene su propio Map → los límites NO son globales.
- * Migración:
- *   npm i @upstash/ratelimit @upstash/redis
- *   https://github.com/upstash/ratelimit
- * Variables de entorno requeridas: UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
- * Algoritmo recomendado: Sliding Window para mayor precisión.
- * Compensación temporal: usa límites más conservadores (ej. divide entre 3 instancias esperadas).
+ * La función `rateLimit` es ahora ASYNC. Todos los call sites usan `await`.
  */
 
 interface Entry {
@@ -41,12 +41,8 @@ export interface RateLimitConfig {
   windowMs: number;
 }
 
-/**
- * Comprueba si la clave dada ha superado el límite configurado.
- *
- * @returns `true` si la request debe ser bloqueada (límite superado).
- */
-export function rateLimit(key: string, config: RateLimitConfig): boolean {
+/** Ventana fija en memoria (instancia local). @returns true si debe bloquearse. */
+function rateLimitInMemory(key: string, config: RateLimitConfig): boolean {
   maybeCleanup();
 
   const now = Date.now();
@@ -65,6 +61,69 @@ export function rateLimit(key: string, config: RateLimitConfig): boolean {
   return false;
 }
 
+const UPSTASH_TIMEOUT_MS = 2_000;
+
+/**
+ * Ventana fija distribuida sobre Upstash Redis REST.
+ * Pipeline: INCR clave; PEXPIRE clave windowMs NX (solo fija TTL al crearla).
+ * @returns true si debe bloquearse; null si Redis no está disponible.
+ */
+async function rateLimitUpstash(
+  key: string,
+  config: RateLimitConfig,
+): Promise<boolean | null> {
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  if (!url || !token) return null;
+
+  const redisKey = `rl:${key}`;
+
+  try {
+    const res = await fetch(`${url.replace(/\/$/, '')}/pipeline`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([
+        ['INCR', redisKey],
+        ['PEXPIRE', redisKey, String(config.windowMs), 'NX'],
+      ]),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(UPSTASH_TIMEOUT_MS),
+    });
+
+    if (!res.ok) {
+      console.error('[rate-limit] Upstash respondió', res.status, await res.text().catch(() => ''));
+      return null;
+    }
+
+    const data = (await res.json()) as Array<{ result?: unknown; error?: string }>;
+    const count = Number(data?.[0]?.result);
+    if (!Number.isFinite(count)) {
+      console.error('[rate-limit] Respuesta inesperada de Upstash:', JSON.stringify(data));
+      return null;
+    }
+
+    return count > config.limit;
+  } catch (err) {
+    console.error('[rate-limit] Error consultando Upstash; fallback a memoria:', err);
+    return null;
+  }
+}
+
+/**
+ * Comprueba si la clave dada ha superado el límite configurado.
+ * Global (Upstash) cuando hay credenciales; en memoria como fallback.
+ *
+ * @returns `true` si la request debe ser bloqueada (límite superado).
+ */
+export async function rateLimit(key: string, config: RateLimitConfig): Promise<boolean> {
+  const distributed = await rateLimitUpstash(key, config);
+  if (distributed !== null) return distributed;
+  return rateLimitInMemory(key, config);
+}
+
 /**
  * Extrae la IP del cliente de forma segura según el entorno de despliegue.
  *
@@ -75,10 +134,8 @@ export function rateLimit(key: string, config: RateLimitConfig): boolean {
  *                   o x-real-ip, con fallback a 'unknown'.
  *
  * ADVERTENCIA: El primer valor de x-forwarded-for puede ser falsificado por el cliente.
- * En producción detrás de un proxy de confianza, configurar DEPLOYMENT_ENV.
- *
- * TODO (PRODUCCIÓN): configurar DEPLOYMENT_ENV=vercel o DEPLOYMENT_ENV=cloudflare
- * según el proveedor para obtener la IP real del cliente y prevenir evasión de rate limit.
+ * En producción detrás de un proxy de confianza, configurar DEPLOYMENT_ENV
+ * (PRD-103 — validado al arranque en lib/env-validation.ts).
  */
 export function getClientIp(request: Request): string {
   const env = (process.env.DEPLOYMENT_ENV ?? '').toLowerCase();

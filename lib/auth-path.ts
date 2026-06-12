@@ -134,6 +134,13 @@ function pathnameOnly(internalPath: string): string {
 /**
  * Destino tras login/registro. Los ADMIN siguen al panel por defecto, pero si venían de la tienda
  * cuando el callback no es solo el inicio, respetan ese destino (cookie/sessionStorage o URL legacy).
+ *
+ * PRD-241 (decisión documentada): un ADMIN que venía de /checkout SÍ conserva
+ * ese destino y puede comprar como cliente. Es intencional — la tienda física
+ * usa las mismas cuentas para probar el flujo de compra. Riesgo aceptado:
+ * mezclar sesión admin con flujo cliente en el MISMO navegador puede dejar
+ * carrito/notificaciones del operador en el dispositivo; para operación diaria
+ * se recomienda usar cuentas CLIENT separadas para compras de prueba.
  */
 export function resolvePostLoginRedirect(
   role: string | undefined | null,

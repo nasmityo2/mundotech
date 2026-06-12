@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ShieldCheck, Lock } from 'lucide-react';
@@ -12,6 +13,7 @@ import ShippingForm, { type ShippingFormData } from '@/app/components/checkout/S
 import PaymentForm, { type PaymentFormData } from '@/app/components/checkout/PaymentForm';
 import ReviewStep from '@/app/components/checkout/ReviewStep';
 import { useCart } from '@/context/CartContext';
+import { useExchangeRate } from '@/context/ExchangeRateContext';
 import { formatCurrency } from '@/lib/utils';
 import type { StoreSettings } from '@/lib/data-store';
 import { saveCartSnapshotAction } from '@/app/actions/abandonedCartActions';
@@ -20,18 +22,38 @@ import type { AbandonedCartItem } from '@/lib/definitions';
 interface CheckoutFlowProps {
   pagoMovil: StoreSettings['pagoMovil'];
   transferencia: StoreSettings['transferencia'];
+  /** PRD-067: teléfono de soporte desde readSettings() (R1) — sin hardcode. */
+  supportPhone?: string;
 }
 
-const CheckoutFlow = ({ pagoMovil, transferencia }: CheckoutFlowProps) => {
+const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone }: CheckoutFlowProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection]     = useState<1 | -1>(1);
   const [shippingData, setShippingData] = useState<ShippingFormData | null>(null);
   const [paymentData, setPaymentData]   = useState<PaymentFormData  | null>(null);
 
-  const { cart, getCartTotal, isCartLoading } = useCart();
+  const { cart, getCartTotal, isCartLoading, refreshCart } = useCart();
+  const { rate: exchangeRate } = useExchangeRate();
   const { data: session } = useSession();
+  const router = useRouter();
   const subtotal = getCartTotal();
   const total    = subtotal;
+
+  // PRD-061: al entrar al checkout re-validamos precio/stock contra la BD
+  // (el carrito invitado vive en localStorage y puede traer precios viejos).
+  useEffect(() => {
+    void refreshCart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // PRD-030: sin productos no hay nada que pagar — de vuelta al carrito.
+  // Solo aplica en el paso inicial: tras confirmar el pedido (ReviewStep vacía
+  // el carrito antes de ir a /checkout/success) este guard ya no interfiere.
+  useEffect(() => {
+    if (!isCartLoading && cart.length === 0 && currentStep === 0) {
+      router.replace('/cart');
+    }
+  }, [isCartLoading, cart.length, currentStep, router]);
 
   const handleShippingSubmit = (data: ShippingFormData) => {
     setShippingData(data);
@@ -180,6 +202,16 @@ const CheckoutFlow = ({ pagoMovil, transferencia }: CheckoutFlowProps) => {
                     {formatCurrency(total)}
                   </span>
                 </div>
+                {/* PRD-022: el cobro real es en bolívares — mostrar el equivalente. */}
+                {exchangeRate > 0 && (
+                  <p className="text-right text-[12px] text-slate-500 nums">
+                    ≈ Bs. {new Intl.NumberFormat('es-VE', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }).format(total * exchangeRate)}{' '}
+                    <span className="text-slate-400">(tasa Bs. {exchangeRate.toFixed(2)}/USD)</span>
+                  </p>
+                )}
               </div>
             </div>
 
@@ -194,10 +226,13 @@ const CheckoutFlow = ({ pagoMovil, transferencia }: CheckoutFlowProps) => {
               </div>
             </div>
 
-            <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 text-center">
-              <ShieldCheck size={11} className="text-emerald-500 flex-shrink-0" />
-              ¿Dudas con tu pago? Escríbenos al 0412-1471338 y te acompañamos.
-            </div>
+            {/* PRD-067: teléfono vivo desde settings — solo se muestra si existe */}
+            {supportPhone ? (
+              <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 text-center">
+                <ShieldCheck size={11} className="text-emerald-500 flex-shrink-0" />
+                ¿Dudas con tu pago? Escríbenos al {supportPhone} y te acompañamos.
+              </div>
+            ) : null}
           </div>
         </aside>
       </div>

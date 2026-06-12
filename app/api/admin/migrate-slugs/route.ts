@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { slugify } from '@/lib/slugify';
 
 /**
  * POST /api/admin/migrate-slugs
- * Genera slugs SEO para todos los productos que no tienen slug.
+ * Genera slugs SEO para todos los productos sin slug útil (vacío).
+ * Nota: desde la migración `prd_infra_datos` el slug es NOT NULL con backfill,
+ * así que esta ruta queda como herramienta de reparación (slugs vacíos legacy).
  * Solo accesible por administradores.
  */
 export async function POST() {
@@ -13,10 +16,9 @@ export async function POST() {
   if (!auth.authorized) return auth.response;
 
   try {
-
-    // Cargar todos los productos sin slug
+    // Productos sin slug útil (el schema ya no permite NULL).
     const products = await prisma.product.findMany({
-      where: { slug: null },
+      where: { slug: '' },
       select: { id: true, name: true },
     });
 
@@ -26,40 +28,44 @@ export async function POST() {
 
     // Cargar todos los slugs existentes para evitar duplicados
     const existingSlugs = await prisma.product
-      .findMany({ where: { slug: { not: null } }, select: { slug: true } })
-      .then(res => new Set(res.map(p => p.slug as string)));
+      .findMany({ where: { slug: { not: '' } }, select: { slug: true } })
+      .then(res => new Set(res.map(p => p.slug)));
 
-    let updated = 0;
-    const errors: string[] = [];
+    const updates: { id: string; slug: string }[] = [];
 
     for (const product of products) {
-      let base      = slugify(product.name);
+      let base = slugify(product.name);
       if (!base) base = `producto-${product.id.slice(-6)}`;
 
       let candidate = base;
-      let counter   = 2;
+      let counter = 2;
 
       while (existingSlugs.has(candidate)) {
         candidate = `${base}-${counter}`;
         counter++;
       }
 
-      try {
-        await prisma.product.update({
-          where: { id: product.id },
-          data:  { slug: candidate },
-        });
-        existingSlugs.add(candidate);
-        updated++;
-      } catch (e) {
-        errors.push(`${product.name}: ${(e as Error).message}`);
-      }
+      existingSlugs.add(candidate);
+      updates.push({ id: product.id, slug: candidate });
     }
 
+    // PRD-187: una sola transacción — o se migra todo el catálogo o nada,
+    // nunca un catálogo a mitad de migrar si una fila falla.
+    await prisma.$transaction(
+      updates.map(u =>
+        prisma.product.update({ where: { id: u.id }, data: { slug: u.slug } }),
+      ),
+    );
+
+    // Los slugs cambian las URLs de ficha → invalidar páginas ISR afectadas.
+    revalidatePath('/productos');
+    revalidatePath('/product/[slug]', 'page');
+    revalidatePath('/');
+
     return NextResponse.json({
-      message: `Migración completa. ${updated} slugs generados.`,
-      updated,
-      errors,
+      message: `Migración completa. ${updates.length} slugs generados.`,
+      updated: updates.length,
+      errors: [],
     });
   } catch (error) {
     console.error('Error en migrate-slugs:', error);

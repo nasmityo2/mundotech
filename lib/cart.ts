@@ -68,7 +68,10 @@ export async function getUserCart(userId: string): Promise<CartItemAPI[]> {
 /**
  * Inserta o actualiza un ítem en el carrito del usuario.
  * Si quantity <= 0, elimina el ítem.
- * No valida stock aquí — el cliente ya lo hace; validación de stock real ocurre en checkout.
+ *
+ * PRD-105: la cantidad se valida TAMBIÉN en servidor — un PATCH directo no
+ * puede inflar el carrito por encima del stock real ni guardar productos
+ * eliminados del catálogo. La cantidad final se recorta a `stock`.
  */
 export async function upsertCartItem(
   userId: string,
@@ -82,7 +85,14 @@ export async function upsertCartItem(
     select: { id: true },
   });
 
-  if (quantity <= 0) {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { stock: true },
+  });
+
+  const clampedQuantity = product ? Math.min(quantity, product.stock) : 0;
+
+  if (clampedQuantity <= 0) {
     await prisma.cartItem.deleteMany({
       where: { cartId: cart.id, productId },
     });
@@ -91,8 +101,8 @@ export async function upsertCartItem(
 
   await prisma.cartItem.upsert({
     where: { cartId_productId: { cartId: cart.id, productId } },
-    create: { cartId: cart.id, productId, quantity },
-    update: { quantity, updatedAt: new Date() },
+    create: { cartId: cart.id, productId, quantity: clampedQuantity },
+    update: { quantity: clampedQuantity, updatedAt: new Date() },
   });
 }
 
@@ -159,23 +169,33 @@ export async function mergeCart(
     });
     const stockMap = new Map(products.map((p) => [p.id, p.stock]));
 
-    // Construir mapa merged: max(local, db), capado a stock
+    // Construir mapa merged: max(local, db).
     const merged = new Map<string, number>(
       cart.items.map((i) => [i.productId, i.quantity]),
     );
     for (const local of localItems) {
-      const stock = stockMap.get(local.productId) ?? 0;
-      if (stock <= 0) continue;
       const current = merged.get(local.productId) ?? 0;
-      merged.set(local.productId, Math.min(Math.max(current, local.quantity), stock));
+      merged.set(local.productId, Math.max(current, local.quantity));
     }
 
-    // Aplicar el merge via upsert individual (la transacción garantiza atomicidad)
+    // PRD-023: el recorte a stock aplica a TODAS las líneas resultantes —
+    // también a las que ya estaban en BD con cantidades viejas — para que el
+    // checkout no falle tarde por inventario que bajó mientras tanto.
     for (const [productId, quantity] of merged.entries()) {
+      const stock = stockMap.get(productId) ?? 0;
+      const clamped = Math.min(quantity, stock);
+
+      if (clamped <= 0) {
+        await tx.cartItem.deleteMany({
+          where: { cartId: cart.id, productId },
+        });
+        continue;
+      }
+
       await tx.cartItem.upsert({
         where: { cartId_productId: { cartId: cart.id, productId } },
-        create: { cartId: cart.id, productId, quantity },
-        update: { quantity, updatedAt: new Date() },
+        create: { cartId: cart.id, productId, quantity: clamped },
+        update: { quantity: clamped, updatedAt: new Date() },
       });
     }
 

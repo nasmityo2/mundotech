@@ -6,7 +6,7 @@
 import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import type { Review, ReviewStatus, ReviewSummary } from '@/lib/definitions';
+import type { OrderStatus, Review, ReviewStatus, ReviewSummary } from '@/lib/definitions';
 
 type DbClient = Prisma.TransactionClient;
 
@@ -142,7 +142,12 @@ export async function writeReviewsAutoApprove(value: boolean): Promise<void> {
   });
 }
 
-/** ¿El usuario compró este producto? (orden no cancelada con el producto). */
+/**
+ * ¿El usuario compró este producto?
+ * PRD-208: el badge «compra verificada» exige pago confirmado — pedido con
+ * `paidAt` sellado (validación de pago del admin) o ya `Entregado` (pedidos
+ * legados sin paidAt). Un pedido apenas «Pendiente» sin pago NO cuenta.
+ */
 export async function hasPurchasedProduct(
   db: DbClient,
   userId: string,
@@ -151,7 +156,11 @@ export async function hasPurchasedProduct(
   const order = await db.order.findFirst({
     where: {
       customerId: userId,
-      status: { not: 'Cancelado' },
+      status: { not: 'Cancelado' satisfies OrderStatus },
+      OR: [
+        { paidAt: { not: null } },
+        { status: 'Entregado' satisfies OrderStatus },
+      ],
       items: { some: { productId } },
     },
     select: { id: true },

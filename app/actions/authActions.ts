@@ -26,11 +26,18 @@ const RESET_EXPIRY_MS = 15 * 60 * 1000;
 const RESET_INVALID_MESSAGE =
   'El enlace no es válido o ha expirado. Solicita uno nuevo desde la página de iniciar sesión.';
 
+/**
+ * PRD-013 + PRD-228: mensaje único de registro. No confirma ni niega que el
+ * correo exista (anti-enumeración) y pide revisar la bandeja de entrada.
+ */
+const REGISTER_GENERIC_MESSAGE =
+  'Solicitud procesada. Si el correo no estaba registrado, tu cuenta quedó creada y te enviamos un correo de bienvenida — revisa tu bandeja (y el spam).';
+
 export async function registerUserAction({ name, email, password }: Record<string, string>) {
   try {
     // 0. Rate limit por IP: frena bots y la enumeración de correos vía registro
     const ip = await getActionClientIp();
-    if (rateLimit(`register:${ip}`, { limit: 5, windowMs: 15 * 60_000 })) {
+    if (await rateLimit(`register:${ip}`, { limit: 5, windowMs: 15 * 60_000 })) {
       return {
         success: false,
         message: 'Demasiados intentos de registro. Espera unos minutos e intenta de nuevo.',
@@ -43,20 +50,26 @@ export async function registerUserAction({ name, email, password }: Record<strin
     }
 
     // 2. Validaciones mínimas de servidor (no confiar solo en el cliente)
-    if (!EMAIL_REGEX.test(email.trim())) {
+    // PRD-169 / PRD-238: normalizar SIEMPRE el email — el UNIQUE de PostgreSQL
+    // es case-sensitive y sin esto User@mail.com y user@mail.com coexisten.
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
       return { success: false, message: 'Introduce un correo electrónico válido.' };
     }
     if (password.length < 8) {
       return { success: false, message: 'La contraseña debe tener al menos 8 caracteres.' };
     }
 
-    // 3. Verificar si el usuario ya existe
+    // 3. Verificar si el usuario ya existe.
+    // PRD-013: si existe, responder con el MISMO mensaje genérico de éxito —
+    // un atacante no puede usar el registro para confirmar correos válidos.
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
+      select: { id: true },
     });
 
     if (existingUser) {
-      return { success: false, message: 'El correo electrónico ya está en uso.' };
+      return { success: true, message: REGISTER_GENERIC_MESSAGE };
     }
 
     // 4. Hashear la contraseña
@@ -65,17 +78,17 @@ export async function registerUserAction({ name, email, password }: Record<strin
     // 5. Crear el usuario (rol normalizado en mayúsculas, consistente con isAdminRole)
     await prisma.user.create({
       data: {
-        name,
-        email,
+        name: name.trim(),
+        email: normalizedEmail,
         password: hashedPassword,
         role: 'CLIENT',
       },
     });
 
     // Correo de bienvenida (fallos no revierten el registro; se registran en logs)
-    await sendWelcomeEmail(email, firstNameFromName(name));
+    await sendWelcomeEmail(normalizedEmail, firstNameFromName(name));
 
-    return { success: true, message: '¡Usuario registrado con éxito!' };
+    return { success: true, message: REGISTER_GENERIC_MESSAGE };
 
   } catch (error) {
     console.error('Error en registerUserAction:', error);
@@ -97,7 +110,7 @@ export async function requestPasswordReset(
 
   // Rate limit por IP: evita spam de correos de reset y timing probes
   const ip = await getActionClientIp();
-  if (rateLimit(`pw-reset:${ip}`, { limit: 5, windowMs: 15 * 60_000 })) {
+  if (await rateLimit(`pw-reset:${ip}`, { limit: 5, windowMs: 15 * 60_000 })) {
     // Mismo mensaje genérico: no revelar siquiera el rate limit exacto
     return { ok: true, message: PASSWORD_RESET_GENERIC_MESSAGE };
   }
@@ -134,11 +147,19 @@ export async function requestPasswordReset(
   }
 }
 
-/** Solo para UI server-side: comprueba si el token existe y no ha expirado. */
+/**
+ * Comprueba si el token existe y no ha expirado (UI del formulario de reset).
+ * Acción pública → rate limit por IP para que no sirva de oráculo de tokens.
+ */
 export async function verifyPasswordResetToken(token: string): Promise<boolean> {
   const t = token?.trim();
   if (!t) return false;
   try {
+    const ip = await getActionClientIp();
+    if (await rateLimit(`pw-reset-verify:${ip}`, { limit: 20, windowMs: 15 * 60_000 })) {
+      return false;
+    }
+
     const row = await prisma.passwordResetToken.findUnique({
       where: { token: hashToken(t) },
       select: { expiresAt: true },
@@ -168,8 +189,27 @@ export async function resetPassword(
   }
 
   try {
+    // PRD-170: acción pública sin sesión → rate limit por IP y por token
+    // (frena fuerza bruta del token y reuso agresivo si se filtró el enlace).
+    const tokenHash = hashToken(t);
+    const ip = await getActionClientIp();
+    const ipLimited = await rateLimit(`pw-reset-commit:ip:${ip}`, {
+      limit: 10,
+      windowMs: 15 * 60_000,
+    });
+    const tokenLimited = await rateLimit(`pw-reset-commit:token:${tokenHash}`, {
+      limit: 5,
+      windowMs: 15 * 60_000,
+    });
+    if (ipLimited || tokenLimited) {
+      return {
+        ok: false,
+        message: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.',
+      };
+    }
+
     const row = await prisma.passwordResetToken.findUnique({
-      where: { token: hashToken(t) },
+      where: { token: tokenHash },
       select: { id: true, userId: true, expiresAt: true },
     });
 
@@ -182,15 +222,28 @@ export async function resetPassword(
 
     const hashedPassword = await bcrypt.hash(pw, 12);
 
-    await prisma.$transaction([
-      prisma.user.update({
+    // PRD-171: consumo ATÓMICO del token. El deleteMany condicionado
+    // (token + no expirado) garantiza que de dos requests concurrentes con el
+    // mismo token solo una obtenga count=1 y cambie la contraseña (sin TOCTOU).
+    const consumed = await prisma.$transaction(async (tx) => {
+      const deleted = await tx.passwordResetToken.deleteMany({
+        where: { token: tokenHash, expiresAt: { gt: new Date() } },
+      });
+      if (deleted.count === 0) return false;
+
+      await tx.user.update({
         where: { id: row.userId },
         data: { password: hashedPassword },
-      }),
-      prisma.passwordResetToken.deleteMany({
+      });
+      await tx.passwordResetToken.deleteMany({
         where: { userId: row.userId },
-      }),
-    ]);
+      });
+      return true;
+    });
+
+    if (!consumed) {
+      return { ok: false, message: RESET_INVALID_MESSAGE };
+    }
 
     return { ok: true };
   } catch (error) {

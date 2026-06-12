@@ -24,7 +24,10 @@ export default async function OrderLabelPage({ params }: PageProps) {
   if (!order) notFound();
 
   const orderRef = String(order.orderNumber).padStart(4, '0');
-  const barcode = code128(orderRef, { moduleWidth: 2, height: 56, quietZone: 8 });
+  // PRD-269: el payload incluye un sufijo corto derivado del id del pedido —
+  // evita confusión/colisión visual de números de 4 dígitos en escaneo manual.
+  const barcodeValue = `${orderRef}-${order.id.slice(-4).toUpperCase()}`;
+  const barcode = code128(barcodeValue, { moduleWidth: 2, height: 56, quietZone: 8 });
   const itemCount = order.items.reduce((acc, i) => acc + i.quantity, 0);
   const isMrw = /mrw/i.test(order.shippingAddress) || /mrw/i.test(order.trackingCarrier ?? '');
 
@@ -117,7 +120,7 @@ export default async function OrderLabelPage({ params }: PageProps) {
               viewBox={`0 0 ${barcode.width} ${barcode.height}`}
               preserveAspectRatio="xMidYMid meet"
               role="img"
-              aria-label={`Código de barras del pedido ${orderRef}`}
+              aria-label={`Código de barras del pedido ${barcodeValue}`}
             >
               <rect x={0} y={0} width={barcode.width} height={barcode.height} fill="#fff" />
               {barcode.bars.map((b, i) => (
@@ -125,7 +128,7 @@ export default async function OrderLabelPage({ params }: PageProps) {
               ))}
             </svg>
             <div style={{ fontSize: '12px', fontFamily: 'monospace', letterSpacing: '2px', marginTop: '0.5mm' }}>
-              {orderRef}
+              {barcodeValue}
             </div>
           </div>
 
@@ -136,9 +139,19 @@ export default async function OrderLabelPage({ params }: PageProps) {
             {settings.phone ? ` · ${settings.phone}` : ''}
             {settings.address ? ` · ${settings.address}` : ''}
           </div>
+
+          {/* PRD-266: la etiqueta lleva cédula/teléfono/dirección del cliente */}
+          <div style={{ marginTop: '1.5mm', fontSize: '7px', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Documento confidencial — contiene datos personales del destinatario
+          </div>
         </div>
 
-        <p className="no-print text-center text-xs text-gray-400 mt-4">
+        <p className="no-print text-center text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-4">
+          Esta etiqueta contiene datos personales del cliente (C.I., teléfono y dirección).
+          No la dejes a la vista en el mostrador y destruye las copias dañadas o de prueba.
+        </p>
+
+        <p className="no-print text-center text-xs text-gray-400 mt-2">
           Configura tu impresora térmica a 100×150&nbsp;mm (4×6&quot;). El navegador recordará el tamaño tras la primera impresión.
         </p>
       </div>

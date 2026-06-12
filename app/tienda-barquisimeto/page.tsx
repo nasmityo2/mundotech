@@ -7,39 +7,43 @@ import {
 import { googleMapsBusinessUrl, googleMapsEmbedUrl } from '@/lib/google-maps';
 import { readSeoLocal, buildLocalBusinessSchema, describeOpeningHours } from '@/lib/seo-local';
 import { readSettings } from '@/lib/data-store';
+import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
+import JsonLd from '@/app/components/JsonLd';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 const PAGE_URL = `${SITE_URL}/tienda-barquisimeto`;
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Tienda de tecnología y gadgets en Barquisimeto — Mundo Tech',
+  // H26: marca unificada "MundoTech" (sin espacio) + título absoluto para que
+  // el template del layout no duplique la marca (H02/P08).
+  title: { absolute: 'Tienda de tecnología en Barquisimeto | MundoTech' },
   description:
-    'Mundo Tech en el centro de Barquisimeto: tecnología, gadgets y accesorios. Precios USD/Bs., garantía oficial y envío seguro.',
+    'MundoTech en el centro de Barquisimeto: tecnología, gadgets y accesorios con garantía real. Precios en USD y Bs, retiro en tienda y envíos a toda Venezuela.',
   keywords: [
     'tienda tecnología Barquisimeto',
     'gadgets tecnología Barquisimeto',
-    'Mundo Tech Barquisimeto',
+    'MundoTech Barquisimeto',
     'tecnología Lara Venezuela',
     'consolas Barquisimeto',
   ],
   alternates: { canonical: PAGE_URL },
   // og:image heredada de app/opengraph-image.tsx (imagen de marca generada)
   openGraph: {
-    title: 'Mundo Tech Barquisimeto — Conectados Contigo',
+    title: 'MundoTech Barquisimeto — Conectados Contigo',
     description:
-      'Tu tienda en el Centro de Barquisimeto: tecnología, gadgets y accesorios. USD/Bs., garantía oficial.',
+      'Tu tienda en el Centro de Barquisimeto: tecnología, gadgets y accesorios. USD/Bs., garantía real.',
     url: PAGE_URL,
-    siteName: 'Mundo Tech',
+    siteName: 'MundoTech',
     locale: 'es_VE',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Mundo Tech Barquisimeto — Conectados Contigo',
+    title: 'MundoTech Barquisimeto — Conectados Contigo',
     description:
-      'Tecnología y gadgets en Barquisimeto. USD/Bs., garantía oficial.',
+      'Tecnología y gadgets en Barquisimeto. USD/Bs., garantía real.',
   },
 };
 
@@ -59,14 +63,15 @@ const TRUST_ITEMS = [
   { icon: Star,        title: 'Atención personalizada', desc: 'Nuestro equipo te asesora para elegir el mejor producto para ti.' },
 ];
 
-const CATEGORIES = [
-  { label: 'Gadgets y accesorios',   href: '/productos?cat=Accesorios' },
-  { label: 'Consolas gaming',         href: '/productos?cat=Consolas' },
-  { label: 'Computadoras',            href: '/productos?cat=Computadoras' },
-  { label: 'Electrodomésticos',       href: '/productos?cat=Electrodomesticos' },
-  { label: 'Audio y video',           href: '/productos?cat=Audio' },
-  { label: 'Todo el catálogo',        href: '/productos' },
-];
+// P46/H14: cada tarjeta enlaza a la URL canónica /categoria/[slug] resuelta
+// contra la tabla Category (fallback /productos si no existe la categoría).
+const CATEGORY_CARDS = [
+  { label: 'Gadgets y accesorios', category: 'Accesorios' },
+  { label: 'Consolas gaming',      category: 'Consolas' },
+  { label: 'Computadoras',         category: 'Computadoras' },
+  { label: 'Electrodomésticos',    category: 'Electrodomesticos' },
+  { label: 'Audio y video',        category: 'Audio' },
+] as const;
 
 function formatPhoneLink(phone: string | undefined | null): string {
   if (!phone) return '';
@@ -77,7 +82,15 @@ function formatPhoneLink(phone: string | undefined | null): string {
 }
 
 export default async function TiendaBarquisimetoPage() {
-  const [seo, settings] = await Promise.all([readSeoLocal(), readSettings()]);
+  const [seo, settings, ...categoryPaths] = await Promise.all([
+    readSeoLocal(),
+    readSettings(),
+    ...CATEGORY_CARDS.map((c) => resolveCategoryPathFromProductCategory(c.category)),
+  ]);
+  const categoryLinks = [
+    ...CATEGORY_CARDS.map((c, i) => ({ label: c.label, href: categoryPaths[i] })),
+    { label: 'Todo el catálogo', href: '/productos' },
+  ];
   const sameAs = [settings.instagram, settings.facebook].filter(Boolean) as string[];
 
   const mapQuery = `${seo.legalName}, ${seo.streetAddress}, ${seo.addressLocality}, ${seo.addressRegion}, Venezuela`;
@@ -97,19 +110,15 @@ export default async function TiendaBarquisimetoPage() {
       type: 'ElectronicsStore',
       sameAs,
     }),
+    // H29: mismo @id que el LocalBusiness del layout — Google consolida ambas
+    // declaraciones como UNA entidad local (ElectronicsStore ⊂ LocalBusiness).
+    '@id': `${SITE_URL}/#localbusiness`,
     alternateName: settings.storeName,
   };
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
-      />
+      <JsonLd data={[localBusinessSchema, breadcrumbSchema]} />
 
       <div className="pb-12 w-full max-w-full space-y-8 sm:space-y-10">
 
@@ -290,7 +299,7 @@ export default async function TiendaBarquisimetoPage() {
             Tecnología práctica y gadgets con envíos y retiro en tienda.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {CATEGORIES.map(({ label, href }) => (
+            {categoryLinks.map(({ label, href }) => (
               <Link
                 key={label}
                 href={href}

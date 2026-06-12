@@ -3,13 +3,13 @@ import Link from 'next/link';
 import LegalPageLayout from '@/app/components/LegalPageLayout';
 import { readSettings } from '@/lib/data-store';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 const PAGE_URL = `${SITE_URL}/shipping-policy`;
 
 export const metadata: Metadata = {
   title: 'Envíos',
   description:
-    'Cobertura, tiempos y condiciones generales de envío de pedidos realizados en MundoTech.',
+    'Política de envíos de MundoTech Barquisimeto: cobertura nacional por MRW o Zoom, tiempos de despacho tras validar el pago, costos según destino y seguimiento.',
   alternates: { canonical: PAGE_URL },
   robots: { index: true, follow: true },
 };

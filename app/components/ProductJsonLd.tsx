@@ -1,36 +1,28 @@
 /**
  * Inyecta los bloques JSON-LD de Schema.org para una ficha de producto:
- *   • schema:Product  +  schema:Offer
- *   • schema:BreadcrumbList
- *   • schema:LocalBusiness (MundoTech Barquisimeto) — incluido en cada ficha
- *     para reforzar la entidad local en Google.
+ *   • schema:Product + schema:Offer (con @id estable `{url}#product`)
+ *   • schema:BreadcrumbList (alineado 1:1 con el breadcrumb visual de la ficha)
  *
- * Uso: <ProductJsonLd product={product} categoryPath={categoryPath} />
+ * El LocalBusiness ya NO se emite aquí (H01/H07/P20/P24): el layout global lo
+ * publica en todas las páginas con datos vivos de readSeoLocal()/readSettings().
+ * El seller referencia esa entidad vía @id `{SITE_URL}/#organization`.
+ *
+ * R1: este componente solo renderiza — el nombre de tienda llega por props
+ * desde el Server Component padre (que lee readSettings()).
+ *
+ * Uso: <ProductJsonLd product={product} categoryPath={categoryPath} storeName={settings.storeName} />
  * Renderiza solo <script> tags; no emite HTML visible.
  */
 
-import { googleMapsBusinessUrl } from '@/lib/google-maps';
+import JsonLd from '@/app/components/JsonLd';
 import type { Review, ReviewSummary, ProductSpec } from '@/lib/definitions';
 import { parseProductSpecs } from '@/lib/definitions';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 
-// ── Helper: construye URL Cloudinary optimizada para OG (1200×630) ──────────
+// Imágenes en R2 ya optimizadas en upload; usar URL tal cual para JSON-LD / OG.
 function buildOgImageUrl(src: string): string {
-  const CLOUDINARY_BASE = 'https://res.cloudinary.com';
-  if (!src.startsWith(CLOUDINARY_BASE)) return src;
-
-  const uploadMarker = '/image/upload/';
-  const uploadIndex  = src.indexOf(uploadMarker);
-  if (uploadIndex === -1) return src;
-
-  const base       = src.slice(0, uploadIndex + uploadMarker.length);
-  const publicPart = src.slice(uploadIndex + uploadMarker.length);
-  const firstSeg   = publicPart.split('/')[0];
-  const hasTransforms = firstSeg.includes(',') || firstSeg.includes('_');
-  const cleanPart  = hasTransforms ? publicPart.replace(/^[^/]+\//, '') : publicPart;
-
-  return `${base}f_auto,q_auto:good,w_1200,h_630,c_fill/${cleanPart}`;
+  return src;
 }
 
 // ── Helper: elimina etiquetas HTML de un string para uso en JSON-LD ──────────
@@ -60,6 +52,8 @@ interface Props {
   product: ProductForJsonLd;
   /** Ruta desde resolveCategoryPathFromProductCategory (`/categoria/slug` o `/productos`). */
   categoryPath: string;
+  /** Nombre de tienda desde readSettings() (P22/H49: una sola entidad de marca). */
+  storeName: string;
   /** Resumen de reseñas APROBADAS — habilita aggregateRating si count > 0. */
   reviewSummary?: ReviewSummary;
   /** Reseñas APROBADAS para emitir como schema:Review (máx. 5 para no inflar el HTML). */
@@ -67,10 +61,11 @@ interface Props {
 }
 
 // ── Componente ─────────────────────────────────────────────────────────────
-export default function ProductJsonLd({ product, categoryPath, reviewSummary, reviews }: Props) {
+export default function ProductJsonLd({ product, categoryPath, storeName, reviewSummary, reviews }: Props) {
   const baseUrl = SITE_URL.replace(/\/$/, '');
   const categoryItemUrl = `${baseUrl}${categoryPath}`;
   const productUrl = `${baseUrl}/product/${product.slug ?? product.id}`;
+  const productId  = `${productUrl}#product`;
   const mainImage  = product.images[0] ?? '';
   const ogImage    = mainImage ? buildOgImageUrl(mainImage) : '';
 
@@ -81,11 +76,16 @@ export default function ProductJsonLd({ product, categoryPath, reviewSummary, re
 
   // ── 1. Product + Offer ────────────────────────────────────────────────────
   const cleanDescription = stripHtml(product.description)
-    || `${product.name} disponible en MundoTech Barquisimeto. Garantía oficial.`;
+    || `${product.name} disponible en ${storeName} Barquisimeto. Garantía real de 12 meses.`;
 
   const allImages = product.images
     .map((img) => buildOgImageUrl(img))
     .filter(Boolean);
+
+  // P26/P15: Product.image nunca vacío — fallback a la imagen OG de marca.
+  const schemaImages = allImages.length > 0
+    ? allImages
+    : (ogImage ? [ogImage] : [`${baseUrl}/og-default.png`]);
 
   // ── Reseñas: aggregateRating + review (solo con datos reales aprobados) ──────
   const hasRatings = !!reviewSummary && reviewSummary.count > 0;
@@ -100,6 +100,8 @@ export default function ProductJsonLd({ product, categoryPath, reviewSummary, re
     : null;
   const reviewSchema = (reviews ?? []).slice(0, 5).map((r) => ({
     '@type': 'Review',
+    // P77/H53: cada reseña enlaza al @id del producto — grafo conectado.
+    itemReviewed: { '@type': 'Product', '@id': productId },
     reviewRating: {
       '@type': 'Rating',
       ratingValue: String(r.rating),
@@ -119,12 +121,18 @@ export default function ProductJsonLd({ product, categoryPath, reviewSummary, re
     value: s.value,
   }));
 
+  // P75/H51: si hay rebaja, el precio tachado va como UnitPriceSpecification
+  // tipo ListPrice (patrón documentado por Google para "sale price").
+  const hasDiscount =
+    typeof product.originalPrice === 'number' && product.originalPrice > product.price;
+
   const productSchema = {
     '@context': 'https://schema.org',
     '@type': 'Product',
+    '@id': productId,
     name: product.name,
     description: cleanDescription,
-    image: allImages.length > 0 ? allImages : (ogImage ? [ogImage] : []),
+    image: schemaImages,
     sku: product.sku ?? product.id,
     ...(product.brand && {
       brand: { '@type': 'Brand', name: product.brand },
@@ -138,6 +146,16 @@ export default function ProductJsonLd({ product, categoryPath, reviewSummary, re
       '@type': 'Offer',
       price: product.price.toFixed(2),
       priceCurrency: 'USD',
+      ...(hasDiscount
+        ? {
+            priceSpecification: {
+              '@type': 'UnitPriceSpecification',
+              priceType: 'https://schema.org/ListPrice',
+              price: product.originalPrice!.toFixed(2),
+              priceCurrency: 'USD',
+            },
+          }
+        : {}),
       availability:
         product.stock > 0
           ? 'https://schema.org/InStock'
@@ -145,19 +163,30 @@ export default function ProductJsonLd({ product, categoryPath, reviewSummary, re
       itemCondition: 'https://schema.org/NewCondition',
       priceValidUntil,
       url: productUrl,
+      // P22/H49 + P78: seller = entidad Organization del layout (mismo @id).
       seller: {
         '@type': 'Organization',
-        name: 'Mundo Tech',
+        '@id': `${baseUrl}/#organization`,
+        name: storeName,
         url: SITE_URL,
       },
-      // ── Detalles de envío (requerido por Google 2026 para rich results) ──
+      // P94/H66: garantía de 12 meses — alineada con el copy visible del sitio.
+      warranty: {
+        '@type': 'WarrantyPromise',
+        durationOfWarranty: {
+          '@type': 'QuantitativeValue',
+          value: 12,
+          unitCode: 'MON',
+        },
+      },
+      // ── Detalles de envío ──
+      // P21/H09: se eliminó la tarifa fija $5.00 (dato falso — la política real
+      // informa el costo según destino/peso en el checkout). Sin shippingRate
+      // el bloque sigue siendo válido y no emite montos engañosos.
+      // DEPENDENCIA-03: cuando StoreSettings tenga tarifa de envío configurable,
+      // leerla vía readSettings() y reincorporar shippingRate aquí.
       shippingDetails: {
         '@type': 'OfferShippingDetails',
-        shippingRate: {
-          '@type': 'MonetaryAmount',
-          value: '5.00',
-          currency: 'USD',
-        },
         shippingDestination: {
           '@type': 'DefinedRegion',
           addressCountry: 'VE',
@@ -197,11 +226,14 @@ export default function ProductJsonLd({ product, categoryPath, reviewSummary, re
         merchantReturnDays: 7,
         returnMethod: 'https://schema.org/ReturnInStore',
         returnFees: 'https://schema.org/FreeReturn',
+        // P76/H52: enlace a la política real de devoluciones.
+        merchantReturnLink: `${baseUrl}/devoluciones`,
       },
     },
   };
 
   // ── 2. BreadcrumbList ─────────────────────────────────────────────────────
+  // Alineado con el breadcrumb visual: Inicio → Catálogo → Categoría → Producto.
   const breadcrumbSchema = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
@@ -233,75 +265,5 @@ export default function ProductJsonLd({ product, categoryPath, reviewSummary, re
     ],
   };
 
-  // ── 3. LocalBusiness ──────────────────────────────────────────────────────
-  const localBusinessSchema = {
-    '@context': 'https://schema.org',
-    '@type': 'LocalBusiness',
-    name: 'MundoTech',
-    description:
-      'Tecnología y gadgets en Lara y Barquisimeto. Envíos nacionales, USD/Bs., garantía oficial.',
-    url: SITE_URL,
-    telephone: process.env.NEXT_PUBLIC_CONTACT_PHONE ?? '+58-412-1471338',
-    email: process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? 'ventas@mundotech.com.ve',
-    logo: `${SITE_URL}/opengraph-image`,
-    image: `${SITE_URL}/opengraph-image`,
-    address: {
-      '@type': 'PostalAddress',
-      streetAddress: 'CARRERA 21 CON ESQUINA CALLE 21 CENTRO',
-      addressLocality: 'Barquisimeto',
-      addressRegion: 'Lara',
-      postalCode: '3001',
-      addressCountry: 'VE',
-    },
-    geo: {
-      '@type': 'GeoCoordinates',
-      latitude: 10.068287498832946,
-      longitude: -69.3120556394341,
-    },
-    hasMap: googleMapsBusinessUrl(),
-    openingHoursSpecification: [
-    {
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-      opens: '08:30',
-      closes: '17:30',
-    },
-    {
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Saturday'],
-      opens: '08:30',
-      closes: '18:00',
-    },
-    ],
-    priceRange: '$$',
-    currenciesAccepted: 'USD, VES',
-    paymentAccepted: 'Cash, Transferencia, Pago Móvil, Binance Pay',
-    areaServed: [
-      { '@type': 'City', name: 'Barquisimeto' },
-      { '@type': 'State', name: 'Lara' },
-      { '@type': 'Country', name: 'Venezuela' },
-    ],
-    sameAs: [
-      'https://www.instagram.com/mundotech39/',
-      'https://www.facebook.com/p/Mundo-Tech-100090548322161/',
-      process.env.NEXT_PUBLIC_TWITTER_URL,
-    ].filter(Boolean),
-  };
-
-  return (
-    <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
-      />
-    </>
-  );
+  return <JsonLd data={[productSchema, breadcrumbSchema]} />;
 }

@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { isSafeEditableLink } from '@/lib/safe-link';
 
 export const ANNOUNCEMENT_KEY = 'announcement_bar';
 
@@ -15,7 +16,13 @@ const hexColor = z
 export const announcementSchema = z.object({
   active: z.boolean().default(false),
   text: z.string().max(160).default(''),
-  link: z.string().max(300).default(''),
+  // PRD-283: la barra se muestra en TODAS las páginas — el enlace solo puede
+  // ser ruta interna (/...) o https. Bloquea javascript:/data:/http externos.
+  link: z
+    .string()
+    .max(300)
+    .refine(isSafeEditableLink, 'Enlace no permitido: usa una ruta interna (/...) o una URL https.')
+    .default(''),
   bgColor: hexColor.default('#0B1220'),
   textColor: hexColor.default('#FFFFFF'),
 });

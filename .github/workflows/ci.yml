@@ -1,0 +1,77 @@
+# PRD-031: CI mínimo — lint + typecheck + tests + build real contra Postgres
+# limpio (valida también que las migraciones Prisma reproducen la BD: PRD-004).
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  quality:
+    name: Lint, tipos y tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+        env:
+          # postinstall ejecuta `prisma generate` (no necesita BD)
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript
+        run: npm run typecheck
+
+      - name: Tests unitarios
+        run: npm test
+
+  build:
+    name: Migraciones + build de producción
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: mundotech_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/mundotech_ci
+      NEXTAUTH_SECRET: ci-secret-no-real
+      NEXTAUTH_URL: http://localhost:3000
+      CRON_SECRET: ci-cron-secret
+      RESEND_API_KEY: re_ci_dummy
+      RESEND_FROM_ADDRESS: ci@example.com
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Aplicar migraciones a BD limpia (PRD-004)
+        run: npx prisma migrate deploy
+
+      - name: Build de producción
+        run: npm run build

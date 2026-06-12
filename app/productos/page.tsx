@@ -4,31 +4,44 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import ProductGridAndFilters from '@/app/components/ProductGridAndFilters';
 import ProductCardSkeleton from '@/components/ProductCardSkeleton';
+import JsonLd from '@/app/components/JsonLd';
 import RecentlyViewed from '@/components/RecentlyViewed';
 import { ChevronRight, Sparkles } from 'lucide-react';
 import type { Product } from '@/context/ProductContext';
 
-// ISR: reconstruye la página cada hora en el servidor
-export const revalidate = 3600;
+// PRD-140 — ISR: 5 min máximo de obsolescencia para precio/stock del catálogo
+// (complementado con revalidación on-demand al cambiar tasa — PRD-142).
+export const revalidate = 300;
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 
 export const metadata: Metadata = {
-  title: 'Catálogo · Tecnología y gadgets — MundoTech',
+  // H02/P08: el template del layout añade "| MundoTech" — sin marca duplicada.
+  title: 'Catálogo de tecnología y gadgets',
   description:
-    'Catálogo MundoTech Barquisimeto: tecnología práctica, gadgets y accesorios. Filtra por categoría y garantía oficial. USD/Bs.',
+    'Catálogo de MundoTech Barquisimeto: gadgets, consolas, audio, computación y accesorios con garantía real. Pagas en USD o Bs y recibes en toda Venezuela.',
   alternates: {
     canonical: `${SITE_URL}/productos`,
   },
   openGraph: {
-    title: 'Catálogo MundoTech — tecnología y gadgets',
+    title: 'Catálogo de tecnología y gadgets | MundoTech',
     description:
-      'Gadgets, tecnología y accesorios en Barquisimeto. USD/Bs., garantía oficial.',
+      'Gadgets, consolas, audio y accesorios en Barquisimeto. USD/Bs., garantía real.',
     url: `${SITE_URL}/productos`,
     siteName: 'MundoTech',
     locale: 'es_VE',
     type: 'website',
   },
+};
+
+// H39: breadcrumb estructurado del catálogo — alineado con el visual (Inicio → Catálogo).
+const catalogBreadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Inicio',   item: SITE_URL },
+    { '@type': 'ListItem', position: 2, name: 'Catálogo', item: `${SITE_URL}/productos` },
+  ],
 };
 
 // Tipo serializable para pasar al Client Component (sin fechas ni BigInt)
@@ -72,6 +85,8 @@ export default async function ProductosPage() {
 
   return (
     <div className="pb-10 sm:pb-12 w-full max-w-full">
+      <JsonLd data={catalogBreadcrumbSchema} />
+
       {/* Hero + breadcrumb */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-4 sm:p-6 lg:p-8 mb-5 sm:mb-8">
         <nav

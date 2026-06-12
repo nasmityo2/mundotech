@@ -4,7 +4,7 @@ description: >-
   Blindaje multilayer en Next.js (mundotech-ecommerce): rate limit en escritura
   pública, getClientIp, CSRF en Route Handlers, sanitización y Prisma raw seguro,
   headers globales en middleware, gap Redis multi-instancia, validación de env al
-  arranque, anti-enumeración en auth, uploads con magic bytes y Cloudinary.
+  arranque, anti-enumeración en auth, uploads con magic bytes y R2.
   Activar cuando el usuario crea endpoints públicos, agrega analytics, trabaja
   con uploads o toca configuración de seguridad.
 ---
@@ -68,6 +68,6 @@ PASO 9 — UPLOAD SEGURO: VALIDACIÓN DEFENSIVA DE ARCHIVOS
 - En app/api/upload y app/api/checkout/upload-proof: verificar magic bytes del archivo, no solo extensión MIME.
 - Lista blanca de tipos permitidos: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
 - Tamaño máximo: validar antes de leer el buffer completo. Rechazar con 413 si supera el límite configurado.
-- Nombre de archivo: sanitizar con path.basename() y reemplazar por UUID antes de subir a Cloudinary.
-- PROHIBIDO: almacenar archivos en el filesystem del servidor. Siempre Cloudinary como destino final.
+- Nombre de archivo: sanitizar con path.basename() y reemplazar por UUID antes de subir a R2 (`lib/r2.ts` → `buildKey`).
+- PROHIBIDO: almacenar archivos en el filesystem del servidor. Siempre R2 como destino final.
 - Escanear el content-type real del buffer con file-type o similar, no confiar en el header del cliente.

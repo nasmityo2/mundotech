@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 
-import { verifyPasswordResetToken } from '@/app/actions/authActions';
 import ResetPasswordClient from './ResetPasswordClient';
 
 export const metadata: Metadata = {
@@ -8,14 +7,14 @@ export const metadata: Metadata = {
   description: 'Establece una nueva contraseña para tu cuenta MundoTech.',
 };
 
-export default async function ResetPasswordPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ token?: string }>;
-}) {
-  const { token: raw } = await searchParams;
-  const token = typeof raw === 'string' ? raw.trim() : '';
-  const initiallyValid = token.length > 0 ? await verifyPasswordResetToken(token) : false;
-
-  return <ResetPasswordClient token={token} initiallyValid={initiallyValid} />;
+/*
+ * PRD-172 / PRD-224: el token de reset ya NO se lee en el servidor. Llega en
+ * el fragmento de la URL (#token=...), que el navegador no envía al servidor
+ * — sin token en logs SSR ni en historial de proxies. El cliente lo extrae de
+ * location.hash y lo valida vía Server Action (POST, no query string).
+ * Se mantiene compatibilidad de lectura con ?token= para enlaces antiguos
+ * (expiran en 15 min), también solo desde el cliente.
+ */
+export default function ResetPasswordPage() {
+  return <ResetPasswordClient />;
 }

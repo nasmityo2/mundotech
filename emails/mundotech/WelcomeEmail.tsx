@@ -36,7 +36,7 @@ export function WelcomeEmail({ customerName }: Props) {
         </Text>
         <Text style={{ margin: '16px 0 0', fontSize: 15, lineHeight: 1.75, color: MT.textMuted }}>
           Gracias por crear tu cuenta. Somos la tienda del letrero amarillo en el{' '}
-          <strong style={{ color: MT.textPrimary }}>C.C. Minicentro 34 de Barquisimeto</strong>:
+          <strong style={{ color: MT.textPrimary }}>Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001</strong>:
           tecnología, variedades y los productos virales del momento, con stock
           real y atención de gente de verdad.
         </Text>

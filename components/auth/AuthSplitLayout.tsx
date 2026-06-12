@@ -99,7 +99,7 @@ export default function AuthSplitLayout({
             <div className="flex flex-col gap-2 text-[12px] text-slate-500">
               <span className="inline-flex items-start gap-2">
                 <MapPin size={13} className="mt-0.5 flex-shrink-0 text-brand-yellowDk" aria-hidden />
-                Tienda física: C.C. Minicentro 34, Calle 22 — Barquisimeto, Lara.
+                Tienda física: Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001.
               </span>
               <span className="inline-flex items-start gap-2">
                 <ShieldCheck size={13} className="mt-0.5 flex-shrink-0 text-brand-yellowDk" aria-hidden />

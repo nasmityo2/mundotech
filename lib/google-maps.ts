@@ -9,7 +9,7 @@
  */
 
 export const GOOGLE_MAPS_LOCATION_QUERY =
-  'Mundo Tech, Carrera 21 con esquina Calle 21, Centro, Barquisimeto, Lara, Venezuela';
+  'Mundo Tech, Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001, Lara, Venezuela';
 
 export function googleMapsBusinessUrl(query?: string): string {
   const custom = process.env.NEXT_PUBLIC_GOOGLE_MAPS_BUSINESS_URL?.trim();

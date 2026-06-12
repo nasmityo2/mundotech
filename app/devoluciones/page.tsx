@@ -4,7 +4,7 @@ import LegalPageLayout from '@/app/components/LegalPageLayout';
 import { readSettings } from '@/lib/data-store';
 import { whatsappHref } from '@/lib/mundotech-social';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotech.com.ve';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 const PAGE_URL = `${SITE_URL}/devoluciones`;
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Devoluciones y garantía',
   description:
-    'Política de devoluciones y garantía de MundoTech Barquisimeto: 7 días para reportar defectos de fábrica, 12 meses de garantía gestionada directamente en nuestra tienda física.',
+    'Política de devoluciones y garantía de MundoTech Barquisimeto: 7 días para reportar defectos de fábrica y 12 meses de garantía directa en nuestra tienda.',
   alternates: { canonical: PAGE_URL },
 };
 
@@ -23,7 +23,7 @@ const FAQ = [
   },
   {
     q: '¿Qué cubre la garantía de 12 meses?',
-    a: 'Cubre fallas de fabricación del equipo en condiciones normales de uso. La gestionas directamente con nosotros en la tienda del C.C. Minicentro 34 en Barquisimeto — sin intermediarios. No cubre daños por golpes, humedad, mal uso o intervención de terceros.',
+    a: 'Cubre fallas de fabricación del equipo en condiciones normales de uso. La gestionas directamente con nosotros en nuestra tienda en Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001 — sin intermediarios. No cubre daños por golpes, humedad, mal uso o intervención de terceros.',
   },
   {
     q: '¿Cómo hago una devolución si compré por la web?',
@@ -91,7 +91,7 @@ export default async function DevolucionesPage() {
         <p>
           Los equipos vendidos por MundoTech tienen <strong>12 meses de
           garantía por defectos de fabricación</strong>, gestionada directamente
-          en nuestra tienda del C.C. Minicentro 34, Calle 22, Barquisimeto. Tú
+          en nuestra tienda en Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001. Tú
           hablas con nosotros, no con un call center.
         </p>
         <p>La garantía <strong>no cubre</strong>:</p>

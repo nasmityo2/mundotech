@@ -32,33 +32,67 @@ export type StoreSettings = z.infer<typeof storeSettingsSchema>;
 
 const SETTINGS_KEY = 'store_settings';
 
-// Datos verificados del material físico de la tienda (letrero, tarjetas,
-// material de marketing). Si la BD no tiene configuración, esto es lo que ve
-// el cliente — nunca placeholders inventados.
+// PRD-101: los datos de contacto provienen del material físico verificado de la
+// tienda (letrero, tarjetas, marketing). Los datos FINANCIEROS (pago móvil,
+// transferencia) NUNCA llevan placeholders: si la BD no tiene configuración
+// quedan vacíos y el checkout debe ocultarlos (ver hasConfiguredPayments).
+// Un cliente jamás debe ver una cuenta/RIF que no sea real.
 export const DEFAULT_SETTINGS: StoreSettings = {
   storeName:  'MundoTech',
   tagline:    'Conectados Contigo — tecnología, variedades y lo más viral para tu casa. Tienda física en Barquisimeto y envíos a toda Venezuela.',
   phone:      '0412-1471338',
   phone2:     '0414-5709470',
-  email:      'ventas@mundotech.com.ve',
-  address:    'Calle 22 entre carreras 18 y 19, C.C. Minicentro 34 — Barquisimeto, estado Lara.',
+  email:      'ventas@mundotechve.com',
+  address:    'Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001, estado Lara.',
   instagram:  'https://instagram.com/Mundotech39',
   facebook:   '',
-  pagoMovil:  { bank: 'Banesco', phone: '0414-5709470', idNumber: 'V-12.345.678' },
+  // Sin datos bancarios por defecto: deben guardarse desde Admin → Configuración
+  // antes del lanzamiento. storeSettingsSchema exige min(1) al ESCRIBIR, así que
+  // el admin no puede persistir estos vacíos por accidente.
+  pagoMovil:  { bank: '', phone: '', idNumber: '' },
   transferencia: {
-    bank:          'Mercantil',
-    accountNumber: '0105-0000-00-1234567890',
-    accountHolder: 'MundoTech C.A.',
-    rif:           'J-12345678-9',
+    bank:          '',
+    accountNumber: '',
+    accountHolder: '',
+    rif:           '',
   },
 };
+
+/** ¿Hay datos de pago reales configurados? (false = BD vacía → DEFAULT_SETTINGS).
+ *  DEPENDENCIA-02/04 (PRD-101): el checkout/PaymentForm debe ocultar los métodos
+ *  pago móvil/transferencia cuando esto sea false, en vez de mostrar campos vacíos. */
+export function hasConfiguredPayments(settings: StoreSettings): boolean {
+  const pm = settings.pagoMovil;
+  const tr = settings.transferencia;
+  return Boolean(
+    (pm.bank.trim() && pm.phone.trim() && pm.idNumber.trim()) ||
+    (tr.bank.trim() && tr.accountNumber.trim() && tr.accountHolder.trim() && tr.rif.trim()),
+  );
+}
 
 export async function readSettings(): Promise<StoreSettings> {
   try {
     const record = await prisma.appConfig.findUnique({ where: { key: SETTINGS_KEY } });
-    if (!record) return DEFAULT_SETTINGS;
-    return JSON.parse(record.value) as StoreSettings;
-  } catch {
+    if (!record) {
+      // BD accesible pero sin settings guardados: estado esperado en tienda
+      // recién instalada — no es un error, pero conviene dejar rastro en prod.
+      if (process.env.NODE_ENV === 'production') {
+        console.warn('[data-store] AppConfig sin "store_settings" — usando DEFAULT_SETTINGS (sin datos bancarios). Configura Admin → Configuración.');
+      }
+      return DEFAULT_SETTINGS;
+    }
+    // PRD-106: validar el JSON persistido en vez de castear a ciegas; si el
+    // contenido está corrupto se registra el motivo y se degrada a DEFAULT.
+    const parsed = storeSettingsSchema.safeParse(JSON.parse(record.value));
+    if (!parsed.success) {
+      console.error('[data-store] store_settings corrupto en AppConfig — usando DEFAULT_SETTINGS:', parsed.error.flatten().fieldErrors);
+      return DEFAULT_SETTINGS;
+    }
+    return parsed.data;
+  } catch (err) {
+    // PRD-106: antes este catch tragaba el error en silencio → settings ficticios
+    // sin ninguna señal. Se mantiene el fallback (no romper la página) pero con log.
+    console.error('[data-store] readSettings falló (BD inaccesible?) — usando DEFAULT_SETTINGS:', err);
     return DEFAULT_SETTINGS;
   }
 }

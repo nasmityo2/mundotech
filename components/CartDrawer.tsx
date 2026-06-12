@@ -3,13 +3,17 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Minus, ShoppingBag, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useExchangeRate } from '../context/ExchangeRateContext';
 import { formatCurrency } from '../lib/utils';
 import { stashLoginRedirectForPathname } from '@/lib/auth-path';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 const CartDrawer = () => {
   const {
@@ -18,6 +22,8 @@ const CartDrawer = () => {
   } = useCart();
   const router           = useRouter();
   const { status }       = useSession();
+  const { rate, stale }  = useExchangeRate();
+  const panelRef         = useRef<HTMLElement | null>(null);
 
   // Block body scroll while drawer is open (iOS-safe)
   useEffect(() => {
@@ -34,6 +40,49 @@ const CartDrawer = () => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isCartOpen, closeCart]);
+
+  // PRD-117: focus trap — al abrir, el foco entra al panel; Tab/Shift+Tab
+  // ciclan dentro del diálogo; al cerrar, el foco vuelve al disparador.
+  useEffect(() => {
+    if (!isCartOpen) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
+    const focusFirst = window.setTimeout(() => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusables = panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+      (focusables[0] ?? panel).focus();
+    }, 60);
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+        .filter((el) => el.offsetParent !== null);
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last  = focusables[focusables.length - 1];
+      const activeEl = document.activeElement as HTMLElement | null;
+
+      if (e.shiftKey) {
+        if (activeEl === first || !panel.contains(activeEl)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (activeEl === last || !panel.contains(activeEl)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      window.clearTimeout(focusFirst);
+      document.removeEventListener('keydown', onKeyDown, true);
+      previouslyFocused?.focus?.();
+    };
+  }, [isCartOpen]);
 
   const handleCheckout = () => {
     if (status !== 'authenticated') {
@@ -66,6 +115,7 @@ const CartDrawer = () => {
             {/* Panel — does NOT inherit clicks from backdrop */}
             <motion.aside
               key="cart-panel"
+              ref={panelRef}
               role="dialog"
               aria-modal="true"
               aria-label="Carrito de compras"
@@ -206,9 +256,19 @@ const CartDrawer = () => {
                     </div>
                     <div className="flex justify-between items-end pt-2 border-t border-slate-100">
                       <span className="text-sm font-semibold text-navy">Total estimado</span>
-                      <span className="text-2xl font-bold text-navy nums tracking-tight">
-                        {formatCurrency(getCartTotal())}
-                      </span>
+                      <div className="text-right">
+                        <span className="block text-2xl font-bold text-navy nums tracking-tight">
+                          {formatCurrency(getCartTotal())}
+                        </span>
+                        {/* PRD-115: referencia en Bs con la tasa del día; PRD-215: marca si la tasa no se pudo refrescar */}
+                        <span className="block text-[11px] text-slate-500 nums">
+                          ≈ Bs. {new Intl.NumberFormat('es-VE', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          }).format(getCartTotal() * rate)}
+                          {stale ? ' (tasa referencial)' : ''}
+                        </span>
+                      </div>
                     </div>
                   </div>
 

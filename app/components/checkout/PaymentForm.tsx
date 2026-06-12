@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, Building, ChevronRight, Copy, Check, UploadCloud, X, Loader2, Wallet } from 'lucide-react';
+import { Phone, Building, ChevronRight, Copy, Check, UploadCloud, X, Wallet } from 'lucide-react';
 import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 import type { StoreSettings } from '@/lib/data-store';
+import { VENEZUELAN_BANKS } from '@/lib/venezuela-banks';
 
 export type PaymentMethod = 'pagomovil' | 'transferencia' | 'binancepay';
 
@@ -15,7 +16,14 @@ export type PaymentFormData = {
   holderIdNumber:     string;
   holderPhone:        string;
   referenceNumber:    string;
-  proofImageUrl:      string;
+  /**
+   * PRD-049: el archivo se retiene localmente y se sube a Cloudinary recién al
+   * confirmar el pedido (ReviewStep). Antes se subía al seleccionarlo y cada
+   * checkout abandonado dejaba imágenes huérfanas.
+   */
+  proofFile:          File | null;
+  /** Object URL local solo para previsualizar la captura. */
+  proofPreviewUrl:    string;
 };
 
 interface PaymentFormProps {
@@ -26,33 +34,15 @@ interface PaymentFormProps {
   transferencia: StoreSettings['transferencia'];
 }
 
+// DEPENDENCIA-03 (PRD-027 / PRD-130): el Pay ID y el QR de Binance deben vivir
+// en StoreSettings (lib/data-store.ts, dueño 03-INFRA) y llegar por props desde
+// el Server Component padre, como pagoMovil/transferencia. Mientras el schema
+// de settings no tenga esos campos, se mantienen las env públicas.
 const BINANCE_PAY_ID = process.env.NEXT_PUBLIC_MUNDOTECH_BINANCE_PAY_ID?.trim() ?? '';
 const BINANCE_QR_URL = process.env.NEXT_PUBLIC_MUNDOTECH_BINANCE_QR_URL?.trim() ?? '';
 
-// ── Lista de bancos venezolanos ────────────────────────────────────────────────
-export const VENEZUELAN_BANKS = [
-  'Banco de Venezuela',
-  'Banesco',
-  'Banco Mercantil',
-  'BBVA Provincial',
-  'Banco Exterior',
-  'BNC (Banco Nacional de Crédito)',
-  'Bancaribe',
-  'Bancrecer',
-  'Banplus',
-  'Banco del Tesoro',
-  'Banco Bicentenario del Pueblo',
-  'Mi Banco',
-  'Banco Activo',
-  'Venezolano de Crédito',
-  'Banco Fondo Común (BFC)',
-  'Delsur',
-  'Banco Plaza',
-  '100% Banco',
-  'Banco Sofitasa',
-  'Banco de la Fuerza Armada (BANFANB)',
-  'Otro',
-];
+/** Límites espejo de /api/checkout/upload-proof para fallar temprano en cliente. */
+const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 
 const selectCls =
   'block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy';
@@ -64,11 +54,18 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia }: PaymentFormP
   const [holderIdNumber,  setHolderIdNumber]   = useState('');
   const [holderPhone,     setHolderPhone]      = useState('');
   const [referenceNumber, setReferenceNumber]  = useState('');
-  const [proofImageUrl,   setProofImageUrl]    = useState('');
+  const [proofFile,       setProofFile]        = useState<File | null>(null);
+  const [proofPreviewUrl, setProofPreviewUrl]  = useState('');
   const [uploadError,     setUploadError]      = useState<string | null>(null);
-  const [uploading,       setUploading]        = useState(false);
-  const [errors,          setErrors]           = useState<Partial<Record<keyof PaymentFormData, string>>>({});
+  const [errors,          setErrors]           = useState<Partial<Record<'paymentMethod' | 'bank' | 'holderIdNumber' | 'holderPhone' | 'referenceNumber' | 'proofFile', string>>>({});
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Liberar el object URL anterior al reemplazar/quitar la captura.
+  useEffect(() => {
+    return () => {
+      if (proofPreviewUrl) URL.revokeObjectURL(proofPreviewUrl);
+    };
+  }, [proofPreviewUrl]);
 
   const handleCopy = (value: string) => {
     navigator.clipboard.writeText(value).then(() => {
@@ -77,21 +74,23 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia }: PaymentFormP
     });
   };
 
-  const uploadProof = useCallback(async (file: File) => {
-    setUploading(true);
+  const selectProof = useCallback((file: File) => {
     setUploadError(null);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch('/api/checkout/upload-proof', { method: 'POST', body: fd });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (!res.ok || !data.url) throw new Error(data.error ?? 'Error al subir el comprobante.');
-      setProofImageUrl(data.url);
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Error desconocido.');
-    } finally {
-      setUploading(false);
+    if (!file.type.startsWith('image/')) {
+      setUploadError('El comprobante debe ser una imagen (JPG, PNG o WEBP).');
+      return;
     }
+    if (file.size > MAX_PROOF_BYTES) {
+      setUploadError(`La imagen supera el máximo permitido (${MAX_PROOF_BYTES / (1024 * 1024)} MB).`);
+      return;
+    }
+    setProofFile(file);
+    setProofPreviewUrl(URL.createObjectURL(file));
+  }, []);
+
+  const clearProof = useCallback(() => {
+    setProofFile(null);
+    setProofPreviewUrl('');
   }, []);
 
   const validate = (): boolean => {
@@ -101,7 +100,7 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia }: PaymentFormP
       if (!referenceNumber.trim()) {
         e.referenceNumber = 'Ingresa el Order ID o referencia que muestra Binance.';
       }
-      if (!proofImageUrl) e.proofImageUrl = 'Sube la captura de pantalla del pago.';
+      if (!proofFile) e.proofFile = 'Sube la captura de pantalla del pago.';
       setErrors(e);
       return Object.keys(e).length === 0;
     }
@@ -109,7 +108,7 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia }: PaymentFormP
     if (!holderIdNumber.trim()) e.holderIdNumber = 'Ingresa la cédula del titular.';
     if (!holderPhone.trim()) e.holderPhone = 'Ingresa el teléfono.';
     if (!referenceNumber.trim()) e.referenceNumber = 'Ingresa el número de referencia.';
-    if (!proofImageUrl) e.proofImageUrl = 'Sube el comprobante de pago.';
+    if (!proofFile) e.proofFile = 'Sube el comprobante de pago.';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -124,7 +123,8 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia }: PaymentFormP
         holderIdNumber: '',
         holderPhone: '',
         referenceNumber,
-        proofImageUrl,
+        proofFile,
+        proofPreviewUrl,
       });
       return;
     }
@@ -134,7 +134,8 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia }: PaymentFormP
       holderIdNumber,
       holderPhone,
       referenceNumber,
-      proofImageUrl,
+      proofFile,
+      proofPreviewUrl,
     });
   };
 
@@ -326,51 +327,42 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia }: PaymentFormP
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) void uploadProof(file);
+                    if (file) selectProof(file);
                     e.target.value = '';
                   }}
                 />
-                {proofImageUrl ? (
+                {proofPreviewUrl ? (
                   <div className="relative inline-block">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={proofImageUrl}
+                      src={proofPreviewUrl}
                       alt="Captura Binance"
                       className="w-40 h-40 object-cover rounded-xl border border-slate-200 shadow-soft"
                     />
                     <button
                       type="button"
-                      onClick={() => setProofImageUrl('')}
+                      onClick={clearProof}
                       className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center hover:bg-rose-600 transition-colors shadow"
                       aria-label="Eliminar captura"
                     >
                       <X size={12} />
                     </button>
                     <p className="mt-1.5 text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                      <Check size={11} /> Captura cargada
+                      <Check size={11} /> Captura lista — se envía al confirmar el pedido
                     </p>
                   </div>
                 ) : (
                   <button
                     type="button"
-                    disabled={uploading}
                     onClick={() => fileRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-2 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-navy/40 hover:bg-slate-100 rounded-xl py-5 text-sm font-medium text-slate-600 transition disabled:opacity-60"
+                    className="w-full flex items-center justify-center gap-2 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-navy/40 hover:bg-slate-100 rounded-xl py-5 text-sm font-medium text-slate-600 transition"
                   >
-                    {uploading ? (
-                      <>
-                        <Loader2 size={15} className="animate-spin" /> Subiendo…
-                      </>
-                    ) : (
-                      <>
-                        <UploadCloud size={16} /> Subir captura
-                      </>
-                    )}
+                    <UploadCloud size={16} /> Subir captura
                   </button>
                 )}
                 {uploadError && <p className="mt-1.5 text-xs text-rose-500">{uploadError}</p>}
-                {errors.proofImageUrl && !proofImageUrl && (
-                  <p className="mt-1.5 text-xs text-rose-500">{errors.proofImageUrl}</p>
+                {errors.proofFile && !proofFile && (
+                  <p className="mt-1.5 text-xs text-rose-500">{errors.proofFile}</p>
                 )}
               </div>
             </div>
@@ -462,49 +454,46 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia }: PaymentFormP
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) void uploadProof(file);
+                if (file) selectProof(file);
                 e.target.value = '';
               }}
             />
 
-            {proofImageUrl ? (
+            {proofPreviewUrl ? (
               <div className="relative inline-block">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={proofImageUrl}
+                  src={proofPreviewUrl}
                   alt="Comprobante"
                   className="w-40 h-40 object-cover rounded-xl border border-slate-200 shadow-soft"
                 />
                 <button
                   type="button"
-                  onClick={() => setProofImageUrl('')}
+                  onClick={clearProof}
                   className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center hover:bg-rose-600 transition-colors shadow"
                   aria-label="Eliminar comprobante"
                 >
                   <X size={12} />
                 </button>
                 <p className="mt-1.5 text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                  <Check size={11} /> Comprobante cargado
+                  <Check size={11} /> Comprobante listo — se envía al confirmar el pedido
                 </p>
               </div>
             ) : (
               <button
                 type="button"
-                disabled={uploading}
                 onClick={() => fileRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-navy/40 hover:bg-slate-100 rounded-xl py-5 text-sm font-medium text-slate-600 transition disabled:opacity-60"
+                className="w-full flex items-center justify-center gap-2 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-navy/40 hover:bg-slate-100 rounded-xl py-5 text-sm font-medium text-slate-600 transition"
               >
-                {uploading
-                  ? <><Loader2 size={15} className="animate-spin" /> Subiendo…</>
-                  : <><UploadCloud size={16} /> Subir comprobante</>}
+                <UploadCloud size={16} /> Subir comprobante
               </button>
             )}
 
             {uploadError && (
               <p className="mt-1.5 text-xs text-rose-500">{uploadError}</p>
             )}
-            {errors.proofImageUrl && !proofImageUrl && (
-              <p className="mt-1.5 text-xs text-rose-500">{errors.proofImageUrl}</p>
+            {errors.proofFile && !proofFile && (
+              <p className="mt-1.5 text-xs text-rose-500">{errors.proofFile}</p>
             )}
           </div>
         </motion.div>
