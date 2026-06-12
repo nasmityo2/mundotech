@@ -32,3 +32,5 @@ Thumbs.db
 # Artefactos de build / análisis internos
 tsconfig.tsbuildinfo
 analisis.md
+.vercel
+.env*.local
