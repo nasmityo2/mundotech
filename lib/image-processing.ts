@@ -19,6 +19,37 @@ const MIME_TO_EXT: Record<DetectedImageMime, string> = {
   'image/gif': 'gif',
 };
 
+function originalImagePayload(buffer: Buffer, mime: DetectedImageMime): ProcessedImage {
+  return {
+    buffer,
+    contentType: mime,
+    ext: MIME_TO_EXT[mime],
+    width: 0,
+    height: 0,
+  };
+}
+
+/**
+ * Igual que processImage, pero si sharp no carga (p. ej. binario nativo ausente en
+ * el runtime) guarda el buffer original sin convertir — evita 500 en comprobantes.
+ */
+export async function processImageWithFallback(
+  buffer: Buffer,
+  options: { maxWidth: number },
+): Promise<ProcessedImage> {
+  const detectedMime = detectImageMimeFromBuffer(buffer);
+  if (!detectedMime) {
+    throw new Error('Tipo de imagen no reconocido.');
+  }
+
+  try {
+    return await processImage(buffer, options);
+  } catch (err) {
+    console.error('[upload-proof] sharp failed, storing original:', err);
+    return originalImagePayload(buffer, detectedMime);
+  }
+}
+
 /**
  * Redimensiona y convierte a WebP (quality 80), salvo GIF animados que se
  * conservan tal cual para no perder frames.
