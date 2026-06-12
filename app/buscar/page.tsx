@@ -114,7 +114,7 @@ export default async function BuscarPage({ searchParams }: PageProps) {
             {q ? (
               <h1 className="text-[1.4rem] sm:text-2xl md:text-[2rem] font-bold text-navy tracking-tight leading-[1.1]">
                 Resultados para{' '}
-                <span className="text-brand-yellow">"{q}"</span>
+                <span className="text-brand-yellow">&ldquo;{q}&rdquo;</span>
               </h1>
             ) : (
               <h1 className="text-[1.4rem] sm:text-2xl md:text-[2rem] font-bold text-navy tracking-tight leading-[1.1]">
@@ -264,7 +264,7 @@ function NoResultsState({ q, cat, brand }: { q: string; cat: string; brand: stri
       <p className="mt-4 text-lg font-semibold text-navy">Sin resultados</p>
       <p className="mt-1 text-sm text-slate-500 max-w-sm mx-auto">
         No encontramos productos que coincidan con{' '}
-        {q && <><span className="font-medium">"{q}"</span>{(cat || brand) ? ' y' : ''} </>}
+        {q && <><span className="font-medium">&ldquo;{q}&rdquo;</span>{(cat || brand) ? ' y' : ''} </>}
         {cat && <span className="font-medium capitalize">{cat}</span>}
         {brand && cat && ' / '}
         {brand && <span className="font-medium">{brand}</span>}.

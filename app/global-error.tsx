@@ -7,6 +7,7 @@
  * Reporta a Sentry (PRD-033) cuando está configurado.
  */
 import * as Sentry from '@sentry/nextjs';
+import Link from 'next/link';
 import { useEffect } from 'react';
 
 export default function GlobalError({
@@ -83,9 +84,9 @@ export default function GlobalError({
             Reintentar
           </button>
           <p style={{ marginTop: 16 }}>
-            <a href="/" style={{ color: '#FFD700', fontSize: 14, fontWeight: 600 }}>
+            <Link href="/" style={{ color: '#FFD700', fontSize: 14, fontWeight: 600 }}>
               Volver al inicio
-            </a>
+            </Link>
           </p>
         </div>
       </body>

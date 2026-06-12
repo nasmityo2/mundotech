@@ -1,7 +1,7 @@
 > **Documento segmentado** — auditoría producción MundoTech  
 > **Este archivo:** Infraestructura, datos, caché y calidad  
 > **Propietario exclusivo de:** PRD-003–004, PRD-031–036, PRD-040, PRD-056–059, PRD-064–065, PRD-101, PRD-106–107, PRD-121–127, PRD-140–152, PRD-178, PRD-185–189, PRD-204, PRD-211, PRD-217, PRD-232–233  
-> **Hallazgos en este segmento:** 49 · **Cerrados en código (sesión agente 03):** 44 · **Pendientes / dependencia:** 5 ([§Registro de cierre](#registro-de-cierre--sesión-agente-03-infra-datos-caché))  
+> **Hallazgos en este segmento:** 49 · **Cerrados en código (sesión agente 03):** 45 · **Pendientes / dependencia:** 4 ([§Registro de cierre](#registro-de-cierre--sesión-agente-03-infra-datos-caché))  
 > **Índice (solo referencia, sin fixes):** [`00-INDICE`](./ANALISIS-PRODUCCION-00-INDICE.md#progreso-sesión-03--infra-datos-caché)  
 > **SEO (no tocar aquí):** [`ANALISIS-SEO-COMPLETO.md`](./ANALISIS-SEO-COMPLETO.md)  
 > **Orden:** Bloqueadores PRD-003, 004, 101, 140 → schema.prisma (PRD-178, 204, 217, 232) → CI/Sentry → ISR
@@ -69,8 +69,8 @@
 | PRD-211 | [x] | `markCartEmailedAndRotateToken` **antes** de `sendAbandonedCartEmail` |
 | PRD-217 | [x] | `Review.user` ON DELETE SET NULL en schema + migración |
 | PRD-232 | [x] | `CartItem.product` ON DELETE RESTRICT |
-| PRD-188 | [ ] | `GET /api/config/homepage` — no filtrado en sesión 03 |
-| PRD-233 | [ ] | **DEPENDENCIA-05** — `deleteProductAction` en `productActions.ts` |
+| PRD-188 | [x] | `requireAdmin()` en `GET /api/config/homepage` — `app/api/config/homepage/route.ts` L51-53; comentario PRD-255 explica que el GET es exclusivo del editor admin |
+| PRD-233 | [ ] | **DEPENDENCIA-05** — `deleteProductAction` en `productActions.ts` (⛔ no tocar en seg 03) |
 
 ### Migraciones Prisma (aplicar manualmente en prod)
 
@@ -345,7 +345,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | `scripts/add-order-*.sql` | ✅ Eliminados | Consolidados en Prisma Migrate |
 | `scripts/playwright-*.png` | ✅ Eliminados + `.gitignore` | — |
 | `scripts/seed-reviews.ts` | ✅ Guard prod | `SEED_REVIEWS_FORCE=1` para forzar en prod |
-| `.cursor/rules/R2` | [ ] | Menciona `PENDING`/`approved` — actualizar a estados reales |
+| `.cursor/rules/R2` | [x] | Actualizado a estados reales (`'Pendiente'`, `'En Proceso'`, etc.) — ejemplos ingleses removidos |
 | `app/admin/settings/page.tsx` L246 | [x] | Stripe eliminado — sesión 05 (PRD-081) |
 | `@stripe/*` en package.json | ✅ Eliminado | — |
 

@@ -5,7 +5,7 @@
 > **Índice (solo referencia, sin fixes):** [`00-INDICE`](./ANALISIS-PRODUCCION-00-INDICE.md)  
 > **SEO (no tocar aquí):** [`ANALISIS-SEO-COMPLETO.md`](./ANALISIS-SEO-COMPLETO.md)  
 > **Orden:** Contextos → Navbar/carrito → cuenta → reseñas cliente → PRD-276+  
-> **Última implementación:** sesión 04 — 11 jun 2026 (agente UX Cliente)
+> **Última implementación:** sesión 04 — 12 jun 2026 (agente UX Cliente — segunda pasada)
 
 ---
 
@@ -73,9 +73,9 @@
 
 | PRD | Estado | Notas |
 |-----|--------|-------|
-| [x] PRD-167 | `SearchFiltersBar` + `SearchPagination` (`disp=all`) + `search.ts` filtran stock por defecto |
+| [x] PRD-167 | `SearchFiltersBar` toggle «Mostrar agotados» en sidebar + drawer; filtro SSR ✅ |
 | [x] PRD-275 | Cerrado | `admin/categories/page.tsx` corregido en sesión **05-ADMIN** (PRD-221) |
-| [~] PRD-289 | Parcial | `<link rel="search">` en `layout.tsx`; falta `public/opensearch.xml` |
+| [x] PRD-289 | Cerrado | `<link rel="search">` en `layout.tsx` ✅; `public/opensearch.xml` ✅ |
 
 ### Pendiente — dependencia en otro segmento (anotado, no implementar aquí)
 
@@ -90,17 +90,48 @@
 
 | PRD | Motivo |
 |-----|--------|
-| [ ] PRD-071–074, PRD-076–080 | Deuda menor (poweredByHeader, types, Playwright URL, etc.) |
-| [ ] PRD-092 | UX pedidos guest en cuenta |
-| [ ] PRD-094 | `error.tsx` en `account/orders/[id]` |
+| [x] PRD-071 | `poweredByHeader: false` en `next.config.mjs` — sesión 04 segunda pasada |
+| [x] PRD-072 | `aria-label` en input 404 — sesión 04 segunda pasada |
+| [~] PRD-073–074 | Revisados: sin `as any`/`@ts-ignore` en archivos del segmento; deuda no accionable identificada |
+| [x] PRD-076 | Playwright BASE_URL default → `http://localhost:3000` — sesión 04 segunda pasada |
+| [~] PRD-077–080 | Revisados como parte del grupo PRD-071-080; sin spec adicional accionable |
+| [x] PRD-092 | UX pedidos guest: hint + lookup por número en `OrderHistoryClient.tsx` |
+| [x] PRD-094 | `error.tsx` en `app/account/orders/[id]/` |
 | [ ] PRD-214 | Documentado — política WhatsAppFab en funnel; sin acción obligatoria |
-| [ ] PRD-235 | Banner «stock sujeto a confirmación» en ficha |
+| [x] PRD-235 | Banner «stock sujeto a confirmación» en `ProductActions.tsx` |
 | [ ] PRD-272 | Endpoint preview total carrito (opcional) |
-| [ ] PRD-273 | Guard `Number.isFinite` en `formatCurrency` |
-| [ ] PRD-276 | WhatsAppFab SSR sin `setTimeout(1200ms)` |
-| [ ] PRD-277 | Política única FAB en `/cart` vs `/checkout` |
-| [ ] PRD-290 | `public/llms.txt` (recomendación 💡) |
+| [x] PRD-273 | Guard `Number.isFinite` en `formatCurrency` — `lib/utils.ts` |
+| [x] PRD-276 | WhatsAppFab: eliminado `setTimeout(1200ms)`; render inmediato con delay 0.4 s spring |
+| [x] PRD-277 | Política única FAB documentada en `WhatsAppFab.tsx`: visible en `/cart`, oculto en `/checkout` |
+| [x] PRD-290 | `public/llms.txt` — sesión 04 segunda pasada |
 | [~] PRD-062 | Recomendación 💡 — sync wishlist BD; sin acción obligatoria |
+
+### Medio 🟡 — cerrados sesión 04 segunda pasada (12 jun 2026)
+
+| PRD | Archivos |
+|-----|----------|
+| [x] PRD-092 | `components/account/OrderHistoryClient.tsx` — hint + lookup por número de pedido para guest |
+| [x] PRD-167 UI | `app/buscar/SearchFiltersBar.tsx` — toggle «Mostrar agotados» en `FilterPanel` |
+| [x] PRD-235 | `app/product/[slug]/ProductActions.tsx` — banner «stock sujeto a confirmación» |
+| [x] PRD-273 | `lib/utils.ts` — guard `Number.isFinite` en `formatCurrency` |
+| [x] PRD-276 | `app/components/WhatsAppFab.tsx` — eliminado `setTimeout(1200ms)` |
+| [x] PRD-277 | `app/components/WhatsAppFab.tsx` — política `/cart` vs `/checkout` documentada |
+
+### Bajo ⚪ — cerrados sesión 04 segunda pasada (12 jun 2026)
+
+| PRD | Archivos |
+|-----|----------|
+| [x] PRD-071 | `next.config.mjs` — `poweredByHeader: false` |
+| [x] PRD-072 | `app/not-found.tsx` — `aria-label` en input de búsqueda |
+| [x] PRD-076 | `scripts/playwright-checkout.mjs`, `scripts/playwright-register.mjs` — BASE_URL → `localhost:3000` |
+| [x] PRD-094 | `app/account/orders/[id]/error.tsx` — error boundary |
+
+### Recomendaciones 💡 — cerradas sesión 04 segunda pasada
+
+| PRD | Archivos |
+|-----|----------|
+| [x] PRD-289 | `public/opensearch.xml` — descriptor OpenSearch (el `<link rel="search">` ya estaba en `layout.tsx`) |
+| [x] PRD-290 | `public/llms.txt` — política de uso para crawlers de IA |
 
 ### Archivos nuevos (sesión 04)
 
@@ -109,6 +140,14 @@
 | `scripts/generate-placeholder.mjs` | PRD-008 |
 | `public/placeholder-product.png`, `public/placeholder.png` | PRD-008 |
 | `app/actions/productSnapshotActions.ts` | PRD-061, PRD-234 |
+
+### Archivos nuevos (sesión 04 segunda pasada)
+
+| Archivo | PRD(s) |
+|---------|--------|
+| `app/account/orders/[id]/error.tsx` | PRD-094 |
+| `public/opensearch.xml` | PRD-289 |
+| `public/llms.txt` | PRD-290 |
 
 ---
 
@@ -422,8 +461,8 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 ## Checklist día D (solo PRDs críticos de este segmento)
 
 - [x] Añadir placeholders en `public/` (PRD-008) — sesión 04
-- [ ] Completar toggle stock en `/buscar` (PRD-167 parcial)
-- [ ] Publicar `opensearch.xml` si se activa búsqueda del navegador (PRD-289 parcial)
+- [x] Completar toggle stock en `/buscar` (PRD-167) — sesión 04 segunda pasada
+- [x] Publicar `opensearch.xml` (PRD-289) — sesión 04 segunda pasada
 
 ---
 

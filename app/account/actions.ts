@@ -63,7 +63,11 @@ export async function updateUserDetails(data: { name: string; email: string }): 
     return { success: true, message: 'Datos actualizados correctamente.' };
   } catch (error) {
     console.error('Error al actualizar el usuario:', error);
-    if (error instanceof Error && 'code' in error && (error as any).code === 'P2002') {
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as Error & { code?: string }).code === 'P2002'
+    ) {
       return { success: false, message: 'El correo electrónico ya está en uso por otra cuenta.' };
     }
     return { success: false, message: 'Ocurrió un error al guardar los datos.' };

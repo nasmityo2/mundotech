@@ -291,7 +291,7 @@ export default function HomeManagerPage() {
             <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
               <ImageIcon size={36} className="mx-auto text-gray-300 mb-3" />
               <p className="font-bold text-gray-500">Sin categorías</p>
-              <p className="text-sm text-gray-400 mt-1">Haz clic en "Sincronizar" para importar las categorías de tus productos</p>
+              <p className="text-sm text-gray-400 mt-1">Haz clic en &ldquo;Sincronizar&rdquo; para importar las categorías de tus productos</p>
               <button onClick={handleSync} disabled={syncing}
                 className="mt-4 flex items-center gap-2 mx-auto text-xs font-bold px-4 py-2.5 bg-navy text-white rounded-xl hover:bg-navy/90 disabled:opacity-50">
                 {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
@@ -346,7 +346,7 @@ export default function HomeManagerPage() {
       {/* ═══ PROMOCIONES ══════════════════════════════════════════════════════════ */}
       {tab === 'promotions' && (
         <div>
-          <p className="text-sm text-gray-600 mb-5">Edita los <strong>3 banners</strong> de "Ofertas del Día" que aparecen en la página principal.</p>
+          <p className="text-sm text-gray-600 mb-5">Edita los <strong>3 banners</strong> de &ldquo;Ofertas del Día&rdquo; que aparecen en la página principal.</p>
           {loadingPro ? (
             <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-gray-400" /></div>
           ) : (

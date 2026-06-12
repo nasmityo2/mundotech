@@ -241,7 +241,7 @@ const ProductGridAndFilters = ({ initialProducts }: Props) => {
             <p className="text-[13px] sm:text-sm font-semibold text-navy capitalize truncate">
               {filterCategory === 'all' ? 'Todos' : filterCategory}
               {searchTerm && (
-                <span className="text-slate-500 font-normal"> · "{searchTerm}"</span>
+                <span className="text-slate-500 font-normal"> · &ldquo;{searchTerm}&rdquo;</span>
               )}
             </p>
             <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
@@ -300,7 +300,7 @@ const ProductGridAndFilters = ({ initialProducts }: Props) => {
                 onClick={() => setSearchTerm('')}
                 className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors"
               >
-                <span className="truncate max-w-[160px]">"{searchTerm}"</span>
+                <span className="truncate max-w-[160px]">&ldquo;{searchTerm}&rdquo;</span>
                 <X size={12} />
               </button>
             )}

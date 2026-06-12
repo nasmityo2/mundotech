@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import Link from 'next/link';
 import { ChevronRight, Eye } from 'lucide-react';
 import ProductCard from '@/components/ProductCard';
+import { fullProductToCardModel } from '@/lib/search-shared';
 import CartClient from './CartClient';
 import RecentlyViewed from '@/components/RecentlyViewed';
 
@@ -54,12 +55,20 @@ export default async function CartPage() {
             {recommended.map((product) => (
               <ProductCard
                 key={product.id}
-                product={{
-                  ...product,
+                product={fullProductToCardModel({
+                  id: product.id,
+                  slug: product.slug,
+                  name: product.name,
+                  description: product.description ?? '',
+                  price: product.price,
+                  originalPrice: product.originalPrice,
+                  stock: product.stock,
+                  category: product.category,
+                  brand: product.brand,
                   image: product.images[0] || '/placeholder-product.png',
-                  description: product.description || '',
+                  images: product.images,
                   details: {},
-                } as any}
+                })}
               />
             ))}
           </div>

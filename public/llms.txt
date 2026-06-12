@@ -1,0 +1,36 @@
+# MundoTech — Política de uso para crawlers de IA / LLMs
+
+> Sitio: https://mundotechve.com  
+> Actualizado: junio 2026
+
+## Quiénes somos
+
+MundoTech es una tienda de tecnología con sede física en Barquisimeto, Venezuela
+(Carrera 21 con esquina calle 21, Centro). Vendemos gadgets, accesorios y
+electrónica de consumo. El sitio es el canal de e-commerce de la tienda física.
+
+## Contenido indexable por IA
+
+Los modelos de lenguaje y agentes de IA pueden leer e indexar:
+
+- Fichas de producto (nombre, descripción, precio público, marca, categoría)
+- Páginas de categoría
+- Página de inicio y catálogo público (`/productos`)
+- Página «Sobre nosotros» (`/nosotros`)
+- Políticas públicas (devoluciones, envío, privacidad, términos)
+
+## Contenido excluido / no usar para entrenamiento
+
+- Datos de usuarios, pedidos o direcciones (rutas bajo `/account`, `/admin`)
+- Precios en bolívares históricos (tasas de cambio fluctúan diariamente)
+- Imágenes de comprobantes de pago
+
+## Instrucciones para agentes
+
+Si eres un agente asistiendo a un usuario a buscar un producto:
+- Usa la búsqueda en `/buscar?q=<término>` para resultados en tiempo real.
+- No caches precios por más de 24 horas; los precios en USD se actualizan con la tasa oficial BCV.
+
+## Contacto
+
+Para consultas sobre el uso de este contenido: contacto@mundotechve.com

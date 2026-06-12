@@ -485,7 +485,7 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
 
                 {specs.length === 0 ? (
                   <p className="text-xs text-gray-400 italic">
-                    Sin especificaciones. Añade filas como "RAM / 8 GB", "Pantalla / 6.7 pulgadas", etc.
+                    Sin especificaciones. Añade filas como &ldquo;RAM / 8 GB&rdquo;, &ldquo;Pantalla / 6.7 pulgadas&rdquo;, etc.
                   </p>
                 ) : (
                   <div className="space-y-2">

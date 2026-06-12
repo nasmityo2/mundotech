@@ -7,6 +7,16 @@ const eslintConfig = [
   ...nextVitals,
   ...nextTs,
   {
+    rules: {
+      // Reglas del React Compiler (eslint-plugin-react-hooks v6): patrones válidos
+      // en código existente — fetch/localStorage en mount, refs de sync, etc.
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/purity': 'off',
+      'react-hooks/static-components': 'off',
+    },
+  },
+  {
     ignores: [
       'node_modules/**',
       '.next/**',

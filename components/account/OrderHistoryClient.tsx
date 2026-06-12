@@ -4,7 +4,8 @@ import { Order, type OrderStatus } from '@/lib/definitions';
 import { orderPathSegment } from '@/lib/order-ref';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import { useRouter } from 'next/navigation';
-import { ShoppingBag, ChevronRight, Package, ArrowRight, Truck } from 'lucide-react';
+import { useState } from 'react';
+import { ShoppingBag, ChevronRight, Package, ArrowRight, Truck, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 
 interface OrderHistoryClientProps {
@@ -26,6 +27,7 @@ const statusConfig = {
 
 export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) {
   const router = useRouter();
+  const [guestRef, setGuestRef] = useState('');
 
   if (orders.length === 0) {
     return (
@@ -46,6 +48,44 @@ export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) 
           >
             Explorar productos <ArrowRight size={15} />
           </button>
+        </div>
+
+        {/* PRD-092: pedidos realizados como invitado no aparecen en el historial
+            de cuenta. El cliente puede consultarlos directamente por número. */}
+        <div className="mt-5 bg-slate-50 rounded-2xl border border-slate-200/60 px-6 py-5">
+          <p className="text-sm font-semibold text-navy mb-1 flex items-center gap-2">
+            <Search size={15} className="text-slate-400" />
+            ¿Compraste como invitado?
+          </p>
+          <p className="text-xs text-slate-500 mb-3">
+            Los pedidos realizados sin cuenta no aparecen aquí, pero puedes
+            consultarlos con tu número de pedido (lo recibiste por correo).
+          </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const ref = guestRef.trim();
+              if (!ref) return;
+              router.push(`/account/orders/${encodeURIComponent(ref)}`);
+            }}
+            className="flex gap-2 max-w-sm"
+          >
+            <input
+              type="text"
+              value={guestRef}
+              onChange={(e) => setGuestRef(e.target.value)}
+              placeholder="Ej: 0042 o número completo"
+              aria-label="Número de pedido"
+              className="flex-1 min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-navy placeholder-slate-400 outline-none focus:border-navy focus:ring-1 focus:ring-navy/20"
+            />
+            <button
+              type="submit"
+              disabled={!guestRef.trim()}
+              className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-bold px-4 rounded-xl h-10 hover:bg-navy-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Buscar
+            </button>
+          </form>
         </div>
       </div>
     );

@@ -155,6 +155,14 @@ export default function ProductActions({ product }: { product: Product }) {
             )}
           </button>
         )}
+
+        {/* PRD-235: La disponibilidad mostrada es ISR (caché hasta 5 min).
+            El checkout confirma stock real en tiempo de transacción. */}
+        {!isOut && (
+          <p className="text-[11px] text-slate-400 text-center leading-tight px-1">
+            Stock sujeto a confirmación al completar la compra.
+          </p>
+        )}
       </div>
 
       {/* ── Formulario "Avísame cuando haya stock" ── */}

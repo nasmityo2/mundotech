@@ -35,6 +35,9 @@ if (r2Pattern) {
 }
 
 const nextConfig = {
+  // PRD-071: no exponer el framework al servidor ("X-Powered-By: Next.js").
+  poweredByHeader: false,
+
   serverExternalPackages: ['@prisma/client', '.prisma/client', 'sharp', '@aws-sdk/client-s3'],
 
   async headers() {

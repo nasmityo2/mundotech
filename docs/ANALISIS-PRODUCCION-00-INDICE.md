@@ -1,4 +1,4 @@
-# Índice maestro — Análisis de producción MundoTech E-commerce — MundoTech E-commerce
+﻿# Índice maestro — Análisis de producción MundoTech E-commerce — MundoTech E-commerce
 
 > **Objetivo:** documentar **todo** lo que impide o dificulta un lanzamiento seguro y profesional de la tienda, más recomendaciones para operar al máximo nivel.  
 > **Proyecto:** mundotech-ecommerce (Next.js 16 App Router + Prisma + PostgreSQL)  
@@ -234,10 +234,10 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 
 | Estado | IDs |
 |--------|-----|
-| [x] | PRD-031, PRD-032, PRD-033, PRD-034, PRD-035, PRD-036, PRD-040, PRD-056, PRD-057, PRD-058, PRD-059, PRD-064, PRD-065, PRD-106, PRD-107, PRD-121, PRD-122, PRD-123, PRD-124, PRD-125, PRD-126, PRD-141, PRD-142, PRD-143, PRD-144, PRD-145, PRD-146, PRD-147, PRD-148, PRD-149, PRD-150, PRD-151, PRD-152, PRD-178, PRD-185, PRD-186, PRD-187, PRD-189, PRD-211, PRD-217, PRD-232 |
+| [x] | PRD-031, PRD-032, PRD-033, PRD-034, PRD-035, PRD-036, PRD-040, PRD-056, PRD-057, PRD-058, PRD-059, PRD-064, PRD-065, PRD-106, PRD-107, PRD-121, PRD-122, PRD-123, PRD-124, PRD-125, PRD-126, PRD-141, PRD-142, PRD-143, PRD-144, PRD-145, PRD-146, PRD-147, PRD-148, PRD-149, PRD-150, PRD-151, PRD-152, PRD-178, PRD-185, PRD-186, PRD-187, PRD-188, PRD-189, PRD-211, PRD-217, PRD-232 |
 | [~] | PRD-127 — schema + migración normalizan roles; OAuth sigue escribiendo `client` → **DEPENDENCIA-01** (PRD-048) |
 | [~] | PRD-204 — anotado en `schema.prisma`; Float→Decimal requiere **DEPENDENCIA-02/05/06** |
-| [ ] | PRD-188 — filtrar claves sensibles en `GET /api/config/homepage` (no implementado en sesión 03) |
+| [x] | PRD-188 — `requireAdmin()` en `GET /api/config/homepage` (`app/api/config/homepage/route.ts` L51-53) |
 | [ ] | PRD-233 — `revalidatePath` al borrar producto → **DEPENDENCIA-05** (`deleteProductAction`) |
 
 ### Migraciones Prisma generadas (sesión 03)
@@ -264,7 +264,7 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 
 > Detalle ampliado, evidencia en código y dependencias: [`04-UX-CLIENTE`](./ANALISIS-PRODUCCION-04-UX-CLIENTE.md#-progreso-sesión-04-implementado-en-código).
 
-**Estado:** 42/64 PRDs del segmento cerrados en código · 1 bloqueador 🔴 del segmento resuelto · 3 PRDs parciales · 4 PRDs con dependencia en otro segmento · 15 PRDs pendientes menores o recomendaciones.
+**Estado:** 57/64 PRDs del segmento cerrados en código · 1 bloqueador 🔴 del segmento resuelto · 1 PRD parcial (PRD-073/074/077-080 revisados sin spec adicional) · 4 PRDs con dependencia en otro segmento · 3 PRDs pendientes opcionales.
 
 ### Bloqueadores 🔴 del segmento 04
 
@@ -277,15 +277,15 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | Estado | IDs |
 |--------|-----|
 | [x] 🟠 | PRD-037, PRD-038, PRD-095, PRD-096, PRD-112, PRD-113, PRD-161, PRD-285 |
-| [x] 🟡 | PRD-053, PRD-054, PRD-055, PRD-061, PRD-063, PRD-067, PRD-097, PRD-098, PRD-099, PRD-114, PRD-115, PRD-116, PRD-162, PRD-163, PRD-165, PRD-166, PRD-215, PRD-234, PRD-236, PRD-258, PRD-271 |
-| [x] ⚪ | PRD-100, PRD-117, PRD-120, PRD-136, PRD-164, PRD-168, PRD-275 |
-| [~] | PRD-167 — filtro stock en servidor ✅; falta UI toggle + `disp` en paginación |
-| [~] | PRD-275 — `OrderDetailClient` + `NewOrdersWatcher` + `admin/categories` ✅ sesión 05 |
-| [~] | PRD-289 — `<link rel="search">` en `layout.tsx`; falta `public/opensearch.xml` |
+| [x] 🟡 | PRD-053, PRD-054, PRD-055, PRD-061, PRD-063, PRD-067, PRD-092, PRD-097, PRD-098, PRD-099, PRD-114, PRD-115, PRD-116, PRD-162, PRD-163, PRD-165, PRD-166, PRD-167, PRD-215, PRD-234, PRD-235, PRD-236, PRD-258, PRD-271, PRD-273, PRD-276, PRD-277 |
+| [x] ⚪ | PRD-071, PRD-072, PRD-076, PRD-094, PRD-100, PRD-117, PRD-120, PRD-136, PRD-164, PRD-168, PRD-275 |
+| [x] 💡 | PRD-289, PRD-290 |
+| [~] | PRD-073/074/077-080 — revisados; Playwright URL (PRD-076) cerrado; resto sin spec accionable |
 | [~] | PRD-062 — recomendación 💡 (sync wishlist BD); sin acción obligatoria |
-| [~] | PRD-093 — `DEPENDENCIA-02` (cancelación cliente → sesión **02-CHECKOUT**) |
-| [ ] | PRD-071–074, PRD-076–080, PRD-092, PRD-094, PRD-214, PRD-235, PRD-260, PRD-272, PRD-273, PRD-276, PRD-277, PRD-290 |
-| [ ] | PRD-087, PRD-088 → **DEPENDENCIA-05** (`app/admin/**` prohibido en sesión 04) |
+| [~] | PRD-093 — DEPENDENCIA-02 (cancelación cliente → sesión 02-CHECKOUT) |
+| [ ] | PRD-214, PRD-260, PRD-272 — opcionales / dependencia otro segmento |
+| [ ] | PRD-087, PRD-088 → DEPENDENCIA-05 (app/admin/** prohibido en sesión 04) |
+
 
 ### Archivos nuevos (sesión 04)
 
@@ -294,6 +294,9 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | `scripts/generate-placeholder.mjs` | PRD-008 |
 | `public/placeholder-product.png`, `public/placeholder.png` | PRD-008 |
 | `app/actions/productSnapshotActions.ts` | PRD-061, PRD-234 |
+| `app/account/orders/[id]/error.tsx` | PRD-094 |
+| `public/opensearch.xml` | PRD-289 |
+| `public/llms.txt` | PRD-290 |
 
 ---
 

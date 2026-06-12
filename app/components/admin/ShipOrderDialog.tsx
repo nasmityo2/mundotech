@@ -188,7 +188,7 @@ export default function ShipOrderDialog({
               placeholder="https://www.mrw.com.ve/track/12345678"
               className="w-full min-h-[48px] px-3.5 py-2 border border-gray-200 rounded-xl bg-gray-50 text-base focus:outline-none focus:ring-2 focus:ring-navy/20"
             />
-            <p className="text-[11px] text-gray-500 mt-1">Si la pegas, el cliente verá un botón "Rastrear envío".</p>
+            <p className="text-[11px] text-gray-500 mt-1">Si la pegas, el cliente verá un botón &ldquo;Rastrear envío&rdquo;.</p>
           </div>
 
           <PhotoUploader

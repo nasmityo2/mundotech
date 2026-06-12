@@ -6,6 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number, currency = 'USD', locale = 'es-US'): string {
+  if (!Number.isFinite(amount)) {
+    return currency === 'USD' ? '$-.--' : `-.-- ${currency}`;
+  }
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,

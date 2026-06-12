@@ -19,6 +19,24 @@ const formatDateTime = (iso: string | null | undefined) => {
   });
 };
 
+function PaymentDetailRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value?: string | null;
+  mono?: boolean;
+}) {
+  if (!value) return null;
+  return (
+    <div className="flex justify-between gap-2">
+      <dt className="text-gray-500">{label}</dt>
+      <dd className={`text-right ${mono ? 'font-mono font-semibold text-navy break-all' : 'font-medium text-gray-800'}`}>{value}</dd>
+    </div>
+  );
+}
+
 export function PaymentVerificationPanel({
   order,
   onUpdate,
@@ -33,14 +51,6 @@ export function PaymentVerificationPanel({
   const isVerified = !!order.paidAt && ['En Proceso', 'Enviado', 'Entregado'].includes(order.status);
   const isRejected = order.status === 'Cancelado' && !!order.paymentRejectionReason;
   const canAct = isPending || isPendingBinance;
-
-  const Row = ({ label, value, mono }: { label: string; value?: string | null; mono?: boolean }) =>
-    value ? (
-      <div className="flex justify-between gap-2">
-        <dt className="text-gray-500">{label}</dt>
-        <dd className={`text-right ${mono ? 'font-mono font-semibold text-navy break-all' : 'font-medium text-gray-800'}`}>{value}</dd>
-      </div>
-    ) : null;
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-4">
@@ -63,11 +73,11 @@ export function PaymentVerificationPanel({
 
       {/* Datos declarados por el cliente */}
       <dl className="text-sm space-y-1.5">
-        <Row label="Método" value={order.paymentMethod} />
-        <Row label="Banco" value={order.paymentBank} />
-        <Row label="Referencia" value={order.paymentReference} mono />
-        <Row label="Cédula titular" value={order.paymentHolderIdNumber} />
-        <Row label="Teléfono titular" value={order.paymentHolderPhone} />
+        <PaymentDetailRow label="Método" value={order.paymentMethod} />
+        <PaymentDetailRow label="Banco" value={order.paymentBank} />
+        <PaymentDetailRow label="Referencia" value={order.paymentReference} mono />
+        <PaymentDetailRow label="Cédula titular" value={order.paymentHolderIdNumber} />
+        <PaymentDetailRow label="Teléfono titular" value={order.paymentHolderPhone} />
         <div className="flex justify-between gap-2 pt-1.5 mt-1.5 border-t border-gray-100 items-end">
           <dt className="text-gray-500 font-semibold">Monto a verificar</dt>
           <dd><DualOrderMoney amount={order.total} order={order} variant="admin" emphasis="total" /></dd>

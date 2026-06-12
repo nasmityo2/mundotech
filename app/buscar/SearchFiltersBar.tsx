@@ -10,6 +10,7 @@ import {
   Cpu,
   X,
   PackageCheck,
+  PackageX,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -256,6 +257,42 @@ function FilterPanel({
             </ul>
           </div>
         </div>
+      </div>
+
+      {/* PRD-167: Toggle "incluir agotados" — por defecto solo se muestran
+          productos con stock > 0. disp=all incluye los agotados. */}
+      <div className="border-b border-slate-100 last:border-b-0">
+        <button
+          type="button"
+          onClick={() =>
+            router.push(
+              buildHref(q, currentCat, currentBrand, currentSort, !includeOutOfStock),
+            )
+          }
+          aria-pressed={includeOutOfStock}
+          className="flex items-center justify-between w-full px-5 h-12 text-left text-navy hover:bg-slate-50 transition-colors"
+        >
+          <span className="flex items-center gap-2.5 text-[13px] font-semibold tracking-tight">
+            {includeOutOfStock ? (
+              <PackageX size={14} className="text-slate-400" />
+            ) : (
+              <PackageCheck size={14} className="text-slate-400" />
+            )}
+            Mostrar agotados
+          </span>
+          <span
+            className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors duration-200 ${
+              includeOutOfStock ? 'bg-navy' : 'bg-slate-200'
+            }`}
+            aria-hidden
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                includeOutOfStock ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </span>
+        </button>
       </div>
 
       <div className="px-5 py-3.5 bg-slate-50">

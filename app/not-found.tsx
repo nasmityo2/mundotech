@@ -68,6 +68,7 @@ export default async function NotFound() {
             type="search"
             name="q"
             placeholder="Buscar productos…"
+            aria-label="Buscar en el catálogo"
             autoComplete="off"
             className="w-full bg-white border border-border rounded-xl pl-12 pr-28 py-3.5 text-navy placeholder-navy-300 text-sm shadow-soft focus:outline-none focus:ring-2 focus:ring-brand-yellow/40 focus:border-brand-yellow transition-all"
           />
