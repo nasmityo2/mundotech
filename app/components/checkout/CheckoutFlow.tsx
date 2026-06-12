@@ -24,9 +24,13 @@ interface CheckoutFlowProps {
   transferencia: StoreSettings['transferencia'];
   /** PRD-067: teléfono de soporte desde readSettings() (R1) — sin hardcode. */
   supportPhone?: string;
+  /** PRD-027/130: Binance Pay ID desde readSettings(). Vacío = método oculto. */
+  binancePayId?: string;
+  /** PRD-027/130: URL del QR de Binance desde readSettings(). */
+  binanceQrUrl?: string;
 }
 
-const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone }: CheckoutFlowProps) => {
+const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, binanceQrUrl }: CheckoutFlowProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection]     = useState<1 | -1>(1);
   const [shippingData, setShippingData] = useState<ShippingFormData | null>(null);
@@ -95,6 +99,8 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone }: CheckoutFlowPr
           onBack={handleBack}
           pagoMovil={pagoMovil}
           transferencia={transferencia}
+          binancePayId={binancePayId}
+          binanceQrUrl={binanceQrUrl}
         />
       );
       case 2: return <ReviewStep shippingData={shippingData} paymentData={paymentData} />;

@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import {
   ArrowLeft, Truck, MapPin, CreditCard, CheckCircle2, Package, Send, Home,
-  ExternalLink, Copy, Check, Camera,
+  ExternalLink, Copy, Check, Camera, XCircle,
 } from 'lucide-react';
 import { EnrichedOrder } from '@/app/account/orders/[id]/page';
 import { Badge } from '@/components/ui/Badge';
+import { useToast } from '@/components/ui/use-toast';
 import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
 import { DualOrderMoney, OrderFrozenRateBanner } from '@/components/order/DualOrderMoney';
+import { canOwnerCancelOrder } from '@/lib/checkout-order';
 import type { OrderStatus } from '@/lib/definitions';
 
 interface OrderDetailClientProps {
@@ -47,7 +49,9 @@ const timelineIndex = (status: string) => {
 
 export default function OrderDetailClient({ order }: OrderDetailClientProps) {
   const router = useRouter();
+  const { toast } = useToast();
   const [trackingCopied, setTrackingCopied] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const status =
     statusConfig[order.status as keyof typeof statusConfig] ??
@@ -55,11 +59,44 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
   const currentStepIdx = timelineIndex(order.status);
   const isCancelled = order.status === ('Cancelado' satisfies OrderStatus);
   const hasTracking = !!(order.trackingNumber || order.trackingCarrier || order.trackingUrl || order.trackingPhotoUrl);
+  const showCancelButton = canOwnerCancelOrder(order);
 
-  // PRD-093: la cancelación de pedido por el cliente requiere el endpoint de
-  // cancelación con reversión de stock/cupón — vive en el segmento 02.
-  // DEPENDENCIA-02 (app/api/orders/[id] DELETE es admin-only hoy): no se
-  // implementa el botón "Cancelar pedido" desde este segmento.
+  const handleCancelOrder = async () => {
+    const confirmed = window.confirm(
+      '¿Cancelar este pedido? Se restaurará el stock y, si usaste un cupón, volverá a estar disponible.',
+    );
+    if (!confirmed) return;
+
+    setCancelLoading(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/cancel`, { method: 'POST' });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        toast({
+          variant: 'destructive',
+          title: 'No se pudo cancelar',
+          description: (data as { error?: string } | null)?.error ?? 'Intenta de nuevo en unos momentos.',
+        });
+        return;
+      }
+
+      toast({
+        title: 'Pedido cancelado',
+        description: 'Tu pedido fue cancelado correctamente.',
+      });
+      router.refresh();
+    } catch (err) {
+      console.error('[OrderDetailClient] Error al cancelar pedido:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'No se pudo cancelar el pedido. Intenta de nuevo.',
+      });
+    } finally {
+      setCancelLoading(false);
+    }
+  };
 
   const copyTrackingNumber = async () => {
     if (!order.trackingNumber) return;
@@ -91,7 +128,20 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
             </h1>
             <p className="text-sm text-slate-500 mt-1.5">Realizado el {formatDate(order.createdAt)}</p>
           </div>
-          <Badge variant={status.variant} size="lg">{status.label}</Badge>
+          <div className="flex flex-col items-start sm:items-end gap-3">
+            <Badge variant={status.variant} size="lg">{status.label}</Badge>
+            {showCancelButton && (
+              <button
+                type="button"
+                onClick={handleCancelOrder}
+                disabled={cancelLoading}
+                className="inline-flex items-center justify-center gap-1.5 min-h-[40px] px-4 text-sm font-semibold rounded-xl border border-red-200 text-red-700 bg-red-50 hover:bg-red-100 active:bg-red-100/80 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              >
+                <XCircle size={15} />
+                {cancelLoading ? 'Cancelando…' : 'Cancelar pedido'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Timeline visual */}

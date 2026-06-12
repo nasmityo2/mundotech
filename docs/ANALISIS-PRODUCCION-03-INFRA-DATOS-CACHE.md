@@ -1,7 +1,7 @@
 > **Documento segmentado** — auditoría producción MundoTech  
 > **Este archivo:** Infraestructura, datos, caché y calidad  
 > **Propietario exclusivo de:** PRD-003–004, PRD-031–036, PRD-040, PRD-056–059, PRD-064–065, PRD-101, PRD-106–107, PRD-121–127, PRD-140–152, PRD-178, PRD-185–189, PRD-204, PRD-211, PRD-217, PRD-232–233  
-> **Hallazgos en este segmento:** 49 · **Cerrados en código (sesión agente 03):** 45 · **Pendientes / dependencia:** 4 ([§Registro de cierre](#registro-de-cierre--sesión-agente-03-infra-datos-caché))  
+> **Hallazgos en este segmento:** 49 · **Cerrados en código:** 47 · **Pendientes / dependencia:** 2 ([§Registro de cierre](#registro-de-cierre--sesión-agente-03-infra-datos-caché)) — PRD-233 cerrado vía sesión 05 · PRD-127/204 cerrados bloque Seguridad/Datos 12 jun 2026  
 > **Índice (solo referencia, sin fixes):** [`00-INDICE`](./ANALISIS-PRODUCCION-00-INDICE.md#progreso-sesión-03--infra-datos-caché)  
 > **SEO (no tocar aquí):** [`ANALISIS-SEO-COMPLETO.md`](./ANALISIS-SEO-COMPLETO.md)  
 > **Orden:** Bloqueadores PRD-003, 004, 101, 140 → schema.prisma (PRD-178, 204, 217, 232) → CI/Sentry → ISR
@@ -19,7 +19,7 @@
 | PRD-003 | [x] | `lib/db.json` eliminado; `.gitignore` L15–16; instrucciones `git filter-repo` en [`README.md`](../README.md) § Remediación PII |
 | PRD-143 | [x] | Duplicado PRD-003 — mismo cierre |
 | PRD-004 | [x] | `.gitignore` ya no ignora `prisma/migrations/`; baseline + diff en `prisma/migrations/`; CI job `build` → `prisma migrate deploy` |
-| PRD-101 | [x] | `lib/data-store.ts` — `DEFAULT_SETTINGS` sin RIF/cuenta ficticia; `hasConfiguredPayments()`; tests en `tests/data-store.test.ts`. **Manual:** Admin → settings reales. **DEPENDENCIA-02/04:** ocultar métodos vacíos en checkout |
+| PRD-101 | [x] | `lib/data-store.ts` — `DEFAULT_SETTINGS` sin RIF/cuenta ficticia; `hasConfiguredPayments()`; tests en `tests/data-store.test.ts`. **Manual:** Admin → settings reales. **DEPENDENCIA-02/04:** ocultar métodos vacíos en checkout. **12 jun 2026:** `binancePayId`/`binanceQrUrl` en schema (PRD-027/130 consumidos por sesión 02) |
 | PRD-140 | [x] | `revalidate = 300` en `app/page.tsx`, `productos/`, `categoria/[slug]/`, `product/[slug]/`; `configActions.updateExchangeRate` invalida layout + rutas ISR (PRD-142). **DEPENDENCIA-02/05:** revalidación en `quickUpdate*` y `deleteProductAction` |
 
 ### Infra, CI, observabilidad (🟠)
@@ -53,7 +53,7 @@
 | PRD-124 | [x] | Categoría por `Product.category` String (FK `categoryId` revertida del schema — drift Neon Jun 2026) |
 | PRD-125 | [x] | Índice `Order_customerEmail_idx` |
 | PRD-126 | [x] | `app/api/cron/purge-product-views/route.ts` + cron semanal en `vercel.json` |
-| PRD-127 | [~] | Default `CLIENT` + normalización SQL; OAuth `client` → **DEPENDENCIA-01** PRD-048 |
+| PRD-127 | [x] | Default `CLIENT` + OAuth create con `role: 'CLIENT'` — `auth/[...nextauth]/route.ts` |
 | PRD-141 | [x] | `Cache-Control: no-store` en GET reviews API |
 | PRD-145 | [x] | Resuelto con eliminación `lib/db.json` |
 | PRD-148 | [x] | PNGs Playwright eliminados + `.gitignore` |
@@ -65,12 +65,12 @@
 | PRD-186 | [x] | Sync categorías — `imageUrl: null` (sin Unsplash) |
 | PRD-187 | [x] | `migrate-slugs/route.ts` — `$transaction` batch |
 | PRD-189 | [x] | `FlashDeals.tsx` — countdown `America/Caracas` |
-| PRD-204 | [~] | Comentarios DEPENDENCIA en schema; Float sin migrar a Decimal |
+| PRD-204 | [x] | `Decimal(12,2/4)` en schema; migración; `lib/decimal.ts`; consumidores en checkout/stats/emails/catálogo |
 | PRD-211 | [x] | `markCartEmailedAndRotateToken` **antes** de `sendAbandonedCartEmail` |
 | PRD-217 | [x] | `Review.user` ON DELETE SET NULL en schema + migración |
 | PRD-232 | [x] | `CartItem.product` ON DELETE RESTRICT |
 | PRD-188 | [x] | `requireAdmin()` en `GET /api/config/homepage` — `app/api/config/homepage/route.ts` L51-53; comentario PRD-255 explica que el GET es exclusivo del editor admin |
-| PRD-233 | [ ] | **DEPENDENCIA-05** — `deleteProductAction` en `productActions.ts` (⛔ no tocar en seg 03) |
+| PRD-233 | [x] | `deleteProductAction` — `revalidatePath(/product/${slug})` y catálogo **antes** del delete (sesión 05) |
 
 ### Migraciones Prisma (aplicar manualmente en prod)
 
@@ -78,15 +78,19 @@
 |---------|--------|
 | `20260611000000_baseline_inicial` | BD existente: `npx prisma migrate resolve --applied 20260611000000_baseline_inicial` |
 | `20260611000100_prd_infra_datos_cache` | Luego: `npx prisma migrate deploy` |
+| `20260612000002_add_user_security_fields` | Bloque Seguridad/Datos — campos User (email change + huella contraseña) |
+| `20260612000003_float_to_decimal_monetary_fields` | Bloque Seguridad/Datos — montos monetarios Float→Decimal |
 
 Procedimiento completo: [`README.md`](../README.md) § Base de datos y migraciones.
 
-### Archivos nuevos / eliminados (sesión 03)
+### Archivos nuevos / eliminados (sesión 03 + bloque Seguridad/Datos)
 
-| Acción | Ruta |
-|--------|------|
-| + | `.github/workflows/ci.yml`, `README.md`, `eslint.config.mjs`, `vitest.config.ts`, `tests/*.test.ts`, `app/global-error.tsx`, `instrumentation-client.ts`, `app/api/cron/purge-product-views/route.ts`, `prisma/migrations/*` |
-| − | `lib/db.json`, `data/products.ts`, `scripts/add-order-*.sql`, `scripts/playwright-*.png` |
+| Acción | Ruta | PRD(s) |
+|--------|------|--------|
+| + | `.github/workflows/ci.yml`, `README.md`, `eslint.config.mjs`, `vitest.config.ts`, `tests/*.test.ts`, `app/global-error.tsx`, `instrumentation-client.ts`, `app/api/cron/purge-product-views/route.ts`, `prisma/migrations/*` | sesión 03 |
+| + | `lib/decimal.ts` | PRD-204 |
+| + | `prisma/migrations/20260612000002_*`, `20260612000003_*` | PRD-014/089/173/240, PRD-204 |
+| − | `lib/db.json`, `data/products.ts`, `scripts/add-order-*.sql`, `scripts/playwright-*.png` | sesión 03 |
 
 ---
 
@@ -177,7 +181,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | PRD-124 | 🟡 | `Product.category` string vs modelo `Category` | `schema.prisma` |
 | PRD-125 | 🟡 | Sin índice en `Order.customerEmail` | `schema.prisma` |
 | PRD-126 | 🟡 | `ProductView` sin TTL/purga | `schema.prisma` |
-| PRD-127 | ⚪ | Roles `client` vs `CLIENT` inconsistentes | `schema.prisma`, OAuth |
+| PRD-127 | ⚪ ✅ | Roles `client` vs `CLIENT` inconsistentes | `schema.prisma`, OAuth |
 
 ### Caché / ISR operacional (PRD-024, PRD-107, PRD-140–142)
 
@@ -301,7 +305,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 
 ### 18.7 Dinero, redondeo, stats (PRD-201–207)
 
-| PRD-204 | 🟡 | Montos en `Float` Prisma | `schema.prisma` | Errores binarios en acumulados grandes | `Decimal` o enteros céntimos |
+| PRD-204 | 🟡 ✅ | Montos en `Float` Prisma | `schema.prisma`, `lib/decimal.ts` | Errores binarios en acumulados | `Decimal(12,2/4)` + `d()`/`dn()` en frontera |
 > **Nota anti-colisión:** Movido desde 02-CHECKOUT — único dueño de `schema.prisma`.
 
 **Nota:** `app/admin/page.tsx` (dashboard home) **sí** usa `orderStoredRevenueTotal` correctamente (L75-77). Solo `admin/stats/page.tsx` está mal — inconsistencia interna admin (→ PRD-220).
@@ -326,7 +330,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 
 | PRD-232 | 🟠 | Delete producto cascada `CartItem` (onDelete Cascade) | `schema.prisma` L347-348 | Todos los carritos de usuarios registrados pierden el ítem **sin aviso** | Soft-delete producto o bloquear delete si hay cart items |
 > **Nota anti-colisión:** Movido desde 04/05 — dominio admin/cart pero fix en schema.prisma (03).
-| PRD-233 | 🟡 | Delete producto no `revalidatePath` de ficha | `deleteProductAction` | ISR puede servir ficha fantasma hasta 1h (operacional, no SEO ranking) | `revalidatePath(/product/${slug})` antes de delete |
+| PRD-233 | 🟡 ✅ | Delete producto no `revalidatePath` de ficha | `deleteProductAction` | — | `revalidatePath` antes de delete (sesión 05) |
 
 ---
 
@@ -412,7 +416,7 @@ Referencia completa: `.env.example`
 - [x] Versionar migraciones Prisma (PRD-004)
 - [ ] Configurar Upstash Redis (PRD-005) — sesión 01
 - [ ] Blindar `triggerRestockNotifications` (PRD-006) — sesión 01
-- [~] Validar `paymentProofUrl` R2 en sink admin (PRD-007) — fuente checkout → sesión 02
+- [x] Validar `paymentProofUrl` dominio R2 fuente + sink (PRD-007) — `checkoutSchema` + tests Vitest (12 jun 2026)
 - [ ] Añadir placeholders en `public/` (PRD-008) — sesión 04
 - [~] Guardar settings reales en admin (PRD-101) — defaults seguros ✅; falta config operativa
 - [x] Reducir ISR o revalidar en cambios (PRD-140)

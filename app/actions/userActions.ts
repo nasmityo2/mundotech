@@ -105,7 +105,13 @@ export async function resetUserPassword(input: unknown): Promise<{ success: bool
     return { success: false, message: parsed.error.issues[0]?.message ?? 'Datos inválidos.' };
   }
   const hashed = await bcrypt.hash(parsed.data.password, 12);
-  await prisma.user.update({ where: { id: parsed.data.userId }, data: { password: hashed } });
+  // PRD-240: `passwordChangedAt` bumpeado junto con la contraseña para que el
+  // callback JWT detecte la huella obsoleta (pwv) del usuario afectado y fuerce
+  // re-login en su próxima re-validación (≤5 min), invalidando todos sus JWT activos.
+  await prisma.user.update({
+    where: { id: parsed.data.userId },
+    data: { password: hashed, passwordChangedAt: new Date() },
+  });
   return { success: true, message: 'Contraseña actualizada.' };
 }
 

@@ -6,15 +6,12 @@ import { emailSiteBaseUrl } from '@/emails/mundotech/site';
 /**
  * GET /api/cart/unsubscribe?token=<recoveryToken>
  *
- * Enlace de baja incluido en el email de carrito abandonado.
- * Marca el carrito como OPTED_OUT y redirige a la página principal
- * con un mensaje de confirmación.
+ * PRD-179: antes ejecutaba la baja en el GET, lo cual la disparaban los
+ * escáneres de correo (previsualización de enlaces). Ahora el GET solo valida
+ * el token y redirige a la página de confirmación. La baja real ocurre en POST.
  *
- * PRD-179: con rate limit por IP — sin él, un tercero podía iterar tokens y
- * dar de baja remarketing ajeno en masa. Se mantiene GET porque es el enlace
- * directo del correo (un clic, sin fricción).
- * // DEPENDENCIA-06 (PRD-179): convertirlo a página de confirmación + POST
- * // requiere cambiar el CTA en emails/mundotech/AbandonedCartEmail.tsx.
+ * PRD-219: rate limit por IP — sin él, un tercero podía iterar tokens y
+ * dar de baja remarketing ajeno en masa.
  */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const base = emailSiteBaseUrl().replace(/\/$/, '');
@@ -30,16 +27,49 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(`${base}/?unsubscribed=invalid`);
   }
 
-  // PRD-219: token inexistente ya no redirige como éxito — antes
-  // markCartOptedOut actualizaba 0 filas pero igual mostraba «?unsubscribed=cart».
-  // La búsqueda usa el helper de lib/abandoned-cart, que hashea el token
-  // (PRD-178: en BD solo vive recoveryTokenHash).
+  // PRD-219: validar que el token exista antes de redirigir a confirmación.
   const cart = await findAbandonedCartByRecoveryToken(token);
   if (!cart) {
     return NextResponse.redirect(`${base}/?unsubscribed=invalid`);
   }
 
-  await markCartOptedOut(token);
+  // Redirige a la página de confirmación — la baja real ocurre solo en POST.
+  return NextResponse.redirect(
+    `${base}/cart/unsubscribe/confirm?token=${encodeURIComponent(token)}`
+  );
+}
 
-  return NextResponse.redirect(`${base}/?unsubscribed=cart`);
+/**
+ * POST /api/cart/unsubscribe
+ * Body: { token: string }
+ *
+ * PRD-179: ejecuta la baja real. Solo se llega aquí tras confirmar
+ * explícitamente en la página de confirmación (botón "Confirmar baja").
+ * Aplica el mismo rate limit por IP que el GET para prevenir abuso.
+ */
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const ip = getClientIp(req);
+  if (await rateLimit(`cart:unsubscribe:ip:${ip}`, { limit: 10, windowMs: 10 * 60_000 })) {
+    return NextResponse.json({ error: 'rate-limited' }, { status: 429 });
+  }
+
+  let token: string;
+  try {
+    const body = await req.json() as { token?: unknown };
+    token = (typeof body?.token === 'string' ? body.token : '').trim();
+  } catch {
+    return NextResponse.json({ error: 'invalid' }, { status: 400 });
+  }
+
+  if (!token) {
+    return NextResponse.json({ error: 'invalid' }, { status: 400 });
+  }
+
+  const cart = await findAbandonedCartByRecoveryToken(token);
+  if (!cart) {
+    return NextResponse.json({ error: 'invalid' }, { status: 400 });
+  }
+
+  await markCartOptedOut(token);
+  return NextResponse.json({ ok: true });
 }

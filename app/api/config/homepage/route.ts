@@ -75,11 +75,28 @@ export async function GET() {
 
 // ── PUT — upserts a single key ────────────────────────────────────────────────
 
+/** Límite de tamaño del payload JSON para AppConfig (100 KB). */
+const MAX_PAYLOAD_BYTES = 100 * 1024;
+
 export async function PUT(request: Request) {
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
-  const body = await request.json() as { key: string; value: unknown };
+  // PRD-260: rechazar payloads sobredimensionados antes de parsear.
+  const rawText = await request.text();
+  if (rawText.length > MAX_PAYLOAD_BYTES) {
+    return NextResponse.json(
+      { error: `El payload supera el límite permitido de ${MAX_PAYLOAD_BYTES / 1024} KB.` },
+      { status: 413 },
+    );
+  }
+
+  let body: { key: string; value: unknown };
+  try {
+    body = JSON.parse(rawText) as { key: string; value: unknown };
+  } catch {
+    return NextResponse.json({ error: 'JSON inválido.' }, { status: 400 });
+  }
 
   if (!HOMEPAGE_KEYS.includes(body.key as HomepageKey)) {
     return NextResponse.json({ error: 'Clave no permitida.' }, { status: 400 });

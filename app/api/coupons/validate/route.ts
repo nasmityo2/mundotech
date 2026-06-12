@@ -7,6 +7,7 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { verifySameOrigin } from '@/lib/security';
 import { validateCouponForCheckout } from '@/lib/coupons';
 import { loadExchangeRateUsdBsFromTx, roundMoney2 } from '@/lib/exchange-rate';
+import { d } from '@/lib/decimal';
 
 const schema = z.object({
   code: z.string().trim().min(1).max(40),
@@ -68,7 +69,8 @@ export async function POST(request: Request) {
       where: { id: { in: productIds } },
       select: { id: true, price: true },
     });
-    const priceById = new Map(dbProducts.map((p) => [p.id, p.price]));
+    // PRD-204: price es Decimal → convertir a number
+    const priceById = new Map(dbProducts.map((p) => [p.id, d(p.price)]));
 
     let subtotalUsd = 0;
     for (const item of items) {

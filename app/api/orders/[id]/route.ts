@@ -93,7 +93,10 @@ export async function PATCH(
     return NextResponse.json({ error: 'Nada que actualizar.' }, { status: 400 });
   }
 
-  const current = await prisma.order.findUnique({ where: { id }, select: { shippedAt: true } });
+  const current = await prisma.order.findUnique({
+    where: { id },
+    select: { shippedAt: true, status: true },
+  });
   if (!current) return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 });
 
   const hasTrackingValue = !!(
@@ -102,7 +105,9 @@ export async function PATCH(
     parsed.data.trackingUrl ??
     parsed.data.trackingPhotoUrl
   );
-  if (touchedTracking && hasTrackingValue && !current.shippedAt) {
+  // PRD-191: sellar shippedAt SOLO cuando el pedido ya está en estado 'Enviado'.
+  // Guardar tracking en otros estados (ej. 'En Proceso') no debe sellar la fecha de envío.
+  if (touchedTracking && hasTrackingValue && !current.shippedAt && current.status === 'Enviado') {
     data.shippedAt = new Date();
   }
 

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import type { AbandonedCartItem, AbandonedCartStatus } from '@/lib/definitions';
+import { d } from '@/lib/decimal';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRD-178 — Tokens de recuperación hasheados.
@@ -140,13 +141,15 @@ export async function getCartsFor24hEmail(): Promise<{
   totalUsd: number;
 }[]> {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  return prisma.abandonedCart.findMany({
+  const rows = await prisma.abandonedCart.findMany({
     where: {
       status:          'PENDING',
       lastActivityAt:  { lt: cutoff },
     },
     select: { id: true, email: true, items: true, totalUsd: true },
   });
+  // PRD-204: totalUsd es Decimal en BD → convertir a number
+  return rows.map(r => ({ ...r, totalUsd: d(r.totalUsd) }));
 }
 
 /** Registros elegibles para el email de 72h:
@@ -160,13 +163,15 @@ export async function getCartsFor72hEmail(): Promise<{
   totalUsd: number;
 }[]> {
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
-  return prisma.abandonedCart.findMany({
+  const rows = await prisma.abandonedCart.findMany({
     where: {
       status:      'EMAILED_24H',
       emailSentAt: { lt: cutoff },
     },
     select: { id: true, email: true, items: true, totalUsd: true },
   });
+  // PRD-204: totalUsd es Decimal en BD → convertir a number
+  return rows.map(r => ({ ...r, totalUsd: d(r.totalUsd) }));
 }
 
 /** Marca el carrito como emailado y rota su token de recuperación, ANTES de
@@ -229,15 +234,17 @@ export async function refreshAbandonedCartItems(
     if (!product || product.stock <= 0) continue;
 
     const quantity = Math.min(snap.quantity, product.stock);
+    // PRD-204: product.price es Decimal → convertir a number
+    const priceNum = d(product.price);
     items.push({
       id:       product.id,
       name:     product.name,
       slug:     product.slug?.trim() || product.id,
-      price:    product.price,
+      price:    priceNum,
       quantity,
       image:    product.images?.[0]?.trim() || snap.image || null,
     });
-    totalUsd += product.price * quantity;
+    totalUsd += priceNum * quantity;
   }
 
   if (items.length === 0) return null;

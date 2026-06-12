@@ -4,6 +4,7 @@ import { getToken } from 'next-auth/jwt';
 
 import { pathnameToLoginNextSlug, pathFromLoginNextSlug } from '@/lib/auth-path';
 import { isAdminRole } from '@/lib/is-admin-role';
+import { slugify } from '@/lib/slugify';
 import {
   LOGIN_RETURN_COOKIE_NAME,
   LOGIN_RETURN_PROMOTED_HEADER,
@@ -148,8 +149,40 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
+  // P82: /productos?page=1 y /categoria/[slug]?page=1 → canonical sin ?page.
+  // Evita fragmentación de señales entre la URL base y su variante ?page=1.
+  if (
+    (pathname === '/productos' || pathname.startsWith('/categoria/')) &&
+    req.nextUrl.searchParams.get('page') === '1'
+  ) {
+    const url = req.nextUrl.clone();
+    url.searchParams.delete('page');
+    return withCsp(NextResponse.redirect(url, { status: 301 }));
+  }
+
+  // P47/P48: Deprecar /productos?cat=X → 301 /categoria/[slug].
+  // Usa slugify() (Edge-compatible) que es la misma función con la que se generan
+  // los slugs de Category en /api/categories/sync. Si el valor cat produce un slug
+  // vacío, redirige a /productos (sin query) para no generar un 404.
+  if (pathname === '/productos' && req.nextUrl.searchParams.has('cat')) {
+    const raw = req.nextUrl.searchParams.get('cat') ?? '';
+    const catSlug = slugify(decodeURIComponent(raw));
+    const destination = catSlug
+      ? new URL(`/categoria/${catSlug}`, req.url)
+      : new URL('/productos', req.url);
+    return NextResponse.redirect(destination, { status: 301 });
+  }
+
   if (pathname === '/login' || pathname === '/registro') {
     return withCsp(promoteLoginReturnCookieToRequestHeader(req, nonce));
+  }
+
+  // PRD-207/249/250: /checkout/success?orderId={cuid} es acceso de sólo lectura
+  // para invitados. El cuid del pedido actúa como bearer token no adivinable;
+  // el route handler valida que el pedido exista antes de renderizar.
+  // NO se acepta acceso por orderNumber secuencial (anti-enumeración).
+  if (pathname === '/checkout/success' && req.nextUrl.searchParams.has('orderId')) {
+    return withCsp(nextWithNonce());
   }
 
   const isAdminUiPath  = pathname.startsWith('/admin');

@@ -14,6 +14,9 @@ export const dynamic = 'force-dynamic';
  *
  * H18: las páginas estáticas no emiten `lastModified` — antes enviaban
  * `new Date()` en cada request y Google las re-rastreaba sin necesidad.
+ *
+ * DEPENDENCIA-03 (resuelta): solo productos con `isActive: true` (soft-delete).
+ * P42/H40: imágenes de producto incluidas en cada entrada para Google Images/Lens.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // ── Páginas estáticas ──────────────────────────────────────────────────────
@@ -61,34 +64,44 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   // ── Productos dinámicos ────────────────────────────────────────────────────
-  // Usa el id como fallback cuando slug es null (mismo patrón que los enlaces
-  // del sitio y el canonical de la ficha).
-  // DEPENDENCIA-03 (PRD-064/121): cuando Product tenga flag `isActive`/
-  // `published`, filtrar aquí `where: { isActive: true }`.
+  // DEPENDENCIA-03: filtro isActive:true — productos desactivados (soft-delete)
+  // no deben aparecer en sitemap ni consumir crawl budget.
+  // P42/H40: images[] incluidas para Google Images / Lens (image sitemap inline).
   const products = await prisma.product.findMany({
-    select: { id: true, slug: true, updatedAt: true },
+    where: { isActive: true },
+    select: { id: true, slug: true, updatedAt: true, name: true, images: true },
     orderBy: { updatedAt: 'desc' },
   });
 
-  const productPages: MetadataRoute.Sitemap = products.map((p) => ({
-    url: `${SITE_URL}/product/${p.slug ?? p.id}`,
-    lastModified: p.updatedAt,
-    changeFrequency: 'weekly' as const,
-    priority: 0.8,
-  }));
+  const productPages: MetadataRoute.Sitemap = products.map((p) => {
+    // P42/H40: imágenes del producto para Google Images/Lens.
+    // Next.js MetadataRoute.Sitemap espera images: string[] (solo URLs).
+    // Máx. 3 por producto para no inflar el XML.
+    const images = p.images.filter(Boolean).slice(0, 3);
+
+    return {
+      url: `${SITE_URL}/product/${p.slug ?? p.id}`,
+      lastModified: p.updatedAt,
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+      ...(images.length > 0 ? { images } : {}),
+    };
+  });
 
   // ── Categorías dinámicas ───────────────────────────────────────────────────
   const categories = await prisma.category.findMany({
-    select: { slug: true, updatedAt: true },
+    select: { slug: true, updatedAt: true, imageUrl: true, name: true },
     orderBy: { order: 'asc' },
   });
 
-  // Rutas canónicas /categoria/[slug] (preferidas para SEO)
+  // Rutas canónicas /categoria/[slug] (preferidas para SEO).
+  // P42/H40: imagen de portada de la categoría incluida si existe.
   const categoryPages: MetadataRoute.Sitemap = categories.map((cat) => ({
     url: `${SITE_URL}/categoria/${cat.slug}`,
     lastModified: cat.updatedAt,
     changeFrequency: 'weekly' as const,
     priority: 0.7,
+    ...(cat.imageUrl ? { images: [cat.imageUrl] } : {}),
   }));
 
   return [...staticPages, ...productPages, ...categoryPages];

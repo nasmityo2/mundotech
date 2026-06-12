@@ -1,9 +1,17 @@
+import type { Metadata } from 'next';
 import { readSettings } from '@/lib/data-store';
 import CheckoutFlow from '@/app/components/checkout/CheckoutFlow';
 
 // Fuerza renderizado dinámico (por-request) para que readSettings()
 // lea la configuración actual de la BD en cada visita.
 export const dynamic = 'force-dynamic';
+
+// H03/P96: página transaccional — noindex para no desperdiciar crawl budget
+// y evitar que usuarios accedan por SERP sin carrito.
+export const metadata: Metadata = {
+  title: 'Finalizar compra',
+  robots: { index: false, follow: false },
+};
 
 /**
  * Server Component: lee los datos de pago de la tienda desde la BD
@@ -17,6 +25,8 @@ export default async function CheckoutPage() {
       pagoMovil={settings.pagoMovil}
       transferencia={settings.transferencia}
       supportPhone={settings.phone}
+      binancePayId={settings.binancePayId}
+      binanceQrUrl={settings.binanceQrUrl}
     />
   );
 }

@@ -21,6 +21,7 @@ import {
   AlertCircle,
   Loader2,
   ShieldCheck,
+  MailCheck,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -382,6 +383,8 @@ export function AuthRegisterForm({ callbackUrl }: RegisterPanelProps) {
   const [shake, setShake] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState('');
 
   const form = useForm<AuthRegisterValues>({
     resolver: zodResolver(authRegisterSchema),
@@ -448,25 +451,61 @@ export function AuthRegisterForm({ callbackUrl }: RegisterPanelProps) {
       triggerShake();
       return;
     }
+
+    // PRD-253: mostrar estado persistente de "revisa tu bandeja" antes de cualquier
+    // redirección — el toast efímero previo no era suficiente para que el usuario vea
+    // las instrucciones. El auto-login se intenta igual; si tiene éxito, redirige.
+    setRegisteredEmail(data.email);
+    setRegistered(true);
+
     const signInResult = await signIn('credentials', {
       redirect: false,
       email: data.email,
       password: data.password,
     });
-    if (signInResult?.error) {
-      toast({
-        title: 'Cuenta creada',
-        description: 'Ya puedes iniciar sesión con tu correo.',
-      });
-      router.push(`/login?registered=1&email=${encodeURIComponent(data.email)}`);
-      return;
+    if (!signInResult?.error) {
+      await finishSuccess();
     }
-    await finishSuccess();
+    // Si falla el auto-login (p. ej. anti-enumeración), el panel de éxito ya está visible.
   };
 
   const pwWatch = form.watch('password');
   const strength = passwordStrengthLabel(pwWatch ?? '');
   const submitting = form.formState.isSubmitting;
+
+  if (registered) {
+    return (
+      <div className="flex flex-col items-center gap-5 py-8 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-green-50 text-green-600 shadow-soft">
+          <MailCheck size={30} strokeWidth={1.8} />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-navy">¡Cuenta creada!</h2>
+          <p className="mt-2 text-sm text-slate-600 leading-relaxed max-w-xs">
+            Te enviamos un correo de bienvenida a{' '}
+            <span className="font-semibold text-navy break-all">{registeredEmail}</span>.
+            Revisa tu bandeja de entrada y la carpeta de spam.
+          </p>
+        </div>
+        <Link
+          href={`/login?registered=1&email=${encodeURIComponent(registeredEmail)}`}
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-navy px-6 text-sm font-semibold text-white transition active:opacity-80"
+        >
+          Ir a iniciar sesión
+        </Link>
+        <p className="text-[11px] text-slate-400">
+          ¿No llegó el correo?{' '}
+          <button
+            type="button"
+            onClick={() => setRegistered(false)}
+            className="font-semibold text-navy hover:underline"
+          >
+            Volver al formulario
+          </button>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>

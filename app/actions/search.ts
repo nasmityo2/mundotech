@@ -3,6 +3,7 @@
 import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { d, dn } from '@/lib/decimal';
 import {
   SEARCH_PAGE_SIZE,
   type SearchResult,
@@ -32,7 +33,7 @@ export async function searchProducts(query: string): Promise<SearchResult[]> {
     return [];
   }
 
-  return prisma.product.findMany({
+  const rows = await prisma.product.findMany({
     where: {
       OR: [
         { name:        { contains: q, mode: 'insensitive' } },
@@ -55,6 +56,8 @@ export async function searchProducts(query: string): Promise<SearchResult[]> {
       images:   true,
     },
   });
+  // PRD-204: price es Decimal → convertir a number
+  return rows.map(p => ({ ...p, price: d(p.price) }));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -161,8 +164,9 @@ export async function searchProductsFull({
     slug:          p.slug,
     name:          p.name,
     description:   p.description ?? '',
-    price:         p.price,
-    originalPrice: p.originalPrice,
+    // PRD-204: convertir Decimal → number
+    price:         d(p.price),
+    originalPrice: dn(p.originalPrice),
     stock:         p.stock,
     category:      p.category,
     brand:         p.brand,

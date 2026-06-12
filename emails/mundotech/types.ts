@@ -9,7 +9,10 @@ export type OrderConfirmationLineItem = {
 
 /**
  * Payload único para confirmación de pedido + envío por Resend.
- * Montos en USD; la tasa convierte a Bs.S para la vista dual.
+ * Montos primarios en USD; tasa convierte a Bs.S para vista dual.
+ * PRD-202: subtotalBs / shippingBs / totalBs son los montos Bs congelados
+ * del pedido (calculados una sola vez con la tasa del momento de creación).
+ * Cuando están presentes la plantilla los muestra directamente sin recalcular.
  */
 export type OrderConfirmationPayload = {
   id: string;
@@ -22,6 +25,12 @@ export type OrderConfirmationPayload = {
   subtotalUsd: number;
   shippingUsd: number;
   totalUsd: number;
+  /** PRD-202: monto Bs congelado al crear el pedido (sin conversión posterior). */
+  subtotalBs?: number;
+  /** PRD-202: envío en Bs congelado (0 para envío gratuito). */
+  shippingBs?: number;
+  /** PRD-202: total en Bs congelado al crear el pedido. */
+  totalBs?: number;
   exchangeRateUsdBs: number | null;
   paymentMethod: string;
   paymentBank?: string | null;

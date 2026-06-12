@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect, useRef } from 'react';
 import { getProducts } from '@/app/actions/productActions';
+import { d, dn } from '@/lib/decimal';
 
 // Definimos una interfaz de Producto que coincida con Prisma
 export interface Product {
@@ -34,8 +35,9 @@ function fetchedToProduct(p: FetchedProduct): Product {
     slug:          p.slug,
     name:          p.name,
     description:   p.description ?? '',
-    price:         p.price,
-    originalPrice: p.originalPrice,
+    // PRD-204: price/originalPrice son Decimal en BD → convertir a number
+    price:         d(p.price),
+    originalPrice: dn(p.originalPrice),
     stock:         p.stock,
     category:      p.category,
     brand:         p.brand,

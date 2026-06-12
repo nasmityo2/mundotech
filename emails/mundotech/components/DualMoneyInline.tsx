@@ -9,14 +9,22 @@ type Props = {
   exchangeRateUsdBs: number | null | undefined;
   bold?: boolean;
   fontSize?: number;
+  /**
+   * PRD-202: monto Bs congelado del pedido. Cuando está presente se usa
+   * directamente (sin recalcular amountUsd × tasa) para evitar deriva de
+   * redondeo entre el total almacenado y el mostrado en el email.
+   */
+  amountBs?: number;
 };
 
 /** Una sola línea tipo mockup: USD … | Bs.S … */
-export function DualMoneyInline({ amountUsd, exchangeRateUsdBs, bold, fontSize = 14 }: Props) {
+export function DualMoneyInline({ amountUsd, exchangeRateUsdBs, bold, fontSize = 14, amountBs }: Props) {
   const rate =
     exchangeRateUsdBs != null && exchangeRateUsdBs > 0 ? exchangeRateUsdBs : null;
   const usd = formatEmailUsd(amountUsd);
-  if (rate == null) {
+  // PRD-202: si se recibe el Bs congelado, úsalo directamente.
+  const resolvedBs = amountBs != null ? formatEmailBs(amountBs) : (rate != null ? formatEmailBs(roundMoney2(amountUsd * rate)) : null);
+  if (resolvedBs == null) {
     return (
       <Text
         style={{
@@ -31,7 +39,6 @@ export function DualMoneyInline({ amountUsd, exchangeRateUsdBs, bold, fontSize =
       </Text>
     );
   }
-  const bs = formatEmailBs(roundMoney2(amountUsd * rate));
   return (
     <Text
       style={{
@@ -44,7 +51,7 @@ export function DualMoneyInline({ amountUsd, exchangeRateUsdBs, bold, fontSize =
     >
       {usd}
       <span style={{ color: MT.textMuted, fontWeight: bold ? 700 : 400 }}>{' | '}</span>
-      <span style={{ color: bold ? MT.textPrimary : MT.textMuted }}>{bs}</span>
+      <span style={{ color: bold ? MT.textPrimary : MT.textMuted }}>{resolvedBs}</span>
     </Text>
   );
 }

@@ -5,13 +5,13 @@
 > **Índice (solo referencia, sin fixes):** [`00-INDICE`](./ANALISIS-PRODUCCION-00-INDICE.md)  
 > **SEO (no tocar aquí):** [`ANALISIS-SEO-COMPLETO.md`](./ANALISIS-SEO-COMPLETO.md)  
 > **Orden:** Admin UI → CSV/slug → analytics → reseñas admin → PRD-266+  
-> **Última implementación:** sesión 06 — 12 jun 2026 (PRD-286/287: Consent Mode v2 + banner SSR)
+> **Última implementación:** bloque **Seguridad/Datos** — 12 jun 2026 (PRD-087/088/043/044) · sesión 06 — 12 jun 2026 (PRD-286/287) · bloque Admin / Pedidos — 12 jun 2026
 
 ---
 
 ## ✅ Progreso sesión 05 (implementado en código)
 
-**Estado:** 45/46 PRDs cerrados en código · 1 delegado a sesión **03-INFRA** (PRD-039) · 1 verificado sin cambio (PRD-270) · 0 pendientes.
+**Estado:** 60/61 PRDs del segmento cerrados en código · 0 bloqueadores 🔴 propios · 1 delegado a sesión **03-INFRA** (PRD-039) · 1 verificado sin cambio (PRD-270) · 0 pendientes propios.
 
 ### Alto impacto 🟠 — cerrados
 
@@ -72,6 +72,42 @@
 | [x] PRD-286 | ✅ sesión 06 | `app/components/CookieConsent.tsx` | Consent Mode v2: gtag siempre cargado con `consent.default` denegado; `useEffect` dispara `gtag('consent','update',…)` al resolverse el estado. |
 | [x] PRD-287 | ✅ sesión 06 | `app/components/CookieConsent.tsx`, `app/layout.tsx` | Banner SSR: `layout.tsx` lee cookie HTTP `mt_cookie_consent` vía `cookies()`, pasa `initialConsent` prop; estado inicia como `ready=true` en visitas recurrentes, eliminando flash post-hidratación. |
 
+### Bloque Seguridad/Datos — 12 jun 2026 (implementado en código)
+
+| PRD | Fix aplicado | Archivos clave |
+|-----|--------------|----------------|
+| [x] PRD-087 | Chip `'Pendiente verificación Binance'` en contadores/chips del dashboard | `app/admin/page.tsx` — `statusConfig` |
+| [x] PRD-088 | Error boundary y loading state mínimos en segmento admin | `app/admin/error.tsx`, `app/admin/loading.tsx`, `app/admin/orders/error.tsx`, `app/admin/orders/loading.tsx` |
+| [x] PRD-043 | try/catch + `console.error('[GET /api/orders]')` en listado paginado admin | `app/api/orders/route.ts` |
+| [x] PRD-044 | try/catch + `console.error('[GET /api/orders/new-count]')` en polling | `app/api/orders/new-count/route.ts` |
+
+### Bloque Admin / Pedidos — 12 jun 2026 (implementado en código)
+
+| PRD | Fix aplicado | Archivos clave |
+|-----|--------------|----------------|
+| [x] PRD-133 | Import CSV en transacción única (todo-o-nada) | `app/actions/productActions.ts` |
+| [x] PRD-134 | Bulk idempotente + `updatedCount` real | `app/api/orders/bulk-status-update/route.ts` |
+| [x] PRD-190 | Cancel admin/bulk: stock + revert cupón | `status/route.ts`, `bulk-status-update/route.ts` |
+| [x] PRD-191 | `shippedAt` solo en PATCH si pedido ya `Enviado` | `app/api/orders/[id]/route.ts` |
+| [x] PRD-192 | PUT cancel unificado (tracking + efectos cancelación) | `app/api/orders/[id]/status/route.ts` |
+| [x] PRD-193 | Bulk UI refetch (no optimista) | `app/admin/orders/page.tsx` |
+| [x] PRD-194 | Bulk sin saltar a `Entregado` | `bulk-status-update/route.ts` |
+| [x] PRD-195 | GET `/api/orders` paginado por cursor | `app/api/orders/route.ts`, `app/admin/orders/page.tsx` |
+| [x] PRD-200 | Bulk solo hasta `En Proceso`; menú bulk sin Enviado/Entregado | `bulk-status-update/route.ts`, `StatusUpdateMenu.tsx` |
+| [x] PRD-205 | Stats: revenue prorrateado con cupón | `app/admin/stats/page.tsx` |
+| [x] PRD-206 | Stats: ingresos Bs vs USD legado separados | `app/admin/stats/page.tsx` |
+| [x] PRD-231 | Pre-check pedidos activos en `deleteProductAction` | `app/actions/productActions.ts` |
+| [x] PRD-233 | `revalidatePath` ficha/catálogo antes de borrar producto | `app/actions/productActions.ts` |
+| [x] PRD-050 | Email cancelación al cliente (best-effort post-commit) | `OrderCancelledEmail.tsx`, `lib/resend.tsx`, rutas status/bulk |
+| [x] PRD-051 | Endpoint + botón «Reenviar confirmación» | `resend-confirmation/route.ts`, `admin/orders/[id]/page.tsx` |
+
+### Archivos nuevos (bloque Seguridad/Datos)
+
+| Archivo | PRD(s) |
+|---------|--------|
+| `app/admin/error.tsx`, `app/admin/loading.tsx` | PRD-088 |
+| `app/admin/orders/error.tsx`, `app/admin/orders/loading.tsx` | PRD-088 |
+
 ### Archivos nuevos (sesión 05)
 
 | Archivo | PRD(s) |
@@ -80,6 +116,23 @@
 | `app/actions/adminDashboardActions.ts` | PRD-083, PRD-225 |
 | `app/api/orders/export.csv/route.ts` | PRD-084, PRD-156, PRD-213 |
 | `lib/tracking-url-validation.ts` | PRD-267, PRD-268 |
+| `emails/mundotech/OrderCancelledEmail.tsx` | PRD-050 |
+| `app/api/orders/[id]/resend-confirmation/route.ts` | PRD-051 |
+
+### Archivos modificados (bloque Admin / Pedidos — 12 jun 2026)
+
+| Archivo | PRD(s) |
+|---------|--------|
+| `app/api/orders/[id]/status/route.ts` | PRD-190, PRD-192, PRD-050 |
+| `app/api/orders/bulk-status-update/route.ts` | PRD-134, PRD-190, PRD-194, PRD-200, PRD-050 |
+| `app/api/orders/[id]/route.ts` | PRD-191 |
+| `app/api/orders/route.ts` | PRD-195 |
+| `app/admin/orders/page.tsx` | PRD-193, PRD-195, PRD-200 |
+| `app/admin/orders/[id]/page.tsx` | PRD-051 |
+| `app/admin/stats/page.tsx` | PRD-205, PRD-206 |
+| `app/components/admin/StatusUpdateMenu.tsx` | PRD-200 |
+| `app/actions/productActions.ts` | PRD-133, PRD-231, PRD-233 |
+| `lib/resend.tsx` | PRD-050 |
 
 ### Archivos modificados (sesión 06 — PRD-286/287)
 
@@ -259,11 +312,11 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 Hallazgos encontrados al verificar manualmente los del agente y ampliar áreas residuales.
 
 | PRD-219 | 🟡 | Unsubscribe con token inválido redirige como éxito | `cart/unsubscribe/route.ts` L21-24 | `markCartOptedOut` con token inexistente actualiza 0 filas pero redirige a `?unsubscribed=cart` | Comprobar `count` y redirigir a `invalid` si 0 |
-| PRD-220 | 🟠 | Inconsistencia revenue: dashboard home OK, stats mal | `admin/page.tsx` L75-77 vs `admin/stats/page.tsx` L85-100 | Admin confía en dos cifras distintas según pantalla | Unificar lógica con `orderStoredRevenueTotal` |
+| PRD-220 | 🟠 ✅ | Inconsistencia revenue: dashboard home OK, stats mal | `admin/stats/page.tsx` | — | Prorrateo cupón + series Bs/USD (PRD-205/206) |
 | PRD-221 | 🟡 | `catch {}` vacío oculta errores críticos | `NewOrdersWatcher.tsx` L111; `admin/categories/page.tsx` L55; `OrderDetailClient.tsx` L59 | Polling admin falla en silencio; operador no sabe | Al menos `console.error` + toast admin |
 | PRD-222 | 🟡 | NewOrdersWatcher: reset `localStorage` re-alerta pedidos viejos | `NewOrdersWatcher.tsx` L44-46, L120-124 | Borrar storage → todos los pedidos recientes parecen «nuevos» | Usar `since` server-side por admin session |
 | PRD-223 | 🟡 | `as any` extensivo erosiona tipos | `ProductContext.tsx` L60; `CartClient.tsx` L108-126; `product/[slug]/page.tsx` L317 | Bugs de precio/stock/slug ocultos en compile-time | Tipar `Product` correctamente end-to-end |
-| PRD-225 | 🟡 | Admin home carga **todos** los pedidos en cliente | `admin/page.tsx` L59-63 | Mismo OOM que PRD-195 pero en dashboard | Paginación o endpoint agregado |
+| PRD-225 | 🟡 ✅ | Admin home carga **todos** los pedidos en cliente | `admin/page.tsx` | — | KPIs vía `getAdminDashboardData()` (sesión 05) |
 | PRD-226 | 🟡 | `new-count` devuelve PII (nombre, total) en polling | `orders/new-count/route.ts` L33-41 | Notificación nativa muestra nombre cliente en pantalla bloqueada | Minimizar campos o enmascarar |
 | PRD-227 | 🟡 | Notificaciones navegador sin auto-dismiss de PII | `NewOrdersWatcher.tsx` L84-89 | Datos de clientes persisten en centro notificaciones OS | Solo número de pedido en body |
 | PRD-229 | 🟡 | `readReviewsAutoApprove` toggle sin audit log | `api/reviews/auto-approve/route.ts` | Cambio crítico de moderación sin trazabilidad | Log admin userId + timestamp |

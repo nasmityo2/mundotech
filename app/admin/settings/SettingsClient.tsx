@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Settings, Store, Phone, Building2,
-  Save, Check, DollarSign, RefreshCw, TrendingUp, Share2,
+  Save, Check, DollarSign, RefreshCw, TrendingUp, Share2, Wallet,
 } from 'lucide-react';
 import { updateSettings } from '@/app/actions/settingsActions';
 import { updateExchangeRate } from '@/app/actions/configActions';
@@ -205,6 +205,27 @@ export default function SettingsClient({ initial }: { initial: StoreSettings }) 
           <Field label="Número de cuenta" value={settings.transferencia.accountNumber} onChange={v => set(['transferencia', 'accountNumber'], v)} placeholder="0105-0000-00-1234567890" />
           <Field label="Titular" value={settings.transferencia.accountHolder} onChange={v => set(['transferencia', 'accountHolder'], v)} placeholder="Empresa Ejemplo C.A." />
           <Field label="RIF" value={settings.transferencia.rif} onChange={v => set(['transferencia', 'rif'], v)} placeholder="J-12345678-9" />
+        </SectionCard>
+
+        {/* PRD-027/130: Binance Pay configurable sin redeploy */}
+        <SectionCard title="Binance Pay" icon={Wallet}>
+          <div className="p-3 bg-amber-50 rounded-lg text-xs text-amber-700 font-medium">
+            Datos mostrados al cliente cuando elige &ldquo;Binance&rdquo; en el checkout.
+            Deja ambos campos vacíos para ocultar este método de pago.
+          </div>
+          <Field
+            label="Binance Pay ID / ID de recepción"
+            value={settings.binancePayId ?? ''}
+            onChange={v => set(['binancePayId'], v)}
+            placeholder="Ej. 12345678"
+          />
+          <Field
+            label="URL del código QR (imagen pública)"
+            value={settings.binanceQrUrl ?? ''}
+            onChange={v => set(['binanceQrUrl'], v)}
+            placeholder="https://..."
+            type="url"
+          />
         </SectionCard>
 
       </div>

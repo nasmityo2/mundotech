@@ -242,6 +242,10 @@ export interface SavedAddressInput {
   isDefault?:     boolean;
 }
 
+import { d, dn } from '@/lib/decimal';
+
+type DecimalLike = { toNumber(): number } | number;
+
 /** Mapea un registro Prisma (con items incluidos) al tipo Order de la UI. */
 export function prismaOrderToOrder(o: {
   id: string;
@@ -252,7 +256,7 @@ export function prismaOrderToOrder(o: {
   customerEmail?: string | null;
   customerPhone?: string | null;
   customerIdNumber?: string | null;
-  total: number;
+  total: DecimalLike;
   status: string;
   paymentMethod: string;
   paymentBank?: string | null;
@@ -267,7 +271,7 @@ export function prismaOrderToOrder(o: {
   shippedAt?: Date | null;
   paidAt?: Date | null;
   couponCode?: string | null;
-  couponDiscount?: number | null;
+  couponDiscount?: DecimalLike | null;
   paymentVerifiedBy?: string | null;
   paymentRejectionReason?: string | null;
   shippingAddress: string;
@@ -275,9 +279,9 @@ export function prismaOrderToOrder(o: {
   shippingState: string;
   shippingZipCode: string;
   shippingCountry: string;
-  exchangeRateUsdBs?: number | null;
+  exchangeRateUsdBs?: DecimalLike | null;
   notes?: string | null;
-  items: { id: string; productId: string; productName: string; quantity: number; price: number; imageUrl?: string | null }[];
+  items: { id: string; productId: string; productName: string; quantity: number; price: DecimalLike; imageUrl?: string | null }[];
 }): Order {
   return {
     id:              o.id,
@@ -288,8 +292,9 @@ export function prismaOrderToOrder(o: {
     customerEmail:   o.customerEmail,
     customerPhone:   o.customerPhone,
     customerIdNumber: o.customerIdNumber,
-    total:           o.total,
-    exchangeRateUsdBs: o.exchangeRateUsdBs ?? null,
+    // PRD-204: convertir Decimal → number en la frontera BD→UI
+    total:           d(o.total),
+    exchangeRateUsdBs: dn(o.exchangeRateUsdBs),
     status:          o.status as OrderStatus,
     paymentMethod:   o.paymentMethod,
     paymentBank:              o.paymentBank,
@@ -304,7 +309,7 @@ export function prismaOrderToOrder(o: {
     shippedAt:                o.shippedAt ? o.shippedAt.toISOString() : null,
     paidAt:                   o.paidAt ? o.paidAt.toISOString() : null,
     couponCode:               o.couponCode ?? null,
-    couponDiscount:           o.couponDiscount ?? null,
+    couponDiscount:           dn(o.couponDiscount),
     paymentVerifiedBy:        o.paymentVerifiedBy ?? null,
     paymentRejectionReason:   o.paymentRejectionReason ?? null,
     notes:           o.notes,
@@ -320,7 +325,7 @@ export function prismaOrderToOrder(o: {
       productId:   i.productId,
       productName: i.productName,
       quantity:    i.quantity,
-      price:       i.price,
+      price:       d(i.price),
       imageUrl:    i.imageUrl ?? undefined,
     })),
   };

@@ -98,19 +98,43 @@ function OrdersPageContent() {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [shipDialogOrder, setShipDialogOrder] = useState<Order | null>(null);
 
-  useEffect(() => {
-    fetch('/api/orders')
+  const PAGE_SIZE = 50;
+
+  // PRD-195: carga inicial con paginación por cursor; evita traer todo a memoria.
+  const fetchFirstPage = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/orders?limit=${PAGE_SIZE}`)
       .then(res => res.json())
-      .then(data => {
-        setOrders(data);
+      .then((data: { orders: Order[]; nextCursor: string | null }) => {
+        setOrders(data.orders);
+        setNextCursor(data.nextCursor);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    fetchFirstPage();
+  }, [fetchFirstPage]);
+
+  const loadMoreOrders = useCallback(() => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    fetch(`/api/orders?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(nextCursor)}`)
+      .then(res => res.json())
+      .then((data: { orders: Order[]; nextCursor: string | null }) => {
+        setOrders(curr => [...curr, ...data.orders]);
+        setNextCursor(data.nextCursor);
+        setLoadingMore(false);
+      })
+      .catch(() => setLoadingMore(false));
+  }, [nextCursor, loadingMore]);
 
   const tabCounts = useMemo(() => {
     const counts: Record<OrderTabKey, number> = {
@@ -162,16 +186,25 @@ function OrdersPageContent() {
 
     try {
       const response = await fetch(endpoint, { method, headers: { 'Content-Type': 'application/json' }, body });
-      if (!response.ok) throw new Error('Error al actualizar el estado');
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error((err as { message?: string }).message ?? 'Error al actualizar el estado');
+      }
       if (!isBulk) {
         const updated = await response.json();
         updateOrderInList(updated);
       } else {
-        setOrders(curr => curr.map(o => (orderIds.includes(o.id) ? { ...o, status } : o)));
+        // PRD-193: no actualizar la UI de forma optimista; usar el updatedCount real del
+        // response para refrescar solo los pedidos efectivamente modificados.
+        const result = await response.json() as { updatedCount: number };
+        if (result.updatedCount > 0) {
+          // Refetch la primera página para que la lista refleje el estado real de BD.
+          fetchFirstPage();
+        }
         setSelectedOrders([]);
       }
-    } catch {
-      alert('No se pudo actualizar el estado de los pedidos.');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'No se pudo actualizar el estado de los pedidos.');
     }
   };
 
@@ -386,9 +419,21 @@ function OrdersPageContent() {
         onRowClick={o => router.push(`/admin/orders/${o.id}`)}
       />
 
-      <p className="text-[11px] text-slate-400 mt-2 text-right">
-        Mostrando {filteredOrders.length} de {orders.length} pedidos
-      </p>
+      <div className="flex items-center justify-between mt-2">
+        <p className="text-[11px] text-slate-400">
+          Mostrando {filteredOrders.length} de {orders.length} pedidos{nextCursor ? ' (hay más)' : ''}
+        </p>
+        {nextCursor && (
+          <button
+            type="button"
+            onClick={loadMoreOrders}
+            disabled={loadingMore}
+            className="touch-manipulation select-none text-xs font-semibold text-navy border border-slate-200 bg-white rounded-xl px-3.5 py-2 hover:border-slate-300 active:bg-slate-50 transition-all disabled:opacity-40 disabled:pointer-events-none"
+          >
+            {loadingMore ? 'Cargando…' : 'Cargar más pedidos'}
+          </button>
+        )}
+      </div>
 
       <ShipOrderDialog
         open={!!shipDialogOrder}

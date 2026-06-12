@@ -141,6 +141,10 @@ export default async function RootLayout({
   // PRD-287: consentimiento leído del cookie HTTP para evitar flash en visitas recurrentes.
   const rawConsent = cookieStore.get('mt_cookie_consent')?.value;
   const initialConsent = rawConsent === 'accepted' || rawConsent === 'essential' ? rawConsent : null;
+  // P87/H55: cookie de dismissal del AnnouncementBar leída en servidor para que
+  // el bar se omita en SSR si el usuario ya lo cerró (cero CLS, cero flash).
+  const rawDismissed = cookieStore.get('mt_announcement_dismissed')?.value;
+  const announcementDismissedText = rawDismissed ? decodeURIComponent(rawDismissed) : undefined;
   const sameAs = [settings.instagram, settings.facebook].filter(Boolean) as string[];
 
   const localBusinessSchema = {
@@ -217,7 +221,7 @@ export default async function RootLayout({
                     y mejorar LCP / INP (Core Web Vitals).
                   */}
                   <div className="flex min-h-[100dvh] flex-col w-full max-w-full overflow-x-hidden">
-                    <AnnouncementBar data={announcement} />
+                    <AnnouncementBar data={announcement} dismissedText={announcementDismissedText} />
                     <AppContent
                       contact={{
                         phone: settings.phone,

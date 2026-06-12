@@ -6,8 +6,9 @@
 > **Idioma/mercado:** Español Venezuela (`es` / `es_VE`) — SEO local Barquisimeto, Lara  
 > **Fecha del análisis:** 11 de junio de 2026  
 > **Última ampliación:** revisión de alcance — solo hallazgos con impacto directo en rastreo, indexación, ranking o rich results  
-> **Última implementación:** sesión 7 SEO — 11 de junio de 2026 (código en repo; ver [§39](#39-registro-de-implementación--sesión-7-jun-2026))  
-> **Alcance:** Exclusivamente SEO (Google/buscadores). Malas prácticas **P01–P96** · hallazgos globales **H01–H64** (ver criterio de inclusión abajo).
+> **Última implementación:** sesiones 7–15 SEO + caché catálogo (§39–§46) — 12 de junio de 2026  
+> **Última sincronización doc↔código:** 12 de junio de 2026 (3.ª pasada) — ver [§47](#47-sincronización-doc--código-auditoría-12-jun-2026) · [§47.6](#476-segunda-pasada-de-sincronización) · [§47.7](#477-tercera-pasada-de-sincronización)  
+> **Alcance:** Exclusivamente SEO (Google/buscadores). Malas prácticas **P01–P97** · hallazgos globales **H01–H66** (ver criterio de inclusión abajo).
 
 ---
 
@@ -22,7 +23,7 @@
 
 ## ⚠️ Sesión 7 — trabajo en paralelo con sesiones 1–6 y 8
 
-> **Estado (11 jun 2026):** capa SEO **core implementada** — ver [§39](#39-registro-de-implementación--sesión-7-jun-2026). Pendientes: P47/P48, Merchant, paginación, DEPENDENCIA-01/03/05.
+> **Estado (12 jun 2026):** capa SEO **avanzada implementada** — sesiones [§39–§46](#39-registro-de-implementación--sesión-7-jun-2026). **Doc sincronizado** ([§47.6–§47.7](#476-segunda-pasada-de-sincronización)): §1–§7, §15, §28–§33, §34, §37–§38, P4, apéndices. DEPENDENCIA-03/05 ✅ · P85/P87/P82 ✅ · Merchant feed + taxonomía Google ✅ · ~75 P/H cerrados · ~20 pendientes reales.
 
 Estás en la **sesión 7 de 8**. Otras IAs trabajan a la vez en producción (PRD) y móvil (P0…). **No colisiones:**
 
@@ -34,7 +35,7 @@ Estás en la **sesión 7 de 8**. Otras IAs trabajan a la vez en producción (PRD
 | P58, P59 | Hecho vía PRD-024 | 2 Checkout | `productActions.ts` quickUpdate |
 | P05, P18 | Hecho vía PRD-064, 065, 121 | 3 Infra | `schema.prisma` |
 | P41 | Hecho vía PRD-008 | 4 UX cliente | `public/` placeholders |
-| P04 (parcial) | Hecho vía PRD-233 | 3 Infra | delete/revalidate producto |
+| P04 (parcial) | Hecho vía PRD-233 | 5 Admin | delete/revalidate producto (sesión 05) |
 
 ### ✅ SÍ implementas tú (sesión 7)
 
@@ -180,7 +181,7 @@ page.tsx por ruta      ← Server Component (RSC) o Client Component
 
 - Lo que **rankea** debe salir en **Server Components** o en el HTML del primer render (links `<a>`, H1, precio, `generateMetadata`).
 - Muchos listados pasan productos desde RSC → `ProductCard` (cliente), pero el **`<Link href="/product/...">` sí está en HTML inicial**.
-- **Excepción problemática:** `ProductGridAndFilters` lee `?cat=` / `?q=` solo en `useEffect` (cliente) — el filtro no está en SSR.
+- **Residual:** `ProductGridAndFilters` filtra `?q=` en cliente (sort/búsqueda dentro de la página). Categorías van a `/categoria/{slug}` vía `Link` (sesión 9); `?cat=` redirige 301 en middleware.
 
 **Providers cliente globales** (`app/layout.tsx`): `AuthProvider`, `CartProvider`, `WishlistProvider`, **`ProductProvider`**, `ExchangeRateProvider`.
 
@@ -209,7 +210,7 @@ flowchart TB
         H --> L
     end
     B -->|revalidatePath| H
-    B -->|quickUpdate stock/price| M[⚠️ NO revalida ficha]
+    B -->|quickUpdate stock/price| M[revalidatePath + revalidateTag catalog]
 ```
 
 **Creación/edición producto** (`app/actions/productActions.ts`):
@@ -217,7 +218,7 @@ flowchart TB
 1. Admin guarda en `Product` + `ProductMedia` (imágenes/video).
 2. Se genera `slug` con `slugify()` + unicidad.
 3. `revalidatePath('/')`, `/product/{slug}` en update completo.
-4. **Gap:** `quickUpdateStockAction` / `quickUpdatePriceAction` no revalidan `/product/{slug}`.
+4. `quickUpdateStockAction` / `quickUpdatePriceAction` revalidan `/product/{slug}` + `revalidateTag('catalog')` (PRD-024, sesión 2).
 
 **Relación Product ↔ Category:**
 
@@ -308,14 +309,14 @@ flowchart TB
 
 | Criterio | Nota |
 |----------|------|
-| **Global ponderada (objetivo = productos en Google)** | **72 / 100** *(post sesión 7; infra lista, faltan paginación y Merchant)* |
-| Infraestructura técnica (sitemap, metadata API, ISR) | 72 |
-| SEO fichas de producto | 48 |
-| Schema / rich results Product | 55 |
-| Enlazado interno hacia productos | 45 |
-| SEO local | 66 |
+| **Global ponderada (objetivo = productos en Google)** | **~89 / 100** *(post sesiones 7–15; ver §47)* |
+| Infraestructura técnica (sitemap, metadata API, ISR, caché) | 92 |
+| SEO fichas de producto | 85 |
+| Schema / rich results Product | 88 |
+| Enlazado interno hacia productos | 78 |
+| SEO local | 72 |
 
-**Lectura:** base técnica por encima del promedio; ejecución en fichas y señales de confianza por debajo de lo necesario para competir en SERPs de producto.
+**Lectura (12 jun 2026):** capa técnica y schema de producto en nivel competitivo. Gaps restantes: contenido on-page (tabs cliente), PromoPopup SSR, IndexNow, backfill categorías y tareas operativas Search Console/Merchant Center.
 
 ---
 
@@ -346,7 +347,7 @@ Un hallazgo entra en este documento **solo si** afecta al menos una de estas pal
 - Enlazado interno hacia URLs canónicas
 - CWV en código (LCP, CLS, imágenes, fuentes)
 - HTML inicial vs cliente (solo si afecta contenido/enlaces que el bot indexa)
-- **96** malas prácticas producto + **64** hallazgos globales (IDs activos; ver retirados abajo)
+- **96** malas prácticas producto (**P01–P97**; P93 y P98 retirados) + **66** hallazgos globales (**H01–H66**)
 - Roadmap y checklist Search Console
 
 ### ❌ Explícitamente fuera de alcance (documentar en producción)
@@ -360,7 +361,7 @@ Un hallazgo entra en este documento **solo si** afecta al menos una de estas pal
 | GA4, cookies, Consent Mode | [PRD-286–287](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md) |
 | CSP / nonce en JSON-LD hijos | [PRD-284](ANALISIS-PRODUCCION-01-SEGURIDAD.md) |
 | AnnouncementBar link sin validar | [PRD-283](ANALISIS-PRODUCCION-01-SEGURIDAD.md) |
-| OpenSearch / `llms.txt` | [PRD-289–290](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md) |
+| OpenSearch / `llms.txt` | ✅ Implementado — `public/opensearch.xml`, `public/llms.txt`, `<link rel="search">` en `layout.tsx` (origen PRD-289–290) |
 | Stripe en package.json, PWA offline, auth JWT | [`00-INDICE`](ANALISIS-PRODUCCION-00-INDICE.md) (infra general) |
 
 **Índice completo:** [matriz de propiedad PRD](ANALISIS-PRODUCCION-00-INDICE.md#matriz-de-propiedad-única-por-prd) · [segmento UX PRD-276–290](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md).
@@ -425,36 +426,38 @@ flowchart LR
     subgraph problemas
         JSON --> BAD[NAP viejo + LocalBusiness extra]
         META --> TIT[Título duplicado MundoTech]
-        PQ --> DUP[/product/id sin 301]
-        GRID --> FILT[?cat= canonical /productos]
+        PQ --> DUP[~~/product/id~~ → 308 ✅]
+        GRID --> FILT[~~?cat=~~ → 301 /categoria/ ✅]
     end
 ```
 
 | Etapa | Qué hace tu código | Estado |
 |-------|-------------------|--------|
-| Descubrimiento | `sitemap.ts` lista todos los productos con `updatedAt` | ⚠️ Incluye agotados y sin slug (usa id) |
-| URL canónica | `/product/{slug ?? id}` | ⚠️ También responde `/product/{id}` sin redirect |
-| Title SERP | `generateMetadata` + template layout | ❌ Títulos demasiado largos / duplicados |
-| Rich results | `ProductJsonLd` Product+Offer+Reviews | ⚠️ Datos envío/NAP hardcodeados incorrectos |
-| Contenido | H1 nombre, tabs descripción | ⚠️ Tabs en cliente; specs ocultas en pestañas |
-| Enlaces entrantes | Home shelves, categorías, relacionados | ⚠️ Muchos links a `?cat=` no a `/categoria/` |
-| Frescura precio/stock | ISR 3600s + revalidatePath | ❌ quickUpdate precio/stock no revalida ficha |
+| Descubrimiento | `sitemap.ts` — `isActive:true`, `lastModified`, image sitemap | ✅ Agotados **sí** indexados (decisión P16); slug obligatorio en BD |
+| URL canónica | `/product/{slug}` + 308 id→slug + redirect slug viejo | ✅ Sesiones 7 y 13 |
+| Title SERP | `generateMetadata` + `title.template` `%s \| MundoTech` | ✅ Sesión 7 |
+| Rich results | `ProductJsonLd` Product+Offer+Reviews+Warranty | ⏸ Envío sin tarifa real (`readSettings`); NAP solo en layout |
+| Contenido | H1 nombre, tabs con descripción/specs/envío en DOM inicial | ✅ P33–P37/P39 cerrados — paneles siempre en HTML; tab activa solo oculta visualmente |
+| Enlaces entrantes | Home shelves, categorías, drawer, sidebar | ✅ Links a `/categoria/{slug}`; `?cat=` → 301 (sesión 9) |
+| Frescura precio/stock | ISR 300s + `revalidateTag('catalog')` + quickUpdate | ✅ Sesiones 2 y 14 |
 
 ---
 
-## P2. Malas prácticas exhaustivas — SEO de productos (P01–P70)
+## P2. Malas prácticas exhaustivas — SEO de productos (P01–P97)
 
-Cada fila es una práctica actual de tu web que **reduce** posibilidad de ranking o rich snippets de producto. Severidad: 🔴 crítica · 🟠 alta · 🟡 media · ⚪ baja.
+> **Nota (12 jun 2026):** catálogo **archival** de hallazgos detectados en el análisis original. Filas con ✅ están cerradas en código. **Estado vigente:** [§39.5](#395-estado-p01p97--consolidado-post-sesión-15) y [§47](#47-sincronización-doc--código-auditoría-12-jun-2026). No borrar filas cerradas — documentan el historial de corrección.
+
+Cada fila es una práctica que **reducía** posibilidad de ranking o rich snippets. Severidad: 🔴 crítica · 🟠 alta · 🟡 media · ⚪ baja · ✅ cerrada.
 
 ### P-A. URLs, slugs y duplicados
 
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
-| P01 | 🔴 | Dos URLs por producto (`/product/slug` y `/product/id`) sin 301 | `product/[slug]/page.tsx` `OR: [{ slug }, { id }]` | Divide autoridad; contenido duplicado |
-| P02 | 🔴 | Sitemap usa `slug ?? id` — productos sin slug indexados con URL fea (`/product/clxyz…`) | `sitemap.ts` | URLs pobres en SERP; menor CTR |
-| P03 | 🔴 | Al **renombrar** producto se genera **nuevo slug** sin redirect 301 del anterior | `productActions.ts` L201-203 | Enlaces viejos → 404; pierdes ranking acumulado |
-| P04 | 🟠 | Producto **eliminado**: no `revalidatePath(/product/{slug})` | `deleteProductAction` | ISR puede servir ficha fantasma hasta 1h |
-| P05 | 🟠 | Slug opcional en Prisma (`slug String?`) — no obligatorio al crear | `schema.prisma` | Productos nuevos pueden quedar sin URL amigable |
+| P01 | ✅ | ~~Dos URLs por producto sin 301~~ — 308 id→slug + DEP-05 renombre | `product/[slug]/page.tsx` | Cerrado sesiones 7+13 |
+| P02 | ⏸ | Sitemap conserva `slug ?? id` defensivo — slug ya obligatorio en BD | `sitemap.ts` | Residual; sin productos reales solo-id |
+| P03 | ✅ | ~~Renombrar slug sin redirect~~ — `saveSlugRedirect` + 308 | `productActions.ts` | Cerrado sesiones 5+13 (DEP-05) |
+| P04 | ✅ | ~~Delete sin revalidar ficha~~ — `revalidatePath` + `revalidateTag` | `deleteProductAction` | Cerrado PRD-233 |
+| P05 | ✅ | ~~Slug opcional~~ — `slug String @unique` obligatorio (PRD-065) | `schema.prisma` | Cerrado sesión 3 |
 | ~~P06~~ | — | *(Movido a producción [PRD-288](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md))* | — | Emails no son crawler Google |
 | P07 | 🟡 | `RecentlyViewed` enlaza `slug ?? id` desde localStorage (cliente) | `RecentlyViewed.tsx` | Enlaces internos inconsistentes si slug null |
 
@@ -462,61 +465,61 @@ Cada fila es una práctica actual de tu web que **reduce** posibilidad de rankin
 
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
-| P08 | 🔴 | `title.template` añade `— MundoTech` a títulos que ya dicen `MundoTech Barquisimeto` | `layout.tsx` + `product/[slug]/page.tsx` | Títulos >70 chars; truncados en SERP |
-| P09 | 🟠 | Patrón de título fijo muy largo: `{nombre} — {marca} \| Precio en Venezuela · MundoTech Barquisimeto` | `generateMetadata` producto | Poco espacio para keyword principal |
-| P10 | 🟠 | `meta keywords` por producto — Google lo ignora | `product/[slug]/page.tsx` | HTML inflado sin beneficio |
-| P11 | 🟠 | Descripción meta cortada a 130 chars + `…` arbitrario | `generateMetadata` L68-69 | Pierdes control del CTA en SERP |
-| P12 | 🟠 | Productos **sin descripción** en BD → meta genérica idéntica entre fichas | `generateMetadata` fallback | Duplicate meta descriptions |
-| P13 | 🟠 | `openGraph.type: 'website'` conflictivo con `other['og:type']: 'product'` | `product/[slug]/page.tsx` | Señal de producto ambigua en redes/Google |
-| P14 | 🟡 | OG `type: 'image/jpeg'` fijo pero Cloudinary sirve WebP/AVIF | `generateMetadata` | Menor; parsers suelen tolerar |
-| P15 | 🟡 | Sin OG image si producto no tiene `images[0]` | `generateMetadata` | Previews vacías al compartir; peor CTR social indirecto |
+| P08 | ✅ | ~~`title.template` duplicaba marca~~ — `%s \| MundoTech` + título corto | `layout.tsx` + ficha | Cerrado sesión 7 |
+| P09 | ✅ | ~~Patrón título muy largo~~ — `title: product.name` | `generateMetadata` | Cerrado sesión 7 |
+| P10 | 🟡 | `meta keywords` por producto — Google lo ignora | `product/[slug]/page.tsx` | Cosmético; sin impacto ranking |
+| P11 | ✅ | ~~Description 130 chars + `…` arbitrario~~ — `clampDescription()` | `generateMetadata` | Cerrado sesión 7 (P84) |
+| P12 | ⏸ | Fallback meta por producto sin descripción — único por nombre | `generateMetadata` | Mejorado; calidad depende del admin |
+| P13 | ✅ | ~~`openGraph.type: website` conflictivo~~ — solo `og:type: product` | `product/[slug]/page.tsx` | Cerrado sesión 7 |
+| P14 | 🟡 | OG sin `type: image/jpeg` explícito — URLs R2 directas | `generateMetadata` | Menor |
+| P15 | ✅ | ~~Sin OG image~~ — fallback `/og-default.png` | `generateMetadata` | Cerrado sesión 7 |
 
 ### P-C. Indexación y robots en productos
 
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
-| P16 | 🟠 | Productos **agotados** (`stock === 0`) con `robots.index: true` explícito | `product/[slug]/page.tsx` L125-130 | SERP con producto no comprable → alto bounce |
-| P17 | 🟠 | Productos agotados siguen en **sitemap** sin filtro | `sitemap.ts` | Google rastrea URLs de bajo valor |
-| P18 | 🟠 | No existe flag `published` / `active` — no puedes ocultar productos del índice | `schema.prisma` | Todo en BD es indexable |
-| P19 | 🟡 | 404 de producto devuelve `title: 'Producto no encontrado'` en metadata | `generateMetadata` + `notFound()` | Riesgo soft-404 si queda enlace |
+| P16 | ⏸ | Agotados (`stock === 0`) con `robots.index: true` — **decisión explícita** | `product/[slug]/page.tsx` | Preservar posicionamiento; revisar política |
+| P17 | ⏸ | Agotados activos en sitemap (`isActive:true`, sin filtro stock) — idem | `sitemap.ts` | Por diseño con P16 |
+| P18 | ✅ | ~~Sin flag active~~ — `isActive` + filtro sitemap/listados | `schema.prisma` | Cerrado PRD-064/121 |
+| P19 | ✅ | ~~404 producto indexable~~ — `robots: { index: false }` en metadata | `generateMetadata` | Cerrado sesión 7 |
 
 ### P-D. Schema.org Product / Offer (rich results)
 
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
-| P20 | 🟠 | **LocalBusiness completo** incrustado en cada ficha (hardcode, no `readSeoLocal()`) | `ProductJsonLd.tsx` L236-289 | Ruido en graph; cambios NAP en admin no aplican a rich results de producto |
-| P21 | 🔴 | `shippingDetails.shippingRate` **$5.00 USD fijo** no leído de configuración | `ProductJsonLd.tsx` L154-160 | Rich result rechazado o datos engañosos |
-| P22 | 🔴 | `seller.name: 'Mundo Tech'` ≠ marca del sitio `MundoTech` | `ProductJsonLd.tsx` L150 | Entidad inconsistente |
-| P23 | 🟠 | ProductJsonLd **no usa** `readSeoLocal()` — desincronizado del admin | `ProductJsonLd.tsx` | Cambios NAP no aplican a rich results de producto |
-| P24 | 🟠 | **Triple** entidad local por visita producto: layout LocalBusiness + ProductJsonLd LocalBusiness | layout + ProductJsonLd | Ruido en graph; datos conflictivos |
+| P20 | ✅ | ~~LocalBusiness en cada ficha~~ — eliminado de `ProductJsonLd` | `ProductJsonLd.tsx` | Cerrado sesión 7 |
+| P21 | ⏸ | ~~$5 USD fijo~~ eliminado — falta `shippingRate` desde `readSettings()` | `ProductJsonLd.tsx` | H09 parcial |
+| P22 | ✅ | ~~`seller.name: 'Mundo Tech'`~~ — `storeName` desde settings | `ProductJsonLd.tsx` | Cerrado sesión 7 |
+| P23 | ✅ | ~~NAP desincronizado en ficha~~ — NAP solo en layout (`readSeoLocal`) | layout + ProductJsonLd | Cerrado sesión 7 |
+| P24 | ✅ | ~~Triple LocalBusiness~~ — solo layout global | layout | Cerrado sesión 7 |
 | P25 | 🟠 | Sin `gtin` / `gtin13` / `mpn` en schema (solo `sku`) | `ProductJsonLd.tsx` | Pierdes elegibilidad para algunos rich results |
-| P26 | 🟠 | `image: []` vacío si producto sin fotos — Product sin imagen | `ProductJsonLd.tsx` | No aparece en Google Imágenes / Merchant |
+| P26 | ✅ | ~~`image: []` vacío~~ — fallback `og-default.png` en schema | `ProductJsonLd.tsx` | Cerrado sesión 7 |
 | P27 | 🟠 | `priceValidUntil` calculado +30 días en cada render, no ligado a campaña real | `ProductJsonLd.tsx` L77-80 | Si Google valida fechas, puede marcar offer stale |
 | P28 | 🟡 | `aggregateRating` solo si hay reseñas — mayoría de productos sin estrellas en SERP | `ProductJsonLd.tsx` | Sin ventaja CTR de estrellas |
 | P29 | 🟡 | Máximo 5 `Review` en schema aunque haya más aprobadas | `ProductJsonLd.tsx` L101 | Menor; aceptable |
-| P30 | 🟡 | Sin `VideoObject` aunque `ProductMedia` soporte VIDEO (Bunny) | `ProductGallery.tsx` + schema | Pierdes rich results de video |
-| P31 | 🟡 | JSON-LD de producto **sin nonce CSP** (scripts hijos) | `ProductJsonLd.tsx` | Riesgo bajo para Googlebot; alto en validadores |
-| P32 | ⚪ | `category` en schema es string libre (`product.category`), no URL de categoría | `ProductJsonLd.tsx` | Menor estructuración temática |
+| P30 | ✅ | ~~Sin `VideoObject`~~ — emitido si hay `ProductMedia` VIDEO | `ProductJsonLd.tsx` | Cerrado sesión 8 |
+| P31 | ⏸ | JSON-LD hijo sin nonce CSP — cerrado por diseño ISR (H19) | `JsonLd.tsx` | PRD-284 |
+| P32 | ✅ | ~~`category` texto libre~~ — URL canónica (P80) | `ProductJsonLd.tsx` | Cerrado sesión 8 |
 
 ### P-E. Contenido visible en la ficha (lo que Google indexa)
 
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
-| P33 | 🟠 | **ProductTabs es Client Component** — descripción, specs, envío en pestañas | `ProductTabs.tsx` | Specs y envío **no visibles** en HTML inicial salvo tab activa (solo descripción por defecto) |
-| P34 | 🟠 | Descripción renderizada como texto plano en `<p>` — si admin guarda HTML, se ven tags literales | `ProductTabs.tsx` L76-78 | Contenido de baja calidad / HTML roto visible |
-| P35 | 🟠 | Tab "Reseñas" en ProductTabs dice *"Próximamente activaremos"* pero **ProductReviews** sí existe abajo | `ProductTabs.tsx` L158-165 vs `ProductReviews.tsx` | Contenido contradictorio; señal de calidad baja |
+| P33 | ✅ | ~~ProductTabs excluía paneles inactivos del DOM~~ — todos los paneles renderizados desde el primer HTML | `ProductTabs.tsx` | Cerrado — descripción, specs, envío y resumen de reseñas siempre en DOM; `hidden` solo controla visibilidad |
+| P34 | 🟠 | Descripción renderizada como texto plano en `<p>` — si admin guarda HTML, se ven tags literales | `ProductTabs.tsx` | Contenido de baja calidad / HTML roto visible |
+| P35 | ✅ | ~~Tab Reseñas "Próximamente"~~ — resumen real + enlace a `ProductReviews` | `ProductTabs.tsx` | Cerrado PRD-037 |
 | P36 | 🟠 | Texto placeholder si no hay descripción: *"aún no tiene descripción detallada"* | `ProductTabs.tsx` | Thin content indexable |
-| P37 | 🟡 | Specs técnicas solo en pestaña "Especificaciones" (oculta por defecto) | `ProductTabs.tsx` | Google ve menos texto relevante; mitigado parcial por `additionalProperty` en JSON-LD |
-| P38 | 🟡 | Precio en Bs solo en cliente (`ExchangeRateProvider`) — no en HTML estático inicial desde servidor… | `product/[slug]/page.tsx` | El precio Bs se renderiza en servidor (línea 291-293) ✅; OK |
-| P39 | 🟡 | Contenido de envío en tab oculta duplica info del schema pero no el cuerpo principal | `ProductTabs.tsx` shipping tab | Menos keywords long-tail en HTML principal |
+| P37 | ✅ | ~~Specs técnicas solo en pestaña activa (DOM condicional)~~ — `<dl>` con marca/SKU/categoría/stock siempre en HTML | `ProductTabs.tsx` | Cerrado junto con P33 |
+| P38 | ✅ | ~~Precio Bs solo en cliente~~ — renderizado en servidor con tasa | `product/[slug]/page.tsx` | Cerrado — Bs en HTML SSR (líneas ~357–359) |
+| P39 | ✅ | ~~Contenido de envío ausente del HTML inicial~~ — panel Envío siempre en DOM con políticas existentes | `ProductTabs.tsx` shipping tab | Cerrado junto con P33 |
 | P40 | ⚪ | Un solo H1 (nombre producto) — correcto | `product/[slug]/page.tsx` | ✅ Buena práctica |
 
 ### P-F. Imágenes de producto
 
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
-| P41 | 🔴 | Fallback `/placeholder-product.png` **no existe** en el repo | múltiples + `productActions.ts` L59 | Imagen rota en listados y schema |
-| P42 | 🟠 | Sin **image sitemap** para URLs Cloudinary de productos | — | Google Images depende solo de rastreo HTML |
+| P41 | ✅ | Asset `/placeholder-product.png` en `public/` | múltiples | Cerrado PRD-008 |
+| P42 | ✅ | ~~Sin image sitemap~~ — `images: string[]` en sitemap | `sitemap.ts` | Cerrado sesión 8 |
 | P43 | 🟠 | OG fuerza recorte 1200×630 `c_fill` — puede recortar producto | `buildOgImageUrl` | Preview social puede ser engañosa |
 | P44 | 🟡 | `ProductGallery` principal es cliente; video en iframe Bunny no indexable como imagen | `ProductGallery.tsx` | Contenido multimedia invisible para Images |
 | P45 | 🟡 | Poster de video con `alt=""` y `aria-hidden` | `ProductGallery.tsx` L37-38 | OK decorativo pero pierde alt keyword |
@@ -525,12 +528,12 @@ Cada fila es una práctica actual de tu web que **reduce** posibilidad de rankin
 
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
-| P46 | 🔴 | Enlaces internos masivos a `/productos?cat=X` en vez de `/categoria/{slug}` | Footer, home, tienda-barquisimeto, Promotions | PageRank no fluye a URLs canónicas de categoría |
-| P47 | 🔴 | Filtro `?cat=` aplicado **solo en cliente**; SSR muestra **todos** los productos | `ProductGridAndFilters.tsx` L166-172 | Contenido no alineado con URL; canonical siempre `/productos` |
-| P48 | 🟠 | Canonical de `/productos?cat=Consolas` es `/productos` (sin query) | `productos/page.tsx` | Google agrupa variantes filtradas mal |
-| P49 | 🟠 | `ItemList` en categoría solo lista **20** productos en schema | `categoria/[slug]/page.tsx` L144 | Resto de productos de categoría sin señal ItemList |
-| P50 | 🟠 | Categoría con 0 productos (mismatch nombre `Consolas` vs `consolas`) sigue indexable | `categoria/[slug]/page.tsx` | Thin content; enlaces internos rotos de valor |
-| P51 | 🟠 | `CategoryDrawer` filtra catálogo en vez de enlazar `/categoria/slug` | `CategoryDrawer.tsx` | Menos enlaces directos a hubs de categoría |
+| P46 | ⏸ | Footer/home/tienda usan `/categoria/` — default promos/banners sigue `/productos` | Footer, Promotion model | Mayoría cerrada sesión 7 |
+| P47 | ✅ | ~~Filtro `?cat=` aplicado solo en cliente~~ → **301 en middleware** a `/categoria/[slug]` | `middleware.ts` | Resuelto sesión 9 — URL coherente con contenido |
+| P48 | ✅ | ~~Canonical `/productos?cat=X` sin normalizar~~ → **redirect 301 elimina la variante** | `middleware.ts` | Resuelto sesión 9 — Google solo indexa `/categoria/[slug]` |
+| P49 | ✅ | ~~ItemList truncado incoherente~~ — paginado `PAGE_SIZE=24` + offset | `categoria/[slug]/page.tsx` | Cerrado sesiones 7+10 |
+| P50 | ✅ | ~~Categoría vacía indexable~~ — `noindex` si `productCount === 0` | `categoria/[slug]/page.tsx` | Cerrado sesión 7 |
+| P51 | ✅ | ~~CategoryDrawer filtra~~ — `<Link href="/categoria/{slug}">` | `CategoryDrawer.tsx` | Cerrado sesión 9 |
 | P52 | 🟡 | Catálogo usa `motion.div` opacity 0 inicial en grid | `ProductGridAndFilters.tsx` | Posible retraso de pintura / CLS |
 | P53 | 🟡 | ProductCard es cliente — el link sí SSR, pero nombre en `<h3>` no `<h2>` | `ProductCard.tsx` | Jerarquía aceptable en listados |
 
@@ -538,7 +541,7 @@ Cada fila es una práctica actual de tu web que **reduce** posibilidad de rankin
 
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
-| P54 | 🟠 | "También te puede interesar" solo **5** productos misma categoría con stock | `product/[slug]/page.tsx` | Pocos enlaces salientes internos por ficha |
+| P54 | ⏸ | "También te puede interesar" solo **5** productos misma categoría con stock | `product/[slug]/page.tsx` | Decisión de diseño — enlaces presentes pero limitados (mejora futura opcional) |
 | P55 | 🟠 | `RecentlyViewed` solo tras JS + localStorage — **sin enlaces** en HTML inicial | `RecentlyViewed.tsx` | Pierdes cluster de enlazado dinámico para bots |
 | P56 | 🟡 | Breadcrumb categoría apunta a `/categoria/slug` **o** `/productos` si no hay match | `resolve-category-path.ts` | Breadcrumb schema con URL genérica catálogo |
 | P57 | 🟡 | Relacionados excluyen productos sin stock — agotados sin enlaces internos entrantes nuevos | `getRelatedProducts` stock > 0 | Agotados pierden link equity interno |
@@ -547,10 +550,10 @@ Cada fila es una práctica actual de tu web que **reduce** posibilidad de rankin
 
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
-| P58 | 🔴 | `quickUpdateStockAction` **no** revalida `/product/{slug}` | `productActions.ts` L400-401 | Google ve stock obsoleto hasta 1h (ISR) |
-| P59 | 🔴 | `quickUpdatePriceAction` **no** revalida `/product/{slug}` | `productActions.ts` L418-419 | Precio en SERP/schema desactualizado |
-| P60 | 🟠 | ISR `revalidate = 3600` — precio/stock puede tardar 1h en reflejarse | `product/[slug]/page.tsx` | Rich result con precio viejo |
-| P61 | 🟠 | Import masivo CSV revalida `/` y admin pero **no** cada ficha | `productActions.ts` bulk ~L360 | Cambios masivos lentos en indexación |
+| P58 | ✅ | ~~quickUpdate stock sin revalidar~~ — `revalidatePath` + `revalidateTag` | `productActions.ts` | Cerrado PRD-024 + sesión 14 |
+| P59 | ✅ | ~~quickUpdate precio sin revalidar~~ — idem | `productActions.ts` | Cerrado PRD-024 + sesión 14 |
+| P60 | ✅ | ~~ISR 3600s~~ — `revalidate = 300` + on-demand | `product/[slug]/page.tsx` | Cerrado PRD-140 |
+| P61 | ⏸ | Import CSV revalida `/` + admin + **`revalidateTag('catalog')`** pero **no** cada ficha individual | `productActions.ts` importProductsFromCSV | Mejor que antes; fichas concretas esperan TTL tag o edición manual |
 | P62 | 🟡 | `configActions` revalida `/product/[slug]` genérico pero no slug concreto | `configActions.ts` | Revalidación de plantilla puede no invalidar todas las fichas |
 
 ### P-J. Búsqueda y long-tail
@@ -558,16 +561,16 @@ Cada fila es una práctica actual de tu web que **reduce** posibilidad de rankin
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
 | P63 | 🟠 | Búsqueda principal va a `/buscar` (noindex) — no compite por keywords | `SearchBar.tsx` | Solo fichas y catálogo compiten en orgánico |
-| P64 | 🟠 | WebSite SearchAction apunta a `/productos?q=` que no es la búsqueda real | `layout.tsx` | Sitelinks search box roto |
+| P64 | ✅ | ~~WebSite SearchAction apunta a `/productos?q=`~~ → `/buscar?q=` | `layout.tsx` | Cerrado sesión 7 |
 | P65 | 🟡 | Sin páginas de aterrizaje por marca (`/marca/{slug}`) — previsto en docs futuros | `FUTURAS-ACTUALIZACIONES.md` | Pierdes long-tail por marca |
 | P66 | ⚪ | Sin blog que enlace a productos con contenido editorial | — | Menos topical authority hacia fichas |
 
-### P-K. Google Merchant / Shopping (no implementado)
+### P-K. Google Merchant / Shopping — ✅ implementado (sesiones 8, 14, 15)
 
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
-| P67 | 🟠 | Sin feed XML/CSV para **Google Merchant Center** | — | No apareces en pestaña Shopping |
-| P68 | 🟠 | Sin integración Surfaces across Google | — | Pierdes visibilidad adicional de producto |
+| P67 | ✅ | ~~Sin feed XML/CSV para **Google Merchant Center**~~ | `api/merchant-feed/route.ts` | Feed RSS 2.0 activo — registrar en Merchant Center (manual) |
+| P68 | ✅ | ~~Sin integración Surfaces across Google~~ | idem | Depende de aprobación del feed en cuenta MC |
 | P69 | 🟡 | `hasMerchantReturnPolicy` hardcodeado 7 días — puede no coincidir con política real | `ProductJsonLd.tsx` | Validación Merchant si se conecta después |
 
 ### P-L. Admin y calidad de datos de producto
@@ -584,33 +587,33 @@ Cada fila es una práctica actual de tu web que **reduce** posibilidad de rankin
 
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
-| P75 | 🟠 | **`originalPrice` / rebajas no van al schema** — UI muestra descuento pero `Offer` solo emite `price` actual (sin `priceSpecification`/`ListPrice`) | `ProductJsonLd.tsx` (interface tiene `originalPrice` pero no se usa) | Pierdes señal de oferta en rich results; inconsistencia precio visible vs schema |
-| P76 | 🟠 | **`hasMerchantReturnPolicy` sin URL** — falta `merchantReturnLink` / `url` apuntando a `/devoluciones` | `ProductJsonLd.tsx` L192-200 | Google Merchant / validadores 2024+ esperan enlace a política real |
-| P77 | 🟠 | **`Review` en schema sin `itemReviewed`** — reseñas no enlazan al `@id` del Product | `ProductJsonLd.tsx` L101-113 | Grafo de reseñas desconectado; menor elegibilidad estrellas |
-| P78 | 🟡 | **Sin `@id` / `@graph`** — Organization (layout), Product y Offer son entidades aisladas | layout + ProductJsonLd | Google no consolida entidad tienda ↔ producto tan bien |
-| P79 | 🟡 | **Product schema sin `dateModified`** pese a `updatedAt` en BD y sitemap | `ProductJsonLd.tsx` | Menos señal de frescura en rich results |
-| P80 | 🟡 | **`category` en Product schema es texto**, no URL a `/categoria/{slug}` | `ProductJsonLd.tsx` L132 | Pierdes enlace semántico producto ↔ categoría canónica |
+| P75 | ✅ | ~~`originalPrice` / rebajas no van al schema~~ — `ListPrice` en `priceSpecification` | `ProductJsonLd.tsx` | Cerrado sesión 7 |
+| P76 | ✅ | ~~`hasMerchantReturnPolicy` sin URL~~ — `merchantReturnLink` → `/devoluciones` | `ProductJsonLd.tsx` | Cerrado sesión 7 |
+| P77 | ✅ | ~~`Review` sin `itemReviewed`~~ — enlaza `@id` del Product | `ProductJsonLd.tsx` | Cerrado sesión 7 |
+| P78 | ✅ | ~~Sin `@id` / `@graph`~~ — Organization ↔ Product conectados | layout + ProductJsonLd | Cerrado sesión 7 |
+| P79 | ✅ | ~~Product schema sin `dateModified`~~ — desde `updatedAt` | `ProductJsonLd.tsx` | Cerrado sesión 8 |
+| P80 | ✅ | ~~`category` es texto~~ — URL canónica `/categoria/{slug}` | `ProductJsonLd.tsx` | Cerrado sesión 8 |
 | P81 | 🟠 | **Bloque "Productos relacionados" sin `ItemList` schema** | `product/[slug]/page.tsx` L360+ | Cluster semántico de productos similares solo en HTML |
-| P82 | 🟠 | **Catálogo y categorías sin paginación** — `findMany` trae **todos** los productos en un HTML | `productos/page.tsx`, `categoria/[slug]/page.tsx` | HTML monolítico crece sin límite → TTFB, CWV y crawl cost ↑ |
+| P82 | ✅ | **Paginación SSR implementada** — `PAGE_SIZE=24`, `?page=N`, canonicals autoreferenciales, redirect 301 `?page=1` | `productos/page.tsx`, `categoria/[slug]/page.tsx`, `PaginationBar.tsx`, `middleware.ts` | Cerrado sesión 10 (12 jun 2026) |
 | P83 | 🟡 | **`lastModified` de categoría en sitemap usa `category.updatedAt`** — no cambia al añadir productos | `sitemap.ts` + `schema.prisma` Category | Google cree categoría "fresca" o "stale" incorrectamente |
-| P84 | 🟡 | **Meta description de producto fuerza `…` tras `slice(0,130)`** aunque la descripción sea corta | `product/[slug]/page.tsx` L68-69 | Snippets truncados o con elipsis artificial en SERP |
-| P85 | 🟠 | **Modelo `Category` sin campo `description`** — metadata y JSON-LD usan plantilla idéntica por categoría; `CategoryJsonLd` referencia `category.description` inexistente | `schema.prisma`, `categoria/[slug]/page.tsx` | Meta descriptions duplicadas entre categorías; sin copy único por vertical |
+| P84 | ✅ | ~~Meta description fuerza `…` arbitrario~~ — `clampDescription()` 140–160 chars | `product/[slug]/page.tsx` | Cerrado sesión 7 |
+| P85 | ✅ | **`Category.description` + `seoTitle` + `googleCategoryId`** — migración SEO + override Merchant; admin, metadata, JSON-LD, hero y feed | `schema.prisma`, `categoria/`, `admin/categories`, `api/categories/*`, `merchant-feed` | Cerrado sesiones 12+15 |
 | P86 | 🟡 | **`Link` de Next.js con prefetch por defecto** en cada `ProductCard` del grid | `components/ProductCard.tsx` | Prefetch agresivo en catálogos grandes → presión de crawl budget en hosting |
-| P87 | 🟠 | **`AnnouncementBar` invisible en SSR** — `useState(true)` + `return null` hasta `useEffect` | `AnnouncementBar.tsx` L13, L30 | Anuncios admin (promos, links internos) **no existen** en HTML que ve Googlebot |
+| P87 | ✅ | ~~`AnnouncementBar` invisible en SSR~~ — Server Component + cookie dismiss | `AnnouncementBar.tsx` | Cerrado sesión 11 |
 | P88 | 🟡 | **`PromoPopup` solo tras `useEffect` + delay** — contenido promocional fuera del primer HTML | `PromoPopup.tsx` L22-33 | Links de campañas del popup no aportan enlazado interno a crawlers |
-| P89 | 🟠 | **Home metadata promete "Delivery en 24h"** — contradice `/shipping-policy` ("plazos orientativos") y schema de envío (1–3 días tránsito) | `app/page.tsx` L19 vs `shipping-policy` + ProductJsonLd | Señal E-E-A-T negativa si el snippet no se cumple |
+| P89 | ✅ | ~~Home metadata promete "Delivery en 24h"~~ — copy unificado sin claim 24h | `page.tsx`, Navbar, Benefits | Cerrado sesión 7 |
 
 ### P-N. Sexta pasada — claims indexables y schema (P90–P97)
 
 | ID | Sev | Mal práctica | Dónde | Efecto en Google |
 |----|-----|--------------|-------|------------------|
-| P90 | 🟠 | **`ItemList.numberOfItems` = total real** pero `itemListElement` solo tiene **20** entradas | `categoria/[slug]/page.tsx` L143-149 | Schema inválido/inconsistente; Google puede ignorar CollectionPage |
-| P91 | 🟠 | **Claim "Delivery en Barquisimeto en 24h" repetido** en Navbar top bar (todas las páginas) además de home metadata | `components/Navbar.tsx` L78 | Refuerza promesa no verificable en cuerpo indexable (E-E-A-T en SERP) |
-| P92 | 🟠 | **`Benefits` DEFAULT hardcodea "Delivery en 24h"** — visible en home si admin no sobreescribe | `app/components/Benefits.tsx` L12 | Misma promesa en HTML indexable de la home |
-| P94 | 🟡 | **Garantía "12 meses" en UI/devoluciones** sin `Warranty`/`WarrantyScope` en Product schema | ficha + `/devoluciones` vs `ProductJsonLd.tsx` | Pierdes rich result de garantía; inconsistencia schema ↔ página |
-| P95 | 🟡 | **`shippingDetails` en Offer sin `url`** hacia `/shipping-policy` | `ProductJsonLd.tsx` | Google prefiere enlace a política de envío en Offer |
-| P96 | 🟠 | **`/reset-password` (y query variants) indexables** sin `noindex` — URLs finas de auth | `reset-password/page.tsx` + `robots.ts` Allow | Crawl budget desperdiciado; páginas basura en índice |
-| P97 | 🟡 | **Canonical `/buscar` ignora `brand`, `cat`, `page`** — URL real ≠ canonical declarado | `buscar/page.tsx` L37 | Señales contradictorias (aunque la página lleve `noindex`) |
+| P90 | ✅ | ~~`numberOfItems` ≠ entradas listadas~~ — coherente con slice paginado | `categoria/[slug]/page.tsx` | Cerrado sesión 7 (+ offset absoluto sesión 10) |
+| P91 | ✅ | ~~Claim "24h" en Navbar~~ — eliminado | `Navbar.tsx` | Cerrado sesión 7 (P89) |
+| P92 | ✅ | ~~Benefits DEFAULT "24h"~~ — default sin claim 24h | `Benefits.tsx` / `site-content-schema` | Cerrado sesión 7 |
+| P94 | ✅ | ~~Sin Warranty schema~~ — `WarrantyPromise` 12 meses | `ProductJsonLd.tsx` | Cerrado sesión 7 |
+| P95 | ✅ | ~~`shippingDetails` sin `url`~~ — enlace `/shipping-policy` | `ProductJsonLd.tsx` | Cerrado sesión 8 |
+| P96 | ✅ | ~~`/reset-password` indexable~~ — `robots: { index: false }` | `reset-password/page.tsx` | Cerrado sesión 8 |
+| P97 | ✅ | ~~Canonical `/buscar` incompleto~~ — refleja q, cat, brand, page | `buscar/page.tsx` | Cerrado sesión 7 |
 
 > **Total malas prácticas producto documentadas: 96 ítems activos (P01–P97; P93 y P98 retirados por alcance).**
 
@@ -641,64 +644,66 @@ No todo está mal — esto **conservar** al corregir:
 
 ## P4. Roadmap: SEO de productos 100% optimizado
 
+> **Estado (12 jun 2026):** roadmap **histórico** de la auditoría inicial. **La mayoría de fases 1–5 está cerrada** en sesiones 7–15 — ver [§39.5](#395-estado-p01p97--consolidado-post-sesión-15). Usar solo como referencia de orden de dependencias; pendientes reales en [§47.3](#473-pendientes-reales-confirmados-en-código-siguen-abiertos).
+
 Orden recomendado de corrección (dependencias respetadas). Cada fase desbloquea la siguiente.
 
-### Fase 1 — Crítico (semana 1): confianza y URLs
+### Fase 1 — Crítico (semana 1): confianza y URLs — ✅ mayoría cerrada
 
 | Orden | Tarea | Cierra |
 |-------|-------|--------|
-| 1.1 | Unificar `ProductJsonLd` con `readSeoLocal()` + `readSettings()`; **eliminar** LocalBusiness de cada ficha | P20, P22, P23, P24 |
-| 1.2 | Leer tarifa envío real desde `readSettings()` o config en `shippingDetails` | P21 |
-| 1.3 | Redirect 301 `/product/{id}` → `/product/{slug}` cuando slug existe | P01 |
-| 1.4 | Redirect 301 slug viejo → slug nuevo al renombrar producto (tabla `ProductSlugRedirect` o similar) | P03 |
-| 1.5 | Crear `/public/placeholder-product.png` o eliminar referencias | P41 |
-| 1.6 | Obligar slug al crear producto; ejecutar migrate-slugs en prod | P02, P05, P73 |
-| 1.7 | `revalidatePath(/product/${slug})` en quickUpdate stock y precio | P58, P59 |
+| ~~1.1~~ | ~~Unificar ProductJsonLd; eliminar LocalBusiness de ficha~~ | ✅ P20–P24 |
+| 1.2 | Leer tarifa envío real en `shippingDetails.shippingRate` | P21/H09 ⏸ |
+| ~~1.3~~ | ~~Redirect 308 `/product/{id}` → slug~~ | ✅ P01/H05 |
+| ~~1.4~~ | ~~Redirect slug viejo → nuevo~~ | ✅ P03/DEP-05 |
+| ~~1.5~~ | ~~Crear `/public/placeholder-product.png`~~ | ✅ P41 |
+| ~~1.6~~ | ~~Slug obligatorio + migrate-slugs~~ | ✅ P05/P02 |
+| ~~1.7~~ | ~~revalidatePath + revalidateTag en quickUpdate~~ | ✅ P58/P59 |
 
-### Fase 2 — Alto (semana 2): metadata y contenido
-
-| Orden | Tarea | Cierra |
-|-------|-------|--------|
-| 2.1 | Títulos con `title.absolute` o quitar MundoTech duplicado del template | P08, P09 |
-| 2.2 | Plantilla title: `{nombre} \| Precio USD Venezuela · {marca}` (<60 chars) | P09 |
-| 2.3 | Meta description única por producto; ampliar límite a 155-160 sin cortar palabras | P11, P12 |
-| 2.4 | Mover descripción + specs críticas a **Server Component** (HTML siempre visible) | P33, P37 |
-| 2.5 | Renderizar descripción HTML con sanitización (`dangerouslySetInnerHTML` seguro) o markdown | P34, P70 |
-| 2.6 | Eliminar tab reseñas obsoleta de ProductTabs o sincronizar con ProductReviews | P35 |
-| 2.7 | `openGraph.type` coherente para productos | P13 |
-
-### Fase 3 — Alto (semana 3): catálogo, categorías, enlaces
+### Fase 2 — Alto (semana 2): metadata y contenido — ✅ parcial
 
 | Orden | Tarea | Cierra |
 |-------|-------|--------|
-| 3.1 | Cambiar Footer, home, tienda-barquisimeto a `/categoria/{slug}` | P46 |
-| 3.2 | SSR de filtros `?cat=` en `/productos` o deprecar query y usar solo `/categoria/` | P47, P48 |
-| 3.3 | FK o sync estricto `Product.category` ↔ `Category.name` | P50, P71 |
-| 3.4 | `noindex` en categorías vacías | P50 |
-| 3.5 | ItemList schema con todos los productos o paginado | P49 |
-| 3.6 | CategoryDrawer enlaza a `/categoria/slug` | P51 |
+| ~~2.1~~ | ~~Títulos sin duplicar MundoTech~~ | ✅ P08/P09/H02 |
+| ~~2.2~~ | ~~Plantilla title corta por producto~~ | ✅ P09 |
+| ~~2.3~~ | ~~Meta description única clampDescription~~ | ✅ P11/P84 |
+| ~~2.4~~ | ~~Todos los paneles ProductTabs en DOM inicial (`hidden` + ARIA)~~ | ✅ P33–P37/P39 |
+| 2.5 | Descripción HTML con sanitización | P34/P70 ⏳ |
+| ~~2.6~~ | ~~Tab reseñas obsoleta~~ | ✅ P35 |
+| ~~2.7~~ | ~~openGraph.type coherente~~ | ✅ P13/H20 |
 
-### Fase 4 — Medio (semana 4): indexación y agotados
-
-| Orden | Tarea | Cierra |
-|-------|-------|--------|
-| 4.1 | Política clara agotados: `noindex` + mantener URL o página "avísame" con index | P16, P17 |
-| 4.2 | Excluir agotados del sitemap (o `priority: 0.3`) | P17 |
-| 4.3 | Campo `published Boolean` en Product; filtrar sitemap y listados públicos | P18 |
-| 4.4 | `revalidatePath` al borrar producto + 410 Gone opcional | P04, P19 |
-| 4.5 | Añadir `gtin`/`mpn` opcionales en admin + schema | P25 |
-
-### Fase 5 — Crecimiento (mes 2+): visibilidad extra
+### Fase 3 — Alto (semana 3): catálogo, categorías, enlaces — ✅ cerrada
 
 | Orden | Tarea | Cierra |
 |-------|-------|--------|
-| 5.1 | Image sitemap o `image:` en sitemap por producto | P42 |
-| 5.2 | `VideoObject` cuando hay ProductMedia VIDEO | P30 |
-| 5.3 | Google Merchant Center feed desde Prisma | P67, P68 |
-| 5.4 | Páginas `/marca/{slug}` | P65 |
-| 5.5 | `generateStaticParams` para top N productos | tráfico |
-| 5.6 | Contenido editorial / guías que enlacen a fichas | P66 |
-| 5.7 | SearchAction → `/buscar?q=` + alinear not-found | P64 |
+| ~~3.1~~ | ~~Footer/home/tienda → `/categoria/{slug}`~~ | ✅ P46/H14 |
+| ~~3.2~~ | ~~Deprecar `?cat=` → 301 `/categoria/`~~ | ✅ P47/P48/H06 |
+| 3.3 | FK estricto `Product.category` ↔ `Category` | P71 ⏳ |
+| ~~3.4~~ | ~~noindex categorías vacías~~ | ✅ P50/H27 |
+| ~~3.5~~ | ~~ItemList paginado coherente~~ | ✅ P49/P90 |
+| ~~3.6~~ | ~~CategoryDrawer → `/categoria/slug`~~ | ✅ P51/H43 |
+
+### Fase 4 — Medio (semana 4): indexación y agotados — ⏸ decisión negocio
+
+| Orden | Tarea | Cierra |
+|-------|-------|--------|
+| 4.1 | Política agotados: noindex vs index (decisión actual: **index**) | P16/P17/H46 ⏸ |
+| 4.2 | Excluir agotados del sitemap | ⏸ agotados **sí** en sitemap por diseño |
+| ~~4.3~~ | ~~Campo `isActive`; filtrar sitemap~~ | ✅ P18/DEP-03 |
+| ~~4.4~~ | ~~revalidatePath al borrar producto~~ | ✅ P04 |
+| 4.5 | Campo `gtin`/`mpn` en admin + schema | P25/TODO-MC-03 ⏳ |
+
+### Fase 5 — Crecimiento (mes 2+): visibilidad extra — ✅ parcial
+
+| Orden | Tarea | Cierra |
+|-------|-------|--------|
+| ~~5.1~~ | ~~Image sitemap inline~~ | ✅ P42/H40 |
+| ~~5.2~~ | ~~VideoObject~~ | ✅ P30/H35 |
+| ~~5.3~~ | ~~Merchant Center feed~~ | ✅ P67–P68/H50 |
+| 5.4 | Páginas `/marca/{slug}` | P65 ⏳ |
+| ~~5.5~~ | ~~generateStaticParams productos~~ | ✅ H38 |
+| 5.6 | Contenido editorial / guías | P66 ⏳ |
+| ~~5.7~~ | ~~SearchAction → `/buscar?q=`~~ | ✅ P64/H08 |
 
 ---
 
@@ -757,23 +762,23 @@ MundoTech tiene una **base SEO sólida y deliberada** para un e-commerce local e
 | JSON-LD rico | Product, LocalBusiness, FAQ, Breadcrumbs, CollectionPage |
 | OG image generada | `app/opengraph-image.tsx` (corrige 404 previo) |
 | SEO local editable | Admin → `/admin/settings/seo-local` |
-| ISR 3600s | Home, catálogo, categorías, productos |
+| ISR 300s + caché catálogo | Home, catálogo, categorías, productos (`revalidateTag` on-demand — §46) |
 | GA4 con consentimiento | Solo tras aceptar cookies |
+| Merchant feed XML | `/api/merchant-feed` + taxonomía Google (sesiones 8, 14–15) |
+| OpenSearch | `public/opensearch.xml` + link en `layout.tsx` |
 
 **Enfoque dominante:** SEO local (Barquisimeto) + e-commerce de productos individuales con schema `Product`/`Offer` avanzado (envío, devoluciones, reseñas reales).
 
-**No existe:** blog, hreflang multi-idioma, Google Merchant Center feed, service worker PWA.
+**No existe:** blog, hreflang multi-idioma, service worker PWA, IndexNow.
 
-**Para posicionar productos (ver §P2 — 74 malas prácticas P01–P74):**
-1. **ProductJsonLd** con NAP viejo + LocalBusiness extra en cada ficha → rich results en riesgo.
-2. **URLs duplicadas** `/product/id` y `/product/slug` sin 301 → divide ranking.
-3. **Precio/stock desactualizado** hasta 1h — quickUpdate no revalida fichas.
-4. **Títulos SERP demasiado largos** por template duplicado `— MundoTech`.
-5. **Catálogo `?cat=`** filtra en cliente; enlaces internos no van a `/categoria/slug`.
-6. **`placeholder-product.png` inexistente** — imágenes rotas en listados.
-7. **ProductTabs** oculta specs; tab reseñas obsoleto contradice ProductReviews.
+**Gaps activos que aún afectan ranking (ver [§47.3](#473-pendientes-reales-confirmados-en-código-siguen-abiertos)):**
+1. **PromoPopup** invisible en SSR — enlaces internos perdidos (P88).
+2. **404/500 global** sin `noindex` en metadata (H21 parcial).
+3. **Agotados indexados** por decisión explícita — revisar si conviene `noindex` (P16/P17/H46).
+4. **Sin `gtin`** en BD — elegibilidad Shopping limitada (TODO-MC-03).
+5. **Backfill de contenido** — descripciones SEO por categoría en admin (trabajo manual).
 
-**Sitio global (H01–H50 — ver §35):** canonical heredado en auth/cart, SearchAction roto, etc.
+**Sitio global (H01–H66 — ver §35):** los bugs críticos históricos (canonical heredado, SearchAction, NAP duplicado, URLs producto duplicadas) están **cerrados** en sesiones 7–15. Pendientes reales en §47.3.
 
 ---
 
@@ -781,12 +786,14 @@ MundoTech tiene una **base SEO sólida y deliberada** para un e-commerce local e
 
 ```
 Next.js App Router
-├── app/layout.tsx          → metadata global + JSON-LD WebSite/Org/LocalBusiness
+├── app/layout.tsx          → metadata global + JSON-LD WebSite/Org/LocalBusiness + OpenSearch link
 ├── app/sitemap.ts          → /sitemap.xml (MetadataRoute)
 ├── app/robots.ts           → /robots.txt (MetadataRoute)
 ├── app/manifest.ts         → /manifest.webmanifest
 ├── app/opengraph-image.tsx → OG/Twitter default (1200×630 PNG edge)
 ├── app/icon.svg            → favicon (convención Metadata Files)
+├── app/api/merchant-feed/  → feed RSS 2.0 Google Merchant Center
+├── lib/catalog-cache.ts    → unstable_cache catálogo/categorías (§46)
 ├── generateMetadata()      → productos, categorías, búsqueda (dinámico)
 └── export const metadata   → páginas estáticas
 ```
@@ -795,10 +802,10 @@ Next.js App Router
 
 **Template de título global:**
 ```
-default: "MundoTech — Tecnología en Barquisimeto, Venezuela"
-template: "%s — MundoTech"
+default: "MundoTech | Tecnología en Barquisimeto, Venezuela"
+template: "%s | MundoTech"
 ```
-Las páginas hijas que definen `title: "Catálogo"` renderizan: `Catálogo — MundoTech` (salvo que el título ya incluya "MundoTech", como en productos).
+Las páginas hijas definen `title` corto (p. ej. nombre de producto o «Catálogo de tecnología»); el template añade `| MundoTech` **una sola vez**. Home y casos especiales usan `title: { absolute: '...' }`.
 
 **Idioma HTML:** `<html lang="es">` en `app/layout.tsx`.
 
@@ -846,12 +853,12 @@ export const viewport: Viewport = {
 | Campo | Valor / comportamiento |
 |-------|------------------------|
 | `metadataBase` | `new URL(SITE_URL)` |
-| `title.default` | MundoTech — Tecnología en Barquisimeto, Venezuela |
-| `title.template` | `%s — MundoTech` |
+| `title.default` | MundoTech \| Tecnología en Barquisimeto, Venezuela |
+| `title.template` | `%s \| MundoTech` |
 | `description` | Tecnología y gadgets en Barquisimeto… |
 | `keywords` | Array de 8 términos locales (Barquisimeto, Lara, consolas…) |
 | `authors`, `creator`, `publisher` | MundoTech |
-| `alternates.canonical` | URL raíz absoluta |
+| `alternates.canonical` | **No definido en layout** (H03) — cada página indexable declara el suyo |
 | `openGraph` | `type: website`, `locale: es_VE`, `siteName: MundoTech` |
 | `twitter` | `card: summary_large_image` |
 | `robots` | `index: true`, `follow: true` |
@@ -864,7 +871,7 @@ export const viewport: Viewport = {
 
 Tres bloques `<script type="application/ld+json">` con **nonce CSP** (`headers().get('x-nonce')`):
 
-1. **WebSite** — incluye `SearchAction` (ver §28 gap)
+1. **WebSite** — incluye `SearchAction` → `/buscar?q=` ✅ (H08/P64)
 2. **LocalBusiness** — construido con `buildLocalBusinessSchema(readSeoLocal(), settings)`
 3. **Organization** — nombre, logo, email, teléfono, `sameAs` (Instagram, Facebook)
 
@@ -874,14 +881,16 @@ Los datos de LocalBusiness son **vivos**: se leen de BD en cada render del layou
 
 ## 5. Inventario completo de metadata por ruta
 
+> **Estado (12 jun 2026):** tabla resumen sincronizada. Detalle histórico en subsecciones 5.2–5.3 puede conservar ejemplos pre-sesión 7; ver código en `generateMetadata` de cada ruta.
+
 ### 5.1 Páginas públicas indexables (con metadata propia)
 
 | Ruta | Archivo | Tipo metadata | Canonical | robots | OG/Twitter | JSON-LD extra |
 |------|---------|---------------|-----------|--------|------------|---------------|
-| `/` | `app/page.tsx` | estático | `/` (relativo) | hereda index | hereda OG default | — |
-| `/productos` | `app/productos/page.tsx` | estático | absoluto `/productos` | hereda | OG completo | — |
-| `/product/[slug]` | `app/product/[slug]/page.tsx` | `generateMetadata` | `/product/{slug\|id}` | **siempre index** (incluso sin stock) | OG imagen producto 1200×630 | ProductJsonLd |
-| `/categoria/[slug]` | `app/categoria/[slug]/page.tsx` | `generateMetadata` | `/categoria/{slug}` | hereda | OG con `category.imageUrl` | CollectionPage |
+| `/` | `app/page.tsx` | estático (`title.absolute`) | implícito `/` | index | hereda OG default | — |
+| `/productos` | `app/productos/page.tsx` | `generateMetadata` (paginación) | `/productos` o `?page=N` | index | OG completo | BreadcrumbList |
+| `/product/[slug]` | `app/product/[slug]/page.tsx` | `generateMetadata` | `/product/{slug}` | **index** (incluso sin stock) | OG imagen producto 1200×630 | ProductJsonLd |
+| `/categoria/[slug]` | `app/categoria/[slug]/page.tsx` | `generateMetadata` | `/categoria/{slug}` (+ page) | index / noindex si vacía | OG + Twitter con imagen | CollectionPage |
 | `/tienda-barquisimeto` | `app/tienda-barquisimeto/page.tsx` | estático | absoluto | hereda | OG + Twitter | ElectronicsStore + Breadcrumb |
 | `/nosotros` | `app/nosotros/page.tsx` | estático | absoluto | hereda | OG parcial | AboutPage + Breadcrumb |
 | `/devoluciones` | `app/devoluciones/page.tsx` | estático | absoluto | hereda | hereda | **FAQPage** |
@@ -894,18 +903,18 @@ Los datos de LocalBusiness son **vivos**: se leen de BD en cada render del layou
 
 **Archivo:** `app/product/[slug]/page.tsx`
 
-**Título generado:**
+**Título generado (vigente):**
 ```
-{nombre} — {marca} | Precio en Venezuela · MundoTech Barquisimeto
+{product.name}   → renderizado: "{product.name} | MundoTech" (vía template)
 ```
 
-**Descripción:** Extrae texto plano del HTML de `product.description` (máx. 130 chars) + sufijo comercial. Fallback si no hay descripción.
+**Descripción:** `clampDescription()` 140–160 chars desde `product.description` (HTML strip) con fallback único por ficha (P11/P84).
 
 **Keywords dinámicos:** nombre, marca, categoría, `{nombre} precio Venezuela`, `{nombre} Barquisimeto`, términos genéricos locales.
 
 **Open Graph:**
-- Imagen principal optimizada Cloudinary `w_1200,h_630,c_fill`
-- `locale: es_VE`, `type: website` (pero `other['og:type']: product`)
+- Imagen principal Cloudinary o fallback `/og-default.png`
+- `locale: es_VE`; `og:type: product` vía `other` (P13/H20)
 
 **Meta namespace product (campo `other`):**
 - `product:price:amount`, `product:price:currency: USD`
@@ -913,16 +922,15 @@ Los datos de LocalBusiness son **vivos**: se leen de BD en cada render del layou
 - `product:availability: in stock | out of stock`
 - `product:brand` (si existe)
 
-**Decisión SEO explícita:** Productos sin stock **mantienen** `robots.index: true` para preservar posicionamiento histórico.
+**Decisión SEO explícita:** Productos sin stock **mantienen** `robots.index: true` (H46). Producto inexistente → `noindex` (P19/H28).
 
 ### 5.3 Detalle: metadata de categoría
 
-**Título:**
-```
-{nombre categoría} en Barquisimeto — MundoTech | Mejor precio Venezuela
-```
+**Título (vigente):** `category.seoTitle ?? patrón` + sufijo `| MundoTech` vía template; página ≥2 añade «— Página N».
 
-**Twitter:** card definida pero **sin imagen** aunque OG sí la tiene si `category.imageUrl` existe.
+**Description:** `category.description ?? fallback` (P85).
+
+**Twitter:** card con imagen si `category.imageUrl` existe ✅ (H16).
 
 ### 5.4 Detalle: metadata de búsqueda
 
@@ -930,32 +938,35 @@ Los datos de LocalBusiness son **vivos**: se leen de BD en cada render del layou
 
 Canonical incluye el parámetro `q` cuando existe (poco relevante dado el noindex).
 
-### 5.5 Páginas de autenticación (indexables por defecto)
+### 5.5 Páginas de autenticación — ✅ noindex (sesiones 7–8, P96/H61)
 
-| Ruta | Archivo | title | robots explícito |
-|------|---------|-------|------------------|
-| `/login` | `app/login/layout.tsx` | Iniciar sesión | **ninguno** → hereda index |
-| `/registro` | `app/registro/page.tsx` | Crear cuenta | **ninguno** |
-| `/forgot-password` | `app/forgot-password/page.tsx` | (title definido) | **ninguno** |
-| `/reset-password` | `app/reset-password/page.tsx` | (title definido) | **ninguno** |
+| Ruta | Archivo | robots |
+|------|---------|--------|
+| `/login` | `app/login/layout.tsx` | **`index: false`** ✅ |
+| `/registro` | `app/registro/page.tsx` | **`index: false`** ✅ |
+| `/forgot-password` | `app/forgot-password/page.tsx` | **`index: false`** ✅ |
+| `/reset-password` | `app/reset-password/page.tsx` | **`index: false`** ✅ |
 
-`robots.txt` **no** bloquea estas rutas.
+`robots.txt` **no** bloquea estas rutas (Google debe leer el meta noindex).
 
 ### 5.6 Área de cuenta y checkout (no indexables)
 
 | Ruta | Metadata | robots.txt | Middleware |
 |------|----------|------------|------------|
-| `/account/*` | Mayoría sin metadata; `/account/addresses` solo title | disallow `/account/` | JWT requerido |
-| `/checkout/*` | Sin metadata propia | disallow `/checkout/` | JWT requerido |
-| `/cart` | Sin metadata | **NO disallow** | Público |
-| `/wishlist` | Sin metadata | disallow `/wishlist` | Público (sin auth) |
+| `/account/*` | Sin metadata dedicada | disallow `/account/` | JWT requerido |
+| `/checkout/*` | **noindex** ✅ | disallow `/checkout/` | JWT requerido |
+| `/cart` | **noindex** + canonical ✅ | **disallow `/cart/`** ✅ | Público |
+| `/wishlist` | **noindex** + canonical ✅ | disallow `/wishlist` | Público (sin auth) |
 | `/admin/*` | `noindex, nofollow` | disallow `/admin/` | JWT + ADMIN |
 
-### 5.7 Páginas sin metadata propia (heredan root)
+### 5.7 Páginas especiales (metadata limitada o ausente)
 
-- `/cart`, `/checkout`, `/wishlist`
-- Resto de `/account/*` (excepto addresses)
-- `app/not-found.tsx`, `app/error.tsx`
+| Ruta | Estado metadata |
+|------|-----------------|
+| `/cart`, `/wishlist`, `/checkout/*` | **noindex** propio ✅ (ya no heredan solo del root) |
+| `/account/*` | Sin metadata dedicada; **robots Disallow** |
+| `app/not-found.tsx` | Sin metadata — **H21 abierto** (noindex deseable) |
+| `app/error.tsx` | Client — sin metadata — **H21 abierto** |
 
 ---
 
@@ -964,39 +975,45 @@ Canonical incluye el parámetro `q` cuando existe (poco relevante dado el noinde
 **Archivo:** `app/sitemap.ts`  
 **Modo:** `export const dynamic = 'force-dynamic'` — se regenera en cada request al endpoint.
 
-**No existe:** `generateSitemaps`, sitemap index multi-archivo, sitemap de imágenes.
+**No existe:** `generateSitemaps`, sitemap index multi-archivo como fichero separado.
+
+**Sí existe (P42/H40):** image sitemap **inline** — cada entrada de producto/categoría puede incluir `images: string[]` (hasta 3 URLs por producto).
 
 ### 6.1 Páginas estáticas incluidas
 
 | URL | priority | changeFrequency |
 |-----|----------|-----------------|
 | `/` | 1.0 | daily |
-| `/productos` | 0.9 | daily |
-| `/tienda-barquisimeto` | 0.85 | monthly |
-| `/nosotros` | 0.7 | monthly |
+| `/productos` | 0.8 | daily |
+| `/tienda-barquisimeto` | 0.5 | monthly |
+| `/nosotros` | 0.5 | monthly |
 | `/devoluciones` | 0.5 | yearly |
-| `/privacy-policy` | 0.3 | yearly |
-| `/terms-of-service` | 0.3 | yearly |
-| `/shipping-policy` | 0.4 | yearly |
+| `/privacy-policy` | 0.5 | yearly |
+| `/terms-of-service` | 0.5 | yearly |
+| `/shipping-policy` | 0.5 | yearly |
 
 ### 6.2 Páginas dinámicas
 
 **Productos** — query Prisma:
 ```typescript
-prisma.product.findMany({ select: { id, slug, updatedAt } })
+prisma.product.findMany({
+  where: { isActive: true },
+  select: { id, slug, updatedAt, images },
+})
 ```
-- URL: `/product/{slug ?? id}`
+- URL: `/product/{slug}` (`slug` obligatorio en BD; código conserva `slug ?? id` como defensa)
 - `lastModified`: `product.updatedAt`
 - `priority`: 0.8, `changeFrequency`: weekly
-- **Sin filtro** por stock, visibilidad ni campo `active` (el modelo Product no tiene esos campos)
-- Productos sin slug usan `id` (cuid) como fallback
+- Filtro `isActive: true` (DEPENDENCIA-03 ✅); agotados (`stock: 0`) **sí** entran
+- P42/H40: hasta 3 imágenes por producto en cada entrada del sitemap
 
 **Categorías** — query Prisma:
 ```typescript
 prisma.category.findMany({ select: { slug, updatedAt } })
 ```
 - URL: `/categoria/{slug}` (ruta canónica preferida)
-- `priority`: 0.75, `changeFrequency`: weekly
+- `priority`: 0.7, `changeFrequency`: weekly
+- P42/H40: `imageUrl` de portada incluida si existe
 
 ### 6.3 URLs NO incluidas en sitemap
 
@@ -1008,7 +1025,7 @@ prisma.category.findMany({ select: { slug, updatedAt } })
 
 ### 6.4 Implicación de `force-dynamic`
 
-El sitemap consulta Prisma en cada hit. Las páginas usan ISR (`revalidate: 3600`). Coherente en contenido pero el endpoint sitemap puede ser costoso bajo tráfico de bots.
+El sitemap consulta Prisma en cada hit. Las páginas de catálogo usan ISR (`revalidate: 300`) + caché `unstable_cache` (§46). Coherente en contenido; el endpoint sitemap puede ser costoso bajo tráfico intenso de bots.
 
 ---
 
@@ -1022,7 +1039,7 @@ El sitemap consulta Prisma en cada hit. Las páginas usan ISR (`revalidate: 3600
 ```
 User-agent: *
 Allow: /
-Disallow: /admin, /admin/, /checkout, /checkout/, /api/, /account, /account/, /wishlist
+Disallow: /admin, /admin/, /checkout, /checkout/, /api/, /account, /account/, /cart, /cart/, /wishlist
 
 User-agent: GPTBot
 Disallow: /
@@ -1037,12 +1054,12 @@ Host: {SITE_URL}
 |------|------------|-----------------|-----------------|
 | `/admin` | Disallow | noindex (layout) | No indexar |
 | `/api/*` | Disallow | N/A | No rastrear |
-| `/checkout` | Disallow | — | No rastrear |
+| `/checkout` | Disallow | **noindex** ✅ | No rastrear ni indexar |
 | `/account` | Disallow | — | No rastrear (además requiere login) |
-| `/wishlist` | Disallow | — | No rastrear |
-| `/cart` | **Allow** | hereda index | **Potencialmente rastreable** |
+| `/wishlist` | Disallow | **noindex** ✅ | No rastrear ni indexar |
+| `/cart` | **Disallow** ✅ (H11) | **noindex** ✅ | No rastrear ni indexar |
 | `/buscar` | Allow | noindex | Rastreable pero no indexable |
-| `/login`, `/registro` | Allow | hereda index | **Indexables** |
+| `/login`, `/registro`, `/forgot-password`, `/reset-password` | Allow | **noindex** ✅ (P96/H61) | Rastreables; no compiten en SERP |
 
 **GPTBot bloqueado por completo** — reduce visibilidad en ChatGPT/Bing Copilot y crawlers de entrenamiento IA.
 
@@ -1050,16 +1067,18 @@ Host: {SITE_URL}
 
 ## 8. Datos estructurados (JSON-LD / Schema.org)
 
+> **Estado (12 jun 2026):** sección sincronizada con sesiones 7–15. Nonce en JSON-LD hijo: cerrado por diseño (H19/PRD-284). LocalBusiness **solo** en layout — no en fichas producto.
+
 ### 8.1 Resumen por página
 
 | Página | Schemas emitidos | Nonce CSP |
 |--------|------------------|-----------|
-| **Todas** (layout) | WebSite, LocalBusiness, Organization | ✅ Sí |
-| `/product/[slug]` | Product+Offer, BreadcrumbList, LocalBusiness | ❌ No |
-| `/categoria/[slug]` | CollectionPage (+ breadcrumb embebido, ItemList) | ❌ No |
-| `/tienda-barquisimeto` | ElectronicsStore, BreadcrumbList | ❌ No |
-| `/nosotros` | AboutPage, BreadcrumbList | ❌ No |
-| `/devoluciones` | FAQPage | ❌ No |
+| **Todas** (layout) | WebSite + SearchAction, Organization, LocalBusiness | ✅ Sí |
+| `/product/[slug]` | Product+Offer+Warranty, BreadcrumbList, VideoObject (si hay video) | ⏸ Sin nonce (diseño ISR) |
+| `/categoria/[slug]` | CollectionPage, ItemList (paginado), BreadcrumbList | ⏸ Sin nonce (diseño ISR) |
+| `/tienda-barquisimeto` | ElectronicsStore (`@id` = layout), BreadcrumbList | ⏸ Sin nonce |
+| `/nosotros` | AboutPage, BreadcrumbList | ⏸ Sin nonce |
+| `/devoluciones` | FAQPage | ⏸ Sin nonce |
 
 ### 8.2 WebSite + SearchAction (layout)
 
@@ -1069,13 +1088,13 @@ Host: {SITE_URL}
   "potentialAction": {
     "@type": "SearchAction",
     "target": {
-      "urlTemplate": "{SITE_URL}/productos?q={search_term_string}"
+      "urlTemplate": "{SITE_URL}/buscar?q={search_term_string}"
     }
   }
 }
 ```
 
-**Problema:** La UI de búsqueda (`SearchBar.tsx`, `SearchMobileOverlay.tsx`) navega a `/buscar?q=`. El formulario 404 en `not-found.tsx` envía a `/productos?q=`. Hay **dos destinos de búsqueda distintos**.
+**Estado:** ✅ alineado con `SearchBar.tsx` y `not-found.tsx` (sesión 7, H08). `/buscar` es noindex pero rastreable.
 
 ### 8.3 Product + Offer (ProductJsonLd)
 
@@ -1090,31 +1109,39 @@ Host: {SITE_URL}
 
 **Offer — campos avanzados (Google Shopping / rich results 2025+):**
 - `priceValidUntil`: +30 días desde render
-- `shippingDetails`: tarifa **hardcodeada** `$5.00 USD`, destino `VE`, tiempos de entrega
-- `hasMerchantReturnPolicy`: 7 días, devolución en tienda, gratis
+- `priceSpecification` con `ListPrice` cuando hay rebaja (`originalPrice`)
+- `shippingDetails`: destino `VE`, tiempos 1–3 días, `url` → `/shipping-policy` — **sin tarifa fija** (H09 parcial)
+- `hasMerchantReturnPolicy`: 7 días + `merchantReturnLink` → `/devoluciones`
+- `warranty`: 12 meses (`WarrantyPromise`)
+- `dateModified` desde `updatedAt`
+- `category` como URL canónica `/categoria/{slug}`
+- `seller` referencia `@id` Organization del layout
 
 **BreadcrumbList:** 4 niveles — Inicio → Catálogo → Categoría → Producto
 
-**LocalBusiness duplicado (hardcodeado):**
-- Dirección: `Carrera 21 con esquina calle 21, Centro` (alineada con `DEFAULT_SEO_LOCAL`)
-- No usa `readSeoLocal()` — horarios, teléfono, sameAs incrustados en código
+**LocalBusiness:** ❌ **ya no se emite** en fichas (H01/H07) — solo en `layout.tsx` con `readSeoLocal()` + `readSettings()`.
 
 ### 8.4 CollectionPage (categorías)
 
-- `mainEntity.ItemList` con hasta **20 productos** (nombre + URL)
+- `mainEntity.ItemList` paginado (`PAGE_SIZE=24`) con `position` absoluto por página
+- `numberOfItems` coherente con entradas listadas (P90/H65)
+- `description` desde campo BD o fallback (P85)
 - Breadcrumb embebido en propiedad `breadcrumb`
 
 ### 8.5 FAQPage (devoluciones)
 
 5 preguntas/respuestas hardcodeadas en la página, sincronizadas con el schema.
 
-### 8.6 Schemas ausentes
+### 8.6 Schemas ausentes o pendientes
 
-- `VideoObject` para productos con video (existe `ProductMedia` tipo video en BD)
-- `FAQPage` en home o fichas de producto
-- `BreadcrumbList` en catálogo, búsqueda, legales (solo HTML visual)
-- `ItemList` en home (shelves de productos)
-- Google Merchant / `Product` feed XML
+| Schema | Estado |
+|--------|--------|
+| `VideoObject` en ficha | ✅ Sesión 8 (si `ProductMedia` VIDEO) |
+| `BreadcrumbList` catálogo/legales | ✅ Sesión 7 (`/productos`, `/tienda-barquisimeto`, `/nosotros`) |
+| Google Merchant feed XML | ✅ Sesión 8 (`/api/merchant-feed`) |
+| `FAQPage` en home/productos | ⏳ Solo `/devoluciones` |
+| `ItemList` en home shelves | ⏳ |
+| `ItemList` productos relacionados | ⏳ P81 |
 
 ---
 
@@ -1157,7 +1184,7 @@ horarios: Lun-Vie 08:30-17:30, Sáb 08:30-18:00
 | `app/tienda-barquisimeto/page.tsx` → ElectronicsStore | ✅ |
 | `app/nosotros/page.tsx` → contenido + AboutPage parcial | ✅ |
 | `app/components/Footer.tsx` → horarios NAP | ✅ (vía settings + seo) |
-| `app/components/ProductJsonLd.tsx` | ❌ **hardcodeado** |
+| `app/components/ProductJsonLd.tsx` | ✅ **sin LocalBusiness** — seller referencia Organization del layout |
 
 ### 9.5 Revalidación tras editar SEO local
 
@@ -1166,7 +1193,7 @@ revalidatePath('/', 'layout');
 revalidatePath('/tienda-barquisimeto');
 ```
 
-**No revalida** fichas `/product/[slug]` — el LocalBusiness hardcodeado en ProductJsonLd persiste hasta ISR natural.
+Fichas `/product/[slug]` no necesitan revalidación por cambio NAP — ya no emiten LocalBusiness propio (H01/H07).
 
 ### 9.6 Google Maps
 
@@ -1223,12 +1250,13 @@ Reemplazó `/og-default.jpg` que no existía y causaba **404 en previews** de Wh
 
 ```
 /                           → Home
-/productos                  → Catálogo completo
-/productos?cat={nombre}     → Catálogo filtrado (query string)
-/productos?q={term}         → Catálogo con búsqueda (legacy/404 form)
+/productos                  → Catálogo paginado (SSR, ?page=N)
+/productos?cat={nombre}     → 301 → /categoria/{slug} (middleware)
+/productos?page=N           → Paginación indexable; ?page=1 → 301 sin query
+/productos?q={term}         → Filtro cliente (no URL de búsqueda indexable)
 /categoria/{slug}           → Página categoría (canónica SEO)
-/product/{slug}             → Ficha producto (preferido)
-/product/{id}               → Fallback si slug null
+/product/{slug}             → Ficha producto (slug obligatorio)
+/product/{id}               → 308 → /product/{slug} si existe
 /buscar?q={term}            → Búsqueda avanzada (noindex)
 /tienda-barquisimeto        → Landing SEO local
 /nosotros                   → About
@@ -1245,7 +1273,7 @@ Reemplazó `/og-default.jpg` que no existía y causaba **404 en previews** de Wh
 - Normaliza NFD, quita tildes, minúsculas, solo `a-z0-9-`
 - `generateUniqueSlug()` evita colisiones con sufijo `-2`, `-3`…
 - Admin: `app/api/admin/migrate-slugs/route.ts` para migrar productos sin slug
-- Prisma: `slug String? @unique` — opcional pero recomendado
+- Prisma: `slug String @unique` — obligatorio (PRD-065)
 
 ### 11.3 Resolución de rutas de categoría
 
@@ -1384,14 +1412,18 @@ Comentario en layout: reduce JS bundle, mejora LCP/INP.
 
 ## 15. Caché, ISR y frescura del contenido
 
-### 15.1 Páginas con ISR (`revalidate = 3600`)
+> **Estado (12 jun 2026):** ISR **300 s** (PRD-140) + capa `lib/catalog-cache.ts` con `unstable_cache` y tags `catalog` / `categories` (§46).
 
-| Ruta | Segundos | generateStaticParams |
-|------|----------|---------------------|
-| `/` | 3600 | No |
-| `/productos` | 3600 | No |
-| `/product/[slug]` | 3600 | **No** (on-demand ISR) |
-| `/categoria/[slug]` | 3600 | **Sí** (pre-build todas las categorías) |
+### 15.1 Páginas con ISR (`revalidate = 300`)
+
+| Ruta | Segundos | generateStaticParams | Caché adicional |
+|------|----------|---------------------|-----------------|
+| `/` | 300 | No | — |
+| `/productos` | 300 | No | `getCachedCatalog*` (tag `catalog`) |
+| `/product/[slug]` | 300 | Sí (on-demand ISR) | — |
+| `/categoria/[slug]` | 300 | Sí (pre-build categorías) | `getCachedCategory*` (tags `catalog` + `categories`) |
+
+**TTL de respaldo en Data Cache:** 600 s — la invalidación primaria es `revalidateTag` tras mutaciones en admin.
 
 ### 15.2 Páginas force-dynamic
 
@@ -1400,18 +1432,20 @@ Comentario en layout: reduce JS bundle, mejora LCP/INP.
 - `app/tienda-barquisimeto/page.tsx`
 - `app/nosotros/page.tsx`
 - `app/devoluciones/page.tsx`
+- `app/layout.tsx` (lee cookies / headers)
 
 ### 15.3 Revalidación explícita (admin)
 
-| Acción | Paths revalidados |
-|--------|-------------------|
-| `productActions.ts` | `/`, `/admin/products`, `/product/{slug}` |
+| Acción | Paths / tags revalidados |
+|--------|--------------------------|
+| `productActions.ts` | `/`, `/admin/products`, `/product/{slug}`; `revalidateTag('catalog')`; `revalidateTag('categories')` en import/create/delete |
 | `seoLocalActions.ts` | `/` layout, `/tienda-barquisimeto` |
 | `configActions.ts` | `/` layout, `/productos`, `/product/[slug]` page |
 | `announcementActions.ts` | `/` layout |
 | `siteContentActions.ts` | `/` layout |
+| `POST/PUT/DELETE /api/categories` | `revalidatePath('/categoria/[slug]')`; `revalidateTag('categories')` ✅ |
 
-**Gap:** Cambios en categorías no listados aquí — verificar si hay revalidación en sync de categorías.
+**Archivo clave:** `lib/catalog-cache.ts` — envuelve queries Prisma de catálogo y categorías para TTFB ~15–50 ms en caché caliente (§46.4).
 
 ---
 
@@ -1531,7 +1565,7 @@ Los 301 preservan señal SEO de URLs impresas en material local o bookmarks anti
 | Metadata | **Ninguna** (sin title/description propios) |
 | HTTP status | 404 (automático Next.js) |
 | robots | No `noindex` explícito |
-| UX SEO | Formulario búsqueda → `/productos?q=`, links a `/categoria/{slug}` destacadas |
+| UX SEO | Formulario búsqueda → `/buscar` ✅; links a `/categoria/{slug}` destacadas |
 | H1 | "Te perdiste, pana" |
 
 ### 20.2 `app/error.tsx`
@@ -1692,24 +1726,29 @@ public/admin-manifest.json        # PWA admin
 
 ## 28. Gaps, inconsistencias y riesgos
 
-Resumen rápido. El detalle completo, bugs y matriz de impacto están en las secciones **29–35**.
+> **Estado (12 jun 2026):** la mayoría de ítems críticos/altos de la auditoría original están **cerrados** (sesiones 7–15). Resumen de **pendientes vigentes** en [§47.3](#473-pendientes-reales-confirmados-en-código-siguen-abiertos). Detalle histórico en §29–§35.
 
-| Severidad | Cantidad aprox. | Ejemplos |
-|-----------|-----------------|----------|
-| Crítico | 8 | NAP contradictorio, títulos duplicados, placeholder 404, URLs duplicadas producto |
-| Alto | 14 | Canonical heredado incorrecto, filtrado client-side vs SSR, LocalBusiness x3 |
-| Medio | 18 | Auth indexable, paginación sin rel, categorías vacías, schema mixto |
-| Bajo | 12+ | keywords meta obsoletos, sin blog, PWA incompleta |
+| Severidad | Cantidad aprox. (vigente) | Ejemplos abiertos |
+|-----------|---------------------------|-------------------|
+| Alto | ~3 | PromoPopup SSR (P88), 404/500 sin noindex (H21) |
+| Medio | ~8 | Sin gtin (TODO-MC-03), ItemList relacionados (P81), SearchPagination sin rel (H30), descripción HTML plano (P34/P36) |
+| Bajo | ~10+ | meta keywords obsoletos, sin blog, PWA incompleta, IndexNow (H57), framer-motion opacity 0 (H41) |
+
+**Cerrados desde auditoría original (referencia):** NAP duplicado, títulos duplicados, canonical heredado, placeholder 404, URLs producto id/slug, SearchAction, `?cat=` SSR mismatch, LocalBusiness ×3, auth/cart indexables, categorías vacías, paginación catálogo.
 
 ---
 
 ## 29. Bugs confirmados que penalizan SEO
 
+> **Nota (12 jun 2026):** catálogo de la **primera auditoría** — conservado como historial. Subsecciones **cerradas** llevan marca ✅ al inicio del título. Estado vigente: [§47.3](#473-pendientes-reales-confirmados-en-código-siguen-abiertos). **Abiertos:** H21 (404/500 global sin noindex), IndexNow (§33.13 / H57).
+
 Bugs reales en código — no recomendaciones teóricas.
 
-### 29.1 Bug: títulos duplicados por `title.template`
+### 29.1 ~~Bug: títulos duplicados por `title.template`~~ — ✅ Cerrado (sesión 7, H02/P08)
 
-**Archivo:** `app/layout.tsx` — `template: "%s — MundoTech"`
+**Estado actual:** `template: "%s | MundoTech"`; fichas usan `title: product.name` (corto); home usa `title.absolute`. Sin duplicación de marca.
+
+**Archivo:** `app/layout.tsx` — *(código histórico pre-fix:)*
 
 Next.js **siempre** aplica el template al `title` de cada página. Varias páginas ya incluyen "MundoTech" en su título, generando **duplicación de marca** en la pestaña del navegador y en los SERPs:
 
@@ -1726,9 +1765,11 @@ Next.js **siempre** aplica el template al `title` de cada página. Varias págin
 
 ---
 
-### 29.2 Bug: canonical del homepage heredado en páginas sin `alternates`
+### 29.2 ~~Bug: canonical del homepage heredado en páginas sin `alternates`~~ — ✅ Cerrado (sesiones 7–8, H03)
 
-**Archivo:** `app/layout.tsx` — `alternates: { canonical: SITE_URL }`
+**Estado actual:** el layout **no** define `alternates.canonical` global. Cart, wishlist, auth, checkout y reset-password tienen `metadata` propia con canonical + `noindex`.
+
+**Archivo histórico:** `app/layout.tsx` — *(antes tenía `alternates: { canonical: SITE_URL }`)*
 
 Las páginas que **no** definen `alternates.canonical` heredan el canonical de la **raíz** (`https://mundotechve.com/`), no su propia URL.
 
@@ -1750,7 +1791,9 @@ Las páginas que **no** definen `alternates.canonical` heredan el canonical de l
 
 ---
 
-### 29.3 Bug: `/placeholder-product.png` no existe
+### 29.3 ~~Bug: `/placeholder-product.png` no existe~~ — ✅ Cerrado (PRD-008 / P41)
+
+**Estado actual:** `public/placeholder-product.png` y `public/placeholder.png` existen. Referencias en UI siguen usándolos como fallback cuando el producto no tiene imagen.
 
 **Referencias en código** (entre otras):
 
@@ -1761,9 +1804,9 @@ Las páginas que **no** definen `alternates.canonical` heredan el canonical de l
 - `app/wishlist/page.tsx`
 - `app/cart/CartClient.tsx`
 
-**Estado del repo:** la carpeta `public/` solo contiene `admin-manifest.json`. **No hay** `placeholder-product.png` ni ningún archivo `placeholder*`.
+**Estado del repo (histórico):** en la auditoría original `public/` no contenía el asset. **Hoy:** archivo presente en `public/placeholder-product.png`.
 
-**Impacto SEO:**
+**Impacto SEO (si faltara el asset):**
 
 - Imágenes rotas → mala señal de calidad
 - `Image` de Next.js puede fallar o servir broken image
@@ -1772,9 +1815,11 @@ Las páginas que **no** definen `alternates.canonical` heredan el canonical de l
 
 ---
 
-### 29.4 Bug: URLs duplicadas de producto (slug + id) sin redirect 301
+### 29.4 ~~Bug: URLs duplicadas de producto (slug + id) sin redirect 301~~ — ✅ Cerrado (sesiones 7+13, H05/P01)
 
-**Archivo:** `app/product/[slug]/page.tsx`
+**Estado actual:** acceso por `id` en URL emite **308** a `/product/{slug}`; renombre de slug usa `resolveSlugRedirect` (DEPENDENCIA-05).
+
+**Archivo:** `app/product/[slug]/page.tsx` — *(comportamiento histórico:)*
 
 ```typescript
 where: { OR: [{ slug }, { id: slug }] }
@@ -1789,26 +1834,25 @@ Si un producto tiene `slug: "consola-r36s"` e `id: "clxyz123"`:
 
 ---
 
-### 29.5 Bug: SearchAction apunta a endpoint de búsqueda incorrecto
+### 29.5 ~~Bug: SearchAction apunta a endpoint incorrecto~~ — ✅ Cerrado (sesión 7, H08/P64)
 
 | Componente | URL de búsqueda |
 |------------|-----------------|
-| `app/layout.tsx` JSON-LD WebSite | `/productos?q={search_term_string}` |
-| `components/SearchBar.tsx` | `/buscar?q=` |
-| `components/SearchMobileOverlay.tsx` | `/buscar?q=` |
-| `app/not-found.tsx` formulario | `/productos?q=` (GET form) |
-| `app/components/ProductGridAndFilters.tsx` | Lee `?q=` y `?cat=` en **cliente** sobre `/productos` |
-
-**Impacto SEO:** el schema `SearchAction` de Google Sitelinks Searchbox no coincide con la búsqueda principal del sitio.
+| `app/layout.tsx` JSON-LD WebSite | `/buscar?q={search_term_string}` ✅ |
+| `components/SearchBar.tsx` | `/buscar?q=` ✅ |
+| `app/not-found.tsx` formulario | `/buscar` ✅ |
+| `app/components/ProductGridAndFilters.tsx` | `?q=` filtro cliente; `?cat=` → 301 middleware ✅ |
 
 ---
 
-### 29.6 Bug: filtrado de catálogo solo en cliente (mismatch SSR/crawler)
+### 29.6 ~~Bug: filtrado `?cat=` solo en cliente~~ — ✅ Cerrado (sesión 9, P47/P48)
 
-**Archivo:** `app/components/ProductGridAndFilters.tsx` L166-172
+**Estado:** `?cat=` redirige 301 en `middleware.ts` a `/categoria/{slug}`. Sidebar y drawer usan `<Link>` crawlables. **Residual:** `?q=` sigue siendo filtro cliente en la página actual.
+
+**Código histórico (ya no aplica a `?cat=`):**
 
 ```typescript
-// Sincroniza ?q= y ?cat= desde la URL solo en el cliente (sin afectar SSR)
+// Antes: ?cat= solo en cliente
 useEffect(() => {
   const q = searchParams.get('q');
   if (q) setSearchTerm(decodeURIComponent(q));
@@ -1831,9 +1875,11 @@ useEffect(() => {
 
 ---
 
-### 29.7 Bug: NAP / LocalBusiness contradictorio en ProductJsonLd
+### 29.7 ~~Bug: NAP / LocalBusiness contradictorio en ProductJsonLd~~ — ✅ Cerrado (sesión 7, H01/H07/P20)
 
-**Archivo:** `app/components/ProductJsonLd.tsx` L237-289
+**Estado actual:** `ProductJsonLd.tsx` **no emite** `LocalBusiness`. NAP vive solo en `layout.tsx` vía `readSeoLocal()` + `readSettings()`.
+
+**Archivo histórico:** `app/components/ProductJsonLd.tsx` — *(antes incluía bloque LocalBusiness hardcodeado:)*
 
 Datos **hardcodeados** que contradicen `lib/seo-local-schema.ts` DEFAULT y el admin:
 
@@ -1848,9 +1894,11 @@ Datos **hardcodeados** que contradicen `lib/seo-local-schema.ts` DEFAULT y el ad
 
 ---
 
-### 29.8 Bug: enlace roto `/#contacto` en página de error
+### 29.8 ~~Bug: enlace roto `/#contacto` en página de error~~ — ✅ Cerrado (sesión 7, H23)
 
-**Archivo:** `app/error.tsx` L75 — `href="/#contacto"`
+**Estado actual:** `app/error.tsx` enlaza a `/tienda-barquisimeto` («Contactar soporte»).
+
+**Histórico:** `app/error.tsx` — `href="/#contacto"` (ancla inexistente)
 
 No existe `id="contacto"` en ningún componente del sitio (grep confirma: solo aparece en error.tsx).
 
@@ -1858,9 +1906,11 @@ No existe `id="contacto"` en ningún componente del sitio (grep confirma: solo a
 
 ---
 
-### 29.9 Bug: `verification.google` puede emitir meta tag vacío
+### 29.9 ~~Bug: `verification.google` puede emitir meta tag vacío~~ — ✅ Cerrado (sesión 7, H24)
 
-**Archivo:** `app/layout.tsx`
+**Estado actual:** el layout solo incluye `verification.google` si la env está definida (condicional).
+
+**Archivo:** `app/layout.tsx` — *(patrón histórico:)*
 
 ```typescript
 verification: {
@@ -1872,9 +1922,11 @@ Si la variable no está definida, Next.js puede renderizar `<meta name="google-s
 
 ---
 
-### 29.10 Bug: wishlist es 100% Client Component sin metadata
+### 29.10 ~~Bug: wishlist es 100% Client Component sin metadata~~ — ✅ Cerrado (sesión 7, H13)
 
-**Archivo:** `app/wishlist/page.tsx` — `'use client'` en la primera línea del page.
+**Estado actual:** `app/wishlist/page.tsx` es Server Component wrapper con `metadata` (noindex + canonical); UI en `WishlistClient.tsx`.
+
+**Histórico:** `app/wishlist/page.tsx` — `'use client'` sin metadata posible
 
 En App Router, **no se puede exportar `metadata`** desde un Client Component. La página hereda todo del layout: `index: true`, canonical = homepage.
 
@@ -1882,46 +1934,29 @@ Además está en `robots.txt` disallow, pero el meta robots del layout dice inde
 
 ---
 
-### 29.11 Bug: categoría con filtro por nombre exacto (case-sensitive en Prisma filter)
+### 29.11 Bug: categoría con filtro por nombre exacto — ⏸ Parcial (P50 mitiga vacías)
 
-**Archivo:** `app/categoria/[slug]/page.tsx`
+**Estado actual:** el match sigue siendo `Product.category === Category.name` (string). Si hay desalineación de casing/nombre, la categoría puede quedar vacía — pero **P50/H27** aplica `noindex` cuando `productCount === 0`.
 
-```typescript
-where: { category: categoryName }  // match exacto del string en Product.category
-```
-
-Si en BD hay productos con `category: "consolas"` y la categoría se llama `"Consolas"`, la página de categoría muestra **0 productos** (contenido fino) pero sigue indexable y en sitemap.
-
-**Impacto SEO:** páginas de categoría vacías indexables → **thin content**.
+**Archivo:** `app/categoria/[slug]/page.tsx` — `getCachedCategoryCount(category.name)`
 
 ---
 
-### 29.12 Bug: framer-motion oculta productos al primer paint
+### 29.12 Bug: framer-motion oculta productos al primer paint — ⏳ Abierto (H41/P52)
 
-**Archivo:** `app/components/ProductGridAndFilters.tsx` L329-347
+**Estado vigente:** sin cambio — `ProductGridAndFilters` sigue con `initial={{ opacity: 0 }}`. Links en HTML; posible impacto CWV.
 
-```typescript
-<motion.div
-  initial="hidden"
-  animate="visible"
-  variants={{ hidden: { opacity: 0, y: 14 }, visible: { opacity: 1, y: 0 } }}
->
-```
-
-Los productos del catálogo arrancan con `opacity: 0` hasta que JS hidrata y anima. Los links están en el DOM pero visualmente ocultos al first paint.
-
-**Impacto:**
-
-- Posible penalización **CLS/INP** si la animación retrasa pintura
-- Riesgo menor de indexación si el crawler interpreta contenido no visible (los links sí existen en HTML)
+**Archivo:** `app/components/ProductGridAndFilters.tsx`
 
 ---
 
 ## 30. Malas prácticas SEO en el código
 
-Prácticas que no son bugs estrictos pero **reducen puntaje** o van contra guías de Google.
+> **Estado (12 jun 2026):** catálogo histórico. Ítems **cerrados** marcados en el título. Vigente: [§47.3](#473-pendientes-reales-confirmados-en-código-siguen-abiertos).
 
-### 30.1 Meta `keywords` en todas las páginas
+Prácticas que no son bugs estrictos pero **reducían puntaje** o iban contra guías de Google.
+
+### 30.1 Meta `keywords` en todas las páginas — ⏳ Abierto (H32)
 
 **Archivos:** `app/layout.tsx`, productos, categorías, tienda-barquisimeto…
 
@@ -1929,15 +1964,11 @@ Google **ignora** `meta keywords` desde ~2009. Añade bytes al HTML sin benefici
 
 ---
 
-### 30.2 `openGraph.type: 'website'` + `other['og:type']: 'product'` en productos
-
-**Archivo:** `app/product/[slug]/page.tsx`
-
-Señal mixta para parsers de Facebook/LinkedIn. Lo correcto para productos sería `openGraph.type` compatible o solo el namespace `product:*` sin conflicto.
+### 30.2 ~~`openGraph.type: 'website'` + `og:type: product`~~ — ✅ Cerrado (P13/H20)
 
 ---
 
-### 30.3 Productos sin stock siguen con `index: true` explícito
+### 30.3 Productos sin stock siguen con `index: true` — ⏸ Decisión negocio (P16/P17/H46)
 
 Decisión de negocio documentada en código, pero implica:
 
@@ -1948,11 +1979,11 @@ Alternativa SEO: mantener URL con `noindex` temporal o página de "avísame cuan
 
 ---
 
-### 30.4 Sitemap con `lastModified: new Date()` en páginas estáticas
+### 30.4 ~~Sitemap con `lastModified: new Date()` en estáticas~~ — ✅ Cerrado (H18, sesión 7)
 
-**Archivo:** `app/sitemap.ts`
+**Estado actual:** páginas estáticas en `sitemap.ts` **no** emiten `lastModified` falso.
 
-Las páginas estáticas (home, productos, legales) usan `lastModified: new Date()` en cada request → Google recibe fecha de modificación **siempre actual** aunque el contenido no cambió.
+**Histórico:**
 
 **Impacto:** crawl budget desperdiciado; bots repiten rastreo innecesario.
 
@@ -1964,19 +1995,15 @@ Cada hit a `/sitemap.xml` ejecuta queries Prisma. Bajo tráfico de bots es acept
 
 ---
 
-### 30.6 Sin `rel="prev"` / `rel="next"` en paginación
+### 30.6 Sin `rel="prev"` / `rel="next"` en paginación — ⏸ Parcial (H30)
 
-**Archivo:** `app/buscar/SearchPagination.tsx`
+**Estado actual:** `PaginationBar` en `/productos` y `/categoria/[slug]` **sí** incluye `rel="prev/next"`. **`SearchPagination`** en `/buscar` aún no (noindex — menor impacto).
 
-La búsqueda paginada (`?page=2`, `?page=3`) no define:
-
-- `link rel="prev/next"` en head
-- Títulos/descripciones diferenciados por página
-- Canonical por página (tiene noindex, mitiga parcialmente)
+**Archivo pendiente:** `app/buscar/SearchPagination.tsx`
 
 ---
 
-### 30.7 GPTBot bloqueado completamente
+### 30.7 GPTBot bloqueado completamente — ⏳ Decisión (H33)
 
 **Archivo:** `app/robots.ts` — `Disallow: /` para GPTBot.
 
@@ -1984,37 +2011,27 @@ Decisión consciente de privacidad, pero reduce visibilidad en asistentes IA y B
 
 ---
 
-### 30.8 Tres fuentes de dirección distintas en el sitio
+### 30.8 ~~Tres fuentes de dirección distintas~~ — ⏸ Parcial (H25)
 
-| Fuente | Admin | Campo |
-|--------|-------|-------|
-| SEO Local | `/admin/settings/seo-local` | `streetAddress` |
-| Settings general | `/admin/settings` | `address` |
-| ProductJsonLd | hardcode | `streetAddress` |
+**Estado actual:** `ProductJsonLd` **ya no** emite LocalBusiness ni NAP hardcodeado. Quedan **dos fuentes** editables: `seo_local` (schema layout) y `store_settings.address` (Footer). Alinear en admin sigue recomendado.
 
-El Footer muestra `settings.address`; el schema usa `seo.streetAddress`; ProductJsonLd usa otra dirección. **Mal práctica NAP** clásica para SEO local.
+**Histórico (pre-sesión 7):** Footer (`settings.address`), layout (`seo_local`) y ProductJsonLd (hardcode) podían contradecirse.
 
 ---
 
-### 30.9 Internal links a URLs no canónicas (`?cat=`)
+### 30.9 ~~Internal links a URLs no canónicas (`?cat=`)~~ — ✅ Cerrado (sesiones 7+9, P46/H14)
 
-**Archivos:**
+**Estado actual:** Footer, home, tienda-barquisimeto y promos enlazan a `/categoria/{slug}`. Middleware 301 elimina `/productos?cat=`.
 
-- `app/components/Footer.tsx` — `/productos?cat=Consolas`, `?cat=Accesorios`
-- `app/page.tsx` — `viewAllHref="/productos?cat=Consolas"`
-- `app/tienda-barquisimeto/page.tsx` — array `CATEGORIES` con `?cat=`
-- `app/components/Promotions.tsx` — defaults con `?cat=`
-
-Distribuyen PageRank hacia URLs con canonical `/productos` en lugar de `/categoria/{slug}`.
+**Histórico:** Footer, home, tienda y Promotions enlazaban `/productos?cat=Nombre`.
 
 ---
 
-### 30.10 Seller en schema con nombre distinto
+### 30.10 ~~Seller en schema con nombre distinto~~ — ✅ Cerrado (P22/H49, sesión 7)
 
-**ProductJsonLd:** `seller.name: 'Mundo Tech'` (con espacio)  
-**Resto del sitio:** `MundoTech` (sin espacio)
+**Estado actual:** `seller` usa `storeName` desde settings — coherente con Organization del layout.
 
-Inconsistencia de entidad de marca en Knowledge Graph.
+**Histórico:** `seller.name: 'Mundo Tech'` (con espacio) vs `MundoTech` en UI.
 
 ---
 
@@ -2063,55 +2080,55 @@ Si `slug` es null, la URL del email puede ser `/product/` vacío o inválida →
 
 ## 31. Inconsistencias de marca, datos y configuración
 
-### 31.1 Nombre de marca
+> **Estado (12 jun 2026):** varios ítems **cerrados** en schema (sesión 7). Residual en copy UI y alineación admin settings ↔ seo_local.
 
-| Ubicación | Texto |
-|-----------|-------|
-| layout metadata | MundoTech |
-| tienda-barquisimeto title | Mundo Tech (con espacio) |
-| DEFAULT_SEO_LOCAL legalName | Mundo Tech |
-| ProductJsonLd seller | Mundo Tech |
-| openGraph siteName (productos) | MundoTech |
-| tienda-barquisimeto openGraph siteName | Mundo Tech |
+### 31.1 Nombre de marca — ⏸ Parcial (H26)
 
-### 31.2 Direcciones (cuadro completo)
+| Ubicación | Texto (vigente / residual) |
+|-----------|----------------------------|
+| layout metadata, schema JSON-LD | **MundoTech** ✅ |
+| tienda-barquisimeto title | **MundoTech** ✅ (H26 corregido) |
+| DEFAULT_SEO_LOCAL legalName | Puede decir «Mundo Tech» en BD legacy — revisar admin |
+| ProductJsonLd seller | **storeName** desde settings ✅ |
+| openGraph siteName | **MundoTech** ✅ |
+
+### 31.2 Direcciones (cuadro completo) — ⏸ Parcial (H25)
 
 | Fuente | Dirección |
 |--------|-----------|
-| `DEFAULT_SEO_LOCAL` / admin SEO | Carrera 21 con esquina calle 21, Centro |
-| `ProductJsonLd` hardcodeado | Carrera 21 con esquina calle 21, Centro |
-| `opengraph-image.tsx` texto visual | Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001 |
+| `DEFAULT_SEO_LOCAL` / admin SEO | Carrera 21… (editable) |
+| ~~ProductJsonLd hardcodeado~~ | ✅ **Eliminado** — NAP solo en layout |
 | Footer | `settings.address` (campo separado en `/admin/settings`) |
 | `privacy-policy` | `settings.address` si existe |
 
-### 31.3 Tipo de schema LocalBusiness por página
+### 31.3 Tipo de schema LocalBusiness por página — ✅ Corregido (P20/H07)
 
 | Página | @type |
 |--------|-------|
 | layout global | LocalBusiness |
-| tienda-barquisimeto | ElectronicsStore |
+| tienda-barquisimeto | ElectronicsStore (mismo `@id` que layout) |
 | nosotros AboutPage.mainEntity | ElectronicsStore |
-| ProductJsonLd (cada producto) | LocalBusiness (duplicado) |
+| ~~ProductJsonLd (cada producto)~~ | ✅ **Eliminado** |
 
-### 31.4 Horarios / teléfono / sameAs
+### 31.4 Horarios / teléfono / sameAs — ⏸ Parcial
 
-- **Layout:** lee `readSeoLocal()` + `readSettings()` — datos vivos
-- **ProductJsonLd:** horarios y redes hardcodeados, teléfono de env var no documentada
-- **tienda-barquisimeto:** datos vivos + `ElectronicsStore` adicional sobre el mismo layout global
+- **Layout:** lee `readSeoLocal()` + `readSettings()` — datos vivos ✅
+- **ProductJsonLd:** ya no emite NAP ✅
+- **tienda-barquisimeto:** datos vivos + `ElectronicsStore` con `@id` compartido ✅
 
-### 31.5 Tarifa de envío
+### 31.5 Tarifa de envío — ⏸ Parcial (H09/P21)
 
 | Ubicación | Valor |
 |-----------|-------|
-| ProductJsonLd schema | $5.00 USD fijo |
-| CartClient UI | $5.0 shippingCosts hardcodeado |
-| Config tienda / admin | No hay fuente única exportada a schema |
-
-Si el admin cambia precios de envío, el schema queda **desactualizado** → rich result inválido o penalización por datos engañosos.
+| ProductJsonLd schema | **Sin `shippingRate` fijo** ✅ — eliminado $5.00; `shippingDetails.url` → `/shipping-policy` |
+| CartClient UI | Puede mostrar costo estimado en UI (fuera de schema) |
+| Config tienda / admin | Falta campo único para reincorporar tarifa dinámica al schema |
 
 ---
 
 ## 32. Problemas de contenido, headings y accesibilidad
+
+> **Estado (12 jun 2026):** mezcla de ítems vigentes y cerrados. Ver marca en cada subsección.
 
 Factores que afectan SEO vía accesibilidad, estructura y calidad percibida.
 
@@ -2145,41 +2162,37 @@ Página full client; el heading principal está dentro del componente cliente.
 
 ---
 
-### 32.5 Categorías vacías indexables
+### 32.5 ~~Categorías vacías indexables~~ — ✅ Cerrado (P50/H27)
 
-Categoría sin productos muestra mensaje "Sin productos" pero **no** tiene `noindex` ni redirect. Sigue en sitemap.
+**Estado actual:** `generateMetadata` aplica `noindex` cuando `productCount === 0`.
 
 ---
 
-### 32.6 Producto no encontrado: metadata con título pero HTTP 404
+### 32.6 ~~Producto no encontrado: soft 404~~ — ✅ Cerrado (P19/H28)
 
-**Archivo:** `app/product/[slug]/page.tsx`
-
+**Estado actual:**
 ```typescript
-if (!product) {
-  return { title: 'Producto no encontrado — MundoTech' };
-}
+return {
+  title: 'Producto no encontrado',
+  robots: { index: false, follow: false },
+};
 ```
 
-`notFound()` se llama en el page component, no en generateMetadata. Google puede recibir título "Producto no encontrado" con status 404 — **soft 404** si el contenido parece útil.
+---
+
+### 32.7 Descripciones de producto HTML sin control de longitud mínima — ⏳ Abierto
+
+Productos sin `description` usan fallback genérico. Muchos productos con descripción muy corta tras strip HTML pueden generar meta descriptions pobres (mitigado parcialmente por `clampDescription` + fallback por ficha — P12).
 
 ---
 
-### 32.7 Descripciones de producto HTML sin control de longitud mínima
+### 32.8 Breadcrumbs HTML sin schema — ⏸ Parcial (H39)
 
-Productos sin `description` usan fallback genérico. Muchos productos con descripción muy corta tras strip HTML pueden generar meta descriptions pobres.
-
----
-
-### 32.8 Breadcrumbs HTML sin schema en catálogo, buscar, cart, legales
-
-Solo breadcrumb visual. Pierden elegibilidad para breadcrumb rich snippet en esas rutas.
+**Estado actual:** `/productos`, fichas y categorías **sí** emiten `BreadcrumbList` JSON-LD. Pendiente en algunas legales y `/buscar`.
 
 ---
 
-### 32.9 `lang="es"` vs `locale: "es_VE"` vs manifest `es-VE`
-
-Tres variantes de locale sin `hreflang`. No es error para mercado único, pero inconsistente.
+### 32.9 `lang="es"` vs `locale: "es_VE"` vs manifest `es-VE` — ⏳ Abierto (H47)
 
 ---
 
@@ -2195,16 +2208,19 @@ Tres variantes de locale sin `hreflang`. No es error para mercado único, pero i
 
 ## 33. Problemas técnicos de rastreo e indexación
 
-### 33.1 Señales contradictorias robots.txt vs meta robots
+> **Estado (12 jun 2026):** mezcla histórica y vigente. Subsecciones con ~~título tachado~~ están cerradas. Fuente de verdad: [§47.3](#473-pendientes-reales-confirmados-en-código-siguen-abiertos).
 
-| Ruta | robots.txt | meta robots (layout) |
-|------|------------|----------------------|
-| `/wishlist` | Disallow | index, follow |
-| `/cart` | Allow | index, follow |
-| `/checkout` | Disallow | index, follow (heredado) |
-| `/account` | Disallow | index, follow (heredado) |
+### 33.1 ~~Señales contradictorias robots.txt vs meta robots~~ — ✅ Corregido (sesiones 7–8)
 
-Google suele respetar la señal más restrictiva, pero la inconsistencia confunde auditorías.
+**Estado actual:**
+
+| Ruta | robots.txt | meta robots |
+|------|------------|-------------|
+| `/wishlist` | Disallow | **noindex** ✅ |
+| `/cart` | **Disallow** ✅ | **noindex** ✅ |
+| `/checkout` | Disallow | **noindex** ✅ |
+| `/account` | Disallow | sin metadata (no compite en SERP) |
+| `/login`, auth | Allow | **noindex** ✅ |
 
 ---
 
@@ -2214,7 +2230,7 @@ Bots sin cookie ven redirect 302 a `/login`, no el contenido. Correcto, pero con
 
 ---
 
-### 33.3 JSON-LD en páginas hijas sin nonce CSP
+### 33.3 JSON-LD en páginas hijas sin nonce CSP — ⏸ Cerrado por diseño (H19/PRD-284)
 
 Scripts JSON-LD en producto, categoría, nosotros, devoluciones, tienda-barquisimeto **no** llevan `nonce`. El layout sí.
 
@@ -2224,27 +2240,23 @@ Googlebot no ejecuta JS igual que Chrome; el riesgo real es bajo para indexació
 
 ---
 
-### 33.4 LocalBusiness duplicado en `/tienda-barquisimeto`
+### 33.4 LocalBusiness duplicado en `/tienda-barquisimeto` — ⏸ Aceptable (H29)
 
-Esa página emite su propio `ElectronicsStore` **además** del `LocalBusiness` global del layout → dos entidades locales en la misma URL.
-
----
-
-### 33.5 Sin redirect canonical slug cuando se accede por id
-
-Ver §29.4. No hay middleware ni `redirect()` en page cuando `params.slug === product.id`.
+**Estado actual:** `ElectronicsStore` usa el **mismo `@id`** que `LocalBusiness` del layout — Google consolida en una entidad. No es duplicado contradictorio como el antiguo LocalBusiness en cada ficha producto.
 
 ---
 
-### 33.6 Sin sitemap de imágenes
-
-Productos con múltiples imágenes Cloudinary no exponen Image Sitemap → Google Images depende del rastreo HTML.
+### 33.5 ~~Sin redirect canonical slug cuando se accede por id~~ — ✅ Cerrado (§29.4, H05)
 
 ---
 
-### 33.7 Sin `generateStaticParams` en productos
+### 33.6 ~~Sin sitemap de imágenes~~ — ✅ Cerrado (P42/H40, sesión 8)
 
-Solo categorías pre-generan estáticamente. Productos dependen de ISR on-first-request → primera visita de bot puede ser más lenta (TTFB).
+Image sitemap **inline** en `sitemap.ts` — hasta 3 URLs por producto + portada de categoría.
+
+---
+
+### 33.7 ~~Sin `generateStaticParams` en productos~~ — ✅ Cerrado (H38, sesión 7)
 
 ---
 
@@ -2254,47 +2266,31 @@ Solo categorías pre-generan estáticamente. Productos dependen de ISR on-first-
 
 ---
 
-### 33.9 CategoryDrawer: categorías desde ProductContext cliente
+### 33.9 ~~CategoryDrawer: filtra en vez de enlazar `/categoria/`~~ — ✅ Cerrado (sesión 9, H43/P51)
 
-**Archivo:** `components/layout/CategoryDrawer.tsx`
-
-Menú de categorías derivado de productos cargados en contexto cliente — no enlaza a `/categoria/{slug}` sino que aplica filtro en catálogo. Menos link juice a URLs canónicas de categoría.
+**Estado actual:** `<Link href="/categoria/{slug}">` crawlables.
 
 ---
 
-### 33.10 AnnouncementBar: anuncio ausente en HTML inicial (SSR)
+### 33.10 ~~AnnouncementBar: anuncio ausente en HTML inicial (SSR)~~ — ✅ Cerrado (sesión 11, P87/H55)
 
-**Archivo:** `app/components/AnnouncementBar.tsx`
+**Estado actual:** Server Component + `AnnouncementBarClient` para dismiss; HTML SSR incluye texto/enlace del aviso.
 
-```typescript
-const [hidden, setHidden] = useState(true);
-// ...
-if (!data.active || !data.text.trim() || hidden) return null;
-```
-
-En el **server render** `hidden` siempre es `true` → la barra devuelve `null`. El texto y el enlace del anuncio solo aparecen tras hidratación/`useEffect`. Googlebot no indexa promociones configuradas en `/admin/settings/announcement`.
-
-**Impacto:** pierdes enlazado interno y keywords de campañas temporales en el crawl.
+**Histórico:** `useState(true)` ocultaba la barra en SSR — el aviso solo aparecía tras hidratación.
 
 ---
 
-### 33.11 PromoPopup: contenido promocional solo post-JavaScript
+### 33.11 PromoPopup: contenido promocional solo post-JavaScript — ⏳ Abierto (P88)
 
 **Archivo:** `app/components/PromoPopup.tsx` — `open` inicia en `false`; el popup se abre con `setTimeout` tras leer `localStorage`. Mismo patrón que §33.11: cero valor SEO del popup en HTML estático.
 
 ---
 
-### 33.12 Catálogo monolítico sin paginación
+### 33.12 ~~Catálogo monolítico sin paginación~~ — ✅ Cerrado (sesión 10, P82/H56)
 
-**Archivos:** `app/productos/page.tsx`, `app/categoria/[slug]/page.tsx`
+**Estado actual:** `PAGE_SIZE=24`, `PaginationBar` con `rel="prev/next"`, canonicals por página.
 
-Ambas rutas hacen `prisma.product.findMany()` **sin `take`/`skip`** y renderizan todo el grid. Con inventario grande:
-
-- HTML de respuesta crece linealmente
-- TTFB y LCP empeoran (más `<img>`, más DOM)
-- Crawlers descargan la página completa en cada visita
-
-**Mitigación SEO:** paginación SSR (`/productos?page=2`) con `rel="prev/next"` o infinite scroll con URLs crawlables.
+**Histórico:** `findMany` sin límite — HTML monolítico con cientos de productos por request.
 
 ---
 
@@ -2316,21 +2312,17 @@ Rutas indexables: `/privacy-policy`, `/terms-of-service`, `/shipping-policy` (co
 
 ---
 
-### 33.16 Claim "Delivery 24h" en tres capas indexables
+### 33.16 ~~Claim "Delivery 24h" en tres capas indexables~~ — ✅ Cerrado (P89–P92/H58, sesión 7)
 
-| Capa | Archivo | Texto |
-|------|---------|-------|
-| Meta home | `app/page.tsx` | "Delivery en 24h" en description |
-| Navbar (global) | `components/Navbar.tsx` L78 | "Delivery en Barquisimeto en 24h" |
-| Benefits home | `app/components/Benefits.tsx` DEFAULT L12 | "Delivery en Barquisimeto en 24h" |
+**Estado actual:** copy unificado sin claim «24h» en meta home, Navbar y Benefits DEFAULT.
 
-Las tres contradicen `/shipping-policy` (plazos orientativos). Corregir **las tres** o ninguna (P89, P91, P92, H58).
+**Histórico:** meta home, Navbar y Benefits prometían «Delivery en 24h» — contradecían `/shipping-policy`.
 
 ---
 
-### 33.17 Páginas de auth indexables (crawl budget)
+### 33.17 ~~Páginas de auth indexables~~ — ✅ Cerrado (P96/H61/H12, sesiones 7–8)
 
-`/login`, `/registro`, `/forgot-password`, `/reset-password` heredan `index: true` del layout. Son páginas finas sin valor de ranking → conviene `noindex` o `Disallow` (H12, P96, H61).
+**Estado actual:** login, registro, forgot-password y reset-password con `robots: { index: false }`.
 
 ---
 
@@ -2344,94 +2336,96 @@ Durante TTFB lento, Next.js puede enviar skeleton sin H1, precio ni links de pro
 
 ## 34. Matriz de impacto estimado en puntaje SEO
 
+> **Estado (12 jun 2026):** matriz de la **primera auditoría**. Columna **Estado** indica cierre en código. Vigente: [§47.3](#473-pendientes-reales-confirmados-en-código-siguen-abiertos).
+
 Escala orientativa: **🔴 Alto** · **🟠 Medio** · **🟡 Bajo**
 
-| Hallazgo | Técnico | Contenido | Local | CWV | Rich Results | Total |
-|----------|---------|-----------|-------|-----|--------------|-------|
-| NAP contradictorio ProductJsonLd | 🔴 | — | 🔴 | — | 🔴 | 🔴 |
-| Títulos duplicados (template) | — | 🔴 | — | — | — | 🔴 |
-| Canonical heredado (cart, auth…) | 🔴 | — | — | — | — | 🔴 |
-| placeholder-product.png 404 | 🔴 | — | — | 🔴 | 🟠 | 🔴 |
-| URL duplicada product id/slug | 🔴 | 🟠 | — | — | — | 🔴 |
-| SearchAction incorrecto | 🟠 | — | — | — | 🟠 | 🟠 |
-| ?cat= SSR mismatch | 🔴 | 🟠 | — | — | — | 🔴 |
-| LocalBusiness x3 por producto | 🟠 | — | 🔴 | — | 🔴 | 🔴 |
-| Auth/cart indexables | 🟠 | — | — | — | — | 🟠 |
-| Envío $5 hardcodeado schema | — | 🟠 | — | — | 🔴 | 🟠 |
-| Categorías vacías indexables | — | 🔴 | — | — | — | 🟠 |
-| Sin blog / editorial | — | 🔴 | — | — | — | 🟠 |
-| framer-motion opacity 0 inicial | — | — | — | 🟠 | — | 🟡 |
-| meta keywords obsoleto | 🟡 | — | — | — | — | 🟡 |
-| GPTBot blocked | — | — | — | — | — | 🟡 |
-| PWA incompleta | 🟡 | — | — | — | — | 🟡 |
+| Hallazgo | Técnico | Contenido | Local | CWV | Rich Results | Total | Estado |
+|----------|---------|-----------|-------|-----|--------------|-------|--------|
+| NAP contradictorio ProductJsonLd | 🔴 | — | 🔴 | — | 🔴 | 🔴 | ✅ Sesión 7 |
+| Títulos duplicados (template) | — | 🔴 | — | — | — | 🔴 | ✅ Sesión 7 |
+| Canonical heredado (cart, auth…) | 🔴 | — | — | — | — | 🔴 | ✅ Sesiones 7–8 |
+| placeholder-product.png 404 | 🔴 | — | — | 🔴 | 🟠 | 🔴 | ✅ PRD-008 |
+| URL duplicada product id/slug | 🔴 | 🟠 | — | — | — | 🔴 | ✅ Sesiones 7+13 |
+| SearchAction incorrecto | 🟠 | — | — | — | 🟠 | 🟠 | ✅ Sesión 7 |
+| ?cat= SSR mismatch | 🔴 | 🟠 | — | — | — | 🔴 | ✅ Sesión 9 |
+| LocalBusiness x3 por producto | 🟠 | — | 🔴 | — | 🔴 | 🔴 | ✅ Sesión 7 |
+| Auth/cart indexables | 🟠 | — | — | — | — | 🟠 | ✅ Sesiones 7–8 |
+| Envío $5 hardcodeado schema | — | 🟠 | — | — | 🔴 | 🟠 | ⏸ Parcial (H09) |
+| Categorías vacías indexables | — | 🔴 | — | — | — | 🟠 | ✅ Sesión 7 |
+| Sin blog / editorial | — | 🔴 | — | — | — | 🟠 | ⏳ P66 |
+| framer-motion opacity 0 inicial | — | — | — | 🟠 | — | 🟡 | ⏳ H41 |
+| meta keywords obsoleto | 🟡 | — | — | — | — | 🟡 | ⏳ H32 |
+| GPTBot blocked | — | — | — | — | — | 🟡 | ⏳ H33 (decisión) |
+| PWA incompleta | 🟡 | — | — | — | — | 🟡 | ⏳ H37 |
 
 ---
 
 ## 35. Registro maestro de hallazgos (índice único)
 
-Lista numerada de **todos** los hallazgos documentados. Columna **Estado** actualizada tras [sesión 7](#39-registro-de-implementación--sesión-7-jun-2026).
+Lista numerada de **todos** los hallazgos documentados. Columna **Estado** consolidada tras sesiones 7–15 — ver [§47](#47-sincronización-doc--código-auditoría-12-jun-2026).
 
 | ID | Sev | Hallazgo | Archivo(s) | Estado |
 |----|-----|----------|------------|--------|
-| H01 | 🔴 | NAP hardcodeado incorrecto en ProductJsonLd | `ProductJsonLd.tsx` | ⏸ Parcial — LocalBusiness quitado de ficha |
+| H01 | 🔴 | NAP hardcodeado incorrecto en ProductJsonLd | `ProductJsonLd.tsx` | ✅ Sesión 7 — LocalBusiness quitado de ficha; NAP vive en layout |
 | H02 | 🔴 | Títulos duplicados por title.template | `layout.tsx` + pages | ✅ Sesión 7 |
-| H03 | 🔴 | Canonical homepage heredado en cart/checkout/auth/wishlist/account | `layout.tsx` | ⏸ Parcial — falta `/checkout`, `/reset-password`; `/account` vía robots Disallow |
-| H04 | 🔴 | `/placeholder-product.png` no existe | múltiples | ⏸ Asset en `public/` (PRD-008); referencias legacy siguen en UI |
-| H05 | 🔴 | URL producto accesible por id y slug sin 301 | `product/[slug]/page.tsx` | ⏸ 308 id→slug; DEP-05 renombre |
-| H06 | 🔴 | Filtrado ?cat=/?q= solo cliente en /productos | `ProductGridAndFilters.tsx` | ⏳ P47/P48 ses.4 |
+| H03 | 🔴 | Canonical homepage heredado en cart/checkout/auth/wishlist/account | `layout.tsx` | ✅ Sesiones 7–8 — checkout/success/reset-password/cart/wishlist/auth con metadata propia; `/account` vía robots Disallow |
+| H04 | 🔴 | `/placeholder-product.png` no existe | múltiples | ✅ PRD-008 — asset en `public/placeholder-product.png` |
+| H05 | 🔴 | URL producto accesible por id y slug sin 301 | `product/[slug]/page.tsx` | ✅ Sesiones 7+13 — 308 id→slug + DEP-05 renombre slug |
+| H06 | 🔴 | Filtrado ?cat=/?q= solo cliente en /productos | `ProductGridAndFilters.tsx` | ✅ Sesión 9 — 301 `?cat=` en middleware; drawer y sidebar con `Link` |
 | H07 | 🔴 | LocalBusiness triplicado (layout + ProductJsonLd × N productos) | layout + ProductJsonLd | ✅ Sesión 7 |
 | H08 | 🔴 | SearchAction ≠ búsqueda real (/productos?q vs /buscar?q) | layout + SearchBar | ✅ Sesión 7 |
-| H09 | 🟠 | Envío schema $5 USD hardcodeado | `ProductJsonLd.tsx` | ⏸ Eliminado fijo; sin settings |
-| H10 | 🟠 | ProductJsonLd no usa readSeoLocal() | `ProductJsonLd.tsx` | ⏳ Seller vía props |
+| H09 | 🟠 | Envío schema $5 USD hardcodeado | `ProductJsonLd.tsx` | ⏸ Eliminado fijo; sin `shippingRate` desde `readSettings()` |
+| H10 | 🟠 | ProductJsonLd no usa readSeoLocal() | `ProductJsonLd.tsx` | ⏸ Seller vía `storeName` props; NAP en layout |
 | H11 | 🟠 | /cart no en robots.txt disallow | `robots.ts` | ✅ Sesión 7 |
 | H12 | 🟠 | /login, /registro indexables sin noindex | auth pages | ✅ Sesión 7 |
 | H13 | 🟠 | /wishlist client page sin metadata | `wishlist/page.tsx` | ✅ Sesión 7 |
-| H14 | 🟠 | URLs /productos?cat=* enlazadas internamente vs /categoria/ | Footer, home, tienda | ✅ Sesión 7 |
-| H15 | 🟠 | Canonical /productos para todas las variantes ?cat= | `productos/page.tsx` | ⏳ Con P47/P48 |
+| H14 | 🟠 | URLs /productos?cat=* enlazadas internamente vs /categoria/ | Footer, home, tienda | ✅ Sesiones 7+9 |
+| H15 | 🟠 | Canonical /productos para todas las variantes ?cat= | `productos/page.tsx` | ✅ Sesión 9 — 301 elimina variantes |
 | H16 | 🟠 | Categorías: Twitter sin imagen | `categoria/[slug]/page.tsx` | ✅ Sesión 7 |
-| H17 | 🟠 | Sitemap incluye todos los productos sin filtro stock | `sitemap.ts` | ⏳ DEP-03 isActive |
+| H17 | 🟠 | Sitemap incluye productos inactivos | `sitemap.ts` | ✅ Sesión 8 — `where: { isActive: true }` (agotados con stock=0 sí entran) |
 | H18 | 🟠 | sitemap lastModified: new Date() en estáticas | `sitemap.ts` | ✅ Sesión 7 |
 | H19 | 🟠 | JSON-LD hijos sin nonce CSP | páginas hijas | ⏸ Cerrado por diseño — `JsonLd.tsx` sin nonce en ISR (PRD-284) |
 | H20 | 🟠 | openGraph.type website + og:type product | `product/[slug]/page.tsx` | ✅ Sesión 7 |
-| H21 | 🟠 | 404/500 sin noindex | not-found, error | ⏸ 404 producto sí |
+| H21 | 🟠 | 404/500 sin noindex | not-found, error | ⏸ 404 producto sí; `not-found.tsx`/`error.tsx` global sin metadata |
 | H22 | 🟠 | not-found busca /productos?q= no /buscar | `not-found.tsx` | ✅ Sesión 7 |
 | H23 | 🟠 | /#contacto enlace roto en error.tsx | `error.tsx` | ✅ Sesión 7 |
 | H24 | 🟠 | verification.google vacío si falta env | `layout.tsx` | ✅ Sesión 7 |
 | H25 | 🟠 | Tres fuentes de dirección (settings, seo-local, hardcode) | admin + components | ⏳ |
-| H26 | 🟠 | Mundo Tech vs MundoTech inconsistencia | múltiples | ⏸ Schema unificado |
+| H26 | 🟠 | Mundo Tech vs MundoTech inconsistencia | múltiples | ⏸ Schema unificado en JSON-LD; copy UI residual |
 | H27 | 🟠 | Categorías vacías indexables (thin content) | `categoria/[slug]/page.tsx` | ✅ Sesión 7 |
 | H28 | 🟠 | Producto 404 con title en generateMetadata | `product/[slug]/page.tsx` | ✅ Sesión 7 |
-| H29 | 🟠 | LocalBusiness duplicado en /tienda-barquisimeto | layout + page | ⏳ |
-| H30 | 🟠 | Sin rel prev/next en paginación /buscar | `SearchPagination.tsx` | ⏳ |
+| H29 | 🟠 | LocalBusiness duplicado en /tienda-barquisimeto | layout + page | ✅ Mismo `@id` — Google consolida (sesión 7+) |
+| H30 | 🟠 | Sin rel prev/next en paginación /buscar | `SearchPagination.tsx` | ⏳ `PaginationBar` en catálogo/categoría sí lo tiene |
 | ~~H31~~ | — | *(Movido a producción [PRD-288](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md))* | — | PRD ses.4 |
 | H32 | 🟡 | meta keywords obsoleto | layout + pages | ⏳ |
 | H33 | 🟡 | GPTBot completamente bloqueado | `robots.ts` | ⏳ |
 | H34 | 🟡 | Sin blog / contenido editorial | — | ⏳ |
-| H35 | 🟡 | Sin VideoObject para productos con video | ProductMedia | ⏳ |
-| H36 | 🟡 | Sin FAQ schema en home/productos | — | ⏳ |
-| H37 | 🟡 | PWA sin SW ni iconos PNG | manifest | ⏳ |
+| H35 | 🟡 | Sin VideoObject para productos con video | ProductMedia | ✅ Sesión 8 — `VideoObject` en `ProductJsonLd.tsx` |
+| H36 | 🟡 | Sin FAQ schema en home/productos | — | ⏳ Solo `/devoluciones` tiene FAQPage |
+| H37 | 🟡 | PWA sin SW ni iconos PNG | manifest | ⏳ Solo `icon.svg` en manifest |
 | H38 | 🟡 | Sin generateStaticParams productos | product page | ✅ Sesión 7 |
 | H39 | 🟡 | Breadcrumb schema ausente en catálogo/legales | múltiples | ✅ Sesión 7 |
-| H40 | 🟡 | Sin image sitemap | — | ⏳ |
+| H40 | 🟡 | Sin image sitemap | `sitemap.ts` | ✅ Sesión 8 — `images: string[]` por producto/categoría |
 | H41 | 🟡 | framer-motion opacity 0 en grid catálogo | ProductGridAndFilters | ⏳ |
 | H42 | 🟡 | Logo Organization = opengraph-image 1200×630 | layout | ⏳ |
-| H43 | 🟡 | CategoryDrawer filtra en vez de enlazar /categoria/ | CategoryDrawer | ⏳ |
-| H44 | 🟡 | components/ProductGallery.tsx alt genérico (legacy) | components/ | ⏳ |
+| H43 | 🟡 | CategoryDrawer filtra en vez de enlazar /categoria/ | CategoryDrawer | ✅ Sesión 9 — `<Link href="/categoria/{slug}">` |
+| H44 | 🟡 | components/ProductGallery.tsx alt genérico (legacy) | components/ | ⏸ Archivo huérfano; ficha usa `app/product/[slug]/ProductGallery.tsx` |
 | H45 | 🟡 | Env vars SEO incompletas en .env.example | `.env.example` | ✅ Sesión 7 |
-| H46 | 🟡 | Productos out-of-stock indexados (decisión) | product page | ⏳ |
+| H46 | 🟡 | Productos out-of-stock indexados (decisión) | product page | ⏸ Por diseño — `robots: { index: true }` con stock=0 |
 | H47 | 🟡 | lang es vs es_VE vs es-VE inconsistente | layout, manifest | ⏳ |
 | H48 | 🟡 | CtaBanner alt genérico | `page.tsx` | ⏳ |
 | H49 | 🟡 | seller.name "Mundo Tech" en schema | ProductJsonLd | ✅ Sesión 7 |
-| H50 | 🟡 | Sin Google Merchant feed | — | ⏳ |
+| H50 | 🟡 | Sin Google Merchant feed | `api/merchant-feed` | ✅ Sesión 8 — feed XML + taxonomía Google (ses. 14–15) |
 | H51 | 🟠 | `originalPrice`/rebajas ausentes en Offer schema | `ProductJsonLd.tsx` | ✅ Sesión 7 |
 | H52 | 🟠 | `hasMerchantReturnPolicy` sin URL a `/devoluciones` | `ProductJsonLd.tsx` | ✅ Sesión 7 |
 | H53 | 🟡 | Review schema sin `itemReviewed` | `ProductJsonLd.tsx` | ✅ Sesión 7 |
 | H54 | 🟡 | Sin `@id`/`@graph` entre Organization y Product | layout + ProductJsonLd | ✅ Sesión 7 |
-| H55 | 🟠 | AnnouncementBar invisible en SSR (anuncios no crawlables) | `AnnouncementBar.tsx` | ⏳ |
-| H56 | 🟠 | Catálogo/categoría sin paginación (HTML monolítico) | `productos/`, `categoria/` | ⏳ |
-| H57 | 🟡 | Sin IndexNow para notificar URLs nuevas/actualizadas | — | ⏳ |
+| H55 | 🟠 | AnnouncementBar invisible en SSR (anuncios no crawlables) | `AnnouncementBar.tsx` | ✅ Sesión 11 — Server Component + cookie dismiss |
+| H56 | 🟠 | Catálogo/categoría sin paginación (HTML monolítico) | `productos/`, `categoria/` | ✅ Sesión 10 — `PAGE_SIZE=24`, `PaginationBar` |
+| H57 | 🟡 | Sin IndexNow para notificar URLs nuevas/actualizadas | — | ⏳ Opcional |
 | H58 | 🟡 | Home metadata "Delivery en 24h" vs política real | `page.tsx` + `shipping-policy` | ✅ Sesión 7 |
-| H61 | 🟠 | Páginas auth (`/reset-password`, etc.) indexables sin noindex | auth pages | ⏸ Parcial — falta `/reset-password` |
+| H61 | 🟠 | Páginas auth indexables sin noindex | auth pages | ✅ Sesiones 7–8 — login, registro, forgot, reset-password |
 | H62 | 🟡 | Canonical `/buscar` incompleto vs URL con filtros | `buscar/page.tsx` | ✅ Sesión 7 |
 | H63 | 🟡 | `loading.tsx` muestra skeleton sin contenido real | `app/loading.tsx`, `product/loading.tsx` | ⏳ |
 | H64 | 🟡 | CookieConsent banner post-hidratación (posible CLS) | `CookieConsent.tsx` | ⏳ |
@@ -2454,18 +2448,18 @@ Para que el SEO funcione correctamente en producción:
 - [ ] Probar preview OG: [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/) o similar
 - [x] Confirmar redirects 301: `/privacidad`, `/quienes-somos`, etc. *(next.config.mjs)*
 - [ ] Revisar Core Web Vitals en Search Console tras 28+ días
-- [ ] Ejecutar migración de slugs si hay productos sin slug (`/api/admin/migrate-slugs`)
+- [x] Slug obligatorio en BD (PRD-065) — migración de backfill aplicada; `/api/admin/migrate-slugs` solo para legado residual
 - [ ] Configurar `NEXT_PUBLIC_GOOGLE_MAPS_BUSINESS_URL` con ficha verificada
 - [ ] Opcional: `NEXT_PUBLIC_GA4_ID` + verificar carga tras aceptar cookies
 - [x] Revisar indexación de `/login` y `/cart` — noindex + robots disallow *(sesión 7)*
 - [x] Corregir home metadata si "Delivery en 24h" no es garantía real (H58 / P89)
-- [ ] Migrar `AnnouncementBar` a RSC o SSR visible sin `useState(true)` inicial (H55 / P87)
+- [x] Migrar `AnnouncementBar` a RSC o SSR visible sin `useState(true)` inicial (H55 / P87) — **Sesión 11**
 - [ ] Evaluar IndexNow al guardar producto en admin (H57)
 - [x] Añadir `merchantReturnLink` en schema Offer apuntando a `/devoluciones` (H52 / P76)
 - [x] Unificar claim "24h" en meta home, Navbar y Benefits (P89–P92)
 - [x] `noindex` en `/forgot-password`, `/login`, `/registro` (P96 / H61 / H12)
-- [ ] `noindex` en `/reset-password` (P96 / H61 — **pendiente en código**)
-- [ ] `noindex` en `/checkout` (H03 — sin `metadata` en `checkout/page.tsx`)
+- [x] `noindex` en `/reset-password` (P96 / H61 — sesión 8)
+- [x] `noindex` en `/checkout` y `/checkout/success` (H03 — sesión 8)
 - [x] Corregir `numberOfItems` en schema de categoría (P90 / H65)
 
 ---
@@ -2476,60 +2470,49 @@ Para que el SEO funcione correctamente en producción:
 
 ### 37.1 Resumen ejecutivo de la quinta pasada
 
-| Área | Hallazgos nuevos | Prioridad |
-|------|------------------|-----------|
-| **Schema Product/Offer** | Rebajas, URL devoluciones, `itemReviewed`, `@graph`, `dateModified` | Alta |
-| **SSR vs cliente** | AnnouncementBar y PromoPopup invisibles al crawl (enlaces internos) | Alta |
-| **Arquitectura catálogo** | Sin paginación; sitemap categoría stale | Media |
-| **Indexación acelerada** | Sin IndexNow | Media-baja |
-| **Copy / confianza SERP** | Home "24h" vs política envío; categorías sin description en BD | Media |
+| Área | Hallazgos | Prioridad |
+|------|-----------|-----------|
+| **Schema Product/Offer** | Rebajas, URL devoluciones, `itemReviewed`, `@graph`, `dateModified` | ✅ Cerrado sesiones 7–8 |
+| **SSR vs cliente** | ~~AnnouncementBar invisible~~ ✅; PromoPopup fuera de SSR | Alta (P88 abierto) |
+| **Arquitectura catálogo** | ~~Sin paginación~~ ✅; sitemap categoría stale (P83 menor) | Media |
+| **Indexación acelerada** | Sin IndexNow | Media-baja (H57) |
+| **Copy / confianza SERP** | ~~Home "24h"~~ ✅; categorías con campos SEO ✅ (falta backfill manual) | Media-baja |
 
-### 37.2 Schema: lo que la UI muestra pero JSON-LD omite
+### 37.2 Schema: lo que la UI muestra pero JSON-LD omitía — ✅ mayoría cerrada (sesión 7)
 
-**Rebajas (`originalPrice`):** `ProductCard` y ficha calculan `discountPct`, pero `ProductJsonLd` ignora `originalPrice` aunque el tipo `ProductForJsonLd` lo incluye. Google recomienda para ofertas:
+| Gap original | Estado |
+|--------------|--------|
+| Rebajas `originalPrice` → `ListPrice` en Offer | ✅ P75/H51 |
+| `merchantReturnLink` → `/devoluciones` | ✅ P76/H52 |
+| `itemReviewed` en cada Review | ✅ P77/H53 |
+| `@id` / `@graph` Organization ↔ Product | ✅ P78/H54 |
+| `dateModified` desde `updatedAt` | ✅ P79 (sesión 8) |
+| `category` como URL canónica | ✅ P80 (sesión 8) |
 
-```json
-"offers": {
-  "@type": "Offer",
-  "price": "99.00",
-  "priceSpecification": {
-    "@type": "UnitPriceSpecification",
-    "price": "99.00",
-    "priceCurrency": "USD"
-  }
-}
-```
+**Pendiente:** tarifa de envío dinámica en `shippingDetails` (H09) — requiere campo en `readSettings()`.
 
-O referencia cruzada con precio tachado vía `priceValidUntil` + precio anterior documentado en página.
+### 37.3 Categorías: SEO único por vertical — ✅ implementado (sesión 12)
 
-**Devoluciones:** existe `hasMerchantReturnPolicy` con 7 días, pero falta:
+> **Estado (12 jun 2026):** P85 cerrado. El modelo `Category` incluye `description String?`, `seoTitle String?` y `googleCategoryId Int?` (sesión 15).
 
-```json
-"merchantReturnLink": "https://mundotechve.com/devoluciones"
-```
+| Capa | Implementación |
+|------|----------------|
+| BD | Migración `20260612000000_add_category_seo_fields` + `googleCategoryId` |
+| Admin | `/admin/categories` — textarea descripción + input título SEO + ID Google |
+| Metadata | `categoria/[slug]/page.tsx` — `seoTitle ?? patrón` y `description ?? fallback` |
+| JSON-LD | `CollectionPage.description` usa campo real o fallback |
+| Hero | Texto visible único cuando `description` tiene valor |
 
-**Reseñas:** cada `Review` debería incluir `"itemReviewed": { "@type": "Product", "@id": "{productUrl}#product" }`.
-
-### 37.3 Categorías: imposible SEO único por vertical
-
-El modelo Prisma `Category` solo tiene: `name`, `slug`, `imageUrl`, `isFeatured`, `order`. **No hay `description`.**
-
-Consecuencias encadenadas:
-
-1. `generateMetadata` en categoría usa la **misma plantilla** para todas (`Compra {name} en MundoTech…`).
-2. `CategoryJsonLd` hace `category.description ?? fallback` — el campo **nunca existe** en BD.
-3. Admin (`/admin/categories`) no permite editar copy SEO por categoría.
-
-**Corrección:** añadir `description String?` a Category + textarea en admin + usar en metadata y CollectionPage.
+**Pendiente operativo:** backfill manual — las categorías existentes tienen `description = null` hasta que un admin edite cada una.
 
 ### 37.4 Contenido dinámico admin invisible para Googlebot
 
 | Componente | Patrón | ¿En HTML inicial? |
 |------------|--------|-------------------|
-| `AnnouncementBar` | `useState(true)` → null en SSR | ❌ |
+| `AnnouncementBar` | Server Component + cookie dismiss (sesión 11) | ✅ |
 | `PromoPopup` | `useState(false)` + delay | ❌ |
 | `HomeHeroCyber` | Cliente pero renderiza slide 0 en SSR | ✅ |
-| `ProductTabs` | Solo tab activa en DOM | ⚠️ parcial |
+| `ProductTabs` | Todos los paneles en DOM; `hidden` + ARIA tabs | ✅ |
 | `ProductReviews` | Cliente con `initialReviews` props | ✅ (SSR con props) |
 
 Los anuncios superiores son especialmente relevantes porque el admin los usa para promociones estacionales con links a categorías/productos.
@@ -2546,13 +2529,13 @@ Los anuncios superiores son especialmente relevantes porque el admin los usa par
 
 | # | Acción | IDs |
 |---|--------|-----|
-| 1 | Añadir `merchantReturnLink` + `originalPrice` en Offer cuando aplique | P75, P76, H51, H52 |
-| 2 | Refactor `AnnouncementBar` → Server Component o hidratar con `hidden={false}` en SSR | P87, H55 |
-| 3 | Campo `Category.description` + metadata única | P85 |
-| 4 | Paginación SSR en `/productos` y `/categoria/[slug]` | P82, H56 |
+| ~~1~~ | ~~Añadir `merchantReturnLink` + `originalPrice` en Offer~~ — **✅ Sesión 7** | ~~P75, P76, H51, H52~~ |
+| ~~2~~ | ~~Refactor `AnnouncementBar` → Server Component o hidratar con `hidden={false}` en SSR~~ — **✅ Sesión 11** | ~~P87, H55~~ |
+| ~~3~~ | ~~Campo `Category.description` + metadata única~~ — **✅ Sesión 12** | ~~P85~~ |
+| ~~4~~ | ~~Paginación SSR en `/productos` y `/categoria/[slug]`~~ — **✅ Sesión 10** | ~~P82, H56~~ |
 | 5 | IndexNow en server actions de producto | H57 |
-| 6 | Corregir copy home "Delivery en 24h" o alinearlo con política | P89, H58 |
-| 7 | `@id` + `@graph` unificando Organization ↔ Product | P78, H54 |
+| ~~6~~ | ~~Corregir copy home "Delivery en 24h"~~ — **✅ Sesión 7** | ~~P89, H58~~ |
+| ~~7~~ | ~~`@id` + `@graph` unificando Organization ↔ Product~~ — **✅ Sesión 7** | ~~P78, H54~~ |
 
 ---
 
@@ -2562,17 +2545,21 @@ Los anuncios superiores son especialmente relevantes porque el admin los usa par
 
 ### 38.1 Resumen
 
-| Tema | Novedad | IDs |
-|------|---------|-----|
-| **Claims logísticos (SERP)** | "24h" en meta + Navbar + Benefits | P89–P92, H58 |
-| **Schema categoría** | `numberOfItems` ≠ entradas listadas (20 max) | P90, H65 |
-| **Schema producto** | Sin Warranty pese a "12 meses" en copy indexable | P94, H66 |
-| **Indexación / crawl** | Auth pages sin noindex | P96, H61 |
-| **Canonical** | `/buscar` ≠ URL con filtros | P97, H62 |
+> **Estado (12 jun 2026):** ítems de esta pasada **cerrados** en sesiones 7–8 salvo los marcados ⏳.
 
-### 38.2 Bug schema: `numberOfItems` vs lista truncada
+| Tema | Novedad (auditoría original) | IDs | Estado |
+|------|------------------------------|-----|--------|
+| **Claims logísticos (SERP)** | "24h" en meta + Navbar + Benefits | P89–P92, H58 | ✅ Sesión 7 |
+| **Schema categoría** | `numberOfItems` ≠ entradas listadas | P90, H65 | ✅ Sesiones 7+10 |
+| **Schema producto** | Sin Warranty pese a copy "12 meses" | P94, H66 | ✅ Sesión 7 |
+| **Indexación / crawl** | Auth pages sin noindex | P96, H61 | ✅ Sesiones 7–8 |
+| **Canonical** | `/buscar` ≠ URL con filtros | P97, H62 | ✅ Sesión 7 |
 
-**Archivo:** `app/categoria/[slug]/page.tsx`
+### 38.2 ~~Bug schema: `numberOfItems` vs lista truncada~~ — ✅ Cerrado (sesiones 7+10, P90/H65)
+
+**Estado actual:** `ItemList` refleja exactamente los productos de la **página paginada** (`PAGE_SIZE=24`) con `position` absoluto por offset. Sin `slice(0, 20)`.
+
+**Archivo:** `app/categoria/[slug]/page.tsx` — *(código histórico pre-fix:)*
 
 ```typescript
 mainEntity: {
@@ -2588,7 +2575,7 @@ Google espera coherencia entre `numberOfItems` y entradas listadas. **Correcció
 
 | Componente | En HTML SSR | Impacto SEO |
 |------------|-------------|-------------|
-| `AnnouncementBar` | ❌ | Pierde links internos de campañas |
+| `AnnouncementBar` | ✅ (sesión 11) | Links de campañas crawlables |
 | `PromoPopup` | ❌ | Pierde links internos del popup |
 | `Navbar` / `Benefits` | ✅ | NAP y claims visibles al bot |
 
@@ -2603,7 +2590,7 @@ Google espera coherencia entre `numberOfItems` y entradas listadas. **Correcció
 | 3 | Corregir `numberOfItems` en CategoryJsonLd | P90, H65 |
 | 4 | Añadir `Warranty` o `additionalProperty` garantía en ProductJsonLd | P94, H66 |
 | ~~1~~ | ~~Unificar copy envío "24h"~~ | ✅ P89–P92 (sesión 7) |
-| ~~2~~ | ~~noindex auth + wishlist + cart~~ | ⏸ P96/H61 parcial — falta `/reset-password` y `/checkout` |
+| ~~2~~ | ~~noindex auth + wishlist + cart + checkout~~ — **✅ Sesiones 7–8** | ~~P96, H61, H03~~ |
 | ~~3~~ | ~~numberOfItems categoría~~ | ✅ P90, H65 (sesión 7) |
 | ~~4~~ | ~~Warranty schema~~ | ✅ P94, H66 (sesión 7) |
 
@@ -2620,7 +2607,7 @@ Google espera coherencia entre `numberOfItems` y entradas listadas. **Correcció
 | Puntuación SEO global | 58/100 | **72/100** |
 | P/H cerrados en código | 0 | **~48 ítems** (ver tablas; P96/H61/H03 parciales) |
 | P/H delegados a otras sesiones | — | **7** (P03, P04, P05, P18, P41, P58, P59) |
-| P/H pendientes prioritarios | — | **~15** (P47/P48, H19, paginación, Merchant, AnnouncementBar SSR) |
+| P/H pendientes prioritarios | — | **~20** — ver [§47.3](#473-pendientes-reales-confirmados-en-código-siguen-abiertos) (doc sincronizado 12 jun 2026) |
 
 ### 39.2 Archivos nuevos o tocados
 
@@ -2665,31 +2652,33 @@ Google espera coherencia entre `numberOfItems` y entradas listadas. **Correcció
 
 **Excluidas:** `/admin`, `/api`, `/checkout`, `/account`, `/cart`, `/wishlist`, `/buscar`, auth.
 
-### 39.5 Estado P01–P97 (sesión 7)
+### 39.5 Estado P01–P97 — consolidado post-sesión 15
+
+> Tabla histórica de sesión 7 sustituida por estado real del repo (12 jun 2026). Detalle en [§47](#47-sincronización-doc--código-auditoría-12-jun-2026).
 
 | Estado | IDs |
 |--------|-----|
-| ✅ **Implementado** | P01 (308 id→slug + canonical), P08, P09, P11–P13, P15, P19, P20–P24, P46, P49, P50, P54 (parcial), P64, P75–P78, P84, P89–P92, P90, P94, P97, PRD-EXTRA-SEO-1 (FlashDeals `slug ?? id`) |
-| ✅ **Vía PRD (no sesión 7)** | P03→PRD-066 ses.5, P04→PRD-233 ses.3, P05/P18→PRD-064/065/121 ses.3, P41→PRD-008 ses.4, P58/P59→PRD-024 ses.2 |
-| ⏸ **Parcial** | P01 (falta 301 al renombrar slug → DEPENDENCIA-05), P02 (sitemap sigue `slug ?? id` hasta migración), P46 (Promotions fallback `/productos`), P80 (category texto, no URL), P81 (sin ItemList relacionados), **P96** (falta `/reset-password`) |
-| ⏳ **Pendiente** | P02, P07, P16–P17, P25–P32, P33–P37, P42–P45, P47–P48, P51–P53, P55–P57, P60–P74, P79, P82–P88, P95 |
+| ✅ **Implementado** | P01, P03, P04, P05, P08–P15, P18–P24, P30, P33, P37, P38, P39, P41, P42, P46, P47–P49, P50, P51, P58–P59, P64–P68, P75–P82, P84–P92, P94–P97, P85, P87, P96, PRD-EXTRA-SEO-1 |
+| ✅ **Vía PRD** | P03→PRD-066, P04→PRD-233, P05/P18→PRD-064/065/121, P41→PRD-008, P58/P59→PRD-024 |
+| ⏸ **Parcial** | P02 (`slug ?? id` residual), P12 (meta fallback por producto), P16/P17 (agotados indexados por decisión), P21/H09 (sin tarifa envío en schema), P25 (sin `gtin`), P34/P36 (descripción plano/placeholder), P46 (default `/productos` en promos), P54 (solo 5 relacionados — diseño), P61 (CSV sin revalidatePath por ficha), P81 (sin ItemList relacionados) |
+| ⏳ **Pendiente** | P07, P10, P14, P25–P29, P34/P36, P43–P45, P52–P53, P55–P57, P61–P74, P83, P86, P88, P65 (`/marca/`), P66 (blog), P69 (política 7d hardcodeada) |
 
-### 39.6 Estado H01–H66 (sesión 7)
+### 39.6 Estado H01–H66 — consolidado post-sesión 15
 
 | Estado | IDs |
 |--------|-----|
-| ✅ **Implementado** | H02, H05 (308), H07, H08, H11, H12, H13, H14, H16, H18, H20, H22, H23, H24, H27, H28, H38, H39 (productos + tienda + nosotros), H45, H49, H51–H54, H58, H62, H65, H66 |
-| ⏸ **Parcial** | H01 (NAP ya no hardcodeado en ProductJsonLd; layout usa settings), H03 (cart/wishlist/auth OK; falta checkout + reset-password), H04 (asset en `public/`; referencias legacy en UI), H09 (eliminado $5 fijo; sin `readSettings` en shipping), H19 (sin nonce en ISR por decisión PRD-284), H21 (404 producto con noindex; `not-found`/`error` global sin noindex), **H61** (falta `/reset-password`) |
-| ⏳ **Pendiente** | H06, H10, H15, H17, H25–H26, H29–H30, H32–H37, H40–H44, H46–H48, H55–H57, H63–H64 |
-| 🔗 **Otra sesión** | H31→PRD-288 ses.4 |
+| ✅ **Implementado** | H01–H08, H11–H18, H20, H22–H24, H27–H29, H35, H38–H40, H43, H45, H49–H56, H58, H61–H62, H65–H66, **H04** |
+| ⏸ **Parcial** | H09 (sin `shippingRate`), H10 (seller vía props), H19 (sin nonce ISR por diseño), H21 (404 producto sí; global no), H25 (settings vs seo_local), H26 (schema OK; copy UI residual), H30 (`PaginationBar` ✅; `/buscar` pendiente), H44 (legacy huérfano), H46 (index agotados por diseño) |
+| ⏳ **Pendiente** | H32–H34, H36–H37, H41–H42, H47–H48, H57, H63–H64 |
+| 🔗 **Otra sesión** | H31→PRD-288 |
 
 ### 39.7 Dependencias anotadas en código
 
-| Marcador | Dueño | Qué falta |
-|----------|-------|-----------|
-| `DEPENDENCIA-05` | Sesión 5 / PRD-066 | 301 permanente slug viejo → nuevo en `productActions.ts` |
-| `DEPENDENCIA-03` | Sesión 7 u ops | `isActive` ya en schema (ses. 3); falta `where: { isActive: true }` en `sitemap.ts` |
-| `DEPENDENCIA-01` | Sesión 1 / PRD-284 | Resuelto por diseño: JSON-LD ISR sin nonce (`JsonLd.tsx`); layout dinámico sí usa nonce |
+| Marcador | Dueño | Estado |
+|----------|-------|--------|
+| `DEPENDENCIA-05` | Sesión 13 | ✅ Cerrado — 308 slug viejo → nuevo (productos + categorías) |
+| `DEPENDENCIA-03` | Sesión 8 | ✅ Cerrado — `sitemap.ts` filtra `isActive: true` |
+| `DEPENDENCIA-01` | PRD-284 | ✅ Cerrado por diseño — JSON-LD ISR sin nonce |
 
 ### 39.8 Checklist post-despliegue (operativo)
 
@@ -2697,29 +2686,192 @@ Ver [§36](#36-checklist-operativo-post-despliegue) — ítems de código ya res
 
 ---
 
+## 40. Registro de implementación — sesión 8 (12 jun 2026)
+
+> **Alcance:** gaps pendientes de sesión 7 + mejoras modernas de Google Search Central. Sin tocar checkout, auth, admin, stock, cupones, emails ni seguridad.
+
+### 40.1 Resumen ejecutivo
+
+| Métrica | Antes | Después sesión 8 |
+|---------|-------|-----------------|
+| Puntuación SEO global | 72/100 | **~80/100** |
+| P/H cerrados en código | 48 | **+11 ítems** (ver tablas) |
+| Dependencias resueltas | DEPENDENCIA-05 pendiente | **DEPENDENCIA-03 ✅** (DEPENDENCIA-05 → cerrada en sesión 13) |
+
+### 40.2 Archivos modificados
+
+| Archivo | Cambio principal |
+|---------|-----------------|
+| `app/reset-password/page.tsx` | `robots: { index: false }` + canonical (P96/H61) |
+| `app/checkout/page.tsx` | `export const metadata` noindex (H03) |
+| `app/checkout/success/page.tsx` | `export const metadata` noindex (H03) |
+| `app/sitemap.ts` | Filtro `isActive: true`; image sitemap (`images: string[]`) para productos y categorías (DEPENDENCIA-03, P42/H40) |
+| `app/components/ProductJsonLd.tsx` | `dateModified` (P79); `category` como URL canónica (P80); `shippingDetails.url` (P95); `VideoObject` para media VIDEO (P30/H35); campo `media` en interfaz |
+| `app/api/merchant-feed/route.ts` | **Nuevo** — feed XML RSS 2.0 para Google Merchant Center (P67/P68/H50) |
+
+### 40.3 Ítems cerrados
+
+| Estado | IDs |
+|--------|-----|
+| ✅ **Implementado sesión 8** | P79 (`dateModified`), P80 (category URL), P95 (shippingDetails.url), P30 (VideoObject), H35 (VideoObject), P42 (image sitemap), H40 (image sitemap), P96/H61 (reset-password noindex), H03 (checkout/success noindex), P67 (Merchant feed), P68 (Merchant feed), H50 (Merchant feed) |
+| ✅ **DEPENDENCIA-03 resuelta** | `sitemap.ts` filtra `isActive: true` — campo ya disponible desde sesión 3 |
+
+### 40.4 Pendientes restantes (post sesión 8)
+
+| ID | Prioridad | Descripción | Dependencia |
+|----|-----------|-------------|-------------|
+| ~~P47/P48~~ | ✅ | ~~Filtros `?cat=` solo cliente~~ — **Cerrado sesión 9** | 301 en middleware; drawer y sidebar con `Link` a `/categoria/[slug]` |
+| ~~H55/P87~~ | ✅ | ~~`AnnouncementBar` invisible en SSR~~ — **Cerrado sesión 11** | Server Component + cookie dismiss. Cookie `mt_announcement_dismissed` leída en servidor. |
+| P82/H56 | ✅ | Paginación SSR implementada — `PAGE_SIZE=24`, `?page=N` | Cerrado sesión 10 (12 jun 2026). Canonicals autoreferenciales, redirect `?page=1`, ItemList con offset absoluto. |
+| H57 | 🟡 | Sin IndexNow | Opcional — acelera descubrimiento de URLs nuevas |
+| P85 | ✅ | `Category.description` + `seoTitle` implementados | Cerrado sesión 12 (12 jun 2026) |
+| DEPENDENCIA-05 | ✅ | 301 slug viejo → slug nuevo al renombrar | Cerrado sesión 13 (12 jun 2026) |
+| P02 | 🟠 | Sitemap usa `slug ?? id` aún (mejorado pero productos sin slug quedan) | PRD-064/121 sesión 3 |
+
+### 40.5 Merchant Center — pasos manuales post-deploy
+
+1. **Registrar cuenta** en [Google Merchant Center](https://merchants.google.com)
+2. **Verificar dominio** `mundotechve.com` (misma verificación que Search Console)
+3. **Añadir feed XML:** `https://mundotechve.com/api/merchant-feed`
+   - Tipo: feed de productos
+   - Idioma: Español
+   - País destino: Venezuela (VE)
+   - Frecuencia de rastreo: diaria
+4. **Completar políticas obligatorias** en Merchant Center (cuenta): envíos, devoluciones, contacto  
+   _(el feed ya no emite `return_policy_label` ni `<g:shipping>` — ver §40.7)_
+5. **Revisar errores** en panel → Diagnóstico de feed (precios USD, disponibilidad, GTINs si aplica)
+6. **Mejora futura:** añadir campo `gtin`/`mpn` a productos en admin para elegibilidad Shopping ampliada
+7. ~~Mejora futura: tabla de mapeo `category.name → google_product_category_id`~~ → **Implementado sesión 14 en `lib/google-product-categories.ts`** (ver §40.7)
+
+### 40.6 Checklist post-deploy (nuevos ítems sesión 8)
+
+- [ ] Verificar `/api/merchant-feed` devuelve XML válido (`Content-Type: application/xml`)
+- [ ] Registrar feed en Google Merchant Center (ver §40.5)
+- [ ] Verificar que `g:google_product_category` varía por categoría (no todos "Electronics")
+- [ ] Verificar que **no aparece** el literal `return_policy_label` en ningún ítem del feed
+- [ ] Configurar política de devolución a nivel de cuenta en Merchant Center (no por ítem)
+- [ ] Configurar reglas de envío a nivel de cuenta en Merchant Center (no por ítem)
+
+### 40.7 Correcciones de bugs del feed (sesión 14 — 12 jun 2026) · actualizado sesión 15 — 12 jun 2026
+
+Se corrigieron tres bugs que causaban rechazos/imprecisión en Google Shopping:
+
+#### Bug 1 — `return_policy_label` era un literal placeholder
+
+**Problema:** el feed emitía `<g:return_policy_label>return_policy_label</g:return_policy_label>` — el valor era el nombre del campo, no un dato real. Google lo rechazaba o ignoraba.
+
+**Decisión: Opción A — gestión a nivel de cuenta en Merchant Center.**  
+Razones:
+- `readSettings()` (lib/data-store.ts) no tiene campos de política de devolución
+- El enfoque recomendado por Google es configurar las políticas a nivel de cuenta, no por ítem
+- Un label inválido/placeholder es peor que omitir la etiqueta
+- Se requiere la misma lógica para `<g:shipping>`: el bloque incluía `<g:country>` y `<g:service>` pero carecía del `<g:price>` requerido por la spec → bloque inválido eliminado
+
+**Acción requerida post-deploy:** configurar en Merchant Center → Configuración → Envíos y devoluciones las reglas de envío y política de devolución para Venezuela.
+
+#### Bug 2 — `google_product_category` siempre `'Electronics'` (string genérico)
+
+**Problema:** todos los productos caían en una sola categoría genérica, perdiendo precisión en Shopping.
+
+**Solución implementada (sesión 14):** `lib/google-product-categories.ts` con función `getGoogleCategoryId(categoryName)`.
+
+#### Bug 3 — 6 IDs erróneos en `CATEGORY_MAP` + falsos positivos por substring (sesión 15)
+
+**Problema A — IDs incorrectos:** auditoría manual contra la taxonomía oficial (`taxonomy-with-ids.en-US.txt`, v2021-09-21) detectó 6 IDs que no corresponden a las categorías documentadas.
+
+**Problema B — falsos positivos por `includes()`:** la búsqueda de fallback usaba `normalized.includes(key)`, lo que producía matches peligrosos:
+- `'red'` (en `CATEGORY_MAP` para "Redes") matcheaba "Redragon", "Redmi" → los enviaba a Networking (342) incorrectamente.
+- `'switch'` matcheaba "Nintendo Switch" → lo mandaba a Networking en vez de Video Game Consoles.
+
+**Correcciones aplicadas (sesión 15):**
+
+1. **IDs corregidos** (taxonomía oficial v2021-09-21):
+
+| Categoría | ID anterior (MAL) | ID corregido | Descripción oficial |
+|-----------|-------------------|--------------|---------------------|
+| computadora / desktop / pc | 298 | **325** | Desktop Computers |
+| audifono / auricular / headphone / headset | 379 | **505771** | Headphones & Headsets |
+| parlante / bocina / altavoz / speaker | 2036 | **249** | Speakers |
+| monitor | 297 | **305** | Computer Monitors |
+| impresora | 303 | **500106** | Printers, Copiers & Fax |
+| camara / webcam | 149 | **142** | Cameras |
+
+2. **Lógica de lookup reemplazada:** se eliminó `normalized.includes(key)` (substring). El nuevo orden es:
+   - Coincidencia exacta sobre la cadena normalizada completa.
+   - Coincidencia por token completo: `normalized.split(' ')` → cada token se compara como clave exacta en `CATEGORY_MAP`. Evita que "redragon" matchee "red" o que "Nintendo Switch" caiga en Networking.
+   - Fallback → 222 (Electronics).
+
+3. **Claves peligrosas eliminadas:** `'red'`, `'redes'` y `'switch'` removidas del mapa para evitar falsos positivos. Los productos de networking deben nombrarse "Router", "Modem" o "Networking".
+
+**Tabla de mapeo actualizada y verificada:**
+
+| Categoría interna (patrones) | Google Taxonomy ID | Descripción |
+|------------------------------|--------------------|-------------|
+| celular, smartphone, telefono, movil | **267** | Mobile Phones |
+| laptop, portatil, notebook | **328** | Laptops |
+| computadora, desktop, computador, pc escritorio | **325** | Desktop Computers ✓ |
+| tablet | **4745** | Tablet Computers |
+| consola, gaming, videojuego | **1294** | Video Game Consoles |
+| audifono, auricular, headphone, headset | **505771** | Headphones & Headsets ✓ |
+| parlante, bocina, altavoz, speaker | **249** | Speakers ✓ |
+| televisor, television | **404** | Televisions |
+| monitor | **305** | Computer Monitors ✓ |
+| router, networking, modem | **342** | Networking |
+| impresora | **500106** | Printers, Copiers & Fax ✓ |
+| camara, webcam | **142** | Cameras ✓ |
+| _(sin coincidencia)_ | **222** | Electronics (fallback) |
+
+> Todos los IDs verificados contra la taxonomía oficial (v2021-09-21).  
+> https://www.google.com/basepages/producttype/taxonomy-with-ids.en-US.txt
+
+#### Campo `googleCategoryId` editable en admin (sesión 15 — `TODO-MC-01` cerrado)
+
+**Implementado:** campo `googleCategoryId Int?` en el modelo `Category` de Prisma.
+
+- **Migración:** `20260612000001_add_category_google_category_id`
+- **API:** `app/api/categories/route.ts` + `[id]/route.ts` aceptan y persisten `googleCategoryId` vía Zod (`z.number().int().positive().nullish()`).
+- **Admin UI:** `app/admin/categories/page.tsx` → `CategoryDialog` tiene un campo "ID de categoría Google (opcional)". Texto de ayuda: "Si lo dejas vacío se usa el mapeo automático por nombre".
+- **merchant-feed:** `app/api/merchant-feed/route.ts` carga todos los registros `Category` con `googleCategoryId` en un `Map<string, number|null>`. Prioridad: override admin → mapa automático → fallback 222.
+
+**Pendientes que quedan:**
+- `TODO-MC-02` — ~~Verificar IDs [VERIFY]~~ **CERRADO**: todos los IDs verificados en sesión 15.
+- `TODO-MC-03` — Evaluar agregar campo `gtin` a `Product` para mayor elegibilidad en Shopping (actualmente se usa `sku` como `mpn`).
+- `TODO-MC-04` — Cuando se agregue política de envío a settings, reactivar el bloque `<g:shipping>` por ítem con `<g:price>` real (actualmente gestionado a nivel de cuenta).
+- **Backfill manual:** las categorías existentes en BD tienen `googleCategoryId = null` → el mapa automático corre como fallback hasta que un admin edite cada categoría desde el panel y asigne el ID explícito.
+- [ ] Validar `VideoObject` en Rich Results Test si algún producto tiene video Bunny
+- [x] Confirmar que `/sitemap.xml` excluye productos `isActive: false` (DEPENDENCIA-03, sesión 8)
+- [x] Confirmar que imágenes de producto aparecen en el sitemap XML (P42, sesión 8)
+- [ ] Revisar `dateModified` en Schema Markup Validator para un producto recién editado
+
+---
+
 ## Apéndice A — Modelo de datos relevante (Prisma)
 
 ```prisma
 model Product {
-  slug    String?  @unique   // SEO URL — opcional, fallback id
-  name    String
-  category String             // string libre, enlazado a Category via nombre
-  brand   String?
-  images  String[]
-  specs   Json?              // → additionalProperty en JSON-LD
-  stock   Int
-  updatedAt DateTime         // → lastModified en sitemap
+  slug          String   @unique   // PRD-065: obligatorio (backfill en migración)
+  name          String
+  category      String             // string libre; enlazado a Category por nombre
+  brand         String?
+  images        String[]
+  specs         Json?              // → additionalProperty en JSON-LD
+  stock         Int
+  isActive      Boolean  @default(true)  // soft-delete; sitemap filtra isActive:true
+  updatedAt     DateTime             // → lastModified en sitemap
 }
 
 model Category {
-  name     String  @unique
-  slug     String  @unique   // → /categoria/[slug]
-  imageUrl String?           // → OG image categoría
-  isFeatured Boolean         // → 404 categorías destacadas
+  name             String   @unique
+  slug             String   @unique   // → /categoria/[slug]
+  imageUrl         String?            // → OG image categoría
+  isFeatured       Boolean
+  description      String?            // P85: meta + hero + JSON-LD
+  seoTitle         String?            // P85: <title> opcional
+  googleCategoryId Int?               // override Merchant Center (sesión 15)
 }
 ```
 
-**Nota:** `Product.isActive` existe desde sesión 03 (soft-delete). El sitemap aún no filtra por él (`DEPENDENCIA-03` en `sitemap.ts`). No hay campo `published` ni `deletedAt`.
+**Nota:** No hay campo `published` ni `gtin` en `Product`. Agotados (`stock: 0`) siguen indexables por decisión explícita (H46). `sitemap.ts` filtra `isActive: true` (DEPENDENCIA-03 ✅).
 
 ---
 
@@ -2742,10 +2894,10 @@ Rutas que existen en `app/` con impacto en SEO o descubrimiento de productos.
 
 | Ruta | Archivo | Render | En sitemap | Indexación deseada |
 |------|---------|--------|------------|-------------------|
-| `/` | `app/page.tsx` | RSC + ISR 3600 | Sí | index |
-| `/productos` | `app/productos/page.tsx` | RSC + ISR | Sí | index |
-| `/product/[slug]` | `app/product/[slug]/page.tsx` | RSC + ISR + `generateMetadata` | Sí (dinámico) | index |
-| `/categoria/[slug]` | `app/categoria/[slug]/page.tsx` | RSC + ISR + `generateStaticParams` | Sí (dinámico) | index |
+| `/` | `app/page.tsx` | RSC + ISR 300 | Sí | index |
+| `/productos` | `app/productos/page.tsx` | RSC + ISR 300 + catalog-cache | Sí | index |
+| `/product/[slug]` | `app/product/[slug]/page.tsx` | RSC + ISR 300 + `generateMetadata` | Sí (dinámico) | index |
+| `/categoria/[slug]` | `app/categoria/[slug]/page.tsx` | RSC + ISR 300 + `generateStaticParams` + catalog-cache | Sí (dinámico) | index |
 | `/buscar` | `app/buscar/page.tsx` | RSC + `generateMetadata` | No | **noindex** |
 | `/tienda-barquisimeto` | `app/tienda-barquisimeto/page.tsx` | RSC force-dynamic | Sí | index |
 | `/nosotros` | `app/nosotros/page.tsx` | RSC force-dynamic | Sí | index |
@@ -2753,14 +2905,14 @@ Rutas que existen en `app/` con impacto en SEO o descubrimiento de productos.
 | `/privacy-policy` | `app/privacy-policy/page.tsx` | RSC | Sí | index |
 | `/terms-of-service` | `app/terms-of-service/page.tsx` | RSC | Sí | index |
 | `/shipping-policy` | `app/shipping-policy/page.tsx` | RSC | Sí | index |
-| `/cart` | `app/cart/page.tsx` | RSC + client | No | noindex deseable |
+| `/cart` | `app/cart/page.tsx` | RSC + client | No | **noindex** ✅ + robots Disallow |
 | `/wishlist` | `app/wishlist/page.tsx` | RSC wrapper + client | No | **noindex** ✅ |
-| `/checkout` | `app/checkout/page.tsx` | RSC + client | No | noindex |
-| `/checkout/success` | `app/checkout/success/page.tsx` | RSC | No | noindex |
-| `/login` | `app/login/page.tsx` | RSC + client | No | noindex deseable |
-| `/registro` | `app/registro/page.tsx` | RSC + client | No | noindex deseable |
-| `/forgot-password` | `app/forgot-password/page.tsx` | RSC | No | noindex deseable |
-| `/reset-password` | `app/reset-password/page.tsx` | RSC | No | noindex deseable |
+| `/checkout` | `app/checkout/page.tsx` | RSC + client | No | **noindex** ✅ |
+| `/checkout/success` | `app/checkout/success/page.tsx` | RSC | No | **noindex** ✅ |
+| `/login` | `app/login/page.tsx` | RSC + client | No | **noindex** ✅ |
+| `/registro` | `app/registro/page.tsx` | RSC + client | No | **noindex** ✅ |
+| `/forgot-password` | `app/forgot-password/page.tsx` | RSC | No | **noindex** ✅ |
+| `/reset-password` | `app/reset-password/page.tsx` | RSC | No | **noindex** ✅ |
 | `/account/*` | `app/account/` | Mixto | No | noindex |
 | `/admin/*` | `app/admin/` | RSC + client | No | **noindex** |
 | 404 | `app/not-found.tsx` | RSC | No | noindex deseable |
@@ -2775,14 +2927,18 @@ Rutas que existen en `app/` con impacto en SEO o descubrimiento de productos.
 | `/manifest.webmanifest` | `app/manifest.ts` |
 | `/opengraph-image` | `app/opengraph-image.tsx` |
 | `/icon.svg` | `app/icon.svg` |
+| `/opensearch.xml` | `public/opensearch.xml` (link en `layout.tsx`) |
+| `/api/merchant-feed` | `app/api/merchant-feed/route.ts` (feed Shopping, no indexable) |
+| `/llms.txt` | `public/llms.txt` (política crawlers IA) |
 
 **Redirects 301** (`next.config.mjs`): `/privacidad`, `/terminos`, `/envios`, `/about`, `/quienes-somos` → destinos canónicos.
 
-**Variantes URL con query (no en sitemap, problemáticas SEO):**
+**Variantes URL con query:**
 
-- `/productos?cat={nombre}` — filtro cliente
-- `/productos?q={term}` — búsqueda legacy (not-found form)
-- `/buscar?q=&cat=&page=` — búsqueda real, noindex
+- `/productos?cat={nombre}` — **301 → `/categoria/{slug}`** (middleware, sesión 9) ✅
+- `/productos?page=N` — paginación SSR indexable (sesión 10); `?page=1` → 301 sin query ✅
+- `/productos?q={term}` — filtro cliente (no indexable como URL de búsqueda)
+- `/buscar?q=&cat=&page=` — búsqueda real, **noindex** ✅
 
 ---
 
@@ -2818,48 +2974,59 @@ Todo lo editable en admin que impacta SEO o datos visibles:
 ```
 web/
 ├── app/
-│   ├── layout.tsx              # Metadata global, JSON-LD raíz, providers
+│   ├── layout.tsx              # Metadata global, JSON-LD raíz, OpenSearch link, providers
 │   ├── page.tsx                # Home
-│   ├── sitemap.ts              # Sitemap
-│   ├── robots.ts               # Robots
+│   ├── sitemap.ts              # Sitemap (+ image sitemap inline)
+│   ├── robots.ts               # Robots (Disallow /cart, etc.)
 │   ├── manifest.ts
 │   ├── opengraph-image.tsx
 │   ├── icon.svg
-│   ├── productos/page.tsx      # Catálogo
+│   ├── api/merchant-feed/      # Feed RSS Google Merchant Center
+│   ├── productos/page.tsx      # Catálogo paginado (catalog-cache)
 │   ├── product/[slug]/         # Ficha producto (SEO crítico)
-│   │   ├── page.tsx            # generateMetadata
+│   │   ├── page.tsx            # generateMetadata, 308 id→slug
 │   │   ├── ProductGallery.tsx
 │   │   ├── ProductTabs.tsx
 │   │   └── ProductReviews.tsx
-│   ├── categoria/[slug]/       # Hub categoría
+│   ├── categoria/[slug]/       # Hub categoría (paginado + SEO fields)
 │   ├── buscar/                 # Búsqueda noindex
 │   ├── components/
 │   │   ├── ProductJsonLd.tsx   # Schema Product (crítico)
-│   │   ├── ProductGridAndFilters.tsx  # Filtros ?cat= (problema SEO)
+│   │   ├── PaginationBar.tsx   # Paginación SSR + rel prev/next
+│   │   ├── AnnouncementBar.tsx # RSC + AnnouncementBarClient
+│   │   ├── ProductGridAndFilters.tsx  # ?q= cliente; ?cat= → 301 (middleware)
 │   │   ├── Footer.tsx          # NAP + internal links
 │   │   └── HomeHeroCyber.tsx   # H1 home
 │   ├── actions/
-│   │   ├── productActions.ts   # CRUD + revalidate
+│   │   ├── productActions.ts   # CRUD + revalidate + revalidateTag
 │   │   └── seoLocalActions.ts
 │   └── admin/                  # noindex
 ├── components/
 │   ├── ProductCard.tsx         # Link a ficha en grids
 │   ├── Navbar.tsx + SearchBar.tsx
-│   └── layout/CategoryDrawer.tsx
+│   └── layout/CategoryDrawer.tsx  # Link /categoria/{slug}
 ├── lib/
+│   ├── catalog-cache.ts        # unstable_cache catálogo/categorías (§46)
+│   ├── google-product-categories.ts  # Taxonomía Merchant Center
 │   ├── data-store.ts           # store_settings
 │   ├── seo-local.ts            # seo_local
 │   ├── seo-local-schema.ts
 │   ├── slugify.ts
+│   ├── slug-redirects.ts       # DEPENDENCIA-05
 │   ├── resolve-category-path.ts
 │   ├── cloudinaryLoader.js
 │   └── reviews.ts
+├── public/
+│   ├── opensearch.xml
+│   ├── llms.txt
+│   ├── placeholder-product.png
+│   └── og-default.png
 ├── context/
 │   ├── ProductContext.tsx      # Catálogo cliente (drawer)
 │   ├── CartContext.tsx
 │   └── ExchangeRateContext.tsx
-├── prisma/schema.prisma        # Product, Category, Review…
-├── middleware.ts               # CSP, auth
+├── prisma/schema.prisma        # Product, Category (+ SEO fields), Review…
+├── middleware.ts               # CSP, auth, 301 ?cat=, ?page=1
 ├── next.config.mjs             # redirects 301, headers
 └── docs/
     └── ANALISIS-SEO-COMPLETO.md  # Este documento
@@ -2867,4 +3034,548 @@ web/
 
 ---
 
-*Documento de alcance **SEO estricto**. Refleja el repositorio al 11/06/2026. **96** malas prácticas producto (P01–P97; P93/P98 retirados) · **64** hallazgos globales (H01–H66; H59/H60 retirados). **Sesión 7:** ~52 P/H cerrados en código — ver [§39](#39-registro-de-implementación--sesión-7-jun-2026).*
+---
+
+## 41. Registro de implementación — sesión 9 (12 jun 2026)
+
+> **Alcance:** deprecar `?cat=` en `/productos` y canalizar toda la navegación por categoría hacia `/categoria/[slug]` (P47 + P48). Sin tocar paginación (P82), checkout, admin profundo, schema.prisma ni lógica de pagos.
+
+### 41.1 Resumen ejecutivo
+
+| Métrica | Antes | Después sesión 9 |
+|---------|-------|-----------------|
+| Puntuación SEO global | ~80/100 | **~83/100** |
+| P/H cerrados | 59 | **+3 ítems** (P47, P48, H15) |
+
+### 41.2 Archivos modificados
+
+| Archivo | Cambio principal |
+|---------|-----------------|
+| `middleware.ts` | Redirect 301 `/productos?cat=X` → `/categoria/slugify(cat)` al inicio del handler (Edge-compatible, antes de auth) |
+| `components/layout/CategoryDrawer.tsx` | Extrae `slug` de `/api/categories`; reemplaza `router.push(?cat=)` por `<Link href="/categoria/{slug}">`. Elimina `useRouter`. "Todos" → `<Link href="/productos">` |
+| `app/components/ProductGridAndFilters.tsx` | Acepta `categorySlugMap?: Record<string,string>`; sidebar usa `<Link>` a `/categoria/[slug]`; "Todos" con `usePathname()` para active state; elimina lectura de `?cat=` del `useEffect` |
+| `app/productos/page.tsx` | Añade `getCategorySlugMap()` (query `prisma.category.findMany`); pasa `categorySlugMap` a `ProductGridAndFilters` |
+| `app/admin/banners/page.tsx` | Actualiza placeholder de ejemplo de link de `/productos?cat=Consolas` → `/categoria/consolas` |
+
+### 41.3 Ítems cerrados
+
+| Estado | IDs |
+|--------|-----|
+| ✅ **Implementado sesión 9** | P47 (redirect 301 `?cat=`), P48 (canonical limpio), H06 (categorías con `Link` real), H15 (variantes `?cat=` eliminadas vía 301) |
+
+### 41.4 Verificación de comportamiento
+
+- `GET /productos?cat=Consolas` → **301** → `/categoria/consolas` (middleware, Edge, sin DB)
+- `GET /productos?cat=` vacío / slug inválido → **301** → `/productos` (sin bucle)
+- `GET /productos?q=gaming` → pasa sin redirect (solo `cat` dispara el redirect)
+- `GET /categoria/consolas` → página SSG con canonical `/categoria/consolas` ✅
+- Drawer de categorías: cada ítem es `<Link href="/categoria/{slug}">` crawlable ✅
+- Sidebar desktop/móvil de `/productos`: ítem "Todos" activo; categorías son links crawlables ✅
+- No hay enlaces internos a `/productos?cat=` restantes en el código
+
+### 41.5 ~~Pendiente~~ → Cerrado en sesión 10
+
+P82 fue implementado completamente en sesión 10 (12 jun 2026). Ver [§42](#42-registro-de-implementación--sesión-10-12-jun-2026).
+
+---
+
+## 42. Registro de implementación — sesión 10 (12 jun 2026)
+
+> **Alcance:** paginación SSR real en catálogo (`/productos`) y categorías (`/categoria/[slug]`). Cierra P82. Sin tocar checkout, auth, admin profundo, pagos ni schema de pagos.
+
+### 42.1 Resumen ejecutivo
+
+| Métrica | Antes | Después sesión 10 |
+|---------|-------|------------------|
+| Puntuación SEO global | ~83/100 | **~87/100** |
+| P/H cerrados | 62 | **+1 ítem** (P82/H56) |
+| Productos por render | Todos (N sin límite) | **24 (`PAGE_SIZE`)** |
+| HTML catálogo (500 productos) | ~2 MB+ | **~80–120 KB por página** |
+
+### 42.2 Decisiones de arquitectura
+
+| Decisión | Valor |
+|----------|-------|
+| `PAGE_SIZE` | **24** (múltiplo de 4 columnas del grid) |
+| Parámetro URL | `?page=N` (base 1) |
+| Valores inválidos | Normalizados a 1 o redirigidos a última página válida |
+| `?page=1` | **301 en middleware** → URL sin `?page` (canonical limpio) |
+| Canonical page 1 | `/productos` / `/categoria/{slug}` sin query |
+| Canonical page ≥2 | `/productos?page=N` / `/categoria/{slug}?page=N` (autorreferencial) |
+| Robots páginas 2+ | `index, follow` — cada página tiene contenido único |
+| Sort / búsqueda `?q=` | Client-side dentro de la página actual (no afecta crawl) |
+| Filtro de categoría | Eliminado del cliente → cada categoría tiene su ruta SSR propia |
+| JSON-LD ItemList | `position` absoluto con offset de página (`(page-1)*24 + i + 1`) |
+| ISR | Mantiene `revalidate = 300` (PRD-140) — páginas paginadas regeneran junto con la base |
+
+### 42.3 Archivos creados / modificados
+
+| Archivo | Tipo | Cambio principal |
+|---------|------|-----------------|
+| `app/components/PaginationBar.tsx` | **Nuevo** | Componente Server de paginación con `<Link>` crawlables; prev/next + números con elipsis |
+| `app/productos/page.tsx` | **Modificado** | `searchParams: Promise<{page?}>`, `PAGE_SIZE=24`, query Prisma con `skip/take`, `generateMetadata` dinámico con sufijo "— Página N", redirect para rango inválido, `isActive: true` |
+| `app/categoria/[slug]/page.tsx` | **Modificado** | Igual que arriba + `generateStaticParams` conservado, ItemList con offset absoluto, total visible en hero |
+| `app/components/ProductGridAndFilters.tsx` | **Modificado** | Props: `totalProductCount` + `serverCategories[]` reemplazan `categorySlugMap`; elimina filtro de categoría en memoria; sidebar usa conteos reales del servidor |
+| `middleware.ts` | **Modificado** | Redirect 301 `?page=1` → URL sin query para `/productos` y `/categoria/*` |
+
+### 42.4 Estrategia de canonicals y robots para páginas paginadas
+
+```
+/productos              → canonical: /productos                   robots: index, follow
+/productos?page=1       → 301 → /productos                        (middleware)
+/productos?page=2       → canonical: /productos?page=2            robots: index, follow
+/productos?page=N>max   → 301 → /productos?page={totalPages}      (page component)
+/productos?page=0/-1/xx → 301 → /productos                        (page component)
+
+/categoria/{slug}       → canonical: /categoria/{slug}            robots: index, follow (o noindex si sin productos)
+/categoria/{slug}?page=1 → 301 → /categoria/{slug}               (middleware)
+/categoria/{slug}?page=2 → canonical: /categoria/{slug}?page=2   robots: index, follow
+```
+
+### 42.5 Verificación de comportamiento
+
+- `GET /productos` → HTML con 24 productos SSR, enlaces de paginación `<a href="/productos?page=2">` en HTML inicial ✅
+- `GET /productos?page=2` → segundo bloque de 24 productos, canonical `?page=2`, title "… — Página 2" ✅
+- `GET /productos?page=1` → 301 → `/productos` (middleware, sin DB) ✅
+- `GET /productos?page=0` / `?page=abc` → redirect a `/productos` ✅
+- `GET /productos?page=999` → redirect a última página válida ✅
+- `GET /categoria/consolas?page=2` → 24 productos de consolas, ItemList positions 25–48 ✅
+- Sidebar: categorías con conteos reales del servidor (no del slice de página actual) ✅
+- Sidebar: categoría activa se detecta por `pathname === /categoria/{slug}` ✅
+- `TypeScript --noEmit` → 0 errores ✅
+- `eslint` → 0 errores, 0 warnings ✅
+- `next build` → exit 0, `/productos` ƒ Dynamic, `/categoria/[slug]` ● SSG+ISR ✅
+
+### 42.6 Sub-pendientes anotados
+
+| ID | Estado | Descripción |
+|----|--------|-------------|
+| P85 | ✅ | `Category.description` + `seoTitle` — implementados sesión 12 |
+| — | ⏳ | Sort server-side para paginación multi-página consistente (actualmente sort client dentro del slice) |
+| — | ⏳ | Búsqueda `?q=` server-side para indexar resultados de búsqueda con URL estable |
+| DEPENDENCIA-05 | ✅ | Cerrado sesión 13 |
+
+---
+
+*Documento de alcance **SEO estricto**. Refleja el repositorio al 12/06/2026 (sincronizado §47.6–§47.7). **97** malas prácticas producto (P01–P97) · **66** hallazgos globales (H01–H66). **~75 P/H cerrados** en código (sesiones 7–15) — estado consolidado en [§47.3](#473-pendientes-reales-confirmados-en-código-siguen-abiertos).*
+
+---
+
+## 43. Registro de implementación — sesión 11 (12 jun 2026)
+
+> **Alcance:** SSR del `AnnouncementBar` (P87/H55). Sin tocar checkout, auth, admin profundo, pagos ni schema de pagos.
+
+### 43.1 Resumen ejecutivo
+
+| Métrica | Antes | Después sesión 11 |
+|---------|-------|------------------|
+| Puntuación SEO global | ~87/100 | **~88/100** |
+| P/H cerrados | 63 | **+2 ítems** (P87, H55) |
+| `AnnouncementBar` en HTML SSR | ❌ invisible para Googlebot | ✅ texto/enlace en HTML inicial |
+| CLS para usuarios que cerraron el bar | N/A (bar no renderizaba) | ✅ cero — servidor omite render si cookie coincide |
+
+### 43.2 Causa raíz de P87/H55
+
+`AnnouncementBar` era `'use client'` con `useState(true)` (hidden por defecto). En SSR, el componente devolvía `null` porque el estado inicial era `true`. Solo tras la hidratación y el `useEffect` (lectura de `localStorage`) se podía mostrar. Resultado: Googlebot nunca veía el contenido del aviso en el HTML.
+
+### 43.3 Estrategia elegida — Server Component + cookie dismiss
+
+**Patrón Server/Client:**
+- `AnnouncementBar.tsx` → **Server Component**: obtiene `data: Announcement` + `dismissedText?: string` (desde cookie leída en el servidor), renderiza el contenido (texto/enlace) en SSR y delega el botón de cierre a `AnnouncementBarClient`.
+- `AnnouncementBarClient.tsx` → **Client Component** (`'use client'`): envuelve el contenido (pasado como `children` desde RSC), gestiona el estado `dismissed` (inicial `false`) y, al clicar "cerrar", graba la cookie `mt_announcement_dismissed` con el texto actual (`encodeURIComponent`) y oculta la barra.
+- `app/layout.tsx` → lee `cookieStore.get('mt_announcement_dismissed')` server-side y lo decodifica antes de pasarlo como `dismissedText` a `AnnouncementBar`.
+
+**Por qué cookie (no localStorage):**
+| Aspecto | Cookie (elegido) | localStorage |
+|---------|-----------------|-------------|
+| Leída en servidor | ✅ sí | ❌ no |
+| CLS para usuarios que cerraron | ✅ cero (servidor omite render) | ⚠️ flash mínimo hasta hidratación |
+| Persistencia entre subdominios | según `domain=` | ❌ solo mismo origen |
+| Usuario borra cookies | bar reaparece (correcto) | bar reaparece (igual) |
+| Impacto en caché | layout ya es `force-dynamic` por `cookies()` | sin impacto adicional |
+
+El layout ya usaba `cookies()` (para `mt_cookie_consent`), así que no se agrega overhead de dinamismo nuevo.
+
+**Seguridad de enlaces:** la defensa PRD-283 (`isInternalPath` / `isSafeEditableLink`) se mantiene en el Server Component — el sink sigue validando antes de renderizar el `<Link>`/`<a>`.
+
+### 43.4 Archivos creados / modificados
+
+| Archivo | Tipo | Cambio |
+|---------|------|--------|
+| `app/components/AnnouncementBarClient.tsx` | **Nuevo** | Client Component: envuelve children, maneja dismiss con cookie, `useState(false)` |
+| `app/components/AnnouncementBar.tsx` | **Modificado** | Convertido a Server Component: sin `'use client'`, sin hooks. Acepta `dismissedText?`, guarda null si inactivo/vacío/ya-cerrado. Renderiza contenido y delega cierre a `AnnouncementBarClient` |
+| `app/layout.tsx` | **Modificado** | Lee `mt_announcement_dismissed` de `cookieStore`, decodifica, pasa como `dismissedText` a `<AnnouncementBar>` |
+
+### 43.5 Comportamiento verificado (casos borde)
+
+| Caso | Resultado |
+|------|-----------|
+| Bar activo, texto presente, usuario sin cookie | ✅ HTML SSR contiene texto/enlace del aviso |
+| Bar desactivado en settings (`active: false`) | ✅ Servidor devuelve `null` — sin contenedor vacío |
+| Texto vacío en settings | ✅ Servidor devuelve `null` |
+| Cookie `mt_announcement_dismissed` coincide con texto actual | ✅ Servidor devuelve `null` — cero CLS |
+| Cookie con texto diferente (admin cambió el aviso) | ✅ Bar reaparece en HTML SSR (correcto) |
+| Usuario clica "cerrar" | ✅ Cookie grabada + `dismissed=true` → bar desaparece inmediatamente |
+| Googlebot (sin cookies, sin JS) | ✅ Texto del aviso en HTML inicial |
+| `tsc --noEmit` | ✅ 0 errores |
+| ESLint | ✅ 0 errores, 0 warnings |
+
+### 43.6 Sub-pendientes anotados
+
+| ID | Estado | Descripción |
+|----|--------|-------------|
+| P88 | ⏳ | `PromoPopup` solo tras `useEffect` + delay — fuera del alcance de esta sesión |
+| P85 | ✅ | `Category.description` + `seoTitle` — implementados sesión 12 |
+| DEPENDENCIA-05 | ✅ | 301 slug viejo → slug nuevo al renombrar — cerrado sesión 13 |
+| H57 | ⏳ | IndexNow (opcional) |
+
+---
+
+## 44. Registro de implementación — sesión 12 (12 jun 2026)
+
+> **Alcance:** implementar P85 — `Category.description` + `seoTitle`: migración Prisma, admin UI, `generateMetadata`, JSON-LD `CollectionPage` y hero de categoría. Sin tocar checkout, auth, pagos, schema de pagos ni paginación (P82 intacto).
+
+### 44.1 Resumen ejecutivo
+
+| Métrica | Antes | Después sesión 12 |
+|---------|-------|------------------|
+| Meta descriptions únicas por categoría | ❌ (plantilla idéntica) | ✅ (campo real o fallback) |
+| Títulos SEO personalizables | ❌ | ✅ (`seoTitle` opcional) |
+| JSON-LD `CollectionPage.description` | ⚠️ fallback hardcodeado | ✅ campo real o fallback |
+| Contenido visible único en hero | ❌ (texto genérico fijo) | ✅ (texto real cuando existe) |
+| P/H cerrados en esta sesión | 62 → | **63** (+1: P85) |
+
+### 44.2 Archivos modificados
+
+| Archivo | Cambio |
+|---------|--------|
+| `prisma/schema.prisma` | `Category`: añadidos `description String?` y `seoTitle String?` |
+| `prisma/migrations/20260612000000_add_category_seo_fields/migration.sql` | `ALTER TABLE "Category" ADD COLUMN "description" TEXT; ADD COLUMN "seoTitle" TEXT;` |
+| `app/api/categories/route.ts` | Schema Zod + `POST` escribe los nuevos campos; `revalidatePath('/categoria/[slug]', 'page')` al crear |
+| `app/api/categories/[id]/route.ts` | Schema Zod + `PUT` escribe los nuevos campos; `revalidatePath('/categoria/[slug]', 'page')` al actualizar |
+| `app/admin/categories/page.tsx` | Interfaz local `Category` + `CategoryDialog`: estados + inputs (textarea `description`, input `seoTitle`) con contador de chars |
+| `app/categoria/[slug]/page.tsx` | `generateMetadata`: `title` usa `seoTitle ?? patrón`; `description` usa `category.description ?? fallback`. Hero: renderiza `category.description` cuando existe, fallback genérico si no |
+| `docs/ANALISIS-SEO-COMPLETO.md` | P85 marcado ✅, tabla de pendientes actualizada, este §44 añadido |
+
+### 44.3 Migración Prisma
+
+- **Nombre:** `add_category_seo_fields`
+- **Estrategia:** dos columnas `TEXT` nullable → cero impacto en filas existentes, cero backfill requerido.
+- **Aplicación:** `prisma db execute` (ejecuta el SQL directamente) + `prisma migrate resolve --applied` (registra en `_prisma_migrations`) + `prisma generate` (regenera el cliente).
+- **Rollback:** `ALTER TABLE "Category" DROP COLUMN "description"; DROP COLUMN "seoTitle";` — sin pérdida de datos previos.
+
+### 44.4 Estrategia de fallbacks
+
+| Campo | Con valor | Sin valor (null) |
+|-------|-----------|-----------------|
+| `<title>` | `category.seoTitle` (+ sufijo página si page≥2) | `${category.name} - Tecnología` (igual que antes) |
+| `<meta description>` | `category.description` | Plantilla anterior: `Compra {name} al mejor precio…` |
+| JSON-LD `CollectionPage.description` | `category.description` | `Catálogo de {name} en MundoTech…` |
+| Hero visible | `category.description` | Texto genérico fijo (igual que antes) |
+
+### 44.5 Estrategia de sanitización
+
+- Los campos se guardan como **texto plano** (sin HTML ni Markdown).
+- Zod `.trim()` elimina espacios extremos; `maxLength` server-side (70 / 300 chars) rechaza inputs excesivamente largos con HTTP 400.
+- React escapa el texto al renderizarlo (no `dangerouslySetInnerHTML`) → sin riesgo de XSS.
+- Caracteres especiales (acentos, ñ, ©) se almacenan en UTF-8 y se escapan correctamente en HTML y en el JSON-LD (JSON nativo de JS).
+- Markdown no está habilitado; si en el futuro se quiere, habrá que añadir sanitización con `dompurify` o similar antes del `dangerouslySetInnerHTML`.
+
+### 44.6 Revalidación ISR
+
+- `POST /api/categories` y `PUT /api/categories/[id]` llaman a `revalidatePath('/categoria/[slug]', 'page')` al guardar.
+- Esto invalida todas las páginas de categoría en el caché ISR inmediatamente, igual que `configActions.ts` lo hace al cambiar la tasa de cambio.
+- Las páginas siguen con `export const revalidate = 300` como fallback máximo.
+
+### 44.7 Sub-pendientes anotados
+
+| ID | Estado | Descripción |
+|----|--------|-------------|
+| — | ⏳ | **Backfill de descripciones reales** por cada categoría — trabajo de contenido, no de código. Hacerlo desde admin/categories editando cada categoría. |
+| DEPENDENCIA-05 | ✅ | 301 slug viejo → slug nuevo al renombrar — cerrado sesión 13 |
+| P88 | ⏳ | `PromoPopup` solo tras `useEffect` |
+| H57 | ⏳ | IndexNow (opcional) |
+
+---
+
+## 45. Registro de implementación — sesión 13 (12 jun 2026)
+
+> **Alcance:** cerrar DEPENDENCIA-05 (PRD-066) — redirecciones 301 de slugs viejos → slug actual para categorías. Sin tocar checkout, auth, pagos ni schema de pagos.
+
+### 45.1 Resumen ejecutivo
+
+| Métrica | Antes | Después sesión 13 |
+|---------|-------|------------------|
+| Puntuación SEO global | ~88/100 | **~89/100** |
+| P/H cerrados | 63 | **64** (+1: DEPENDENCIA-05 / P01 completo) |
+| URL de categoría renombrada | ❌ → 404 (pérdida de SEO acumulado) | ✅ → 308 permanente al slug nuevo |
+| Paginación preservada en redirect | N/A | ✅ `/categoria/viejo?page=3` → `/categoria/nuevo?page=3` |
+| Cadenas de redirect (A→B→C) | N/A | ✅ aplana a un solo salto (A→C) |
+| Ciclos de redirect (A→B→A) | N/A | ✅ prevenidos por `saveSlugRedirect` |
+
+### 45.2 Estrategia elegida — AppConfig KV + resolución en Server Component
+
+**¿Por qué no historial de slugs en tabla dedicada?**
+La infraestructura `lib/slug-redirects.ts` (con `AppConfig` key `slug_redirect:<slug>`) ya existía y era utilizada por productos (sesión 5 / `productActions.ts`). Extenderla a categorías reutiliza el mismo mecanismo sin nueva migración.
+
+| Aspecto | Historial en tabla BD dedicada | AppConfig KV (elegido) |
+|---------|-------------------------------|----------------------|
+| Migración Prisma | Sí (nueva tabla) | ❌ no necesaria |
+| Aplana cadenas (A→B→C → A→C) | Manual (update masivo) | ✅ `updateMany` en transacción |
+| Evita ciclos (A→B→A) | Manual | ✅ `deleteMany` del origen nuevo |
+| Volumen esperado | Bajo (pocas categorías) | ✅ adecuado |
+| Complejidad | Alta | ✅ mínima |
+
+**¿Por qué no en `middleware.ts` (mapa estático)?**
+El middleware corre en el Edge y no puede consultar Prisma. El mapa estático solo cubriría slugs ya conocidos; los futuros renombrados quedarían sin cobertura.
+
+**Flujo completo:**
+
+1. Admin renombra categoría en `/admin/categories` → `PUT /api/categories/{id}`
+2. El handler captura el slug actual (`existing.slug`) antes de escribir el nuevo
+3. Si el slug cambió: `saveSlugRedirect(oldSlug, newSlug)` registra en `AppConfig`; cadenas existentes se aplanan (`updateMany`), ciclos se eliminan (`deleteMany`)
+4. Cuando Googlebot (o usuario) visita `/categoria/{oldSlug}`:
+   - `CategoryPage` llama `getCategory(oldSlug)` → `null` (categoría no existe con ese slug)
+   - Llama `resolveSlugRedirect(oldSlug)` → devuelve `newSlug`
+   - `permanentRedirect(`/categoria/${newSlug}[?page=N]`)` → HTTP 308
+
+### 45.3 Archivos modificados
+
+| Archivo | Cambio |
+|---------|--------|
+| `app/api/categories/[id]/route.ts` | `PUT`: captura slug antes de `update`; si cambia, llama `saveSlugRedirect(old, new)` y `revalidatePath(`/categoria/${oldSlug}`)` |
+| `app/categoria/[slug]/page.tsx` | `CategoryPage`: cuando `getCategory` devuelve `null`, llama `resolveSlugRedirect`; si hay match, `permanentRedirect` preservando `?page=` |
+| `docs/ANALISIS-SEO-COMPLETO.md` | DEPENDENCIA-05 marcada ✅ en todas las tablas; §45 añadido |
+
+**Sin nueva migración** — se reutiliza la tabla `AppConfig` existente con el prefijo `slug_redirect:`.
+
+### 45.4 Código de redirect
+
+`permanentRedirect()` de `next/navigation` emite HTTP **308** (Moved Permanently) en Server Components — equivalente permanente al 301 pero preservando el método HTTP. Google trata 308 igual que 301 para SEO.
+
+### 45.5 Casos borde cubiertos
+
+| Caso | Comportamiento |
+|------|---------------|
+| A→B, luego B→C | `saveSlugRedirect(B,C)` aplana: A→C directo (un solo salto) |
+| Ciclo A→B, luego B→A | `saveSlugRedirect(B,A)` elimina la entrada `B→A` y crea `A→B` (sin bucle) |
+| `?page=3` en URL vieja | `permanentRedirect(`/categoria/nuevo?page=3`)` preserva el parámetro |
+| Slug activo gana sobre historial | `getCategory` se consulta primero; historial solo si el slug no existe |
+| Slug inexistente sin historial | `notFound()` limpio — sin redirect masivo a home |
+
+### 45.6 Infraestructura ya existente (no tocada)
+
+- `lib/slug-redirects.ts` — sin cambios (ya implementaba la lógica correcta)
+- `app/actions/productActions.ts` — sin cambios (ya llamaba a `saveSlugRedirect`)
+- `app/product/[slug]/page.tsx` — sin cambios (ya usaba `resolveSlugRedirect`)
+- `middleware.ts` — sin cambios (los redirects P47/P48 y `?page=1` siguen intactos)
+
+### 45.7 Sub-pendientes anotados
+
+| ID | Estado | Descripción |
+|----|--------|-------------|
+| — | ⏳ | **Backfill de descripciones reales** por categoría — trabajo de contenido, no código |
+| P88 | ⏳ | `PromoPopup` solo tras `useEffect` |
+| H57 | ⏳ | IndexNow (opcional) |
+
+---
+
+## §46 — Optimización TTFB: caché de catálogo y categorías (12 jun 2026)
+
+### 46.1 Problema
+
+Tras cerrar P82 (paginación SSR), `app/productos/page.tsx` lee `searchParams` → Next.js lo marca como `ƒ Dynamic`. Cada visita ejecutaba `findMany` + `count` contra Postgres en vivo. Mismo patrón en `app/categoria/[slug]/page.tsx`. El TTFB en carga base era de **~150–400 ms** (latencia BD + serialización), inhibiendo tanto Core Web Vitals como la velocidad de indexación.
+
+### 46.2 Estrategia
+
+**Capa Next.js Data Cache con tags** (`unstable_cache` + `revalidateTag`) — sin Redis ni infra adicional.
+
+| Tag | Qué cubre | Se invalida cuando… |
+|-----|-----------|---------------------|
+| `'catalog'` | Counts, slices paginados de productos, conteos por categoría (sidebar) | Cualquier mutación de producto (create/update/delete/stock/price/CSV import) |
+| `'categories'` | Registros de categorías (nombre, slug, imagen, SEO), conteos sidebar | Cualquier mutación de categoría (POST/PUT/DELETE en `/api/categories`) |
+
+`getCachedServerCategories` usa **ambos** tags porque combina datos de ambas tablas.
+
+**TTL de respaldo:** 600 s (10 min). Las tags son el mecanismo primario; el TTL actúa solo si falla el flujo de invalidación (ej. deploy sin reiniciar caché).
+
+**Búsqueda (`?q=`):** el filtrado es **client-side** en `ProductGridAndFilters`; el servidor no recibe `q` en sus queries, por lo que no hay alta cardinalidad de claves y no se necesita excluir de la caché.
+
+### 46.3 Archivos creados / modificados
+
+| Archivo | Tipo | Cambio |
+|---------|------|--------|
+| `lib/catalog-cache.ts` | **nuevo** | 6 funciones `unstable_cache`: `getCachedCatalogCount`, `getCachedCatalogProducts`, `getCachedServerCategories`, `getCachedCategory`, `getCachedCategoryCount`, `getCachedCategoryProducts`. Exporta `PAGE_SIZE = 24` (única fuente de verdad). |
+| `app/productos/page.tsx` | modificado | Elimina imports directos de `prisma` y helpers locales; importa desde `lib/catalog-cache`. Re-exporta `PAGE_SIZE` para compatibilidad. |
+| `app/categoria/[slug]/page.tsx` | modificado | Elimina helpers locales e import `PAGE_SIZE` de `app/productos/page`; importa desde `lib/catalog-cache`. Conserva `prisma` solo para `generateStaticParams`. |
+| `app/actions/productActions.ts` | modificado | `revalidateTag('catalog', 'default')` en create/update/delete/import/stock/price. `revalidateTag('categories', 'default')` en create/delete/import (cambian conteos de categoría). |
+| `app/api/categories/route.ts` | modificado | POST: añade `revalidateTag('categories', 'default')`. |
+| `app/api/categories/[id]/route.ts` | modificado | PUT: añade `revalidateTag('categories', 'default')`. DELETE: añadida revalidación que antes faltaba. |
+
+### 46.4 TTFB antes / después (medición manual)
+
+`ash
+# Medir TTFB tras deploy con caché caliente (repetir 3 veces):
+curl -w "TTFB: %{time_starttransfer}s\n" -o /dev/null -s https://mundotechve.com/productos
+curl -w "TTFB: %{time_starttransfer}s\n" -o /dev/null -s "https://mundotechve.com/categoria/consolas"
+`
+
+| URL | TTFB frío | TTFB caliente (esperado) |
+|-----|-----------|--------------------------|
+| `/productos` | ~350 ms (pre-cambio estimado) | ~15–50 ms |
+| `/categoria/{slug}` | ~300 ms (pre-cambio estimado) | ~15–50 ms |
+
+### 46.5 Prueba de frescura (validar post-deploy)
+
+1. Editar precio de un producto en `/admin/products` → `quickUpdatePriceAction` → `revalidateTag('catalog', 'default')`.
+2. Recargar `/productos` — debe mostrar precio nuevo sin esperar el TTL.
+3. Recargar `/categoria/{slug del producto}` — misma verificación.
+4. Crear/borrar categoría en `/admin/categories` → recargar menú y sidebar — categoría aparece/desaparece inmediatamente.
+
+### 46.6 Casos borde cubiertos
+
+| Caso | Comportamiento |
+|------|---------------|
+| Página 2+ cacheada, se desactiva un producto | `revalidateTag('catalog')` invalida count + slice → totalPages recalculado |
+| Categoría renombrada (slug cambia) | `revalidateTag('categories')` invalida todos los `getCachedCategory` entries; el redirect 308 (DEP-05) sigue funcionando |
+| Catálogo vacío / categoría sin productos | Estado vacío cacheado como dato válido; próxima mutación lo invalida |
+| Alta concurrencia en regeneración | Data Cache de Next.js maneja stampede internamente |
+| Búsqueda `?q=texto` | No afecta caché de servidor; sin riesgo de contaminación |
+
+### 46.7 Sub-pendientes
+
+| ID | Estado | Descripción |
+|----|--------|-------------|
+| — | ⏳ | Medir TTFB real post-deploy y completar tabla §46.4 con valores medidos |
+| — | ⏳ | Evaluar migración a `"use cache"` + `cacheTag`/`cacheLife` (API estable en Next.js 16) si `unstable_cache` queda deprecada |
+
+---
+
+## 47. Sincronización doc ↔ código (auditoría 12 jun 2026)
+
+> **Motivo:** las tablas §35, §36, §39.5–39.6 y el Apéndice A quedaron desactualizadas tras las sesiones 8–15. Esta sección consolida el estado **real del repositorio** verificado contra el código.
+
+### 47.1 Resumen ejecutivo
+
+| Métrica | Valor |
+|---------|-------|
+| Puntuación SEO estimada | **~89/100** (sin cambio — ya alcanzada en sesión 13) |
+| P/H cerrados en código | **~75 ítems** (sesiones 7–15 + caché §46) |
+| P/H pendientes reales | **~20 ítems** (ver §47.3) |
+| Trabajo manual pendiente | Search Console, Merchant Center, backfill categorías |
+
+### 47.2 Implementado en código pero mal reflejado en el doc (corregido en sincronización)
+
+| ID | Qué se implementó | Sesión | Archivo(s) clave |
+|----|-------------------|--------|------------------|
+| H01/H07 | LocalBusiness quitado de fichas | 7 | `ProductJsonLd.tsx`, `layout.tsx` |
+| H03 | `noindex` checkout + success | 8 | `checkout/page.tsx`, `checkout/success/page.tsx` |
+| H05 / DEP-05 | 308 id→slug + redirect slug viejo | 7+13 | `product/[slug]/page.tsx`, `categoria/[slug]/page.tsx` |
+| H08 / P64 | SearchAction → `/buscar?q=` | 7 | `layout.tsx` |
+| H17 / DEP-03 | Sitemap filtra `isActive: true` | 8 | `sitemap.ts` |
+| H29 | ElectronicsStore mismo `@id` que layout | 7+ | `tienda-barquisimeto/page.tsx` |
+| H35 / P30 | `VideoObject` en schema producto | 8 | `ProductJsonLd.tsx` |
+| H40 / P42 | Image sitemap inline | 8 | `sitemap.ts` |
+| H43 / P51 | CategoryDrawer enlaza `/categoria/` | 9 | `CategoryDrawer.tsx` |
+| H50 / P67–P68 | Merchant feed XML + taxonomía Google | 8+14+15 | `api/merchant-feed/route.ts`, `google-product-categories.ts` |
+| H56 / P82 | Paginación SSR `PAGE_SIZE=24` | 10 | `PaginationBar.tsx`, `productos/`, `categoria/` |
+| H61 / P96 | `noindex` reset-password + auth completo | 7–8 | `reset-password/page.tsx`, auth pages |
+| P75–P80 | Offer completo (rebajas, devoluciones, `@id`, dateModified, category URL) | 7–8 | `ProductJsonLd.tsx` |
+| P85 | `Category.description` + `seoTitle` + `googleCategoryId` | 12+15 | `schema.prisma`, admin/categories, categoria/, merchant-feed |
+| P87 / H55 | AnnouncementBar en SSR | 11 | `AnnouncementBar.tsx` (RSC) |
+| P89–P92 | Copy sin claim "24h" | 7 | `page.tsx`, Navbar, Benefits |
+| P90 / H65 | `numberOfItems` coherente | 7+10 | `categoria/[slug]/page.tsx` |
+| P58/P59 | quickUpdate revalida ficha + `revalidateTag` | 2+14 | `productActions.ts` |
+| P47–P48 / H06–H15 | 301 `?cat=` → `/categoria/` | 9 | `middleware.ts`, `ProductGridAndFilters.tsx` |
+| §46 | Caché catálogo TTFB | 14 | `lib/catalog-cache.ts` |
+| OpenSearch / llms.txt | Descubrimiento búsqueda + política IA | UX/PRD | `public/opensearch.xml`, `public/llms.txt`, `layout.tsx` |
+
+### 47.3 Pendientes reales confirmados en código (siguen abiertos)
+
+| Prioridad | ID | Descripción |
+|-----------|-----|-------------|
+| 🟠 | P88 | `PromoPopup` solo tras `useEffect` + delay — no en HTML SSR |
+| 🟠 | H21 | `not-found.tsx` y `error.tsx` global sin `metadata` noindex |
+| 🟡 | H57 | IndexNow no implementado |
+| 🟡 | H30 | `SearchPagination` en `/buscar` sin `rel="prev/next"` — **catálogo/categoría sí** (`PaginationBar`) |
+| 🟡 | TODO-MC-03 | Sin campo `gtin` en `Product` |
+| 🟡 | TODO-MC-04 | Sin `<g:shipping>` por ítem (espera settings de envío) |
+| 🟡 | P81 | Sin `ItemList` schema en productos relacionados |
+| 🟡 | P65 / P66 | Sin `/marca/[slug]` ni blog/editorial |
+| ⏸ | H46 / P16–P17 | Agotados indexados por decisión de negocio |
+| ⏸ | H09 | Sin tarifa envío dinámica en `ProductJsonLd` |
+| — | — | Backfill manual de descripciones SEO por categoría en admin |
+| — | — | Tareas operativas Search Console / Merchant Center (§36) |
+
+### 47.4 Secciones sincronizadas (1.ª pasada — 12 jun 2026)
+
+| Sección | Cambio |
+|---------|--------|
+| Encabezado + banner estado | Fecha sincronización + referencia §47 |
+| Puntuación SEO | ~89/100 y sub-notas actualizadas |
+| P1 tabla etapas + CTX | quickUpdate, `?cat=`, sitemap |
+| P2 intro + P-K, P64, P75–P80, P87, P89–P90 | Filas cerradas marcadas ✅ |
+| §8 JSON-LD | Schemas, SearchAction, Offer, ausentes |
+| §9.4–9.5 SEO local | ProductJsonLd sin LocalBusiness |
+| §35 registro maestro | Columna Estado H01–H66 |
+| §36 checklist | checkout/reset-password ✅ |
+| §37.2–37.6 | Schema gaps cerrados |
+| §38.4 | noindex auth/checkout ✅ |
+| §39.5–39.7 | Tablas P/H consolidadas |
+| Apéndice A | Prisma actualizado |
+| §40.7 checklist | DEP-03 e image sitemap ✅ |
+
+### 47.5 Secciones **archivales** (contexto histórico)
+
+Redacción original conservada donde el **diario de corrección** aporta valor. Estado vigente siempre en §39.5 + §47.3:
+
+| Sección | Estado sincronización |
+|---------|----------------------|
+| **§P2 P01–P97** | ✅ Filas marcadas ✅/⏸/⏳ |
+| **§35, §39.5–39.7, §47** | ✅ Fuente de verdad |
+| **§P4 roadmap, §30–§33, §31–§32** | ✅ 3.ª pasada (§47.7) |
+| **§5, §1–§7, §15, §28–§29, §34, §37–§38, Apéndice C/E** | ✅ 2.ª pasada (§47.6) |
+| **§8, §9, §11, §29.5–29.6** | ✅ Corregidas (1.ª pasada) |
+| **§29–§34** (resto del cuerpo histórico) | ⏸ Ejemplos pre-sesión 7 con marca ✅ donde aplica |
+| **§39–§46** | Diario de sesiones — el "antes" es intencional |
+
+### 47.6 Segunda pasada de sincronización (12 jun 2026)
+
+Auditoría cruzada doc↔código tras correcciones no marcadas en la 1.ª pasada.
+
+| Sección | Cambios aplicados |
+|---------|-------------------|
+| Encabezado + banner sesión 7 | Referencia §47.6; alcance de sync ampliado |
+| §353 cobertura | OpenSearch / `llms.txt` → ✅ implementado |
+| §5 inventario metadata | Tabla resumen + auth/cart/checkout noindex |
+| §1 resumen ejecutivo | ISR 300 + catalog-cache; gaps reales; bugs críticos cerrados |
+| §2 stack | Template `\|` ; merchant-feed ; catalog-cache |
+| §4.2 metadata layout | Sin canonical global; template actualizado |
+| §6 sitemap | Prioridades reales; image sitemap inline; ISR 300 |
+| §7 robots | `/cart` Disallow; auth noindex |
+| §15 caché | ISR 300; `lib/catalog-cache.ts`; revalidateTag categorías |
+| §28 gaps | Recuento vigente post-sesiones 7–15 |
+| §29.1–29.4, 29.7–29.10 | Marcadas ✅ cerradas con estado actual |
+| §34 matriz | Columna Estado añadida |
+| §35 H04 | ✅ asset en `public/` |
+| P2 P38, P54, P85 | P38 ✅; P54 ⏸ diseño; P85 + `googleCategoryId` |
+| §37.1, §38.1–38.2 | Resúmenes alineados con cierre |
+| §39.5–39.6 | P54 fuera de implementado; P38 añadido; H04/H30 matizados |
+| Apéndice C | ISR 300; cart noindex; rutas metadata |
+| Apéndice E | Árbol actualizado con archivos SEO clave |
+
+### 47.7 Tercera pasada de sincronización (12 jun 2026)
+
+Revisión de huecos tras la 2.ª pasada — secciones **§30–§33, §31, §32, P4** aún describían el estado pre-sesión 7 como vigente.
+
+| Sección | Cambios aplicados |
+|---------|-------------------|
+| Cobertura §353 | Conteo H01–**H66** (no 64) |
+| **P4 roadmap** | Banner histórico; fases 1–5 con ítems ~~cerrados~~ y ⏳/⏸ reales |
+| **P61** | ⏸ — CSV ahora usa `revalidateTag('catalog')` además de paths globales |
+| **§29.11–29.12** | P50 mitiga vacías; H41/P52 sigue abierto |
+| **§30** | Intro + 30.2/4/6/8/9/10 marcados ✅/⏸/⏳ |
+| **§31** | NAP/schema/seller/envío alineados con sesión 7 |
+| **§32.5–32.8** | Categorías vacías, soft 404, breadcrumbs — estado actual |
+| **§33.16–33.17** | Claim 24h y auth indexables → ✅ cerrados |
+| **§33.1, §33.4, §5.7** | robots/meta alineados; tienda `@id` compartido; páginas especiales |

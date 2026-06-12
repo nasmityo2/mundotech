@@ -8,6 +8,8 @@ import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import type { Coupon as CouponClient, CouponDiscountType, OrderStatus } from '@/lib/definitions';
 import { roundMoney2 } from '@/lib/exchange-rate';
+import { d, dn } from '@/lib/decimal';
+type Decimal = Prisma.Decimal;
 
 /** Cliente Prisma o cliente de transacción: ambos exponen los modelos necesarios. */
 type DbClient = Prisma.TransactionClient;
@@ -66,9 +68,9 @@ export function couponToClient(c: {
   code: string;
   description: string | null;
   discountType: string;
-  discountValue: number;
-  minPurchase: number;
-  maxDiscount: number | null;
+  discountValue: Decimal | number;
+  minPurchase: Decimal | number;
+  maxDiscount: Decimal | number | null;
   maxUses: number | null;
   usedCount: number;
   perUserLimit: number | null;
@@ -82,9 +84,10 @@ export function couponToClient(c: {
     code: c.code,
     description: c.description,
     discountType: c.discountType as CouponDiscountType,
-    discountValue: c.discountValue,
-    minPurchase: c.minPurchase,
-    maxDiscount: c.maxDiscount,
+    // PRD-204: convertir Decimal → number en la frontera BD→UI
+    discountValue: d(c.discountValue),
+    minPurchase: d(c.minPurchase),
+    maxDiscount: dn(c.maxDiscount),
     maxUses: c.maxUses,
     usedCount: c.usedCount,
     perUserLimit: c.perUserLimit,
@@ -160,10 +163,12 @@ export async function validateCouponForCheckout(
   if (coupon.maxUses != null && coupon.usedCount >= coupon.maxUses) {
     return { ok: false, reason: 'Este cupón alcanzó su límite de usos.' };
   }
-  if (subtotalUsd + 0.0001 < coupon.minPurchase) {
+  // PRD-204: coupon.minPurchase es Decimal — convertir para comparación numérica.
+  const minPurchaseNum = d(coupon.minPurchase);
+  if (subtotalUsd + 0.0001 < minPurchaseNum) {
     return {
       ok: false,
-      reason: `Requiere una compra mínima de $${coupon.minPurchase.toFixed(2)}.`,
+      reason: `Requiere una compra mínima de $${minPurchaseNum.toFixed(2)}.`,
     };
   }
   if (coupon.perUserLimit != null) {
@@ -189,7 +194,13 @@ export async function validateCouponForCheckout(
     }
   }
 
-  const discountUsd = computeCouponDiscountUsd(coupon, subtotalUsd);
+  // PRD-204: normalizar campos Decimal → number antes de pasarlos a computeCouponDiscountUsd
+  const couponForCalc = {
+    discountType: coupon.discountType,
+    discountValue: d(coupon.discountValue),
+    maxDiscount: dn(coupon.maxDiscount),
+  };
+  const discountUsd = computeCouponDiscountUsd(couponForCalc, subtotalUsd);
   if (discountUsd <= 0) {
     return { ok: false, reason: 'El cupón no genera descuento para este pedido.' };
   }
@@ -200,7 +211,7 @@ export async function validateCouponForCheckout(
       id: coupon.id,
       code: coupon.code,
       discountType: coupon.discountType,
-      discountValue: coupon.discountValue,
+      discountValue: d(coupon.discountValue),
       maxUses: coupon.maxUses,
     },
     discountUsd,

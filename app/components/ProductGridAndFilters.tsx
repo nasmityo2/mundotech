@@ -1,19 +1,36 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useState, useEffect, useMemo } from 'react';
+import { useSearchParams, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import type { Product } from '../../context/ProductContext';
 import ProductCard from '../../components/ProductCard';
-import ProductCardSkeleton from '../../components/ProductCardSkeleton';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   SlidersHorizontal, ChevronDown, X, SearchX,
   Tag, ArrowUpDown,
 } from 'lucide-react';
 
-// ── Tipos ──────────────────────────────────────────────────────────────────
+// ── Tipos ──────────────────────────────────────────────────────────────────────
+interface ServerCategory {
+  name:  string;
+  slug:  string;
+  count: number;
+}
+
 interface Props {
+  /** Productos de la página actual (ya paginados y filtrados en el servidor). */
   initialProducts: Product[];
+  /**
+   * Total de productos activos en el catálogo completo (todas las páginas).
+   * Se usa en el footer del sidebar.
+   */
+  totalProductCount: number;
+  /**
+   * Categorías obtenidas del servidor con su slug y conteo real.
+   * Reemplaza categorySlugMap + la derivación en cliente a partir de initialProducts.
+   */
+  serverCategories: ServerCategory[];
 }
 
 const SORT_OPTIONS = [
@@ -26,32 +43,28 @@ const SORT_OPTIONS = [
 
 type SortValue = (typeof SORT_OPTIONS)[number]['value'];
 
-// ── Sidebar inline (no depende de ProductContext) ─────────────────────────
+// ── Sidebar inline ─────────────────────────────────────────────────────────────
 interface SidebarProps {
-  categories: string[];
-  totalCount: number;
-  catCount: (cat: string) => number;
-  filterCategory: string;
-  setFilterCategory: (v: string) => void;
+  serverCategories: ServerCategory[];
+  totalProductCount: number;
   sortOption: SortValue;
   setSortOption: (v: SortValue) => void;
 }
 
 function InlineSidebar({
-  categories,
-  totalCount,
-  catCount,
-  filterCategory,
-  setFilterCategory,
+  serverCategories,
+  totalProductCount,
   sortOption,
   setSortOption,
 }: SidebarProps) {
   const [catOpen,  setCatOpen]  = useState(true);
   const [sortOpen, setSortOpen] = useState(false);
+  const pathname = usePathname();
+  const onProductosRoot = pathname === '/productos';
 
   return (
     <aside className="bg-white rounded-2xl border border-slate-200/80 shadow-soft overflow-hidden">
-      {/* Categorías */}
+      {/* Categorías — navegación SSR a /categoria/[slug], sin filtro en memoria */}
       <div className="border-b border-slate-100">
         <button
           type="button"
@@ -72,33 +85,40 @@ function InlineSidebar({
           <div className="overflow-hidden">
             <ul className="px-3 pb-4 space-y-0.5">
               <li>
-                <button
-                  onClick={() => setFilterCategory('all')}
+                <Link
+                  href="/productos"
                   className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
-                    filterCategory === 'all' ? 'bg-navy text-white font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-navy'
+                    onProductosRoot
+                      ? 'bg-navy text-white font-semibold'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-navy'
                   }`}
                 >
                   <span>Todos los productos</span>
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${filterCategory === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                    {totalCount}
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${onProductosRoot ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                    {totalProductCount}
                   </span>
-                </button>
+                </Link>
               </li>
-              {categories.map((cat) => (
-                <li key={cat}>
-                  <button
-                    onClick={() => setFilterCategory(cat)}
-                    className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
-                      filterCategory === cat ? 'bg-navy text-white font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-navy'
-                    }`}
-                  >
-                    <span className="truncate capitalize">{cat}</span>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${filterCategory === cat ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                      {catCount(cat)}
-                    </span>
-                  </button>
-                </li>
-              ))}
+              {serverCategories.map((cat) => {
+                const isActive = pathname === `/categoria/${cat.slug}`;
+                return (
+                  <li key={cat.slug}>
+                    <Link
+                      href={`/categoria/${cat.slug}`}
+                      className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
+                        isActive
+                          ? 'bg-navy text-white font-semibold'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-navy'
+                      }`}
+                    >
+                      <span className="truncate capitalize">{cat.name}</span>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        {cat.count}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </div>
@@ -129,7 +149,9 @@ function InlineSidebar({
                   <button
                     onClick={() => setSortOption(opt.value)}
                     className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
-                      sortOption === opt.value ? 'bg-slate-100 text-navy font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-navy'
+                      sortOption === opt.value
+                        ? 'bg-slate-100 text-navy font-semibold'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-navy'
                     }`}
                   >
                     <span>{opt.label}</span>
@@ -147,45 +169,33 @@ function InlineSidebar({
       <div className="px-5 py-4 bg-slate-50">
         <div className="flex items-center gap-2 text-[12px] text-slate-500">
           <SlidersHorizontal size={13} className="text-slate-400" />
-          {totalCount} productos en total
+          {totalProductCount} productos en total
         </div>
       </div>
     </aside>
   );
 }
 
-// ── Componente principal ───────────────────────────────────────────────────
-const ProductGridAndFilters = ({ initialProducts }: Props) => {
+// ── Componente principal ───────────────────────────────────────────────────────
+const ProductGridAndFilters = ({
+  initialProducts,
+  totalProductCount,
+  serverCategories,
+}: Props) => {
   const searchParams = useSearchParams();
 
-  const [sortOption,      setSortOption]      = useState<SortValue>('default');
-  const [filterCategory,  setFilterCategory]  = useState<string>('all');
-  const [searchTerm,      setSearchTerm]      = useState<string>('');
+  const [sortOption,        setSortOption]        = useState<SortValue>('default');
+  const [searchTerm,        setSearchTerm]        = useState<string>('');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Sincroniza ?q= y ?cat= desde la URL solo en el cliente (sin afectar SSR)
+  // Sincroniza ?q= desde la URL solo en el cliente (sin afectar SSR).
   useEffect(() => {
     const q = searchParams.get('q');
     if (q) setSearchTerm(decodeURIComponent(q));
-    const c = searchParams.get('cat');
-    if (c) setFilterCategory(decodeURIComponent(c));
-  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
-  // Categorías derivadas de los productos
-  const categories = useMemo(
-    () => Array.from(new Set(initialProducts.map((p) => p.category))).sort(),
-    [initialProducts],
-  );
-
-  const catCount = useCallback(
-    (cat: string) =>
-      cat === 'all'
-        ? initialProducts.length
-        : initialProducts.filter((p) => p.category === cat).length,
-    [initialProducts],
-  );
-
-  // Filtro + orden — sin estado de carga (datos ya presentes en SSR)
+  // Ordena/filtra los productos de la página actual.
+  // La categoría ya fue filtrada en el servidor → aquí solo sort + búsqueda de texto.
   const filteredProducts = useMemo(() => {
     let result = [...initialProducts];
 
@@ -198,10 +208,6 @@ const ProductGridAndFilters = ({ initialProducts }: Props) => {
       );
     }
 
-    if (filterCategory !== 'all') {
-      result = result.filter((p) => p.category === filterCategory);
-    }
-
     switch (sortOption) {
       case 'price-asc':  result.sort((a, b) => a.price - b.price); break;
       case 'price-desc': result.sort((a, b) => b.price - a.price); break;
@@ -211,14 +217,11 @@ const ProductGridAndFilters = ({ initialProducts }: Props) => {
     }
 
     return result;
-  }, [initialProducts, searchTerm, filterCategory, sortOption]);
+  }, [initialProducts, searchTerm, sortOption]);
 
   const sidebarProps: SidebarProps = {
-    categories,
-    totalCount: initialProducts.length,
-    catCount,
-    filterCategory,
-    setFilterCategory,
+    serverCategories,
+    totalProductCount,
     sortOption,
     setSortOption,
   };
@@ -239,14 +242,14 @@ const ProductGridAndFilters = ({ initialProducts }: Props) => {
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-3 sm:p-4 flex items-center gap-2 sm:gap-3 mb-4 sm:mb-5">
           <div className="flex-1 min-w-0">
             <p className="text-[13px] sm:text-sm font-semibold text-navy capitalize truncate">
-              {filterCategory === 'all' ? 'Todos' : filterCategory}
+              Productos
               {searchTerm && (
                 <span className="text-slate-500 font-normal"> · &ldquo;{searchTerm}&rdquo;</span>
               )}
             </p>
             <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
               <span className="font-semibold text-navy nums">{filteredProducts.length}</span>{' '}
-              {filteredProducts.length === 1 ? 'resultado' : 'resultados'}
+              {filteredProducts.length === 1 ? 'resultado' : 'resultados'} en esta página
             </p>
           </div>
 
@@ -283,27 +286,16 @@ const ProductGridAndFilters = ({ initialProducts }: Props) => {
         </div>
 
         {/* Chips de filtro activos */}
-        {(filterCategory !== 'all' || searchTerm) && (
+        {searchTerm && (
           <div className="flex items-center gap-2 mb-5 flex-wrap">
             <span className="text-xs text-slate-500">Filtros activos:</span>
-            {filterCategory !== 'all' && (
-              <button
-                onClick={() => setFilterCategory('all')}
-                className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors"
-              >
-                <span className="capitalize">{filterCategory}</span>
-                <X size={12} />
-              </button>
-            )}
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors"
-              >
-                <span className="truncate max-w-[160px]">&ldquo;{searchTerm}&rdquo;</span>
-                <X size={12} />
-              </button>
-            )}
+            <button
+              onClick={() => setSearchTerm('')}
+              className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors"
+            >
+              <span className="truncate max-w-[160px]">&ldquo;{searchTerm}&rdquo;</span>
+              <X size={12} />
+            </button>
           </div>
         )}
 
@@ -315,19 +307,19 @@ const ProductGridAndFilters = ({ initialProducts }: Props) => {
             </div>
             <p className="mt-4 text-lg font-semibold text-navy">Sin resultados</p>
             <p className="mt-1 text-sm text-slate-500 max-w-sm mx-auto">
-              Prueba con otra búsqueda, ajusta los filtros o vuelve al catálogo principal.
+              Prueba con otra búsqueda o vuelve al catálogo principal.
             </p>
             <button
               type="button"
-              onClick={() => { setFilterCategory('all'); setSearchTerm(''); }}
+              onClick={() => setSearchTerm('')}
               className="mt-5 inline-flex items-center gap-2 bg-navy text-white text-sm font-semibold px-5 min-h-[44px] rounded-xl hover:bg-navy-700 active:bg-navy-800 shadow-soft hover:shadow-card transition-all"
             >
-              Limpiar filtros
+              Limpiar búsqueda
             </button>
           </div>
         ) : (
           <motion.div
-            key={filterCategory + sortOption + searchTerm}
+            key={sortOption + searchTerm}
             initial="hidden"
             animate="visible"
             variants={{ visible: { transition: { staggerChildren: 0.04 } } }}

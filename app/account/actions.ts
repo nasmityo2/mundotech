@@ -1,16 +1,23 @@
 'use server'
 
+import { randomUUID } from 'crypto';
 import { getServerSession } from 'next-auth/next';
 import { z } from 'zod';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import bcrypt from 'bcrypt';
+import { hashToken } from '@/lib/security';
+import { sendEmailChangeConfirmEmail } from '@/lib/resend';
+import { emailSiteBaseUrl } from '@/emails/mundotech/site';
 
 interface UpdateResult {
   success: boolean;
   message: string;
 }
+
+/** PRD-014/089: tiempo de validez del token de cambio de email (1 hora). */
+const EMAIL_CHANGE_EXPIRY_MS = 60 * 60_000;
 
 /**
  * PRD-089: validación Zod de servidor para el cambio de datos de perfil.
@@ -42,34 +49,80 @@ export async function updateUserDetails(data: { name: string; email: string }): 
     };
   }
 
-  /*
-   * PRD-014 / PRD-089: el cambio de email debería confirmar la nueva dirección
-   * antes de aplicarse (token enviado al correo nuevo + aviso al anterior).
-   * // DEPENDENCIA-06: requiere una plantilla nueva en emails/mundotech/**
-   * // (segmento 06-EMAILS). Mientras tanto: Zod + normalización aquí, y la
-   * // re-validación periódica del JWT (authOptions.callbacks.jwt) sincroniza
-   * // el email de la sesión tras el cambio (PRD-091).
-   */
   try {
+    const currentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { email: true, name: true },
+    });
+
+    if (!currentUser) {
+      return { success: false, message: 'No autorizado.' };
+    }
+
+    const emailChanged = parsed.data.email !== currentUser.email;
+
+    if (!emailChanged) {
+      // Solo cambio de nombre: se aplica directo sin verificación
+      await prisma.user.update({
+        where: { id: session.user.id },
+        data: { name: parsed.data.name },
+      });
+      revalidatePath('/account/details');
+      return { success: true, message: 'Nombre actualizado correctamente.' };
+    }
+
+    /*
+     * PRD-014 / PRD-089: el cambio de email NO se aplica directamente.
+     * Se guarda como pendiente y se envía un token de confirmación al
+     * nuevo correo. Solo al confirmar el token se promueve pendingEmail → email.
+     */
+
+    // Verificar que el nuevo email no esté en uso
+    const conflict = await prisma.user.findUnique({
+      where: { email: parsed.data.email },
+      select: { id: true },
+    });
+    if (conflict) {
+      return { success: false, message: 'El correo electrónico ya está en uso por otra cuenta.' };
+    }
+
+    const token = randomUUID();
+    const tokenHash = hashToken(token);
+    const expiry = new Date(Date.now() + EMAIL_CHANGE_EXPIRY_MS);
+
+    // Actualizar nombre (si cambió) + guardar email pendiente + token
     await prisma.user.update({
       where: { id: session.user.id },
       data: {
         name: parsed.data.name,
-        email: parsed.data.email,
+        pendingEmail: parsed.data.email,
+        emailChangeToken: tokenHash,
+        emailChangeTokenExpiry: expiry,
       },
     });
 
+    const base = emailSiteBaseUrl().replace(/\/$/, '');
+    const confirmUrl = `${base}/api/account/confirm-email?token=${encodeURIComponent(token)}`;
+
+    // Enviar enlace de confirmación al NUEVO correo (best-effort)
+    try {
+      await sendEmailChangeConfirmEmail({
+        to: parsed.data.email,
+        customerName: parsed.data.name || currentUser.name || 'Cliente',
+        confirmUrl,
+        newEmail: parsed.data.email,
+      });
+    } catch (emailError) {
+      console.error('[email-change] Error enviando confirmación:', emailError);
+    }
+
     revalidatePath('/account/details');
-    return { success: true, message: 'Datos actualizados correctamente.' };
+    return {
+      success: true,
+      message: `Te enviamos un correo de confirmación a ${parsed.data.email}. Revisa tu bandeja y haz clic en el enlace para completar el cambio.`,
+    };
   } catch (error) {
     console.error('Error al actualizar el usuario:', error);
-    if (
-      error instanceof Error &&
-      'code' in error &&
-      (error as Error & { code?: string }).code === 'P2002'
-    ) {
-      return { success: false, message: 'El correo electrónico ya está en uso por otra cuenta.' };
-    }
     return { success: false, message: 'Ocurrió un error al guardar los datos.' };
   }
 }
@@ -106,16 +159,15 @@ export async function updatePassword(data: { currentPassword?: string; newPasswo
 
     const hashedNewPassword = await bcrypt.hash(data.newPassword, 12);
 
+    // PRD-173: `passwordChangedAt` bumpeado atómicamente con la contraseña.
+    // El callback JWT deriva la huella (pwv) del hash bcrypt y la compara en
+    // cada re-validación (cada 5 min). Al cambiar el hash, la huella difiere
+    // y todas las sesiones activas quedan invalidadas en ≤5 min.
     await prisma.user.update({
       where: { id: session.user.id },
-      data: { password: hashedNewPassword },
+      data: { password: hashedNewPassword, passwordChangedAt: new Date() },
     });
 
-    /*
-     * PRD-173: al cambiar la huella de contraseña, la re-validación del JWT
-     * (authOptions.callbacks.jwt) invalida las demás sesiones activas de este
-     * usuario en ≤5 min — incluida la actual, que pedirá iniciar sesión otra vez.
-     */
     return { success: true, message: 'Contraseña actualizada correctamente. Por seguridad, las sesiones abiertas se cerrarán en unos minutos.' };
   } catch (error) {
     console.error('Error al actualizar la contraseña:', error);

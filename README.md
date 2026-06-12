@@ -85,6 +85,10 @@ Las migraciones viven **versionadas** en `prisma/migrations/` (ya no se usa `db 
 |---|---|
 | `20260611000000_baseline_inicial` | Estado completo del schema previo (equivale a la BD creada con `db push`) |
 | `20260611000100_prd_infra_datos_cache` | `Product.isActive`, `slug` NOT NULL con backfill, enum `ReviewStatus`, CHECK de `Order.status`, FK `OrderItem.productId` (RESTRICT), `CartItem` Cascade→Restrict, `Review.userId` SET NULL, `recoveryToken` → `recoveryTokenHash` (SHA-256), índice `Order.customerEmail`, normalización de roles. *Nota:* el SQL incluye `categoryId` FK, pero el schema actual usa solo `Product.category` String (drift corregido Jun 2026). |
+| `20260612000000_add_category_seo_fields` | Campos SEO en categorías (`metaTitle`, `metaDescription`, etc.) |
+| `20260612000001_add_category_google_category_id` | `Category.googleCategoryId` para Google Merchant feed |
+| `20260612000002_add_user_security_fields` | `User.passwordChangedAt`, `pendingEmail`, `emailChangeToken`, `emailChangeTokenExpiry` (PRD-014/089, PRD-173/240) |
+| `20260612000003_float_to_decimal_monetary_fields` | Montos monetarios Float → `DECIMAL(12,2/4)` en Product, Order, OrderItem, Coupon, AbandonedCart (PRD-204) |
 
 ### BD existente (producción/desarrollo actual)
 
@@ -115,10 +119,13 @@ WHERE p."id" IS NULL;
 
 Resolución típica: re-crear el producto con ese id (despublicado, `isActive=false`) o decidir caso a caso. **No** borrar ítems de pedidos (auditoría financiera).
 
+4. Tras el bloque Seguridad/Datos (12 jun 2026), aplicar también `20260612000002_*` y `20260612000003_*` con `migrate deploy` antes del build en prod.
+
 ### Efectos operativos de la migración
 
 - **Borrar productos:** con historial de pedidos o presentes en carritos ya **no** se pueden hard-delete (FK RESTRICT — PRD-123/232). Flujo correcto: despublicar con `isActive=false`. El panel admin debe adoptar ese flujo (dependencia segmento 05).
 - **Enlaces de recuperación de carrito ya enviados** dejan de funcionar (los tokens ahora se guardan hasheados y rotan en cada email — PRD-178).
+- **Montos monetarios:** Prisma devuelve `Decimal`; la app convierte a `number` en la frontera con `lib/decimal.ts` (`d()` / `dn()`) — PRD-204. No usar `.toNumber()` disperso; reutilizar esos helpers.
 
 ---
 

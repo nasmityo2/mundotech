@@ -32,14 +32,13 @@ interface PaymentFormProps {
   /** Datos de pago de la tienda leídos desde el data-store en el Server Component padre. */
   pagoMovil: StoreSettings['pagoMovil'];
   transferencia: StoreSettings['transferencia'];
+  /**
+   * PRD-027/130: Binance Pay ID y QR URL desde readSettings() (Server Component
+   * padre). Vacíos = Binance no está configurado → se oculta el método de pago.
+   */
+  binancePayId?: string;
+  binanceQrUrl?: string;
 }
-
-// DEPENDENCIA-03 (PRD-027 / PRD-130): el Pay ID y el QR de Binance deben vivir
-// en StoreSettings (lib/data-store.ts, dueño 03-INFRA) y llegar por props desde
-// el Server Component padre, como pagoMovil/transferencia. Mientras el schema
-// de settings no tenga esos campos, se mantienen las env públicas.
-const BINANCE_PAY_ID = process.env.NEXT_PUBLIC_MUNDOTECH_BINANCE_PAY_ID?.trim() ?? '';
-const BINANCE_QR_URL = process.env.NEXT_PUBLIC_MUNDOTECH_BINANCE_QR_URL?.trim() ?? '';
 
 /** Límites espejo de /api/checkout/upload-proof para fallar temprano en cliente. */
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
@@ -47,7 +46,7 @@ const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 const selectCls =
   'block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy';
 
-const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia }: PaymentFormProps) => {
+const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId = '', binanceQrUrl = '' }: PaymentFormProps) => {
   const [selected,        setSelected]        = useState<PaymentMethod | null>(null);
   const [copiedField,     setCopiedField]      = useState<string | null>(null);
   const [bank,            setBank]             = useState('');
@@ -169,12 +168,15 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia }: PaymentFormP
           [
             { id: 'pagomovil' as const, icon: Phone, label: 'Pago Móvil', sub: 'Transfiere desde tu app bancaria' },
             { id: 'transferencia' as const, icon: Building, label: 'Transferencia', sub: 'Transferencia bancaria nacional' },
-            {
-              id: 'binancepay' as const,
-              icon: Wallet,
-              label: 'Binance',
-              sub: 'Paga a nuestra cuenta y sube captura + Order ID',
-            },
+            // PRD-027/130: Binance solo aparece si el admin configuró el Pay ID.
+            ...(binancePayId.trim()
+              ? ([{
+                  id: 'binancepay' as const,
+                  icon: Wallet,
+                  label: 'Binance',
+                  sub: 'Paga a nuestra cuenta y sube captura + Order ID',
+                }] as const)
+              : []),
           ] as const
         ).map((m) => {
           const isActive = selected === m.id;
@@ -258,36 +260,31 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia }: PaymentFormP
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
                 Paga a MundoTech en Binance
               </p>
-              {BINANCE_PAY_ID ? (
+              {binancePayId.trim() ? (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
                   <div>
                     <p className="text-[11px] text-slate-500">Binance ID / Pay ID</p>
-                    <p className="font-mono text-sm font-semibold text-navy break-all">{BINANCE_PAY_ID}</p>
+                    <p className="font-mono text-sm font-semibold text-navy break-all">{binancePayId.trim()}</p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleCopy(BINANCE_PAY_ID)}
+                    onClick={() => handleCopy(binancePayId.trim())}
                     className="shrink-0 p-2 rounded-lg hover:bg-slate-100 text-slate-500"
                     aria-label="Copiar Binance ID"
                   >
-                    {copiedField === BINANCE_PAY_ID ? (
+                    {copiedField === binancePayId.trim() ? (
                       <Check size={14} className="text-emerald-500" />
                     ) : (
                       <Copy size={14} />
                     )}
                   </button>
                 </div>
-              ) : (
-                <p className="text-xs text-amber-800 bg-amber-100/80 rounded-lg px-3 py-2">
-                  Configura <span className="font-mono">NEXT_PUBLIC_MUNDOTECH_BINANCE_PAY_ID</span> en el servidor con
-                  tu ID de recepción en Binance.
-                </p>
-              )}
-              {BINANCE_QR_URL ? (
+              ) : null}
+              {binanceQrUrl.trim() ? (
                 <div className="mt-3 flex justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={BINANCE_QR_URL}
+                    src={binanceQrUrl.trim()}
                     alt="Código QR Binance MundoTech"
                     className="w-36 h-36 rounded-xl border border-slate-200 bg-white object-contain"
                   />

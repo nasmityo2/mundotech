@@ -1,9 +1,16 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { prisma } from '@/lib/prisma';
+import { redirect } from 'next/navigation';
+import {
+  PAGE_SIZE,
+  getCachedCatalogCount,
+  getCachedCatalogProducts,
+  getCachedServerCategories,
+} from '@/lib/catalog-cache';
 import ProductGridAndFilters from '@/app/components/ProductGridAndFilters';
 import ProductCardSkeleton from '@/components/ProductCardSkeleton';
+import PaginationBar from '@/app/components/PaginationBar';
 import JsonLd from '@/app/components/JsonLd';
 import RecentlyViewed from '@/components/RecentlyViewed';
 import { ChevronRight, Sparkles } from 'lucide-react';
@@ -11,30 +18,71 @@ import type { Product } from '@/context/ProductContext';
 
 // PRD-140 — ISR: 5 min máximo de obsolescencia para precio/stock del catálogo
 // (complementado con revalidación on-demand al cambiar tasa — PRD-142).
+// Las queries Prisma están envueltas en unstable_cache (lib/catalog-cache.ts),
+// por lo que el TTFB en caché caliente baja ~10–50 ms vs. el hit directo a BD.
 export const revalidate = 300;
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 
-export const metadata: Metadata = {
-  // H02/P08: el template del layout añade "| MundoTech" — sin marca duplicada.
-  title: 'Catálogo de tecnología y gadgets',
-  description:
-    'Catálogo de MundoTech Barquisimeto: gadgets, consolas, audio, computación y accesorios con garantía real. Pagas en USD o Bs y recibes en toda Venezuela.',
-  alternates: {
-    canonical: `${SITE_URL}/productos`,
-  },
-  openGraph: {
-    title: 'Catálogo de tecnología y gadgets | MundoTech',
-    description:
-      'Gadgets, consolas, audio y accesorios en Barquisimeto. USD/Bs., garantía real.',
-    url: `${SITE_URL}/productos`,
-    siteName: 'MundoTech',
-    locale: 'es_VE',
-    type: 'website',
-  },
-};
+// PAGE_SIZE re-exported so app/categoria/[slug]/page.tsx keeps working without
+// a breaking import change if it still references this module.
+export { PAGE_SIZE };
 
-// H39: breadcrumb estructurado del catálogo — alineado con el visual (Inicio → Catálogo).
+// ── Tipos ─────────────────────────────────────────────────────────────────────
+// Tipo serializable para pasar al Client Component (sin fechas ni BigInt)
+type CatalogProduct = Omit<Product, 'isNew' | 'isOffer'>;
+
+interface PageProps {
+  searchParams: Promise<{ page?: string; q?: string }>;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+/**
+ * Sanea el parámetro raw `?page=`:
+ * - Ausente, no numérico, 0 o negativo → 1.
+ * - > totalPages → totalPages (el caller redirige al rango válido).
+ * Nunca lanza excepciones.
+ */
+function sanitizePage(raw: string | undefined, totalPages: number): number {
+  const n = parseInt(raw ?? '1', 10);
+  if (!isFinite(n) || n < 1) return 1;
+  return Math.min(n, totalPages);
+}
+
+// ── Metadata dinámica ─────────────────────────────────────────────────────────
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  const { page: rawPage } = await searchParams;
+  const total      = await getCachedCatalogCount();
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page       = sanitizePage(rawPage, totalPages);
+
+  const canonicalUrl =
+    page <= 1
+      ? `${SITE_URL}/productos`
+      : `${SITE_URL}/productos?page=${page}`;
+
+  const titleBase = 'Catálogo de tecnología y gadgets';
+  const title     = page >= 2 ? `${titleBase} — Página ${page}` : titleBase;
+
+  return {
+    title,
+    description:
+      'Catálogo de MundoTech Barquisimeto: gadgets, consolas, audio, computación y accesorios con garantía real. Pagas en USD o Bs y recibes en toda Venezuela.',
+    alternates: { canonical: canonicalUrl },
+    robots: { index: true, follow: true },
+    openGraph: {
+      title: `${title} | MundoTech`,
+      description:
+        'Gadgets, consolas, audio y accesorios en Barquisimeto. USD/Bs., garantía real.',
+      url: canonicalUrl,
+      siteName: 'MundoTech',
+      locale: 'es_VE',
+      type: 'website',
+    },
+  };
+}
+
+// ── JSON-LD (breadcrumb) ───────────────────────────────────────────────────────
 const catalogBreadcrumbSchema = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
@@ -44,44 +92,31 @@ const catalogBreadcrumbSchema = {
   ],
 };
 
-// Tipo serializable para pasar al Client Component (sin fechas ni BigInt)
-type CatalogProduct = Omit<Product, 'isNew' | 'isOffer'>;
+// ── Página ─────────────────────────────────────────────────────────────────────
+export default async function ProductosPage({ searchParams }: PageProps) {
+  const { page: rawPage } = await searchParams;
 
-async function getCatalogProducts(): Promise<CatalogProduct[]> {
-  const rows = await prisma.product.findMany({
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id:            true,
-      slug:          true,
-      name:          true,
-      description:   true,
-      price:         true,
-      originalPrice: true,
-      stock:         true,
-      category:      true,
-      brand:         true,
-      images:        true,
-    },
-  });
+  // Cached count — no DB hit on repeated requests with the same page.
+  const total      = await getCachedCatalogCount();
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  return rows.map((p) => ({
-    id:            p.id,
-    slug:          p.slug,
-    name:          p.name,
-    description:   p.description ?? '',
-    price:         p.price,
-    originalPrice: p.originalPrice,
-    stock:         p.stock,
-    category:      p.category,
-    brand:         p.brand,
-    image:         p.images[0] ?? '/placeholder-product.png',
-    images:        p.images,
-    details:       {},
-  }));
-}
+  const page = sanitizePage(rawPage, totalPages);
 
-export default async function ProductosPage() {
-  const products = await getCatalogProducts();
+  // ?page=N fuera de rango → redirige a la última página válida (no soft-404).
+  if (rawPage !== undefined) {
+    const raw = parseInt(rawPage, 10);
+    if (!isFinite(raw) || raw < 1) {
+      redirect('/productos');
+    }
+    if (raw > totalPages) {
+      redirect(`/productos?page=${totalPages}`);
+    }
+  }
+
+  const [products, serverCategories] = await Promise.all([
+    getCachedCatalogProducts(page),
+    getCachedServerCategories(),
+  ]);
 
   return (
     <div className="pb-10 sm:pb-12 w-full max-w-full">
@@ -107,6 +142,11 @@ export default async function ProductosPage() {
             </p>
             <h1 className="text-[1.6rem] sm:text-3xl md:text-[2.25rem] font-bold text-navy tracking-tight leading-[1.05]">
               Todos los productos
+              {page >= 2 && (
+                <span className="ml-2 text-lg sm:text-xl font-medium text-slate-400">
+                  — Página {page}
+                </span>
+              )}
             </h1>
             <p className="text-[13px] sm:text-sm text-slate-500 mt-2 max-w-xl">
               Filtra por categoría, ordena por precio y encuentra exactamente lo que buscas.
@@ -117,9 +157,10 @@ export default async function ProductosPage() {
       </div>
 
       {/*
-        ProductGridAndFilters recibe los productos ya renderizados en el servidor.
+        ProductGridAndFilters recibe los productos de la página actual (ya paginados en el servidor).
         El HTML inicial contiene todos los <a href="/product/..."> con nombre y precio
         → Google los indexa sin ejecutar JS.
+        La paginación (PaginationBar) también es HTML puro — crawlable sin JS.
       */}
       <Suspense
         fallback={
@@ -130,8 +171,19 @@ export default async function ProductosPage() {
           </div>
         }
       >
-        <ProductGridAndFilters initialProducts={products as Product[]} />
+        <ProductGridAndFilters
+          initialProducts={products as Product[]}
+          totalProductCount={total}
+          serverCategories={serverCategories}
+        />
       </Suspense>
+
+      {/* Controles de paginación — enlaces <a> crawlables, sin JS */}
+      <PaginationBar
+        page={page}
+        totalPages={totalPages}
+        basePath="/productos"
+      />
 
       <RecentlyViewed limit={6} />
     </div>

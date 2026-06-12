@@ -22,11 +22,12 @@ const formatShortDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-VE', { day: 'numeric', month: 'short' });
 
 const statusConfig: Record<string, string> = {
-  Pendiente:    'bg-yellow-100 text-yellow-800 border border-yellow-200',
-  'En Proceso': 'bg-gray-100 text-navy border border-gray-200',
-  Enviado:      'bg-slate-100 text-slate-800 border border-slate-200',
-  Entregado:    'bg-green-100 text-green-800 border border-green-200',
-  Cancelado:    'bg-red-100 text-red-800 border border-red-200',
+  Pendiente:                        'bg-yellow-100 text-yellow-800 border border-yellow-200',
+  'En Proceso':                     'bg-gray-100 text-navy border border-gray-200',
+  Enviado:                          'bg-slate-100 text-slate-800 border border-slate-200',
+  Entregado:                        'bg-green-100 text-green-800 border border-green-200',
+  Cancelado:                        'bg-red-100 text-red-800 border border-red-200',
+  'Pendiente verificación Binance': 'bg-orange-100 text-orange-800 border border-orange-200',
 };
 
 /** Saludo según la hora de Venezuela (VET), como en el mostrador. */

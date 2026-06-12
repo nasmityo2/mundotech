@@ -5,7 +5,7 @@
 > **Índice (solo referencia, sin fixes):** [`00-INDICE`](./ANALISIS-PRODUCCION-00-INDICE.md)  
 > **SEO (no tocar aquí):** [`ANALISIS-SEO-COMPLETO.md`](./ANALISIS-SEO-COMPLETO.md)  
 > **Orden:** Contextos → Navbar/carrito → cuenta → reseñas cliente → PRD-276+  
-> **Última implementación:** sesión 04 — 12 jun 2026 (agente UX Cliente — segunda pasada)
+> **Última implementación:** sesión 04 — 12 jun 2026 · bloque Seguridad/Datos — 12 jun 2026 (PRD-087/088/260 cerrados vía otros segmentos)
 
 ---
 
@@ -56,6 +56,7 @@
 | [x] PRD-236 | `ProductActions.tsx`, `CartClient.tsx` — tipo `Product` sin `as never` |
 | [x] PRD-258 | `page.tsx` — benefits unificados con `DEFAULT_SITE_CONTENT` |
 | [x] PRD-271 | `ProductContext.tsx` — `fetchedToProduct()` tipado |
+| [x] PRD-093 | `OrderDetailClient.tsx`, `app/api/orders/[id]/cancel/route.ts` — cancelación self-service owner-only |
 
 ### Bajo ⚪ — cerrados o verificados
 
@@ -79,12 +80,21 @@
 
 ### Pendiente — dependencia en otro segmento (anotado, no implementar aquí)
 
-| PRD | Motivo | Segmento |
-|-----|--------|----------|
-| [ ] PRD-093 | Cancelación pedido por cliente — comentario `DEPENDENCIA-02` en `OrderDetailClient.tsx` | **02-CHECKOUT** (`DELETE` cliente en `orders/[id]`) |
-| [ ] PRD-087 | Chips estado Binance en dashboard admin | **05-ADMIN** (`app/admin/**` prohibido aquí) |
-| [ ] PRD-088 | `error.tsx`/`loading.tsx` en rutas admin | **05-ADMIN** |
-| [ ] PRD-260 | Límite tamaño JSON en `PUT /api/config/homepage` | **03-INFRA** o **05-ADMIN** (endpoint config) |
+_Ninguna — PRD-093 cerrado en sesión 02/04 (ver abajo)._
+
+### Cerrado cross-segmento — PRD-093 (cancelación cliente, sesión 02/04)
+
+| PRD | Fix aplicado | Archivos clave |
+|-----|--------------|----------------|
+| [x] PRD-093 | Cancelación pedido por cliente implementada con endpoint owner-only `POST /api/orders/[id]/cancel`; botón en `OrderDetailClient.tsx`; soft cancel a `Cancelado`; reutiliza efectos de stock/cupón + email | `app/api/orders/[id]/cancel/route.ts`, `components/account/OrderDetailClient.tsx`, `lib/checkout-order.ts` |
+
+### Cerrados vía otro segmento (bloque Seguridad/Datos — 12 jun 2026)
+
+| PRD | Implementado en | Notas |
+|-----|-----------------|-------|
+| [x] PRD-087 | `app/admin/page.tsx` (sesión 05) | Chip `'Pendiente verificación Binance'` en `statusConfig` |
+| [x] PRD-088 | `app/admin/error.tsx`, `loading.tsx` (sesión 05) | UI mínima consistente; re-export en `orders/` |
+| [x] PRD-260 | `app/api/config/homepage/route.ts` (sesión 03/endpoint) | Límite 100 KB en body JSON antes de persistir |
 
 ### Pendiente — dueño segmento 04 (sin implementar en sesión 04)
 
@@ -111,6 +121,7 @@
 | PRD | Archivos |
 |-----|----------|
 | [x] PRD-092 | `components/account/OrderHistoryClient.tsx` — hint + lookup por número de pedido para guest |
+| [x] PRD-093 | `components/account/OrderDetailClient.tsx`, `app/api/orders/[id]/cancel/route.ts` — cancelación self-service owner-only |
 | [x] PRD-167 UI | `app/buscar/SearchFiltersBar.tsx` — toggle «Mostrar agotados» en `FilterPanel` |
 | [x] PRD-235 | `app/product/[slug]/ProductActions.tsx` — banner «stock sujeto a confirmación» |
 | [x] PRD-273 | `lib/utils.ts` — guard `Number.isFinite` en `formatCurrency` |
@@ -146,6 +157,7 @@
 | Archivo | PRD(s) |
 |---------|--------|
 | `app/account/orders/[id]/error.tsx` | PRD-094 |
+| `app/api/orders/[id]/cancel/route.ts` | PRD-093 |
 | `public/opensearch.xml` | PRD-289 |
 | `public/llms.txt` | PRD-290 |
 
@@ -209,7 +221,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | PRD-008 | 🔴 | `/placeholder-product.png` y `/placeholder.png` no existen | `public/` (solo 2 archivos) |
 | PRD-037 | 🟠 | Tab Reseñas dice "Próximamente" pero `ProductReviews` funciona | `ProductTabs.tsx` |
 | PRD-038 | 🟠 | Estado Binance ausente en UI de cuenta | `OrderDetailClient.tsx` |
-| PRD-087 | ⚪ | Dashboard admin omite estado Binance en chips | `app/admin/page.tsx` |
+| PRD-087 | ⚪ ✅ | Dashboard admin omite estado Binance en chips | `app/admin/page.tsx` |
 | PRD-112 | 🟠 | Navbar: dirección hardcodeada en top bar | `components/Navbar.tsx` |
 | PRD-113 | 🟠 | Benefits: teléfono literal (viola R1) | `app/components/Benefits.tsx` |
 | PRD-114 | 🟡 | Botones dentro de `<Link>` en ProductCard | `components/ProductCard.tsx` |
@@ -219,7 +231,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 
 ### Admin y operaciones (PRD-083–086, PRD-153–156)
 
-| PRD-088 | ⚪ | Sin `error.tsx`/`loading.tsx` en rutas admin | `app/admin/` |
+| PRD-088 | ⚪ ✅ | Sin `error.tsx`/`loading.tsx` en rutas admin | `app/admin/` |
 
 ### Contextos React y estado cliente (PRD-095–100, PRD-096–098)
 
@@ -246,9 +258,9 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 
 ### Cuenta de usuario (PRD-092–094)
 
-| PRD-092 | 🟡 | Pedidos guest no visibles en cuenta (sin UX) | `app/account/orders/page.tsx` |
-| PRD-093 | 🟡 | Sin cancelación de pedido por cliente | `account/orders/[id]` |
-| PRD-094 | ⚪ | Detalle pedido sin error boundary | `account/orders/[id]/page.tsx` |
+| PRD-092 | 🟡 ✅ | Pedidos guest: hint + lookup por número en `OrderHistoryClient.tsx` | `components/account/OrderHistoryClient.tsx` |
+| PRD-093 | 🟡 ✅ | Cancelación self-service del cliente vía `POST /api/orders/[id]/cancel` + botón en detalle | `OrderDetailClient.tsx`, `app/api/orders/[id]/cancel/route.ts` |
+| PRD-094 | ⚪ ✅ | Detalle pedido con error boundary | `app/account/orders/[id]/error.tsx` |
 
 ### Accesibilidad (PRD-054–055, PRD-072, PRD-135–136)
 
@@ -372,7 +384,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 ### 20.5 Config pública y site-content (PRD-255–260)
 
 | PRD-258 | 🟡 | `DEFAULT_SITE_CONTENT.productTrust` contradice `Benefits.tsx` hardcode | `site-content-schema.ts` L95-110 vs `Benefits.tsx` | Dos fuentes de «envío 24h» / teléfonos en home vs ficha | Unificar desde site-content en home |
-| PRD-260 | ⚪ | `PUT /api/config/homepage` no valida longitud total JSON | `homepage/route.ts` L84-88 | Payload enorme en AppConfig | Límite tamaño value |
+| PRD-260 | ⚪ ✅ | `PUT /api/config/homepage` no valida longitud total JSON | `homepage/route.ts` — límite 100 KB, 413 |
 
 ### 20.8 Tipos, resiliencia UI, código (PRD-271–275)
 

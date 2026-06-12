@@ -1,50 +1,40 @@
-'use client';
-
+/**
+ * AnnouncementBar — Server Component (P87/H55)
+ *
+ * El contenido (texto y enlace) se resuelve en servidor y aparece en el HTML
+ * inicial: Googlebot lo ve sin ejecutar JS. El dismiss interactivo se delega
+ * a AnnouncementBarClient (cookie HTTP, sin flash ni CLS).
+ *
+ * Flujo:
+ *  1. layout.tsx llama readAnnouncement() + lee cookie mt_announcement_dismissed.
+ *  2. Si active=false o texto vacío → no renderiza nada.
+ *  3. Si la cookie coincide con el texto actual → no renderiza nada (usuario ya cerró).
+ *  4. En cualquier otro caso → renderiza markup con contenido real en SSR.
+ */
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
 import type { Announcement } from '@/lib/announcement';
 import { isInternalPath, isSafeEditableLink } from '@/lib/safe-link';
+import AnnouncementBarClient from './AnnouncementBarClient';
 
-/**
- * Barra de anuncios superior. Descartable por el usuario (recordado en
- * localStorage por contenido: si el admin cambia el texto, reaparece).
- */
-export default function AnnouncementBar({ data }: { data: Announcement }) {
-  const [hidden, setHidden] = useState(true);
-
-  const storageKey = 'mt_announcement_dismissed';
-
-  useEffect(() => {
-    if (!data.active || !data.text.trim()) {
-      setHidden(true);
-      return;
-    }
-    try {
-      const dismissed = window.localStorage.getItem(storageKey);
-      setHidden(dismissed === data.text.trim());
-    } catch {
-      setHidden(false);
-    }
-  }, [data.active, data.text]);
-
-  if (!data.active || !data.text.trim() || hidden) return null;
-
-  const dismiss = () => {
-    try {
-      window.localStorage.setItem(storageKey, data.text.trim());
-    } catch { /* no-op */ }
-    setHidden(true);
-  };
+export default function AnnouncementBar({
+  data,
+  dismissedText,
+}: {
+  data: Announcement;
+  dismissedText?: string;
+}) {
+  if (!data.active || !data.text.trim()) return null;
 
   const text = data.text.trim();
+
+  // Si la cookie de dismissal coincide con el texto vigente, el servidor omite el
+  // render por completo: el usuario no ve parpadeo y no hay CLS.
+  if (dismissedText === text) return null;
+
   const link = data.link.trim();
 
-  /*
-   * PRD-283: defensa en el sink — además del schema, el render solo enlaza
-   * rutas internas o https. Cualquier otro valor (javascript:, data:, //host)
-   * se muestra como texto plano sin enlace.
-   */
+  // PRD-283: defensa en el sink — además del schema Zod, el render solo enlaza
+  // rutas internas o https. Cualquier otro valor se muestra como texto plano.
   let inner: React.ReactNode;
   if (link && isInternalPath(link)) {
     inner = (
@@ -63,22 +53,12 @@ export default function AnnouncementBar({ data }: { data: Announcement }) {
   }
 
   return (
-    <div
-      className="relative w-full text-center text-[13px] sm:text-sm font-semibold px-10 py-2"
-      style={{ backgroundColor: data.bgColor, color: data.textColor }}
-      role="region"
-      aria-label="Anuncio"
+    <AnnouncementBarClient
+      textKey={text}
+      bgColor={data.bgColor}
+      textColor={data.textColor}
     >
       {inner}
-      <button
-        type="button"
-        onClick={dismiss}
-        aria-label="Cerrar anuncio"
-        className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-black/10 active:bg-black/20"
-        style={{ color: data.textColor }}
-      >
-        <X size={15} />
-      </button>
-    </div>
+    </AnnouncementBarClient>
   );
 }

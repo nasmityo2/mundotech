@@ -11,6 +11,7 @@ import {
   quickUpdateStockAction,
   quickUpdatePriceAction,
 } from '@/app/actions/productActions';
+import { d, dn } from '@/lib/decimal';
 import AddProductModal from '@/app/components/AddProductModal';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
 import { TouchIconButton } from '@/components/admin/TouchIconButton';
@@ -99,7 +100,8 @@ function AdminProductsContent() {
         stockFilter,
         lowThreshold: LOW_STOCK_THRESHOLD,
       });
-      setProducts(data as Product[]);
+      // PRD-204: normalizar Decimal → number
+      setProducts(data.map(p => ({ ...p, price: d(p.price), originalPrice: dn(p.originalPrice) })) as Product[]);
       setCategories(cats);
     } finally {
       setLoading(false);

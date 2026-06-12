@@ -79,7 +79,7 @@ const FIELD_HELP: Record<string, { label: string; placeholder: string; hint?: st
   label:    { label: 'Badge / Etiqueta', placeholder: 'ej. Gaming portátil · Nuevo · Zona Apple' },
   ctaText:  { label: 'Texto del botón CTA', placeholder: 'ej. Ver gaming · Ir al catálogo' },
   tagText:  { label: 'Tag flotante',   placeholder: 'ej. Nuevo · Disponible · Destacado' },
-  link:     { label: 'Enlace (URL)',   placeholder: '/productos, /productos?cat=Consolas' },
+  link:     { label: 'Enlace (URL)',   placeholder: '/productos, /categoria/consolas' },
 };
 
 export default function AdminBannersPage() {

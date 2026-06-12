@@ -1,5 +1,12 @@
+import type { Metadata } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+
+// H03: página de confirmación — noindex; contenido personal no indexable.
+export const metadata: Metadata = {
+  title: 'Pedido confirmado',
+  robots: { index: false, follow: false },
+};
 import { isAdminRole } from '@/lib/is-admin-role';
 import { Order, OrderItem, prismaOrderToOrder } from '@/lib/definitions';
 import { prisma } from '@/lib/prisma';
@@ -48,31 +55,37 @@ export default async function SuccessPageWrapper({
     );
   }
 
-  /*
-   * PRD-001: el middleware ya exige sesión en /checkout/*, pero esta página
-   * vuelve a comprobarla (defense-in-depth) y verifica la PROPIEDAD del
-   * pedido. Sin esto, cualquier usuario autenticado podía leer el pedido de
-   * otra persona (PII completa) con ?orderId={uuid}.
-   */
-  if (!session?.user?.id) {
+  const order = await getEnrichedOrder(orderId);
+
+  if (!order) {
     return (
       <div className="text-center py-20 text-red-500">
-        Acceso denegado. Por favor inicia sesión para ver tu pedido.
+        No encontramos este pedido. Si crees que es un error, contáctanos
+        con tu número de pedido.
       </div>
     );
   }
 
-  const order = await getEnrichedOrder(orderId);
-
   /*
-   * Anti-enumeración: mismo mensaje para "no existe" y "no es tuyo", así un
-   * orderId ajeno no confirma la existencia del pedido. El admin sí puede
-   * abrirlo (soporte post-venta).
+   * PRD-207/249/250: acceso guest read-only cuando llega ?orderId={cuid}.
+   * El cuid actúa como bearer token no adivinable; quien recibió el email
+   * de confirmación (con ese link) es el único que puede acceder.
+   * NO se acepta acceso por orderNumber secuencial.
+   *
+   * PRD-001 (defense-in-depth para usuarios autenticados): si hay sesión,
+   * se valida propiedad del pedido. Anti-enumeración: mismo mensaje para
+   * "no existe" y "no es tuyo" para usuarios autenticados con orderId ajeno.
+   * El admin puede abrirlo para soporte post-venta.
    */
-  const isOwner = order?.customerId === session.user.id;
+  if (!session?.user?.id) {
+    // Guest: el cuid ya fue validado — renderizar vista de sólo lectura.
+    return <SuccessClientPage order={order} />;
+  }
+
+  const isOwner = order.customerId === session.user.id;
   const isAdmin = isAdminRole((session.user as { role?: string }).role);
 
-  if (!order || (!isOwner && !isAdmin)) {
+  if (!isOwner && !isAdmin) {
     return (
       <div className="text-center py-20 text-red-500">
         No encontramos este pedido en tu cuenta. Si crees que es un error,

@@ -1,67 +1,47 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
-import { notFound } from 'next/navigation';
+import { notFound, redirect, permanentRedirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { resolveSlugRedirect } from '@/lib/slug-redirects';
 import { ChevronRight, Tag } from 'lucide-react';
 import ProductCard from '@/components/ProductCard';
 import JsonLd from '@/app/components/JsonLd';
+import PaginationBar from '@/app/components/PaginationBar';
+import {
+  PAGE_SIZE,
+  getCachedCategory,
+  getCachedCategoryCount,
+  getCachedCategoryProducts,
+} from '@/lib/catalog-cache';
 import type { Product } from '@/context/ProductContext';
 
 // PRD-140 — ISR: 5 min máximo de obsolescencia para precio/stock por categoría
 // (complementado con revalidación on-demand al cambiar tasa — PRD-142).
+// Las queries Prisma están envueltas en unstable_cache (lib/catalog-cache.ts),
+// por lo que el TTFB en caché caliente baja ~10–50 ms vs. el hit directo a BD.
 export const revalidate = 300;
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ page?: string }>;
 }
 
-// ── Helpers de datos ──────────────────────────────────────────────────────
-async function getCategory(slug: string) {
-  return prisma.category.findUnique({
-    where: { slug },
-  });
+// ── Helpers ───────────────────────────────────────────────────────────────────
+/**
+ * Sanea el parámetro raw `?page=`.
+ * - Ausente, no numérico, 0 o negativo → 1.
+ * - > totalPages → totalPages (el caller redirige al rango válido).
+ */
+function sanitizePage(raw: string | undefined, totalPages: number): number {
+  const n = parseInt(raw ?? '1', 10);
+  if (!isFinite(n) || n < 1) return 1;
+  return Math.min(n, totalPages);
 }
 
-async function getCategoryProducts(categoryName: string): Promise<Product[]> {
-  // Bug 29.11: match case-insensitive — "consolas" vs "Consolas" dejaba la
-  // página de categoría vacía (thin content indexable) aunque hubiera stock.
-  const rows = await prisma.product.findMany({
-    where: { category: { equals: categoryName, mode: 'insensitive' } },
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id:            true,
-      slug:          true,
-      name:          true,
-      description:   true,
-      price:         true,
-      originalPrice: true,
-      stock:         true,
-      category:      true,
-      brand:         true,
-      images:        true,
-    },
-  });
-
-  return rows.map((p) => ({
-    id:            p.id,
-    slug:          p.slug,
-    name:          p.name,
-    description:   p.description ?? '',
-    price:         p.price,
-    originalPrice: p.originalPrice,
-    stock:         p.stock,
-    category:      p.category,
-    brand:         p.brand,
-    image:         p.images[0] ?? '/placeholder-product.png',
-    images:        p.images,
-    details:       {},
-  }));
-}
-
-// ── Generación estática de parámetros ─────────────────────────────────────
+// ── Generación estática de parámetros ─────────────────────────────────────────
 export async function generateStaticParams() {
   const categories = await prisma.category.findMany({
     select: { slug: true },
@@ -69,10 +49,11 @@ export async function generateStaticParams() {
   return categories.map((cat) => ({ slug: cat.slug }));
 }
 
-// ── Metadata dinámica por categoría ──────────────────────────────────────
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug } = await params;
-  const category = await getCategory(slug);
+// ── Metadata dinámica por categoría ──────────────────────────────────────────
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
+  const { slug }          = await params;
+  const { page: rawPage } = await searchParams;
+  const category          = await getCachedCategory(slug);
 
   if (!category) {
     return {
@@ -81,19 +62,27 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   }
 
-  // P50/H27: categoría sin productos → noindex temporal (thin content). El
-  // count usa el mismo match insensitive que el grid para no desalinearse.
-  const productCount = await prisma.product.count({
-    where: { category: { equals: category.name, mode: 'insensitive' } },
-  });
+  const productCount = await getCachedCategoryCount(category.name);
+  const totalPages   = Math.max(1, Math.ceil(productCount / PAGE_SIZE));
+  const page         = sanitizePage(rawPage, totalPages);
 
-  const canonicalUrl = `${SITE_URL}/categoria/${category.slug}`;
-  // Formato corto "[Categoría] - Tecnología | MundoTech" — la marca la añade
-  // el template del layout una sola vez (H02/P08).
-  const title       = `${category.name} - Tecnología`;
-  const ogTitle     = `${category.name} - Tecnología | MundoTech`;
-  const description = `Compra ${category.name} al mejor precio de Venezuela en MundoTech Barquisimeto. Pagas en USD o Bs, con garantía real, retiro en tienda y envío seguro a todo el país.`;
-  // H16: Twitter siempre con imagen — la de la categoría o la de marca.
+  const canonicalUrl =
+    page <= 1
+      ? `${SITE_URL}/categoria/${category.slug}`
+      : `${SITE_URL}/categoria/${category.slug}?page=${page}`;
+
+  // P85: seoTitle personalizado, o fallback al patrón basado en nombre.
+  const titleBase = category.seoTitle
+    ? category.seoTitle
+    : `${category.name} - Tecnología`;
+  const title   = page >= 2 ? `${titleBase} — Página ${page}` : titleBase;
+  const ogTitle = page >= 2
+    ? `${titleBase} — Página ${page} | MundoTech`
+    : `${titleBase} | MundoTech`;
+  // P85: descripción única por categoría, o fallback genérico.
+  const description = category.description
+    ? category.description
+    : `Compra ${category.name} al mejor precio de Venezuela en MundoTech Barquisimeto. Pagas en USD o Bs, con garantía real, retiro en tienda y envío seguro a todo el país.`;
   const socialImage = category.imageUrl || `${SITE_URL}/og-default.png`;
 
   return {
@@ -110,6 +99,21 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       'estado Lara tecnología',
     ],
     alternates: { canonical: canonicalUrl },
+    // P50/H27: categoría sin productos → noindex temporal (thin content).
+    // Páginas 2+ con contenido → index normal.
+    robots:
+      productCount === 0
+        ? { index: false, follow: true }
+        : {
+            index: true,
+            follow: true,
+            googleBot: {
+              index: true,
+              follow: true,
+              'max-snippet': -1,
+              'max-image-preview': 'large' as const,
+            },
+          },
     openGraph: {
       title: ogTitle,
       description,
@@ -125,27 +129,29 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description,
       images: [socialImage],
     },
-    robots: productCount === 0
-      ? { index: false, follow: true }
-      : {
-          index: true,
-          follow: true,
-          googleBot: { index: true, follow: true, 'max-snippet': -1, 'max-image-preview': 'large' as const },
-        },
   };
 }
 
-// ── JSON-LD CollectionPage + ItemList + BreadcrumbList ─────────────────────
+// ── JSON-LD CollectionPage + ItemList + BreadcrumbList ─────────────────────────
 function CategoryJsonLd({
   category,
   products,
   slug,
+  page,
 }: {
   category: { name: string; description?: string | null };
   products: Product[];
   slug: string;
+  page: number;
 }) {
-  const url = `${SITE_URL}/categoria/${slug}`;
+  const url =
+    page <= 1
+      ? `${SITE_URL}/categoria/${slug}`
+      : `${SITE_URL}/categoria/${slug}?page=${page}`;
+
+  // P90/H65: position es absoluto (offset por página) para coherencia entre
+  // páginas — Google usa la posición para entender jerarquía editorial.
+  const positionOffset = (page - 1) * PAGE_SIZE;
 
   const schema = {
     '@context': 'https://schema.org',
@@ -155,24 +161,21 @@ function CategoryJsonLd({
       category.description ??
       `Catálogo de ${category.name} en MundoTech, líderes en tecnología en el estado Lara, Barquisimeto.`,
     url,
-    // Alineado con el breadcrumb visual: Inicio → Catálogo → Categoría.
     breadcrumb: {
       '@type': 'BreadcrumbList',
       itemListElement: [
         { '@type': 'ListItem', position: 1, name: 'Inicio',   item: SITE_URL },
         { '@type': 'ListItem', position: 2, name: 'Catálogo', item: `${SITE_URL}/productos` },
-        { '@type': 'ListItem', position: 3, name: category.name, item: url },
+        { '@type': 'ListItem', position: 3, name: category.name, item: `${SITE_URL}/categoria/${slug}` },
       ],
     },
-    // P49 + P90/H65: el ItemList lista TODOS los productos que la página
-    // renderiza (el grid no pagina), y numberOfItems coincide exactamente
-    // con las entradas emitidas — schema coherente para Google.
+    // ItemList refleja exactamente los productos de esta página (con offset absoluto).
     mainEntity: {
       '@type': 'ItemList',
       numberOfItems: products.length,
       itemListElement: products.map((p, i) => ({
         '@type': 'ListItem',
-        position: i + 1,
+        position: positionOffset + i + 1,
         url: `${SITE_URL}/product/${p.slug ?? p.id}`,
         name: p.name,
       })),
@@ -182,18 +185,48 @@ function CategoryJsonLd({
   return <JsonLd data={schema} />;
 }
 
-// ── Página ─────────────────────────────────────────────────────────────────
-export default async function CategoryPage({ params }: PageProps) {
-  const { slug }    = await params;
-  const category    = await getCategory(slug);
+// ── Página ─────────────────────────────────────────────────────────────────────
+export default async function CategoryPage({ params, searchParams }: PageProps) {
+  const { slug }          = await params;
+  const { page: rawPage } = await searchParams;
+  const category          = await getCachedCategory(slug);
 
-  if (!category) notFound();
+  if (!category) {
+    // PRD-066 / DEPENDENCIA-05: slug was renamed — check for a registered 301 redirect
+    // before returning 404, to preserve SEO value of indexed or externally-linked URLs.
+    const redirectTarget = await resolveSlugRedirect(slug);
+    if (redirectTarget) {
+      // Preserve ?page= so paginated URLs keep working after a category rename.
+      const destination = rawPage
+        ? `/categoria/${redirectTarget}?page=${rawPage}`
+        : `/categoria/${redirectTarget}`;
+      permanentRedirect(destination);
+    }
+    notFound();
+  }
 
-  const products = await getCategoryProducts(category.name);
+  // Cached count — no DB hit on repeated requests for the same category+page.
+  const total      = await getCachedCategoryCount(category.name);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Redirige ?page=N inválido antes de hacer la query principal.
+  if (rawPage !== undefined) {
+    const raw = parseInt(rawPage, 10);
+    if (!isFinite(raw) || raw < 1) {
+      redirect(`/categoria/${slug}`);
+    }
+    if (raw > totalPages) {
+      redirect(`/categoria/${slug}?page=${totalPages}`);
+    }
+  }
+
+  const page = sanitizePage(rawPage, totalPages);
+
+  const products = await getCachedCategoryProducts(category.name, page);
 
   return (
     <div className="pb-10 sm:pb-12 w-full max-w-full">
-      <CategoryJsonLd category={category} products={products} slug={slug} />
+      <CategoryJsonLd category={category} products={products as Product[]} slug={slug} page={page} />
 
       {/* Hero de categoría */}
       <div className="relative bg-white rounded-2xl border border-slate-200/80 shadow-soft p-5 sm:p-8 mb-6 sm:mb-8 overflow-hidden">
@@ -227,16 +260,28 @@ export default async function CategoryPage({ params }: PageProps) {
 
           <h1 className="text-[1.75rem] sm:text-3xl md:text-[2.25rem] font-bold text-navy tracking-tight leading-tight capitalize">
             {category.name}
+            {page >= 2 && (
+              <span className="ml-2 text-lg sm:text-xl font-medium text-slate-400">
+                — Página {page}
+              </span>
+            )}
           </h1>
 
-          <p className="mt-2 text-[13px] sm:text-sm text-slate-500 max-w-2xl">
-            Los mejores productos de <strong>{category.name}</strong> en MundoTech,
-            líderes en tecnología en el estado Lara, Barquisimeto. Precio en USD y Bs.,
-            garantía oficial y envío seguro a todo Venezuela.
-          </p>
+          {category.description ? (
+            <p className="mt-2 text-[13px] sm:text-sm text-slate-500 max-w-2xl">
+              {category.description}
+            </p>
+          ) : (
+            <p className="mt-2 text-[13px] sm:text-sm text-slate-500 max-w-2xl">
+              Los mejores productos de <strong>{category.name}</strong> en MundoTech,
+              líderes en tecnología en el estado Lara, Barquisimeto. Precio en USD y Bs.,
+              garantía oficial y envío seguro a todo Venezuela.
+            </p>
+          )}
 
           <p className="mt-3 text-xs text-slate-400">
-            {products.length} {products.length === 1 ? 'producto disponible' : 'productos disponibles'}
+            {total} {total === 1 ? 'producto disponible' : 'productos disponibles'}
+            {totalPages > 1 && ` · Página ${page} de ${totalPages}`}
           </p>
         </div>
       </div>
@@ -255,11 +300,18 @@ export default async function CategoryPage({ params }: PageProps) {
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
-          {products.map((product) => (
+          {(products as Product[]).map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>
       )}
+
+      {/* Controles de paginación — enlaces <a> crawlables, sin JS */}
+      <PaginationBar
+        page={page}
+        totalPages={totalPages}
+        basePath={`/categoria/${slug}`}
+      />
     </div>
   );
 }

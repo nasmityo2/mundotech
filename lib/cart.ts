@@ -1,5 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import type { CartItemAPI } from '@/lib/definitions';
+import { d, dn } from '@/lib/decimal';
+import type { Prisma } from '@prisma/client';
+type Decimal = Prisma.Decimal;
 
 /** Selección base de campos de producto que expone la API de carrito. */
 const PRODUCT_SELECT = {
@@ -22,8 +25,8 @@ function toCartItemAPI(item: {
   product: {
     name: string;
     slug: string | null;
-    price: number;
-    originalPrice: number | null;
+    price: Decimal | number;
+    originalPrice: Decimal | number | null;
     stock: number;
     category: string;
     brand: string | null;
@@ -36,8 +39,9 @@ function toCartItemAPI(item: {
     quantity: item.quantity,
     name: item.product.name,
     slug: item.product.slug,
-    price: item.product.price,
-    originalPrice: item.product.originalPrice,
+    // PRD-204: convertir Decimal → number en frontera BD→UI
+    price: d(item.product.price),
+    originalPrice: dn(item.product.originalPrice),
     stock: item.product.stock,
     category: item.product.category,
     brand: item.product.brand,

@@ -7,6 +7,7 @@ import {
   orderCountsTowardValidatedRevenue,
   orderStoredRevenueTotal,
 } from '@/lib/analytics-orders';
+import { hasFrozenBsPricing } from '@/lib/order-pricing';
 import { BarChart2, TrendingUp, Package, ShoppingCart, Award, Eye } from 'lucide-react';
 
 interface TopViewedProduct {
@@ -17,8 +18,11 @@ interface TopViewedProduct {
 
 type Period = 'today' | 'week' | 'month' | 'all';
 
-const formatCurrency = (n: number) =>
+const formatBs = (n: number) =>
   new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VES' }).format(n);
+
+const formatUsd = (n: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 
 function startOf(period: Period): Date | null {
   const now = new Date();
@@ -84,18 +88,25 @@ export default function AdminStatsPage() {
   const productStats = useMemo((): ProductStat[] => {
     const map = new Map<string, ProductStat>();
     for (const order of filteredOrders) {
+      // PRD-205: prorratear el descuento del cupón entre los ítems del pedido.
+      // Ratio = order.total / sum(item.price * qty) garantiza que la suma de
+      // ingresos por producto cuadre con order.total (caja real).
+      const orderItemsTotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
+      const prorateRatio = orderItemsTotal > 0 ? orderStoredRevenueTotal(order) / orderItemsTotal : 1;
+
       for (const item of order.items) {
+        const proratedRevenue = item.price * item.quantity * prorateRatio;
         const existing = map.get(item.productId);
         if (existing) {
           existing.unitsSold += item.quantity;
-          existing.revenue += item.price * item.quantity;
+          existing.revenue += proratedRevenue;
           existing.orderCount += 1;
         } else {
           map.set(item.productId, {
             productId: item.productId,
             productName: item.productName,
             unitsSold: item.quantity,
-            revenue: item.price * item.quantity,
+            revenue: proratedRevenue,
             orderCount: 1,
           });
         }
@@ -108,12 +119,16 @@ export default function AdminStatsPage() {
   }, [filteredOrders, sortBy]);
 
   const totalUnits = productStats.reduce((s, p) => s + p.unitsSold, 0);
-  // PRD-220: misma lógica que el dashboard home — total almacenado del pedido
-  // (incluye descuento de cupón), no la suma de líneas. Así ambas pantallas
-  // muestran la misma cifra para el mismo período.
-  const totalRevenue = filteredOrders.reduce((s, o) => s + orderStoredRevenueTotal(o), 0);
-  // Denominador del % por producto: suma de líneas (sin cupón), para que los
-  // porcentajes del ranking sigan sumando 100%.
+  // PRD-206: separar ingresos Bs (pedidos modernos con tasa congelada) de los
+  // legados en USD para no mezclar monedas en el mismo acumulador.
+  const totalRevenueBs = filteredOrders
+    .filter(o => hasFrozenBsPricing(o))
+    .reduce((s, o) => s + orderStoredRevenueTotal(o), 0);
+  const totalRevenueUsdLegacy = filteredOrders
+    .filter(o => !hasFrozenBsPricing(o))
+    .reduce((s, o) => s + orderStoredRevenueTotal(o), 0);
+  const hasLegacyUsdOrders = totalRevenueUsdLegacy > 0;
+  // Denominador del % por producto: suma de ingresos ya prorateados.
   const itemRevenueTotal = productStats.reduce((s, p) => s + p.revenue, 0);
   const totalOrdersInPeriod = filteredOrders.length;
 
@@ -186,9 +201,18 @@ export default function AdminStatsPage() {
             </div>
             <p className="text-sm text-gray-500">Ingresos validados del período</p>
           </div>
-          <p className="text-2xl font-bold text-gray-900 mt-2">
-            {loading ? '—' : formatCurrency(totalRevenue)}
-          </p>
+          {loading ? (
+            <p className="text-2xl font-bold text-gray-900 mt-2">—</p>
+          ) : (
+            <div className="mt-2 space-y-0.5">
+              <p className="text-2xl font-bold text-gray-900">{formatBs(totalRevenueBs)}</p>
+              {hasLegacyUsdOrders && (
+                <p className="text-sm text-gray-500">
+                  + {formatUsd(totalRevenueUsdLegacy)} <span className="text-xs text-gray-400">(pedidos legado USD)</span>
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -264,7 +288,7 @@ export default function AdminStatsPage() {
 
                     {/* Métricas */}
                     <div className="flex-shrink-0 text-right">
-                      <p className="font-bold text-gray-900">{formatCurrency(stat.revenue)}</p>
+                      <p className="font-bold text-gray-900">{formatBs(stat.revenue)}</p>
                       <p className="text-xs text-gray-500 mt-0.5">{stat.unitsSold} uds.</p>
                     </div>
                   </div>

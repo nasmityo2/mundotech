@@ -26,6 +26,13 @@ export const storeSettingsSchema = z.object({
     accountHolder: z.string().min(1),
     rif:           z.string().min(1),
   }),
+  /**
+   * PRD-027/130: Binance Pay configurable desde Admin → sin redeploy.
+   * Vacíos por defecto: PaymentForm oculta el método si binancePayId está vacío
+   * (evita mostrar instrucciones de pago sin destino real configurado).
+   */
+  binancePayId:  z.string().optional().default(''),
+  binanceQrUrl:  z.string().optional().default(''),
 });
 
 export type StoreSettings = z.infer<typeof storeSettingsSchema>;
@@ -56,6 +63,9 @@ export const DEFAULT_SETTINGS: StoreSettings = {
     accountHolder: '',
     rif:           '',
   },
+  // PRD-027/130: Binance Pay — vacíos por defecto, editables desde Admin.
+  binancePayId: '',
+  binanceQrUrl: '',
 };
 
 /** ¿Hay datos de pago reales configurados? (false = BD vacía → DEFAULT_SETTINGS).

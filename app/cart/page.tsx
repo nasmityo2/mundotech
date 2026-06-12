@@ -6,6 +6,7 @@ import ProductCard from '@/components/ProductCard';
 import { fullProductToCardModel } from '@/lib/search-shared';
 import CartClient from './CartClient';
 import RecentlyViewed from '@/components/RecentlyViewed';
+import { d, dn } from '@/lib/decimal';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,8 +61,9 @@ export default async function CartPage() {
                   slug: product.slug,
                   name: product.name,
                   description: product.description ?? '',
-                  price: product.price,
-                  originalPrice: product.originalPrice,
+                  // PRD-204: convertir Decimal → number
+                  price: d(product.price),
+                  originalPrice: dn(product.originalPrice),
                   stock: product.stock,
                   category: product.category,
                   brand: product.brand,

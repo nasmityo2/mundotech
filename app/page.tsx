@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { d, dn } from '@/lib/decimal';
 import HomeHeroCyber from '@/app/components/HomeHeroCyber';
 import Promotions from '@/app/components/Promotions';
 import ProductShelf from '@/app/components/ProductShelf';
@@ -140,8 +141,15 @@ async function getData() {
       })
     );
 
+    // PRD-204: normalizar Decimal → number en la frontera BD→página
+    const normalizedProducts = products.map(p => ({
+      ...p,
+      price:         d(p.price),
+      originalPrice: dn(p.originalPrice),
+    }));
+
     return {
-      products,
+      products: normalizedProducts,
       heroBanners,
       ctaBannerRow,
       activePromotions,

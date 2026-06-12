@@ -1,7 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireAdminAction } from '@/lib/api-auth';
 import { z } from 'zod';
 import Papa from 'papaparse';
@@ -11,6 +11,7 @@ import { deriveLegacyImagesFromSlots } from '@/lib/product-media';
 import { triggerRestockNotifications } from '@/app/actions/restockActions';
 import { parseProductSpecs } from '@/lib/definitions';
 import { saveSlugRedirect } from '@/lib/slug-redirects';
+import { d } from '@/lib/decimal';
 
 const absoluteUrl = z.string().refine(
   (s) => {
@@ -157,6 +158,8 @@ export async function createProductAction(formData: FormData) {
 
     revalidatePath('/admin/products');
     revalidatePath('/');
+    revalidateTag('catalog', 'default');
+    revalidateTag('categories', 'default'); // category product counts in sidebar
     return { success: true, message: 'Producto añadido con éxito.' };
   } catch (error) {
     console.error('Error al crear el producto:', error);
@@ -248,6 +251,7 @@ export async function updateProductAction(productId: string, formData: FormData)
     revalidatePath('/');
     revalidatePath(`/product/${slug}`);
     if (slugChanged && current?.slug) revalidatePath(`/product/${current.slug}`);
+    revalidateTag('catalog', 'default');
     return { success: true, message: 'Producto actualizado con éxito.' };
   } catch (error) {
     console.error('Error al actualizar el producto:', error);
@@ -258,12 +262,59 @@ export async function updateProductAction(productId: string, formData: FormData)
   }
 }
 
-export async function deleteProductAction(productId: string) {
+/** Estados de pedido que mantienen el inventario reservado (no terminales). */
+const NON_TERMINAL_ORDER_STATUSES = [
+  'Pendiente',
+  'Pendiente verificación Binance',
+  'En Proceso',
+  'Enviado',
+] as const;
+
+export async function deleteProductAction(
+  productId: string,
+  opts?: { forceIfActiveOrders?: boolean },
+) {
   try {
     await verifyAdminSession();
-    await prisma.product.delete({ where: { id: productId } });
-    revalidatePath('/admin/products');
+
+    // PRD-231: verificar que no existan pedidos activos con este producto
+    // antes de eliminar, para evitar ítems huérfanos sin FK.
+    const activeOrderCount = await prisma.orderItem.count({
+      where: {
+        productId,
+        order: {
+          status: { in: NON_TERMINAL_ORDER_STATUSES as unknown as string[] },
+        },
+      },
+    });
+
+    if (activeOrderCount > 0 && !opts?.forceIfActiveOrders) {
+      return {
+        success: false,
+        requiresConfirmation: true,
+        activeOrderCount,
+        message: `Este producto aparece en ${activeOrderCount} pedido${activeOrderCount !== 1 ? 's' : ''} activo${activeOrderCount !== 1 ? 's' : ''} (no cancelados ni entregados). Eliminar el producto dejará esos ítems sin ficha. Confirma explícitamente si quieres continuar.`,
+      };
+    }
+
+    const current = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { slug: true },
+    });
+
+    // PRD-233: revalidar la ficha y rutas de catálogo ANTES de borrar,
+    // para que ISR invalide la caché y no sirva la página fantasma.
+    if (current?.slug) {
+      revalidatePath(`/product/${current.slug}`);
+    }
+    revalidatePath('/productos');
     revalidatePath('/');
+    revalidateTag('catalog', 'default');
+    revalidateTag('categories', 'default');
+
+    await prisma.product.delete({ where: { id: productId } });
+
+    revalidatePath('/admin/products');
     return { success: true, message: 'Producto eliminado con éxito.' };
   } catch (error) {
     console.error('Error al eliminar el producto:', error);
@@ -561,6 +612,8 @@ export async function importProductsFromCSV(csvData: string) {
 
   revalidatePath('/admin/products');
   revalidatePath('/');
+  revalidateTag('catalog', 'default');
+  revalidateTag('categories', 'default'); // category product counts in sidebar
 
   return {
     success: true,
@@ -595,7 +648,7 @@ export async function quickUpdateStockAction(productId: string, stock: number) {
         current.name,
         current.slug,
         current.images[0] ?? null,
-        current.price,
+        d(current.price),
       );
     }
 
@@ -605,6 +658,7 @@ export async function quickUpdateStockAction(productId: string, stock: number) {
     // mostrando el stock anterior hasta 1 hora.
     revalidatePath(`/product/${current?.slug?.trim() || productId}`);
     revalidatePath('/productos');
+    revalidateTag('catalog', 'default');
     return { success: true };
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
@@ -631,6 +685,7 @@ export async function quickUpdatePriceAction(productId: string, price: number) {
     // durante la ventana de ISR.
     revalidatePath(`/product/${updated.slug?.trim() || productId}`);
     revalidatePath('/productos');
+    revalidateTag('catalog', 'default');
     return { success: true };
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('No autorizado')) {

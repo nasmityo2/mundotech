@@ -10,7 +10,7 @@ import ShipOrderDialog from '@/app/components/admin/ShipOrderDialog';
 import { PaymentVerificationPanel } from '@/components/admin/PaymentVerificationPanel';
 import {
   ArrowLeft, Package, MapPin, Clock, Copy, Check, Hash,
-  Truck, ExternalLink, Edit3, FileText, Loader2, Printer, Ticket,
+  Truck, ExternalLink, Edit3, FileText, Loader2, Printer, Ticket, Mail,
 } from 'lucide-react';
 
 const statusConfig: Record<string, string> = {
@@ -43,6 +43,8 @@ export default function AdminOrderDetailPage() {
   const [notesDraft, setNotesDraft] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState(false);
+  const [resendEmailResult, setResendEmailResult] = useState<'ok' | 'error' | null>(null);
   const params = useParams();
   const router = useRouter();
   const id = params?.id as string | undefined;
@@ -122,6 +124,27 @@ export default function AdminOrderDetailPage() {
   const isShipped = order.status === 'Enviado' || order.status === 'Entregado';
   const hasTracking = !!(order.trackingNumber || order.trackingCarrier || order.trackingUrl || order.trackingPhotoUrl);
 
+  // PRD-051: reenviar email de confirmación al cliente desde el panel admin.
+  const handleResendConfirmation = async () => {
+    if (!order || resendingEmail) return;
+    setResendingEmail(true);
+    setResendEmailResult(null);
+    try {
+      const r = await fetch(`/api/orders/${order.id}/resend-confirmation`, { method: 'POST' });
+      setResendEmailResult(r.ok ? 'ok' : 'error');
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        alert((err as { message?: string }).message ?? 'No se pudo reenviar el correo.');
+      }
+    } catch {
+      setResendEmailResult('error');
+      alert('No se pudo reenviar el correo.');
+    } finally {
+      setResendingEmail(false);
+      window.setTimeout(() => setResendEmailResult(null), 3000);
+    }
+  };
+
   const copyOrderId = async () => {
     try {
       await navigator.clipboard.writeText(order.id);
@@ -187,6 +210,22 @@ export default function AdminOrderDetailPage() {
           >
             <Printer size={14} /> Imprimir etiqueta
           </a>
+          {/* PRD-051: reenviar email de confirmación al cliente */}
+          <button
+            type="button"
+            onClick={handleResendConfirmation}
+            disabled={resendingEmail}
+            title="Reenviar el email de confirmación al cliente"
+            className="touch-manipulation select-none min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 sm:px-4 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-100 active:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none"
+          >
+            {resendingEmail ? (
+              <><Loader2 size={13} className="animate-spin" /> Enviando…</>
+            ) : resendEmailResult === 'ok' ? (
+              <><Check size={13} className="text-green-600" /> Enviado</>
+            ) : (
+              <><Mail size={13} /> Reenviar confirmación</>
+            )}
+          </button>
           <button
             type="button"
             onClick={copyOrderId}

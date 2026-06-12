@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, Clock, Zap, Sparkles, Tag } from 'lucide-react';
-import { useRouter }   from 'next/navigation';
 
 interface PromoData {
   title:        string;
@@ -61,14 +60,18 @@ const FALLBACK_PROMO: PromoData = {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+interface CategoryItem {
+  name: string;
+  slug: string;
+}
+
 export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
-  const router = useRouter();
   const [promo, setPromo] = useState<PromoData | null>(null);
   // PRD-095: el menú ya no depende del catálogo completo (ProductContext);
   // usa el endpoint liviano de categorías y solo carga al abrir el drawer.
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
   const categoriesLoadedRef = useRef(false);
-  const firstCatRef = useRef<HTMLButtonElement>(null);
+  const firstCatRef = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => {
     if (!open || categoriesLoadedRef.current) return;
@@ -77,10 +80,15 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
       .then(r => r.json())
       .then((data: unknown) => {
         if (Array.isArray(data)) {
-          const names = (data as { name?: unknown }[])
-            .map(c => (typeof c.name === 'string' ? c.name : null))
-            .filter((n): n is string => !!n);
-          setCategories([...new Set(names)].sort());
+          const items = (data as { name?: unknown; slug?: unknown }[])
+            .map(c => ({
+              name: typeof c.name === 'string' ? c.name : '',
+              slug: typeof c.slug === 'string' ? c.slug : '',
+            }))
+            .filter((c): c is CategoryItem => !!c.name && !!c.slug);
+          const seen = new Map<string, CategoryItem>();
+          for (const item of items) seen.set(item.name, item);
+          setCategories([...seen.values()].sort((a, b) => a.name.localeCompare(b.name)));
         }
       })
       .catch((err) => console.error('[CategoryDrawer] Error al cargar categorías:', err));
@@ -110,12 +118,6 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
-
-  const handleCategoryClick = (cat: string) => {
-    onClose();
-    // El filtro viaja por URL (?cat=) — ProductGridAndFilters lo lee en /productos.
-    router.push(cat === 'all' ? '/productos' : `/productos?cat=${encodeURIComponent(cat)}`);
-  };
 
   const display = promo ?? FALLBACK_PROMO;
 
@@ -222,10 +224,10 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
 
               <ul className="px-2 pb-3 space-y-0.5">
                 <li>
-                  <button
-                    type="button"
+                  <Link
+                    href="/productos"
                     ref={firstCatRef}
-                    onClick={() => handleCategoryClick('all')}
+                    onClick={onClose}
                     className="flex items-center gap-3 w-full px-3 min-h-[52px] rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors text-navy group"
                   >
                     <div className="w-9 h-9 rounded-lg bg-brand-yellowSft text-navy flex items-center justify-center flex-shrink-0">
@@ -235,23 +237,23 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
                       Todos los productos
                     </span>
                     <ChevronRight size={15} className="text-slate-300 group-hover:text-navy transition-colors flex-shrink-0" />
-                  </button>
+                  </Link>
                 </li>
                 {categories.map((cat) => (
-                  <li key={cat}>
-                    <button
-                      type="button"
-                      onClick={() => handleCategoryClick(cat)}
+                  <li key={cat.slug}>
+                    <Link
+                      href={`/categoria/${cat.slug}`}
+                      onClick={onClose}
                       className="flex items-center gap-3 w-full px-3 min-h-[48px] rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors text-navy group"
                     >
                       <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center text-[11px] font-bold flex-shrink-0">
-                        {cat.slice(0, 1).toUpperCase()}
+                        {cat.name.slice(0, 1).toUpperCase()}
                       </div>
                       <span className="flex-1 text-left text-[14px] font-medium capitalize truncate">
-                        {cat}
+                        {cat.name}
                       </span>
                       <ChevronRight size={15} className="text-slate-300 group-hover:text-navy transition-colors flex-shrink-0" />
-                    </button>
+                    </Link>
                   </li>
                 ))}
               </ul>

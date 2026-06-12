@@ -1,3 +1,5 @@
+import { EmailChangeConfirmEmail } from '@/emails/mundotech/EmailChangeConfirmEmail';
+import { OrderCancelledEmail } from '@/emails/mundotech/OrderCancelledEmail';
 import { OrderConfirmationEmail } from '@/emails/mundotech/OrderConfirmationEmail';
 import { OrderDeliveredEmail } from '@/emails/mundotech/OrderDeliveredEmail';
 import { PasswordResetEmail } from '@/emails/mundotech/PasswordResetEmail';
@@ -394,6 +396,76 @@ export async function sendAbandonedCartEmail(params: {
         totalUsd={params.totalUsd}
         recoveryUrl={recoveryUrl}
         unsubscribeUrl={unsubscribeUrl}
+      />
+    ),
+  });
+}
+
+/**
+ * PRD-050: notificación al cliente cuando un admin cancela su pedido.
+ * `orderDisplayId` es el número formateado (ej. "0042"). Errores no relanzan.
+ */
+export async function sendOrderCancelledEmail(
+  email: string,
+  firstName: string,
+  orderDisplayId: string,
+): Promise<void> {
+  const resend = getResend();
+  if (!resend) {
+    console.warn('[order-cancelled-email] RESEND_API_KEY no está configurada; se omite el envío para:', email);
+    return;
+  }
+
+  const trimmedEmail = email.trim();
+  if (!trimmedEmail) {
+    console.warn('[order-cancelled-email] Email vacío; se omite el envío.');
+    return;
+  }
+
+  const trimmedName = firstName.trim() || 'Cliente';
+  const ref = orderDisplayId.trim();
+
+  await sendBrandedEmail({
+    resend,
+    to: trimmedEmail,
+    subject: `MundoTech · Tu pedido #${ref} fue cancelado`,
+    logScope: 'order-cancelled-email',
+    element: <OrderCancelledEmail customerName={trimmedName} orderDisplayId={ref} />,
+  });
+}
+
+/**
+ * PRD-014/089: envía el enlace de confirmación al nuevo correo solicitado.
+ * Solo debe llamarse desde el servidor. Errores se registran; no relanza.
+ */
+export async function sendEmailChangeConfirmEmail(params: {
+  to: string;
+  customerName: string;
+  confirmUrl: string;
+  newEmail: string;
+}): Promise<void> {
+  const resend = getResend();
+  if (!resend) {
+    console.warn('[email-change-confirm] RESEND_API_KEY no está configurada; se omite el envío para:', params.to);
+    return;
+  }
+
+  const trimmedEmail = params.to.trim();
+  if (!trimmedEmail) {
+    console.warn('[email-change-confirm] Email vacío; se omite el envío.');
+    return;
+  }
+
+  await sendBrandedEmail({
+    resend,
+    to: trimmedEmail,
+    subject: 'MundoTech · Confirma tu nuevo correo electrónico',
+    logScope: 'email-change-confirm',
+    element: (
+      <EmailChangeConfirmEmail
+        customerName={params.customerName.trim() || 'Cliente'}
+        confirmUrl={params.confirmUrl}
+        newEmail={params.newEmail}
       />
     ),
   });

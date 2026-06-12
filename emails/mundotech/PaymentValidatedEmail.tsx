@@ -1,4 +1,4 @@
-import { Section, Text } from '@react-email/components';
+import { Link, Section, Text } from '@react-email/components';
 import * as React from 'react';
 import { PrimaryCta } from './components/PrimaryCta';
 import { StatusPill } from './components/StatusPill';
@@ -20,6 +20,11 @@ export function PaymentValidatedEmail({ customerName, orderDisplayId, orderUuid 
   const ordersPath = orderSegment
     ? `${base}/account/orders/${encodeURIComponent(orderSegment)}`
     : `${base}/account/orders`;
+  // PRD-249: dual CTA — invitado o sesión distinta usa el uuid como token.
+  // DEPENDENCIA-02: /checkout/success debe aceptar acceso sin sesión con ?orderId={uuid}.
+  const guestOrderHref = orderUuid?.trim()
+    ? `${base}/checkout/success?orderId=${encodeURIComponent(orderUuid.trim())}`
+    : null;
 
   return (
     <MundoTechShell
@@ -44,6 +49,21 @@ export function PaymentValidatedEmail({ customerName, orderDisplayId, orderUuid 
       </Section>
 
       <PrimaryCta href={ordersPath} label="Ver detalles del pedido" />
+
+      {guestOrderHref && (
+        <Section style={{ padding: '4px 28px 0', fontFamily: fontSans, textAlign: 'center' }}>
+          <Text style={{ margin: 0, fontSize: 12, color: MT.textMuted, lineHeight: 1.6 }}>
+            ¿Compraste sin cuenta o en otro dispositivo?{' '}
+            <Link
+              href={guestOrderHref}
+              style={{ color: MT.gold, textDecoration: 'underline', fontSize: 12 }}
+            >
+              Ver pedido como invitado
+            </Link>
+          </Text>
+        </Section>
+      )}
+
       <Section style={{ padding: '0 24px 28px', fontFamily: fontSans }} />
     </MundoTechShell>
   );

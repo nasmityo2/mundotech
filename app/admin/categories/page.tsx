@@ -10,13 +10,16 @@ import { TouchIconButton } from '@/components/admin/TouchIconButton';
 import PhotoUploader from '@/components/admin/PhotoUploader';
 
 interface Category {
-  id:         string;
-  name:       string;
-  slug:       string;
-  imageUrl:   string | null;
-  isFeatured: boolean;
-  order:      number;
-  productCount?: number;
+  id:               string;
+  name:             string;
+  slug:             string;
+  imageUrl:         string | null;
+  isFeatured:       boolean;
+  order:            number;
+  description:      string | null;
+  seoTitle:         string | null;
+  googleCategoryId: number | null;
+  productCount?:    number;
 }
 
 const slugify = (s: string) =>
@@ -200,13 +203,18 @@ function CategoryDialog({
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
 }) {
-  const [name, setName]             = useState(category?.name ?? '');
-  const [slug, setSlug]             = useState(category?.slug ?? '');
-  const [slugTouched, setSlugTouched] = useState(!!category);
-  const [imageUrl, setImageUrl]     = useState<string | null>(category?.imageUrl ?? null);
-  const [isFeatured, setIsFeatured] = useState(category?.isFeatured ?? false);
-  const [order, setOrder]           = useState(category?.order ?? 0);
-  const [pending, startTransition]  = useTransition();
+  const [name, setName]                         = useState(category?.name ?? '');
+  const [slug, setSlug]                         = useState(category?.slug ?? '');
+  const [slugTouched, setSlugTouched]           = useState(!!category);
+  const [imageUrl, setImageUrl]                 = useState<string | null>(category?.imageUrl ?? null);
+  const [isFeatured, setIsFeatured]             = useState(category?.isFeatured ?? false);
+  const [order, setOrder]                       = useState(category?.order ?? 0);
+  const [description, setDescription]           = useState(category?.description ?? '');
+  const [seoTitle, setSeoTitle]                 = useState(category?.seoTitle ?? '');
+  const [googleCategoryId, setGoogleCategoryId] = useState<string>(
+    category?.googleCategoryId != null ? String(category.googleCategoryId) : ''
+  );
+  const [pending, startTransition]              = useTransition();
 
   useEffect(() => {
     if (!slugTouched) setSlug(slugify(name));
@@ -223,7 +231,18 @@ function CategoryDialog({
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, slug, imageUrl, isFeatured, order: Number(order) }),
+        body: JSON.stringify({
+          name,
+          slug,
+          imageUrl,
+          isFeatured,
+          order:            Number(order),
+          description:      description.trim() || null,
+          seoTitle:         seoTitle.trim()    || null,
+          googleCategoryId: googleCategoryId.trim() !== ''
+            ? parseInt(googleCategoryId.trim(), 10)
+            : null,
+        }),
       });
       if (res.ok) onSaved(category ? 'Categoría actualizada.' : 'Categoría creada.');
       else {
@@ -315,6 +334,76 @@ function CategoryDialog({
             hint="Recomendado 800×800. Aparece en el grid de Categorías destacadas del home."
             previewHeight="h-40"
           />
+
+          {/* P85: campos SEO ─────────────────────────────────────────── */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wide text-gray-700 mb-1.5">
+              Título SEO{' '}
+              <span className="text-[10px] font-medium text-gray-400 normal-case">
+                — reemplaza el título automático (opcional, máx. 70 chars)
+              </span>
+            </label>
+            <input
+              type="text"
+              value={seoTitle}
+              onChange={e => setSeoTitle(e.target.value)}
+              maxLength={70}
+              placeholder={`${name} - Tecnología`}
+              className="w-full min-h-[48px] px-3.5 py-2 border border-gray-200 rounded-xl bg-gray-50 text-base focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy"
+            />
+            <p className={`text-[11px] mt-1 ${seoTitle.length > 60 ? 'text-amber-600' : 'text-gray-400'}`}>
+              {seoTitle.length}/70 chars
+              {seoTitle.length > 60 && ' — los buscadores truncan títulos largos'}
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wide text-gray-700 mb-1.5">
+              Descripción SEO{' '}
+              <span className="text-[10px] font-medium text-gray-400 normal-case">
+                — meta description y hero de la página (opcional, máx. 300 chars)
+              </span>
+            </label>
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              maxLength={300}
+              rows={3}
+              placeholder="Describe brevemente esta categoría: qué productos incluye, para qué sirven y por qué comprar en MundoTech."
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-base resize-none focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy"
+            />
+            <p className={`text-[11px] mt-1 ${description.length > 260 ? 'text-amber-600' : 'text-gray-400'}`}>
+              {description.length}/300 chars
+              {description.length > 260 && ' — idealmente ≤ 160 chars para meta description'}
+            </p>
+          </div>
+
+          {/* Google Product Category ID ─────────────────────────── */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wide text-gray-700 mb-1.5">
+              ID de categoría Google{' '}
+              <span className="text-[10px] font-medium text-gray-400 normal-case">— opcional</span>
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={googleCategoryId}
+              onChange={e => setGoogleCategoryId(e.target.value)}
+              placeholder="ej: 267"
+              className="w-full min-h-[48px] px-3.5 py-2 border border-gray-200 rounded-xl bg-gray-50 text-base font-mono focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy"
+            />
+            <p className="text-[11px] text-gray-500 mt-1">
+              Si lo dejas vacío se usa el mapeo automático por nombre.{' '}
+              <a
+                href="https://www.google.com/basepages/producttype/taxonomy-with-ids.en-US.txt"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-navy"
+              >
+                Ver taxonomía oficial
+              </a>
+            </p>
+          </div>
         </div>
 
         <footer className="sticky bottom-0 bg-white sm:rounded-b-2xl border-t border-gray-100 px-4 py-3 flex gap-2"

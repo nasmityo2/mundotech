@@ -231,9 +231,11 @@ export async function resetPassword(
       });
       if (deleted.count === 0) return false;
 
+      // PRD-173: bumping passwordChangedAt para que el JWT callback detecte la
+      // huella obsoleta en el próximo ciclo de re-validación y fuerce re-login.
       await tx.user.update({
         where: { id: row.userId },
-        data: { password: hashedPassword },
+        data: { password: hashedPassword, passwordChangedAt: new Date() },
       });
       await tx.passwordResetToken.deleteMany({
         where: { userId: row.userId },

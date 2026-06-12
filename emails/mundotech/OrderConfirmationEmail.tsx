@@ -6,7 +6,7 @@ import { PrimaryCta } from './components/PrimaryCta';
 import { StatusPill } from './components/StatusPill';
 import { MundoTechShell } from './MundoTechShell';
 import type { OrderConfirmationPayload } from './types';
-import { emailSiteBaseUrl } from './site';
+import { emailSiteBaseUrl, emailStoreAddress, emailStorePhones } from './site';
 import { orderPathSegment } from '@/lib/order-ref';
 import { MT, fontSans } from './theme';
 
@@ -41,6 +41,10 @@ const cardTableStyle: React.CSSProperties = {
 export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
   const base = emailSiteBaseUrl().replace(/\/$/, '');
   const orderHref = `${base}/account/orders/${orderPathSegment(payload.orderNumber)}`;
+  // PRD-207 / PRD-250: guest o sesión distinta → el link de cuenta requiere login.
+  // Incluimos un enlace alternativo usando el cuid del pedido como token de capacidad.
+  // DEPENDENCIA-02: /checkout/success debe aceptar acceso sin sesión con ?orderId={cuid}.
+  const guestOrderHref = `${base}/checkout/success?orderId=${encodeURIComponent(payload.id)}`;
   const padded = paddedOrderNo(payload.orderNumber);
 
   const formattedDate = new Intl.DateTimeFormat('es-VE', {
@@ -67,7 +71,8 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
     },
     {
       title: 'Preparamos tu pedido',
-      desc: 'Lo empacamos en nuestra tienda en Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001 y lo dejamos listo para envío o retiro.',
+      // PRD-109: dirección de tienda desde emailStoreAddress() — no hardcodeada.
+      desc: `Lo empacamos en nuestra tienda en ${emailStoreAddress()} y lo dejamos listo para envío o retiro.`,
     },
     {
       title: 'Te avisamos',
@@ -109,13 +114,15 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
       {/* ── Una tarjeta por producto ───────────────────────────────────── */}
       <Section style={{ padding: '6px 24px 8px', fontFamily: fontSans }}>
         {payload.items.map((item, idx) => {
-          const productUrl = `${base}/product/${encodeURIComponent(item.slug)}`;
+          // PRD-288: slug ?? id — si el slug está vacío no se genera URL rota.
+          const productSlug = item.slug?.trim();
+          const productUrl = productSlug ? `${base}/product/${encodeURIComponent(productSlug)}` : null;
           const lineUsd = roundMoney2(item.priceUsd * item.quantity);
           const vars = formatVariations(item.variations);
           const imgSrc = item.image;
 
           return (
-            <Section key={`${item.slug}-${idx}`} style={{ marginBottom: idx < payload.items.length - 1 ? 14 : 0 }}>
+            <Section key={idx} style={{ marginBottom: idx < payload.items.length - 1 ? 14 : 0 }}>
               <table role="presentation" width="100%" cellPadding={0} cellSpacing={0} style={cardTableStyle}>
                 <tbody>
                   <tr>
@@ -151,19 +158,33 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
                           )}
                         </Column>
                         <Column style={{ verticalAlign: 'top', paddingLeft: 4 }}>
-                          <Link
-                            href={productUrl}
-                            style={{
-                              fontSize: 16,
-                              fontWeight: 700,
-                              color: MT.textPrimary,
-                              textDecoration: 'underline',
-                              textDecorationColor: MT.gold,
-                              lineHeight: 1.35,
-                            }}
-                          >
-                            {item.name}
-                          </Link>
+                          {productUrl ? (
+                            <Link
+                              href={productUrl}
+                              style={{
+                                fontSize: 16,
+                                fontWeight: 700,
+                                color: MT.textPrimary,
+                                textDecoration: 'underline',
+                                textDecorationColor: MT.gold,
+                                lineHeight: 1.35,
+                              }}
+                            >
+                              {item.name}
+                            </Link>
+                          ) : (
+                            <Text
+                              style={{
+                                margin: 0,
+                                fontSize: 16,
+                                fontWeight: 700,
+                                color: MT.textPrimary,
+                                lineHeight: 1.35,
+                              }}
+                            >
+                              {item.name}
+                            </Text>
+                          )}
                           <Text style={{ margin: '10px 0 4px', fontSize: 14, color: MT.textPrimary }}>
                             Cantidad:{' '}
                             <span style={{ fontWeight: 700 }}>{item.quantity}</span>
@@ -208,7 +229,7 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
                 <Text style={{ margin: 0, fontSize: 14, color: MT.textMuted }}>Subtotal del artículo</Text>
               </td>
               <td style={{ padding: '10px 18px', textAlign: 'right', verticalAlign: 'top' }} align="right">
-                <DualMoneyInline amountUsd={payload.subtotalUsd} exchangeRateUsdBs={rate} />
+                <DualMoneyInline amountUsd={payload.subtotalUsd} exchangeRateUsdBs={rate} amountBs={payload.subtotalBs} />
               </td>
             </tr>
             <tr>
@@ -235,7 +256,7 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
                 <Text style={{ margin: 0, fontSize: 16, fontWeight: 700, color: MT.textPrimary }}>Total</Text>
               </td>
               <td style={{ padding: '0 18px 18px', textAlign: 'right', verticalAlign: 'middle' }} align="right">
-                <DualMoneyInline amountUsd={payload.totalUsd} exchangeRateUsdBs={rate} bold fontSize={17} />
+                <DualMoneyInline amountUsd={payload.totalUsd} exchangeRateUsdBs={rate} amountBs={payload.totalBs} bold fontSize={17} />
               </td>
             </tr>
           </tbody>
@@ -372,13 +393,29 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
       </Section>
 
       <Section style={{ padding: '10px 28px 4px', fontFamily: fontSans, textAlign: 'center' }}>
+        {/* PRD-109: teléfono de tienda desde emailStorePhones() — no hardcodeado. */}
         <Text style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: MT.textMuted }}>
           ¿Dudas con tu pedido? Responde a este correo o escríbenos por WhatsApp
-          al 0412-1471338 — atendemos nosotros mismos, no un bot.
+          al {emailStorePhones()} — atendemos nosotros mismos, no un bot.
         </Text>
       </Section>
 
       <PrimaryCta href={orderHref} label="Ver detalles del pedido" fullWidth />
+
+      {/* PRD-207 / PRD-250: enlace alternativo para invitados o sesión distinta.
+          DEPENDENCIA-02: /checkout/success debe aceptar acceso sin sesión con ?orderId={cuid}. */}
+      <Section style={{ padding: '4px 28px 0', fontFamily: fontSans, textAlign: 'center' }}>
+        <Text style={{ margin: 0, fontSize: 12, color: MT.textMuted, lineHeight: 1.6 }}>
+          ¿Compraste sin cuenta o en otro dispositivo?{' '}
+          <Link
+            href={guestOrderHref}
+            style={{ color: MT.gold, textDecoration: 'underline', fontSize: 12 }}
+          >
+            Ver pedido como invitado
+          </Link>
+        </Text>
+      </Section>
+
       <Section style={{ padding: '0 24px 28px', fontFamily: fontSans }} />
     </MundoTechShell>
   );

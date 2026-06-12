@@ -44,32 +44,40 @@ export async function GET(request: Request) {
   const floor = Date.now() - MAX_SINCE_AGE_MS;
   if (sinceDate.getTime() < floor) sinceDate = new Date(floor);
 
-  const [count, latest] = await Promise.all([
-    prisma.order.count({
-      where: { createdAt: { gt: sinceDate } },
-    }),
-    prisma.order.findMany({
-      where: { createdAt: { gt: sinceDate } },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-      select: {
-        id: true,
-        orderNumber: true,
-        customerName: true,
-        total: true,
-        exchangeRateUsdBs: true,
-        createdAt: true,
-        status: true,
-      },
-    }),
-  ]);
+  try {
+    const [count, latest] = await Promise.all([
+      prisma.order.count({
+        where: { createdAt: { gt: sinceDate } },
+      }),
+      prisma.order.findMany({
+        where: { createdAt: { gt: sinceDate } },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          orderNumber: true,
+          customerName: true,
+          total: true,
+          exchangeRateUsdBs: true,
+          createdAt: true,
+          status: true,
+        },
+      }),
+    ]);
 
-  return NextResponse.json({
-    count,
-    latest: latest.map(o => ({
-      ...o,
-      // PRD-226: nombre minimizado en el payload de polling
-      customerName: maskCustomerName(o.customerName),
-    })),
-  });
+    return NextResponse.json({
+      count,
+      latest: latest.map(o => ({
+        ...o,
+        // PRD-226: nombre minimizado en el payload de polling
+        customerName: maskCustomerName(o.customerName),
+      })),
+    });
+  } catch (error) {
+    console.error('[GET /api/orders/new-count]', error);
+    return NextResponse.json(
+      { error: 'Error al consultar nuevos pedidos.' },
+      { status: 500 },
+    );
+  }
 }

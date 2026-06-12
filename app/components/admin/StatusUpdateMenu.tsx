@@ -63,9 +63,15 @@ export const StatusUpdateMenu = ({
   bulkCount?: number;
   allowedOnly?: OrderStatus[];
 }) => {
+  // PRD-200 UI: en operación masiva no se permite 'Enviado' ni 'Entregado'
+  // (requieren acción individual con tracking/email por pedido).
+  const BULK_EXCLUDED: readonly OrderStatus[] = ['Enviado', 'Entregado'];
+
   const options: ButtonStatus[] = allowedOnly?.length
     ? validStatuses.filter((s): s is ButtonStatus => (allowedOnly as readonly string[]).includes(s))
-    : [...validStatuses];
+    : isBulk
+      ? validStatuses.filter((s): s is ButtonStatus => !BULK_EXCLUDED.includes(s))
+      : [...validStatuses];
 
   const handleClick = (status: OrderStatus) => {
     if (!isBulk && currentStatus === status) return;

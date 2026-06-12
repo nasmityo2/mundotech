@@ -12,6 +12,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdminAction } from '@/lib/api-auth';
 import { VALIDATED_REVENUE_STATUSES } from '@/lib/analytics-orders';
 import type { OrderStatus } from '@/lib/definitions';
+import { d, dn } from '@/lib/decimal';
 
 const LOW_STOCK_THRESHOLD = 3;
 
@@ -112,15 +113,16 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     pendingOrders,
     inProcessOrders,
     shippedOrders,
-    revenue: revenueAgg._sum.total ?? 0,
+    // PRD-204: _sum.total devuelve Decimal | null → convertir a number
+    revenue: d(revenueAgg._sum.total),
     recentOrders: recentOrders.map((o) => ({
       id:           o.id,
       orderNumber:  o.orderNumber,
       customerName: o.customerName,
       createdAt:    o.createdAt.toISOString(),
       status:       o.status,
-      total:        o.total,
-      exchangeRateUsdBs: o.exchangeRateUsdBs ?? null,
+      total:        d(o.total),
+      exchangeRateUsdBs: dn(o.exchangeRateUsdBs),
     })),
   };
 }

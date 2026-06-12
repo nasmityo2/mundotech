@@ -5,7 +5,7 @@
 > **Dominio:** `https://mundotechve.com`  
 > **Fecha del análisis:** 11 de junio de 2026  
 > **Última ampliación:** sexta pasada — PRD-276–290 (temas excluidos del análisis SEO)  
-> **Última implementación:** sesiones **01-SEGURIDAD**, **02**, **03**, **04**, **05** y **07-SEO** — 11 jun 2026 ([§01](#progreso-sesión-01--seguridad) · [§02](#progreso-sesión-02--checkout-y-finanzas) · [§03](#progreso-sesión-03--infra-datos-caché) · [§04](#progreso-sesión-04--ux-cliente) · [§05](#progreso-sesión-05--admin-operaciones) · [§07](#progreso-sesión-07--seo))  
+> **Última implementación:** bloque **Seguridad/Datos** — 12 jun 2026 ([§Seguridad/Datos](#progreso-bloque-seguridaddatos--12-jun-2026)) · sesiones **01–07** previas — 11 jun 2026 ([§01](#progreso-sesión-01--seguridad) · [§02](#progreso-sesión-02--checkout-y-finanzas) · [§03](#progreso-sesión-03--infra-datos-caché) · [§04](#progreso-sesión-04--ux-cliente) · [§05](#progreso-sesión-05--admin-operaciones) · [§07](#progreso-sesión-07--seo))  
 > **HUB de referencia.** Los fixes accionables viven en UN solo documento por hallazgo (matriz PRD abajo + sesiones SEO/móvil).  
 > **Alcance total:** Seguridad, checkout, pagos, inventario, infra, UX, admin, legal, observabilidad, datos, calidad, bugs de runtime.  
 > **Auditorías en paralelo (sesiones 7–8):** [`SEO`](./ANALISIS-SEO-COMPLETO.md) (P01–P96, H01–H64) · [`MOVIL`](./ANALISIS-MOVIL-COMPLETO.md) (P0/P1/P2…). Cada una con **su propio documento** — no comparten la matriz PRD-001–290, pero **sí** aparecen aquí como guía de trabajo paralelo.
@@ -60,7 +60,7 @@ SEO (P/H) y móvil (P0/P1…) **comparten archivos** con producción. Sin reglas
 | P58, P59 | `quickUpdate` sin revalidar ficha producto | PRD-024 | **2** |
 | P05, P18 | Slug/`published` en Product | PRD-064, 065, 121 | **3** |
 | P41 | Placeholder `/placeholder-product.png` | PRD-008 | **4** |
-| P04 (parcial) | Revalidate al borrar producto | PRD-233 | **3** |
+| P04 (parcial) | Revalidate al borrar producto | PRD-233 | **5** |
 
 Sesión 7: **cierra P03/P58/P59/P05/P18/P41/P04 como «hecho vía PRD-X en sesión Y»** — no toques `productActions.ts`, `schema.prisma` ni `public/` por esos ítems.
 
@@ -135,17 +135,17 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 
 > Detalle ampliado, evidencia en código y dependencias: [`01-SEGURIDAD`](./ANALISIS-PRODUCCION-01-SEGURIDAD.md#-progreso-sesión-01--implementado-en-código).
 
-**Estado:** 58/65 PRDs del segmento cerrados en código · 3 bloqueadores 🔴 resueltos · 1 bloqueador 🔴 parcial (PRD-007) · 6 PRDs con dependencia en otro segmento o cierre documental.
-**Verificado:** 12 jun 2026 — código revisado archivo a archivo; 4 correcciones de call sites `await rateLimit` (bugs por migración async PRD-005); typecheck limpio en archivos del segmento.
+**Estado:** 65/65 PRDs del segmento cerrados en código · 4 bloqueadores 🔴 resueltos · 0 bloqueadores 🔴 abiertos · 0 PRDs con dependencia cross-segmento pendientes.
+**Verificado:** 12 jun 2026 — bloque Seguridad/Datos (PRD-014/089, 043/044, 173/240); PRD-007 fuente checkout (validación `paymentProofUrl` en `checkoutSchema`); `tsc --noEmit` + `npm run build` limpios.
 
 ### Bloqueadores 🔴 del segmento 01
 
 | PRD | Estado | Notas |
 |-----|--------|-------|
-| [x] PRD-001 | Código ✅ | IDOR `/checkout/success` — validación `customerId` + sesión. |
+| [x] PRD-001 | Código ✅ | IDOR `/checkout/success` — sesión: `customerId` + anti-enumeración; guest: `?orderId={cuid}` read-only (12 jun 2026). |
 | [x] PRD-005 / PRD-102 | Código ✅ | Rate limit Upstash Redis REST + fallback Map. **Manual:** `UPSTASH_REDIS_REST_URL/TOKEN` en Vercel. |
 | [x] PRD-006 | Código ✅ | `triggerRestockNotifications` con `requireAdminAction()`. |
-| [~] PRD-007 | Parcial | Sink admin (`payment-proof.ts`, `PaymentVerificationPanel`) ✅. Fuente `checkout-order.ts` → **DEPENDENCIA-02** (sesión 02). |
+| [x] PRD-007 | Código ✅ | Fuente + sink: `isTrustedPaymentProofUrl()` (`lib/payment-proof.ts` → `lib/r2-public-url.ts`). Schema en `checkout-order.ts` (`.refine` antes de transacción); admin en `PaymentVerificationPanel.tsx`. Tests: `tests/payment-proof.test.ts`, `tests/checkout-order.test.ts` (12 jun 2026). |
 
 ### PRDs cerrados (resto del segmento 01)
 
@@ -154,17 +154,23 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | [x] 🟠 | PRD-009–013, PRD-015–020, PRD-103, PRD-104, PRD-118, PRD-119, PRD-169, PRD-170, PRD-237, PRD-238, PRD-255, PRD-261, PRD-283 |
 | [x] 🟡 | PRD-041, PRD-042, PRD-045, PRD-060, PRD-090, PRD-091, PRD-108, PRD-171, PRD-172, PRD-212, PRD-224, PRD-228, PRD-239, PRD-242, PRD-256, PRD-257, PRD-259, PRD-262, PRD-263, PRD-278, PRD-279, PRD-280, PRD-281, PRD-282 |
 | [x] ⚪ | PRD-046, PRD-047, PRD-048, PRD-174, PRD-265 |
-| [~] | PRD-014, PRD-089 — reverificación email → **DEPENDENCIA-06** (sesión 06) |
-| [~] | PRD-043, PRD-044 — logging/try-catch parcial; `orders/new-count` ✅ sesión 05 (PRD-221/226) |
-| [~] | PRD-173, PRD-240 — JWT `pwv` en auth; admin reset → **DEPENDENCIA-05** |
+| [x] 🟠 | PRD-014, PRD-089 — flujo confirmación email (`pendingEmail`, token, `confirm-email`) — bloque Seguridad/Datos 12 jun 2026 |
+| [x] 🟡 | PRD-043, PRD-044 — try/catch + `console.error` en `GET /api/orders` y `GET /api/orders/new-count` — bloque Seguridad/Datos 12 jun 2026 |
+| [x] 🟡 | PRD-173, PRD-240 — `passwordChangedAt` en reset usuario/admin; JWT callback invalida `pwv` vieja — bloque Seguridad/Datos 12 jun 2026 |
 | [x] doc | PRD-241, PRD-264, PRD-284 — comportamiento aceptado / decisión documentada |
 
-### Archivos nuevos (sesión 01)
+### Archivos nuevos (sesión 01 + bloque Seguridad/Datos)
 
 | Archivo | PRD(s) |
 |---------|--------|
 | `lib/payment-proof.ts` | PRD-007 |
+| `lib/r2-public-url.ts` | PRD-007 |
+| `tests/payment-proof.test.ts` | PRD-007 |
+| `tests/checkout-order.test.ts` | PRD-007 |
 | `lib/safe-link.ts` | PRD-283 |
+| `app/api/account/confirm-email/route.ts` | PRD-014, PRD-089 |
+| `emails/mundotech/EmailChangeConfirmEmail.tsx` | PRD-014, PRD-089 |
+| `prisma/migrations/20260612000002_add_user_security_fields/` | PRD-014/089, PRD-173/240 |
 
 ### Correcciones 12 jun 2026 (call sites `await rateLimit`)
 
@@ -181,7 +187,7 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 
 > Detalle ampliado, evidencia en código y dependencias: [`02-CHECKOUT-FINANZAS`](./ANALISIS-PRODUCCION-02-CHECKOUT-FINANZAS.md#-progreso-sesión-02-implementado-en-código).
 
-**Estado:** 38/52 PRDs del segmento cerrados en código (+1 extra UI) · 3 bloqueadores 🔴 del segmento resueltos · 5 PRDs con dependencia en otro segmento · 6 PRDs delegados a sesión **05-ADMIN**.
+**Estado:** 52/52 PRDs del segmento cerrados en código (+1 extra UI) · 3 bloqueadores 🔴 del segmento resueltos · 0 dependencias cross-segmento pendientes · DEPENDENCIA-05 (admin/pedidos) y bloque checkout/emails cerrados 12 jun 2026.
 
 ### Bloqueadores 🔴 del segmento 02
 
@@ -189,7 +195,7 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 |-----|--------|-------|
 | [x] PRD-002 | Código ✅ | `shouldRestoreStockOnCancel` — no restaura desde `Enviado`. |
 | [x] PRD-175 | Código ✅ | CTA email → `/api/cart/recover?token=…` → merge carrito → `/cart`. Compatible con tokens hasheados (PRD-178, sesión 03). |
-| [x] PRD-190 | Código ✅ | `revertCouponRedemptionInTransaction` en cancel/delete/reject. **Gap:** cancelación admin vía `PUT …/status` / bulk (sesión 05) aún puede no revertir cupón. |
+| [x] PRD-190 | Código ✅ | `revertCouponRedemptionInTransaction` en cancel/delete/reject **y** cancelación admin (`PUT …/status`, bulk) — sesión 05. |
 
 ### PRDs cerrados (resto del segmento 02)
 
@@ -199,11 +205,12 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | [x] 🟡 | PRD-049, PRD-069, PRD-070, PRD-105, PRD-129, PRD-132, PRD-158, PRD-159, PRD-177, PRD-179, PRD-180, PRD-181, PRD-196, PRD-197, PRD-198, PRD-199, PRD-201, PRD-218, PRD-243 |
 | [x] ⚪ | PRD-068, PRD-160 |
 | [x] extra | PRD-EXTRA-CHK-1 — cupón decorativo en carrito sustituido por aviso «aplicar en checkout» |
-| [x] | PRD-025 — `Product.isActive` en schema (sesión 03); filtrar en checkout → **DEPENDENCIA-02** si aún falta en `checkout-order.ts` |
-| [~] | PRD-027, PRD-130 — `DEPENDENCIA-03` (Binance Pay ID/QR en `readSettings`, sesión 03) |
-| [~] | PRD-202 — `DEPENDENCIA-06` (montos Bs congelados en emails, sesión 06) |
-| [~] | PRD-179 (POST) — unsubscribe one-click GET; confirmación POST en template → sesión 06 |
-| [ ] | PRD-133, PRD-134, PRD-191–194, PRD-195, PRD-200, PRD-205, PRD-206, PRD-231 → **DEPENDENCIA-05** (sesión admin) |
+| [x] | PRD-025 — `isActive: true` validado en `checkout-order.ts` (12 jun 2026) |
+| [x] | PRD-027, PRD-130 — `binancePayId`/`binanceQrUrl` en `readSettings()` + Admin + `PaymentForm` (12 jun 2026) |
+| [x] | PRD-202 — montos Bs congelados en payload email + `DualMoneyInline.amountBs` (12 jun 2026) |
+| [x] | PRD-179 (POST) — GET → confirmación; POST ejecuta baja (`/cart/unsubscribe/confirm`) (12 jun 2026) |
+| [x] | PRD-207/249/250 (server) — guest en `/checkout/success?orderId={cuid}` + middleware (12 jun 2026) |
+| [x] | PRD-133, PRD-134, PRD-191–194, PRD-195, PRD-200, PRD-205, PRD-206, PRD-231 — **DEPENDENCIA-05** cerrados (bloque Admin/Pedidos, 12 jun 2026) |
 
 ### Archivos nuevos (sesión 02)
 
@@ -219,7 +226,7 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 
 > Detalle ampliado, evidencia en código y pasos manuales pendientes: [`03-INFRA-DATOS-CACHE`](./ANALISIS-PRODUCCION-03-INFRA-DATOS-CACHE.md#registro-de-cierre--sesión-agente-03-infra-datos-caché).
 
-**Estado:** 44/49 PRDs del segmento cerrados en código · 4 bloqueadores 🔴 del segmento resueltos en repo · 2 acciones manuales pre-launch · 5 PRDs con dependencia en otro segmento o pendientes menores.
+**Estado:** 47/49 PRDs del segmento cerrados en código · 4 bloqueadores 🔴 del segmento resueltos en repo · 2 acciones manuales pre-launch · 2 PRDs con dependencia en otro segmento (PRD-039 settings bancarios en data-store).
 
 ### Bloqueadores 🔴 del segmento 03
 
@@ -235,19 +242,24 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | Estado | IDs |
 |--------|-----|
 | [x] | PRD-031, PRD-032, PRD-033, PRD-034, PRD-035, PRD-036, PRD-040, PRD-056, PRD-057, PRD-058, PRD-059, PRD-064, PRD-065, PRD-106, PRD-107, PRD-121, PRD-122, PRD-123, PRD-124, PRD-125, PRD-126, PRD-141, PRD-142, PRD-143, PRD-144, PRD-145, PRD-146, PRD-147, PRD-148, PRD-149, PRD-150, PRD-151, PRD-152, PRD-178, PRD-185, PRD-186, PRD-187, PRD-188, PRD-189, PRD-211, PRD-217, PRD-232 |
-| [~] | PRD-127 — schema + migración normalizan roles; OAuth sigue escribiendo `client` → **DEPENDENCIA-01** (PRD-048) |
-| [~] | PRD-204 — anotado en `schema.prisma`; Float→Decimal requiere **DEPENDENCIA-02/05/06** |
+| [x] | PRD-127 — OAuth crea `role: 'CLIENT'` en `auth/[...nextauth]/route.ts` — bloque Seguridad/Datos 12 jun 2026 |
+| [x] | PRD-204 — Float→`Decimal(12,2/4)` en schema + migración + `lib/decimal.ts` (`d`/`dn`) — bloque Seguridad/Datos 12 jun 2026 |
+| [x] | PRD-260 — límite 100 KB en `PUT /api/config/homepage` (413 si excede) — bloque Seguridad/Datos 12 jun 2026 |
 | [x] | PRD-188 — `requireAdmin()` en `GET /api/config/homepage` (`app/api/config/homepage/route.ts` L51-53) |
-| [ ] | PRD-233 — `revalidatePath` al borrar producto → **DEPENDENCIA-05** (`deleteProductAction`) |
+| [x] | PRD-233 — `revalidatePath` al borrar producto (`deleteProductAction`, sesión 05) |
 
-### Migraciones Prisma generadas (sesión 03)
+### Migraciones Prisma generadas (sesión 03 + bloque Seguridad/Datos)
 
 | Migración | Propósito |
 |-----------|-----------|
 | `20260611000000_baseline_inicial` | Baseline del schema previo (`db push` histórico) |
 | `20260611000100_prd_infra_datos_cache` | `isActive`, `slug` NOT NULL, enum `ReviewStatus`, CHECK `Order.status`, FKs RESTRICT, `recoveryTokenHash`, índices, roles |
+| `20260612000000_add_category_seo_fields` | Campos SEO en categorías (sesión SEO) |
+| `20260612000001_add_category_google_category_id` | `googleCategoryId` en categorías (Merchant feed) |
+| `20260612000002_add_user_security_fields` | `passwordChangedAt`, `pendingEmail`, `emailChangeToken`, `emailChangeTokenExpiry` |
+| `20260612000003_float_to_decimal_monetary_fields` | Montos monetarios Float → DECIMAL(12,2/4) |
 
-### Archivos nuevos (sesión 03)
+### Archivos nuevos (sesión 03 + bloque Seguridad/Datos)
 
 | Archivo | PRD(s) |
 |---------|--------|
@@ -256,7 +268,8 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | `eslint.config.mjs`, `vitest.config.ts`, `tests/*.test.ts` | PRD-032, PRD-035 |
 | `app/global-error.tsx`, `instrumentation-client.ts` | PRD-033, PRD-034 |
 | `app/api/cron/purge-product-views/route.ts` | PRD-126 |
-| `prisma/migrations/*` | PRD-004, PRD-064–127, PRD-178, PRD-217, PRD-232 |
+| `prisma/migrations/*` | PRD-004, PRD-064–127, PRD-178, PRD-217, PRD-232, PRD-204 |
+| `lib/decimal.ts` | PRD-204 — helpers `d()` / `dn()` Decimal→number en frontera BD |
 
 ---
 
@@ -264,7 +277,7 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 
 > Detalle ampliado, evidencia en código y dependencias: [`04-UX-CLIENTE`](./ANALISIS-PRODUCCION-04-UX-CLIENTE.md#-progreso-sesión-04-implementado-en-código).
 
-**Estado:** 57/64 PRDs del segmento cerrados en código · 1 bloqueador 🔴 del segmento resuelto · 1 PRD parcial (PRD-073/074/077-080 revisados sin spec adicional) · 4 PRDs con dependencia en otro segmento · 3 PRDs pendientes opcionales.
+**Estado:** 61/64 PRDs del segmento cerrados en código · 1 bloqueador 🔴 del segmento resuelto · 1 PRD parcial (PRD-073/074/077-080 revisados sin spec adicional) · 3 PRDs pendientes opcionales.
 
 ### Bloqueadores 🔴 del segmento 04
 
@@ -277,14 +290,14 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | Estado | IDs |
 |--------|-----|
 | [x] 🟠 | PRD-037, PRD-038, PRD-095, PRD-096, PRD-112, PRD-113, PRD-161, PRD-285 |
-| [x] 🟡 | PRD-053, PRD-054, PRD-055, PRD-061, PRD-063, PRD-067, PRD-092, PRD-097, PRD-098, PRD-099, PRD-114, PRD-115, PRD-116, PRD-162, PRD-163, PRD-165, PRD-166, PRD-167, PRD-215, PRD-234, PRD-235, PRD-236, PRD-258, PRD-271, PRD-273, PRD-276, PRD-277 |
+| [x] 🟡 | PRD-053, PRD-054, PRD-055, PRD-061, PRD-063, PRD-067, PRD-092, PRD-093, PRD-097, PRD-098, PRD-099, PRD-114, PRD-115, PRD-116, PRD-162, PRD-163, PRD-165, PRD-166, PRD-167, PRD-215, PRD-234, PRD-235, PRD-236, PRD-258, PRD-271, PRD-273, PRD-276, PRD-277 |
 | [x] ⚪ | PRD-071, PRD-072, PRD-076, PRD-094, PRD-100, PRD-117, PRD-120, PRD-136, PRD-164, PRD-168, PRD-275 |
 | [x] 💡 | PRD-289, PRD-290 |
 | [~] | PRD-073/074/077-080 — revisados; Playwright URL (PRD-076) cerrado; resto sin spec accionable |
 | [~] | PRD-062 — recomendación 💡 (sync wishlist BD); sin acción obligatoria |
-| [~] | PRD-093 — DEPENDENCIA-02 (cancelación cliente → sesión 02-CHECKOUT) |
-| [ ] | PRD-214, PRD-260, PRD-272 — opcionales / dependencia otro segmento |
-| [ ] | PRD-087, PRD-088 → DEPENDENCIA-05 (app/admin/** prohibido en sesión 04) |
+| [ ] | PRD-214, PRD-272 — opcionales / dependencia otro segmento |
+| [x] | PRD-260 — límite payload homepage (implementado en `config/homepage/route.ts`, bloque Seguridad/Datos 12 jun 2026) |
+| [x] | PRD-087, PRD-088 — chips Binance + `error.tsx`/`loading.tsx` admin (implementados en sesión 05, bloque Seguridad/Datos 12 jun 2026) |
 
 
 ### Archivos nuevos (sesión 04)
@@ -304,7 +317,7 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 
 > Detalle ampliado, evidencia en código y dependencias: [`05-ADMIN-OPERACIONES`](./ANALISIS-PRODUCCION-05-ADMIN-OPERACIONES.md#-progreso-sesión-05-implementado-en-código).
 
-**Estado:** 45/46 PRDs del segmento cerrados en código · 0 bloqueadores 🔴 propios · 1 delegado a sesión **03-INFRA** (PRD-039) · 1 verificado sin cambio (PRD-270) · 0 pendientes.
+**Estado:** 60/61 PRDs del segmento cerrados en código · bloque Admin/Pedidos + Seguridad/Datos (12 jun 2026) · 0 bloqueadores 🔴 propios · 1 delegado a sesión **03-INFRA** (PRD-039) · 1 verificado sin cambio (PRD-270) · 0 pendientes propios.
 
 ### Bloqueadores 🔴 del segmento 05
 
@@ -315,9 +328,12 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | Estado | IDs |
 |--------|-----|
 | [x] 🟠 | PRD-081, PRD-153, PRD-154, PRD-182, PRD-184, PRD-208, PRD-220 |
-| [x] 🟡 | PRD-066, PRD-082, PRD-083, PRD-084, PRD-085, PRD-086, PRD-137, PRD-138, PRD-155, PRD-156, PRD-183, PRD-209, PRD-210, PRD-216, PRD-219, PRD-221, PRD-222, PRD-223, PRD-225, PRD-226, PRD-227, PRD-229, PRD-244, PRD-245, PRD-246, PRD-247, PRD-248, PRD-266, PRD-267, PRD-268, PRD-269, PRD-274 |
+| [x] 🟡 | PRD-066, PRD-082, PRD-083, PRD-084, PRD-085, PRD-086, PRD-137, PRD-138, PRD-155, PRD-156, PRD-183, PRD-209, PRD-210, PRD-216, PRD-219, PRD-221, PRD-222, PRD-223, PRD-225, PRD-226, PRD-227, PRD-229, PRD-244, PRD-245, PRD-246, PRD-247, PRD-248, PRD-266, PRD-267, PRD-268, PRD-269, PRD-274, PRD-133, PRD-134, PRD-190, PRD-191, PRD-192, PRD-193, PRD-194, PRD-195, PRD-200, PRD-205, PRD-206, PRD-231, PRD-233, PRD-050, PRD-051 |
 | [x] ⚪ | PRD-139, PRD-213, PRD-230, PRD-270 (OK by design) |
 | [x] 🟡 | PRD-286, PRD-287 — Consent Mode v2 + cookie consent SSR (`CookieConsent.tsx`, `layout.tsx`) — ✅ sesión 06 |
+| [x] 🟡 | PRD-087 — chip `'Pendiente verificación Binance'` en dashboard admin — bloque Seguridad/Datos 12 jun 2026 |
+| [x] ⚪ | PRD-088 — `app/admin/error.tsx`, `loading.tsx` + re-export en `orders/` — bloque Seguridad/Datos 12 jun 2026 |
+| [x] 🟡 | PRD-043, PRD-044 — try/catch uniforme en `GET /api/orders` y `new-count` — bloque Seguridad/Datos 12 jun 2026 |
 | [ ] | PRD-039 → **DEPENDENCIA-03** (`lib/data-store.ts` — sesión **03-INFRA**) |
 
 ### Archivos nuevos (sesión 05)
@@ -328,6 +344,68 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | `app/actions/adminDashboardActions.ts` | PRD-083, PRD-225 |
 | `app/api/orders/export.csv/route.ts` | PRD-084, PRD-156, PRD-213 |
 | `lib/tracking-url-validation.ts` | PRD-267, PRD-268 |
+| `app/admin/error.tsx`, `app/admin/loading.tsx` | PRD-088 |
+| `app/admin/orders/error.tsx`, `app/admin/orders/loading.tsx` | PRD-088 |
+
+---
+
+## Progreso bloque Seguridad/Datos — 12 jun 2026
+
+> Cierre coordinado de PRDs de autenticación, migraciones Prisma y capa monetaria. Verificado con `tsc --noEmit` + `npm run build`. Aplicar migraciones en prod con `prisma migrate deploy` (nunca `db push`).
+
+**PRDs cerrados (12):** PRD-014, PRD-089, PRD-043, PRD-044, PRD-087, PRD-088, PRD-127, PRD-173, PRD-204, PRD-240, PRD-253, PRD-260.
+
+| PRD | Segmento dueño | Fix aplicado | Archivos clave |
+|-----|----------------|--------------|----------------|
+| PRD-014/089 | 01-Seguridad + 06-Emails | Cambio email con Zod; `pendingEmail` + token 1h; confirmación vía GET | `app/account/actions.ts`, `app/api/account/confirm-email/route.ts`, `app/account/details/page.tsx`, `EmailChangeConfirmEmail.tsx`, `lib/resend.tsx` |
+| PRD-173 | 01-Seguridad | `passwordChangedAt` al cambiar contraseña (usuario) | `app/account/actions.ts`, `app/actions/authActions.ts` |
+| PRD-240 | 01-Seguridad | `passwordChangedAt` al reset admin | `app/actions/userActions.ts`; JWT callback compara `pwv` |
+| PRD-127 | 03-Infra | OAuth alta con `role: 'CLIENT'` | `app/api/auth/[...nextauth]/route.ts` |
+| PRD-043/044 | 01-Seguridad (fix en rutas 05) | try/catch + `console.error` en handlers admin | `app/api/orders/route.ts`, `app/api/orders/new-count/route.ts` |
+| PRD-087 | 04-UX (UI admin) | Chip `'Pendiente verificación Binance'` en dashboard | `app/admin/page.tsx` |
+| PRD-088 | 04-UX (UI admin) | Error/loading boundaries mínimos | `app/admin/error.tsx`, `loading.tsx`, `orders/error.tsx`, `orders/loading.tsx` |
+| PRD-260 | 04-UX (endpoint config) | Rechazo payload > 100 KB (413) | `app/api/config/homepage/route.ts` |
+| PRD-253 | 06-Emails | Panel persistente «revisa tu bandeja» tras registro | `components/auth/MundoTechAuthForms.tsx` (`AuthRegisterForm`) |
+| PRD-204 | 03-Infra | Float→Decimal en BD; conversión en frontera con `d()`/`dn()` | `prisma/schema.prisma`, `lib/decimal.ts`, checkout, emails, stats, catálogo |
+
+### Migraciones Prisma (bloque Seguridad/Datos)
+
+| Migración | Contenido |
+|-----------|-----------|
+| `20260612000002_add_user_security_fields` | Campos User: huella contraseña + verificación cambio email |
+| `20260612000003_float_to_decimal_monetary_fields` | `Product`, `Order`, `OrderItem`, `Coupon`, `CouponRedemption`, `AbandonedCart` |
+
+### Archivos tocados por PRD-204 (capa monetaria)
+
+| Capa | Archivos |
+|------|----------|
+| Schema / helpers | `prisma/schema.prisma`, `lib/decimal.ts`, `lib/definitions.ts` |
+| Checkout / cupones / carrito | `lib/checkout-order.ts`, `lib/coupons.ts`, `lib/cart.ts`, `lib/abandoned-cart.ts` |
+| Admin / stats / emails | `app/actions/adminDashboardActions.ts`, `app/api/orders/route.ts`, `app/api/orders/[id]/resend-confirmation/route.ts`, `app/api/coupons/validate/route.ts` |
+| Catálogo / UI | `lib/catalog-cache.ts`, `context/ProductContext.tsx`, `app/page.tsx`, `app/product/[slug]/page.tsx`, `app/cart/page.tsx`, `app/admin/products/page.tsx`, `app/actions/search.ts`, `app/actions/productSnapshotActions.ts`, `app/actions/productActions.ts` |
+
+### Pruebas de humo (bloque Seguridad/Datos)
+
+| # | Prueba |
+|---|--------|
+| 1 | Cambiar email en cuenta → no aplica hasta confirmar token en correo nuevo |
+| 2 | Reset contraseña (usuario o admin) → sesiones JWT previas invalidadas |
+| 3 | Registro OAuth Google → rol `CLIENT` en BD |
+| 4 | `PUT /api/config/homepage` con JSON > 100 KB → 413 |
+| 5 | Totales checkout/stats/emails sin drift tras migración Decimal |
+
+---
+
+## Progreso sesión 06 — Emails (continuación)
+
+> Detalle: [`06-EMAILS-NOTIFICACIONES`](./ANALISIS-PRODUCCION-06-EMAILS-NOTIFICACIONES.md).
+
+**Estado:** 14/14 PRDs del segmento cerrados en código (incl. PRD-253 y plantilla PRD-014/089).
+
+| PRD | Fix | Archivos |
+|-----|-----|----------|
+| [x] PRD-253 | Estado persistente post-registro con instrucciones de bandeja | `MundoTechAuthForms.tsx` |
+| [x] PRD-014/089 | Plantilla confirmación cambio email | `EmailChangeConfirmEmail.tsx`, `sendEmailChangeConfirmEmail` en `lib/resend.tsx` |
 
 ---
 
@@ -361,7 +439,7 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | P58, P59 | PRD-024 — sesión 2 |
 | P05, P18 | PRD-064, 065, 121 — sesión 3 |
 | P41 | PRD-008 — sesión 4 |
-| P04 (parcial) | PRD-233 — sesión 3 |
+| P04 (parcial) | PRD-233 — sesión 05 |
 
 ### Pendiente prioritario (post sesión 7)
 
@@ -374,7 +452,7 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | P96 / H61 (gap) | Sesión 7 | `noindex` en `/reset-password` y `/checkout` |
 | H55, P87 | Sesión 4 o 7 | AnnouncementBar visible en SSR |
 | H56, P82 | Futuro | Paginación catálogo/categoría |
-| H50, P67–P68 | Futuro | Google Merchant feed |
+| H50, P67–P68 | **Cerrado sesión 15** | Google Merchant feed — feed XML implementado (sesión 14), 6 IDs taxonomía corregidos + bug substring eliminado + campo `googleCategoryId` admin añadido (sesión 15; TODO-MC-01/02 cerrados) |
 
 ### JSON-LD por ruta (referencia rápida)
 
@@ -409,14 +487,14 @@ Excluidas: admin, api, cron, checkout, account, cart, wishlist, buscar, auth.
 
 MundoTech **no es un prototipo**. El núcleo de negocio está bien construido: checkout transaccional con precios desde BD, stock atómico, tasa USD/Bs congelada en el pedido, emails transaccionales, panel admin completo, páginas legales, CSP con nonce, auth admin con `isAdminRole`. Eso coloca la tienda **por encima del promedio** de e-commerces Next.js caseros.
 
-Tras las sesiones **01**, **02**, **03**, **04** y **07-SEO** (11 jun 2026), no quedan bloqueadores 🔴 abiertos en repo salvo **PRD-007 parcial** (validación fuente en `checkout-order.ts` → sesión 02). Acciones manuales pre-launch: settings reales en admin, vars Upstash en Vercel, `filter-repo` si hubo PII en git. Seguridad (PRD-001, PRD-005, PRD-006), checkout/inventario/funnel (PRD-002, PRD-175, PRD-190), infra (PRD-003, PRD-004, PRD-101, PRD-140) y UX cliente (PRD-008 + 42 PRDs de sesión 04 — ver [§04](#progreso-sesión-04--ux-cliente)) están **cerrados en código**. Persiste **deuda operativa** (CI/tests parciales, observabilidad limitada) que no tumba el sitio el día 1 pero deja al equipo ciego ante incidentes.
+Tras las sesiones **01**, **02**, **03**, **04** y **07-SEO** (11 jun 2026), **no quedan bloqueadores 🔴 abiertos en repo** (PRD-007 fuente checkout cerrado 12 jun 2026). Acciones manuales pre-launch: settings reales en admin, vars Upstash en Vercel, `filter-repo` si hubo PII en git. Seguridad (PRD-001, PRD-005, PRD-006, PRD-007), checkout/inventario/funnel (PRD-002, PRD-175, PRD-190), infra (PRD-003, PRD-004, PRD-101, PRD-140) y UX cliente (PRD-008 + 42 PRDs de sesión 04 — ver [§04](#progreso-sesión-04--ux-cliente)) están **cerrados en código**. Persiste **deuda operativa** (CI/tests parciales, observabilidad limitada) que no tumba el sitio el día 1 pero deja al equipo ciego ante incidentes.
 
 **Registro total:** **290 hallazgos** documentados (PRD-001–290) en seis pasadas de auditoría.
 
 | Dimensión | Nota | Veredicto |
 |-----------|------|-----------|
 | Checkout y pagos | 9/10 | Núcleo transaccional sólido; IDOR success cerrado (sesión 01) |
-| Seguridad | 8/10 | Rate limit distribuido, CSRF carrito, auth endurecido; PRD-007 fuente y reverificación email pendientes |
+| Seguridad | 9/10 | Rate limit distribuido, CSRF carrito, auth endurecido; reverificación email ✅; `paymentProofUrl` validado fuente+sink R2 ✅ (PRD-007, 12 jun 2026) |
 | Infra / deploy | 6/10 | CI + tests + migraciones versionadas; bloqueadores 03 (003, 004, 101, 140) cerrados en código — pendiente filter-repo + migrate prod |
 | Observabilidad | 5/10 | Sentry opt-in + `global-error.tsx`; falta DSN en prod y CSP para ingesta |
 | Datos / caché | 7/10 | ISR 300s + revalidación on-demand; schema endurecido (enums, FKs, soft-delete) |
@@ -439,12 +517,12 @@ Tras las sesiones **01**, **02**, **03**, **04** y **07-SEO** (11 jun 2026), no 
 | 4 | PRD-004 | Migraciones Prisma ignoradas en `.gitignore` | [x] sesión 03 |
 | 5 | PRD-005 | Rate limit en memoria (no global en serverless) | [x] sesión 01 — manual Upstash en Vercel |
 | 6 | PRD-006 | `triggerRestockNotifications` invocable sin auth | [x] sesión 01 |
-| 7 | PRD-007 | `paymentProofUrl` sin validar dominio Cloudinary | [~] sesión 01 parcial — sink ✅; fuente → sesión 02 |
+| 7 | PRD-007 | `paymentProofUrl` sin validar dominio R2 | [x] sesión 01 sink + sesión 02 fuente (`checkoutSchema` + tests) |
 | 8 | PRD-008 | Imágenes placeholder inexistentes en `public/` | [x] sesión 04 |
 | 9 | PRD-101 | `DEFAULT_SETTINGS` con cuentas/RIF ficticios si BD vacía | [x] sesión 03 — manual settings admin |
 | 10 | PRD-140 | ISR 3600s — stock y precios obsoletos hasta 1 hora | [x] sesión 03 |
 | 11 | PRD-175 | Recuperación carrito abandonado rota — CTA lleva a checkout vacío | [x] sesión 02 |
-| 12 | PRD-190 | Cancelar pedido no revierte `coupon.usedCount` — cupones agotados falsamente | [x] sesión 02 — gap bulk admin → sesión 05 |
+| 12 | PRD-190 | Cancelar pedido no revierte `coupon.usedCount` — cupones agotados falsamente | [x] sesión 02 + admin/bulk sesión 05 |
 
 ---
 
@@ -491,9 +569,11 @@ flowchart TD
     L --> M[Email confirmación best-effort]
   end
   M --> N[/checkout/success?orderId=]
-  N --> O{¿Verifica customerId?}
-  O -->|Sesión 01: SÍ| Q[✅ Solo dueño ve pedido]
-  O -->|Admin soporte| R[✅ isAdminRole bypass]
+  N --> O{¿Sesión?}
+  O -->|No| P[✅ Guest: cuid bearer read-only]
+  O -->|Sí| Q{¿customerId o admin?}
+  Q -->|Sí| R[✅ Dueño/admin]
+  Q -->|No| S[❌ Anti-enumeración]
 ```
 
 ### 3.2 Máquina de estados de pedido
@@ -515,11 +595,11 @@ flowchart TD
 | Vector | Estado | Hallazgos relacionados |
 |--------|--------|------------------------|
 | SQL injection | ✅ Sin hallazgos | Prisma parametrizado; sin `$queryRawUnsafe` |
-| IDOR pedidos | 🔴 Gap en success page | PRD-001 |
+| IDOR pedidos | ✅ Cerrado (sesión + guest cuid) | PRD-001, PRD-207/249/250 |
 | CSRF | ⚠️ Parcial | Orders/cupones OK; carrito sin CSRF (PRD-011) |
 | Rate limit | 🔴 No distribuido | PRD-005, PRD-102 |
 | Server Actions públicas | 🔴 Superficie amplia | PRD-006, PRD-012, PRD-016, PRD-104 |
-| XSS admin | 🔴 paymentProofUrl | PRD-007 |
+| XSS admin | ✅ Cerrado | PRD-007 — fuente (`checkoutSchema`) + sink (`PaymentVerificationPanel`) |
 | Enumeración emails | 🟡 Registro | PRD-013 |
 | PII en repo | 🔴 db.json | PRD-003, PRD-143 |
 
@@ -542,20 +622,20 @@ flowchart TD
 | PRD-001 | 🔴 | IDOR `/checkout/success` sin verificar `customerId` | `app/checkout/success/page.tsx` |
 | PRD-005 | 🔴 | Rate limit en memoria (Map por instancia Lambda) | `lib/rate-limit.ts` |
 | PRD-006 | 🔴 | `triggerRestockNotifications` sin auth (Server Action) | `app/actions/restockActions.ts` |
-| PRD-007 | 🔴 | `paymentProofUrl` acepta URL arbitraria → XSS/phishing admin | `lib/checkout-order.ts`, `PaymentVerificationPanel.tsx` |
+| PRD-007 | 🔴 ✅ | `paymentProofUrl` — validación dominio R2 en fuente y sink | `lib/checkout-order.ts`, `lib/payment-proof.ts`, `PaymentVerificationPanel.tsx` |
 | PRD-009 | 🟠 | Env prod solo advierte (Resend, CRON, NEXTAUTH_URL) | `lib/env-validation.ts` |
 | PRD-010 | 🟠 | `CLOUDINARY_URL` no validada al arranque | `lib/env-validation.ts` |
 | PRD-011 | 🟠 | CSRF ausente en APIs de carrito | `app/api/cart/*` |
 | PRD-012 | 🟠 | `getProducts` Server Action pública sin `select` | `app/actions/productActions.ts` |
 | PRD-013 | 🟠 | Enumeración de emails en registro | `app/actions/authActions.ts` |
-| PRD-014 | 🟠 | Cambio de email sin verificación | `app/account/actions.ts` |
+| PRD-014 | 🟠 ✅ | Cambio de email sin verificación | `app/account/actions.ts` — flujo `pendingEmail` + confirmación |
 | PRD-015 | 🟠 | Contraseña nueva sin mínimo en servidor (cuenta) | `app/account/actions.ts` |
 | PRD-016 | 🟠 | `markCartRecoveredAction` sin auth | `app/actions/abandonedCartActions.ts` |
 | PRD-017 | 🟠 | `saveCartSnapshotAction` permite emails ajenos | `app/actions/abandonedCartActions.ts` |
 | PRD-018 | 🟠 | Middleware no protege `/api/orders`, `/api/settings`, etc. | `middleware.ts` |
 | PRD-019 | 🟠 | IP inconsistente en restock (primer XFF) | `app/actions/restockActions.ts` |
 | PRD-020 | 🟠 | Fallback email `noreply@jummper.pro` si falta env | `lib/resend.tsx` |
-| PRD-089 | 🟠 | Cambio email sin Zod ni reverificación (duplicado PRD-014) | `app/account/actions.ts` |
+| PRD-089 | 🟠 ✅ | Cambio email sin Zod ni reverificación (duplicado PRD-014) | `app/account/actions.ts` |
 | PRD-090 | 🟠 | Política contraseña débil en cuenta vs registro | `app/account/actions.ts` |
 | PRD-091 | 🟡 | JWT desincronizado tras cambiar email | `app/account/actions.ts` |
 | PRD-102 | 🟠 | Rate limit no global (duplicado PRD-005) | `lib/rate-limit.ts` |
@@ -573,9 +653,9 @@ flowchart TD
 | PRD-022 | 🟠 | UI checkout USD vs cobro real Bs | `ReviewStep.tsx`, `CheckoutFlow.tsx` |
 | PRD-023 | 🟠 | Merge carrito no recorta qty existente en BD | `lib/cart.ts` |
 | PRD-024 | 🟠 | `quickUpdatePrice/Stock` no revalida ficha producto | `app/actions/productActions.ts` |
-| PRD-025 | 🟠 | Sin filtro producto activo en checkout | `lib/checkout-order.ts` |
+| PRD-025 | 🟠 ✅ | Sin filtro producto activo en checkout | `lib/checkout-order.ts` |
 | PRD-026 | 🟠 | `rejectOrderPayment` demasiado permisivo en estados avanzados | `app/actions/orderActions.ts` |
-| PRD-027 | 🟠 | Binance Pay ID/QR en env, no en `readSettings` | `PaymentForm.tsx` |
+| PRD-027 | 🟠 ✅ | Binance Pay ID/QR en env, no en `readSettings` | `PaymentForm.tsx` |
 | PRD-028 | 🟠 | Flujo Binance en 2 pasos admin | `approve-binance` + `validateOrderPayment` |
 | PRD-029 | 🟠 | Errores internos expuestos al cliente en checkout | `app/api/orders/route.ts` |
 | PRD-030 | 🟠 | Sin guard carrito vacío en checkout | `CheckoutFlow.tsx` |
@@ -585,7 +665,7 @@ flowchart TD
 | PRD-105 | 🟡 | `upsertCartItem` no valida stock en servidor | `lib/cart.ts` |
 | PRD-128 | 🟠 | Direcciones fijas en payload checkout (retiro tienda) | `ReviewStep.tsx` |
 | PRD-129 | 🟡 | Lista bancos hardcodeada en PaymentForm | `PaymentForm.tsx` |
-| PRD-130 | 🟡 | Binance Pay ID desde env público | `PaymentForm.tsx` |
+| PRD-130 | 🟡 ✅ | Binance Pay ID desde env público | `PaymentForm.tsx` |
 | PRD-131 | 🟠 | Checkout sin clave idempotencia (doble clic = 2 pedidos) | `ReviewStep.tsx` |
 | PRD-132 | 🟡 | Ventana cupón validate → commit | `lib/checkout-order.ts` |
 | PRD-157 | 🟠 | `perUserLimit` cupón no aplica a invitados | `lib/coupons.ts` |
@@ -624,7 +704,7 @@ flowchart TD
 | PRD-039 | 🟠 | `DEFAULT_SETTINGS` con datos bancarios de ejemplo | `lib/data-store.ts` |
 | PRD-081 | 🟠 | Admin settings menciona Stripe inexistente | `app/admin/settings/page.tsx` |
 | PRD-082 | 🟡 | Defaults admin settings ≠ `DEFAULT_SETTINGS` | `admin/settings/page.tsx` |
-| PRD-087 | ⚪ | Dashboard admin omite estado Binance en chips | `app/admin/page.tsx` |
+| PRD-087 | ⚪ ✅ | Dashboard admin omite estado Binance en chips | `app/admin/page.tsx` |
 | PRD-101 | 🔴 | Tienda nueva muestra RIF/cuenta ficticia en checkout | `lib/data-store.ts` |
 | PRD-106 | 🟡 | `readSettings()` traga errores → DEFAULT silencioso | `lib/data-store.ts` |
 | PRD-112 | 🟠 | Navbar: dirección hardcodeada en top bar | `components/Navbar.tsx` |
@@ -645,7 +725,7 @@ flowchart TD
 | PRD-084 | 🟡 | Export CSV pedidos solo vista filtrada sin aviso | `app/admin/orders/page.tsx` |
 | PRD-085 | 🟡 | Import CSV productos: `alert()` sin detalle por fila | `app/admin/products/page.tsx` |
 | PRD-086 | 🟡 | Edición inline stock/precio optimista sin rollback | `app/admin/products/page.tsx` |
-| PRD-088 | ⚪ | Sin `error.tsx`/`loading.tsx` en rutas admin | `app/admin/` |
+| PRD-088 | ⚪ ✅ | Sin `error.tsx`/`loading.tsx` en rutas admin | `app/admin/` |
 | PRD-153 | 🟠 | CSV export/import inventario no round-trip (SKU ignorado) | `productActions.ts` |
 | PRD-154 | 🟠 | Import no actualiza categoría/marca/descripción en existentes | `productActions.ts` |
 | PRD-155 | 🟡 | Import sin transacción (import parcial) | `productActions.ts` |
@@ -666,8 +746,8 @@ flowchart TD
 
 | ID | Sev | Resumen | Archivo principal |
 |----|-----|---------|-------------------|
-| PRD-050 | 🟡 | Cancelación masiva sin email al cliente | `bulk-status-update`, `status/route.ts` |
-| PRD-051 | 🟡 | Email confirmación no reenviable si Resend falla | `orders/route.ts` |
+| PRD-050 | 🟡 ✅ | Cancelación con email al cliente | `OrderCancelledEmail.tsx`, `status/route.ts`, `bulk-status-update` |
+| PRD-051 | 🟡 ✅ | Reenvío confirmación admin | `resend-confirmation/route.ts`, `admin/orders/[id]/page.tsx` |
 | PRD-052 | 🟡 | `approve-binance` no envía email | `approve-binance/route.ts` |
 | PRD-109 | 🟡 | Emails no leen `readSettings()` para datos tienda | `emails/mundotech/site.ts` |
 | PRD-110 | 🟡 | Aprobación Binance sin email (duplicado PRD-052) | `approve-binance/route.ts` |
@@ -679,8 +759,8 @@ flowchart TD
 |----|-----|---------|-------------------|
 | PRD-041 | 🟡 | `PUT /api/categories/[id]` sin Zod | `categories/[id]/route.ts` |
 | PRD-042 | 🟡 | POST banners/promotions sin `.url()` en imageUrl | `banners/route.ts`, `promotions/route.ts` |
-| PRD-043 | 🟡 | Varios `catch` sin `console.error` | múltiples routes |
-| PRD-044 | ⚪ | Endpoints admin sin try/catch | `orders`, `new-count`, `exchange-rate` |
+| PRD-043 | 🟡 ✅ | Varios `catch` sin `console.error` | `app/api/orders/route.ts`, `new-count/route.ts` |
+| PRD-044 | ⚪ ✅ | Endpoints admin sin try/catch | `orders/route.ts`, `new-count/route.ts` |
 | PRD-045 | 🟡 | `GET /api/config/exchange-rate` sin rate limit | `config/exchange-rate/route.ts` |
 | PRD-046 | ⚪ | Upload admin sin rate limit ni CSRF | `app/api/upload/route.ts` |
 | PRD-047 | ⚪ | `purpose` en upload sin enum estricto | `upload/route.ts` |
@@ -700,7 +780,7 @@ flowchart TD
 | PRD-124 | 🟡 | `Product.category` string vs modelo `Category` | `schema.prisma` |
 | PRD-125 | 🟡 | Sin índice en `Order.customerEmail` | `schema.prisma` |
 | PRD-126 | 🟡 | `ProductView` sin TTL/purga | `schema.prisma` |
-| PRD-127 | ⚪ | Roles `client` vs `CLIENT` inconsistentes | `schema.prisma`, OAuth |
+| PRD-127 | ⚪ ✅ | Roles `client` vs `CLIENT` inconsistentes | `schema.prisma`, OAuth — OAuth normalizado |
 
 ### Caché / ISR operacional (PRD-024, PRD-107, PRD-140–142)
 
@@ -743,7 +823,7 @@ flowchart TD
 | ID | Sev | Resumen | Archivo principal |
 |----|-----|---------|-------------------|
 | PRD-092 | 🟡 | Pedidos guest no visibles en cuenta (sin UX) | `app/account/orders/page.tsx` |
-| PRD-093 | 🟡 | Sin cancelación de pedido por cliente | `account/orders/[id]` |
+| PRD-093 | 🟡 ✅ | Cancelación self-service del cliente vía `POST /api/orders/[id]/cancel` | `account/orders/[id]` |
 | PRD-094 | ⚪ | Detalle pedido sin error boundary | `account/orders/[id]/page.tsx` |
 
 ### Accesibilidad (PRD-054–055, PRD-072, PRD-135–136)
@@ -771,8 +851,8 @@ flowchart TD
 |----|-----|---------|-------------------|
 | PRD-131 | 🟠 | Checkout sin idempotency key | `ReviewStep.tsx` |
 | PRD-132 | 🟡 | Cupón validado en UI puede fallar en commit | `checkout-order.ts` |
-| PRD-133 | 🟡 | CSV import fila a fila sin transacción | `productActions.ts` |
-| PRD-134 | 🟡 | Bulk cancel no idempotente en reintentos | `bulk-status-update/route.ts` |
+| PRD-133 | 🟡 ✅ | CSV import en transacción única | `productActions.ts` |
+| PRD-134 | 🟡 ✅ | Bulk cancel idempotente | `bulk-status-update/route.ts` |
 
 ### Miscelánea (PRD-053–063, PRD-067–079, PRD-120)
 
@@ -1135,12 +1215,12 @@ flowchart TD
 
 | Segmento | PRDs | Bloqueadores 🔴 |
 |----------|------|-----------------|
-| 01-Seguridad | PRD-001, PRD-005–007, PRD-009–020, PRD-041–048, PRD-060, PRD-089–091, PRD-102–104, PRD-108, PRD-118–119, PRD-169–174, PRD-212, PRD-224, PRD-228, PRD-237–242, PRD-255–257, PRD-259, PRD-261–265, PRD-278–284 | ~~001, 005, 006~~ **✅ código** · ~~007~~ **~ parcial** (ver [§Progreso sesión 01](#progreso-sesión-01--seguridad)) |
+| 01-Seguridad | PRD-001, PRD-005–007, PRD-009–020, PRD-041–048, PRD-060, PRD-089–091, PRD-102–104, PRD-108, PRD-118–119, PRD-169–174, PRD-212, PRD-224, PRD-228, PRD-237–242, PRD-255–257, PRD-259, PRD-261–265, PRD-278–284 | ~~001, 005, 006, 007~~ **✅ código** · **65/65** (ver [§01](#progreso-sesión-01--seguridad) · [§Seguridad/Datos](#progreso-bloque-seguridaddatos--12-jun-2026)) |
 | 02-Checkout | PRD-002, PRD-021–030, PRD-049, PRD-068–070, PRD-105, PRD-128–134, PRD-157–160, PRD-175–177, PRD-179–181, PRD-190–203, PRD-205–206, PRD-218, PRD-231, PRD-243 | ~~002, 175, 190~~ **✅ código** (ver [§Progreso sesión 02](#progreso-sesión-02--checkout-y-finanzas)) |
-| 03-Infra | PRD-003–004, PRD-031–036, PRD-040, PRD-056–059, PRD-064–065, PRD-101, PRD-106–107, PRD-121–127, PRD-140–152, PRD-178, PRD-185–189, PRD-204, PRD-211, PRD-217, PRD-232–233 | ~~003, 004, 101, 140~~ **✅ código** (ver [§Progreso sesión 03](#progreso-sesión-03--infra-datos-caché)) |
-| 04-UX-Cliente | PRD-008, PRD-037–038, PRD-053–055, PRD-061–063, PRD-067, PRD-071–080, PRD-087–088, PRD-092–100, PRD-112–117, PRD-120, PRD-135–136, PRD-161–168, PRD-214–215, PRD-234–236, PRD-258, PRD-260, PRD-271–273, PRD-275–277, PRD-285, PRD-289–290 | ~~008~~ **✅ código** · 42/64 cerrados (ver [§Progreso sesión 04](#progreso-sesión-04--ux-cliente)) |
-| 05-Admin | PRD-039, PRD-066, PRD-081–086, PRD-137–139, PRD-153–156, PRD-182–184, PRD-208–210, PRD-213, PRD-216, PRD-219–223, PRD-225–227, PRD-229–230, PRD-244–248, PRD-266–270, PRD-274, PRD-286–287 | ~~066, 081–086, 137–139, 153–156, 182–184, 208–210, 213, 216, 219–223, 225–227, 229–230, 244–248, 266–269, 270, 274, 286, 287~~ **✅ código** · 45/46 (ver [§Progreso sesión 05](#progreso-sesión-05--admin-operaciones)) |
-| 06-Emails | PRD-050–052, PRD-109–111, PRD-207, PRD-249–254, PRD-288 | — |
+| 03-Infra | PRD-003–004, PRD-031–036, PRD-040, PRD-056–059, PRD-064–065, PRD-101, PRD-106–107, PRD-121–127, PRD-140–152, PRD-178, PRD-185–189, PRD-204, PRD-211, PRD-217, PRD-232–233 | ~~003, 004, 101, 140, 127, 204~~ **✅ código** · **47/49** (ver [§03](#progreso-sesión-03--infra-datos-caché)) |
+| 04-UX-Cliente | PRD-008, PRD-037–038, PRD-053–055, PRD-061–063, PRD-067, PRD-071–080, PRD-087–088, PRD-092–100, PRD-112–117, PRD-120, PRD-135–136, PRD-161–168, PRD-214–215, PRD-234–236, PRD-258, PRD-260, PRD-271–273, PRD-275–277, PRD-285, PRD-289–290 | ~~008, 087, 088, 260~~ **✅ código** · **61/64** (ver [§04](#progreso-sesión-04--ux-cliente)) |
+| 05-Admin | PRD-039, PRD-066, PRD-081–086, PRD-137–139, PRD-153–156, PRD-182–184, PRD-208–210, PRD-213, PRD-216, PRD-219–223, PRD-225–227, PRD-229–230, PRD-244–248, PRD-266–270, PRD-274, PRD-286–287 | ~~066, 081–086, … 051, 087, 088, 043, 044~~ **✅ código** · **60/61** (ver [§05](#progreso-sesión-05--admin-operaciones)) |
+| 06-Emails | PRD-050–052, PRD-109–111, PRD-207, PRD-249–254, PRD-288 | **14/14 ✅ código** (incl. PRD-253 — ver [§Sesión 06](#progreso-sesión-06--emails-continuación)) |
 
 ### Archivos compartidos — quién toca qué PRD
 
@@ -1150,7 +1230,7 @@ Varios archivos aparecen en más de un dominio. **Solo el PRD indicado autoriza 
 |---------|------------------|-----|----------|----------------|
 | `schema.prisma` | Todo el schema | PRD-064, 065, 121–127, 178, 204, 217, 232 | 03 (ÚNICO dueño) | 01, 02, 04, 05, 06 (prototipo solo lectura — anotar síntoma) |
 | `lib/data-store.ts` | Settings / `DEFAULT_SETTINGS` | PRD-101, 106 | 03 | PRD-039 en 05 solo documental |
-| `lib/checkout-order.ts` | Validación `paymentProofUrl` | PRD-007 | 01 | 02 (resto checkout) |
+| `lib/checkout-order.ts` | Validación `paymentProofUrl` (PRD-007 ✅) | PRD-007 | 01 | 02 (resto checkout — no re-validar URL) |
 | `lib/checkout-order.ts` | Transacción, stock, cupón, cancel | PRD-002, 190, 201–206, 218 | 02 | 01 (solo 007), 05 |
 | `app/api/orders/route.ts` | `POST` — creación pedido checkout | PRD-029, 069, 070, 118, 202 | 02 | 05, 06 (salvo PRD-051 email en 06) |
 | `app/api/orders/route.ts` | `GET` — listado admin | PRD-195 | 05 | 02 (solo bloque `POST`) |
@@ -1251,7 +1331,7 @@ El detalle expandido **no se duplica aquí**. Cada segmento contiene solo sus PR
 | **Anti-enumeración pedidos API** | 403 vs 404 para no-admin en `GET /api/orders/[id]` |
 | **CSRF mutaciones críticas** | `verifySameOrigin` en orders, cupones, reviews, carrito, upload |
 | **Rate limit distribuido** | Upstash Redis REST en `lib/rate-limit.ts` (sesión 01) |
-| **IDOR success cerrado** | `checkout/success` valida `customerId` (sesión 01) |
+| **IDOR success cerrado** | Sesión: `customerId` (sesión 01); guest: `?orderId={cuid}` (12 jun 2026) |
 | **Uploads seguros** | Magic bytes en upload-proof y admin upload |
 | **Headers seguridad** | HSTS, X-Frame-Options, CSP nonce en `middleware.ts` |
 | **Páginas legales** | Privacidad, términos, envíos, devoluciones + redirects |
@@ -1289,7 +1369,7 @@ El detalle expandido **no se duplica aquí**. Cada segmento contiene solo sus PR
 - [x] Versionar migraciones Prisma (PRD-004) — ver [`README.md`](../README.md) § Migraciones
 - [x] Rate limit Upstash en código (PRD-005) — **manual:** vars `UPSTASH_REDIS_REST_*` en Vercel
 - [x] Blindar `triggerRestockNotifications` (PRD-006) — sesión 01
-- [~] Validar `paymentProofUrl` Cloudinary (PRD-007) — sink admin ✅; fuente checkout → sesión 02
+- [x] Validar `paymentProofUrl` dominio R2 (PRD-007) — fuente `checkoutSchema` + sink admin; tests Vitest
 - [x] Añadir placeholders en `public/` (PRD-008) — sesión 04
 - [~] Guardar settings reales en admin (PRD-101) — defaults seguros en código; falta configuración operativa en panel
 - [x] Reducir ISR o revalidar en cambios (PRD-140) — TTL 300s + revalidación on-demand tasa
@@ -1373,7 +1453,7 @@ Referencia completa: `.env.example`
 | 9 | Reseña → moderar → aprobar | Visible en ficha |
 | 10 | Reset password | Email + cambio exitoso |
 | 11 | Ver pedido propio en `/account/orders/[id]` | OK |
-| 12 | Ver pedido ajeno en `/checkout/success?orderId=` | **403/denegado** (tras fix) |
+| 12 | Guest con `?orderId={cuid}` válido / sesión ajena / `orderNumber` | Guest OK read-only · sesión ajena denegada · `orderNumber` rechazado |
 | 13 | Cancelar pedido Enviado | **NO** restaura stock (PRD-002 ✅) |
 | 14 | Registro + login + logout | Sin errores |
 | 15 | Admin: validar pago + cambiar a Enviado | Email envío + tracking |
@@ -1381,7 +1461,7 @@ Referencia completa: `.env.example`
 | 17 | Pedido con cupón → cancelar | `usedCount` vuelve a decrementar (PRD-190 ✅; probar DELETE/reject) |
 | 18 | Registro `User@mail.com` + login `user@mail.com` | Misma cuenta (tras fix PRD-169) |
 | 19 | Admin stats vs dashboard home revenue | Misma cifra para mismo período (tras fix PRD-220) |
-| 20 | Email confirmación CTA (guest) | Enlace funcional sin login (tras fix PRD-207) |
+| 20 | Email confirmación CTA (guest) | Link `?orderId={cuid}` abre success sin login; Bs del email = total congelado (PRD-202) |
 
 ---
 
@@ -1396,11 +1476,11 @@ Referencia completa: `.env.example`
 | IDOR success | ~~PRD-001~~ ✅ sesión 01 |
 | Restore stock Enviado | ~~PRD-002~~ ✅ sesión 02 |
 | Eliminar db.json + placeholders | ~~PRD-003~~ ✅ sesión 03 · ~~PRD-008~~ ✅ sesión 04 |
-| paymentProofUrl + restock auth | ~~PRD-006~~ ✅ sesión 01 · ~~PRD-007~~ ~ parcial (fuente → sesión 02) |
+| paymentProofUrl + restock auth | ~~PRD-006~~ ✅ sesión 01 · ~~PRD-007~~ ✅ sesión 01 sink + 12 jun fuente |
 | Migraciones Prisma | ~~PRD-004~~ ✅ sesión 03 |
 | Settings reales en admin | ~~PRD-101~~ ✅ código · manual admin |
 | Recuperación carrito abandonado | ~~PRD-175~~ ✅ sesión 02 |
-| Revertir cupón al cancelar | ~~PRD-190~~ ✅ sesión 02 · bulk admin → sesión 05 |
+| Revertir cupón al cancelar | ~~PRD-190~~ ✅ sesión 02 + admin/bulk sesión 05 |
 
 ### Fase 1 — Semana 1
 
@@ -1455,7 +1535,7 @@ Referencia completa: `.env.example`
 | Auth / sesión (PRD-169–174) | 0 | 4 | 2 | 1 | ⚠️ Email case-sensitive |
 | Carrito abandonado (PRD-175–181) | 0 | 0 | 1 | 0 | ✅ Funnel operativo (sesión 02) |
 | Analytics (PRD-182–184) | 0 | 0 | 0 | 0 | ✅ Dedup + filtro calidad (sesión 05) |
-| Admin pedidos/cupones (PRD-190–200) | 0 | 6 | 3 | 0 | ⚠️ PRD-190 cliente OK; bulk revert cupón pendiente |
+| Admin pedidos/cupones (PRD-190–200) | 0 | 0 | 0 | 0 | ✅ Bloque Admin/Pedidos cerrado sesión 05 |
 | Dinero / stats (PRD-201–207) | 0 | 0 | 1 | 0 | ✅ PRD-220 stats unificado (sesión 05) |
 | Tercera pasada resto (PRD-185–230) | 0 | 3 | 14 | 5 | ⚠️ Varios |
 | Quinta pasada (PRD-231–275) | 0 | 9 | 32 | 4 | ⚠️ Privacidad carrito, admin |
@@ -1585,7 +1665,7 @@ Encontrar bugs, errores de lógica, race conditions, gaps de seguridad, inconsis
 - [ ] orderActions — validate/reject idempotencia, locking
 - [ ] admin/stats vs admin/page — métricas coherentes
 - [ ] CSV import/export — round-trip, transacciones
-- [ ] PaymentVerificationPanel — paymentProofUrl XSS
+- [x] PaymentVerificationPanel — paymentProofUrl XSS (PRD-007 ✅ fuente + sink)
 - [ ] NewOrdersWatcher — polling, PII en notificaciones
 
 ### E. Datos y Prisma
@@ -1598,7 +1678,8 @@ Encontrar bugs, errores de lógica, race conditions, gaps de seguridad, inconsis
 - [ ] lib/rate-limit.ts — Redis vs Map memoria
 - [ ] Server Actions públicas ('use server' exports invocables)
 - [ ] CSRF: verifySameOrigin en carrito, admin POSTs
-- [ ] paymentProofUrl, imageUrl, popup.ctaLink — validación URLs
+- [x] paymentProofUrl — validación dominio R2 (PRD-007 ✅)
+- [ ] imageUrl, popup.ctaLink — validación URLs
 - [ ] events/view — bot inflation
 
 ### G. Dinero y reporting
@@ -1755,9 +1836,9 @@ Los **7 ejes que no puedes ignorar**:
 
 1. **Privacidad** — IDOR success (PRD-001); `db.json` eliminado del repo (PRD-003 ✅) — manual `filter-repo` si ya pusheado  
 2. **Inventario** — restore stock Enviado (PRD-002 ✅); ISR reducido a 300s (PRD-140 ✅)  
-3. **Funnels** — recuperación carrito (PRD-175 ✅); cupón al cancelar cliente (PRD-190 ✅); bulk admin pendiente sesión 05  
+3. **Funnels** — recuperación carrito (PRD-175 ✅); cupón al cancelar cliente y admin (PRD-190 ✅)  
 4. **Infra** — migraciones versionadas (PRD-004 ✅); CI mínimo en progreso  
-5. **Seguridad serverless** — Redis rate limit + server actions públicas + `paymentProofUrl` (PRD-005–007)  
+5. **Seguridad serverless** — Redis rate limit + server actions públicas + `paymentProofUrl` R2 (PRD-005–007 ✅)  
 6. **Datos financieros** — settings reales en admin, stats revenue correcto (PRD-205/220), nunca placeholders en checkout  
 7. **Auth** — normalización email (PRD-169), tokens en URL (PRD-172/224)  
 

@@ -87,6 +87,10 @@ Lo que encontré, más allá del brief:
 - [x] 5.10 `middleware.ts` → usar `isAdminRole()` (regla R3).
 - [x] 5.11 Password mínimo 8 en gestión de usuarios admin; bcrypt unificado a 12 rounds en hashes nuevos.
 - [x] 5.12 Eliminar `productActions.ts.txt` (legacy con patrones viejos).
+- [x] 5.13 **ALTO** Cambio de email con verificación — `pendingEmail` + token 1h + ruta confirmación (PRD-014/089).
+- [x] 5.14 **MEDIO** Invalidación JWT post-reset — `passwordChangedAt` + huella `pwv` en callback (PRD-173/240).
+- [x] 5.15 OAuth alta con rol canónico `CLIENT` (PRD-127).
+- [x] 5.16 Montos monetarios en BD como `Decimal(12,2)` — helpers `lib/decimal.ts` (PRD-204).
 
 ### DOMINIO 6 — SEO profesional
 

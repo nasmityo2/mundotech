@@ -3,13 +3,20 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import type { OrderStatus } from '@/lib/definitions';
-import { VALID_ORDER_STATUSES } from '@/lib/definitions';
-import { restoreOrderStockInTransaction, shouldRestoreStockOnCancel } from '@/lib/checkout-order';
+import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order';
+import { orderPathSegment } from '@/lib/order-ref';
+import { sendOrderCancelledEmail } from '@/lib/resend';
+
+/** PRD-200: el bulk no puede avanzar a estados que requieren acción individual.
+ *  'Enviado' exige tracking + email por pedido.
+ *  'Entregado' solo debe llegar desde 'Enviado' con paidAt (PRD-194).
+ */
+const BULK_ALLOWED_STATUSES: readonly OrderStatus[] = ['Pendiente', 'En Proceso', 'Cancelado'];
 
 /** Mismo estado que aprueba-stock en checkout Binance hasta validación manual. */
 const BINANCE_PENDING: OrderStatus = 'Pendiente verificación Binance';
 
-const STATUS_ENUM_VALUES = VALID_ORDER_STATUSES as unknown as [OrderStatus, ...OrderStatus[]];
+const STATUS_ENUM_VALUES = BULK_ALLOWED_STATUSES as unknown as [OrderStatus, ...OrderStatus[]];
 
 const bulkUpdateSchema = z.object({
   orderIds: z
@@ -17,7 +24,7 @@ const bulkUpdateSchema = z.object({
     .min(1, 'Se requiere al menos un pedido.')
     .max(100, 'No se pueden actualizar más de 100 pedidos a la vez.'),
   status: z.enum(STATUS_ENUM_VALUES, {
-    message: `Estado no válido. Opciones: ${VALID_ORDER_STATUSES.join(', ')}.`,
+    message: `Estado no válido para operación masiva. Opciones: ${BULK_ALLOWED_STATUSES.join(', ')}.`,
   }),
 });
 
@@ -55,31 +62,75 @@ export async function POST(request: Request) {
     );
   }
 
-  // Cancelación masiva: restaurar inventario igual que PUT /api/orders/[id]/status.
-  // El stock se descuenta en el checkout para todos los métodos, así que se devuelve
-  // a inventario al cancelar cualquier pedido que no estuviera ya cancelado/entregado.
-  const updated = await prisma.$transaction(async (tx) => {
+  // PRD-134: idempotencia — excluir pedidos que ya están en el estado destino.
+  const eligible = targeted.filter((o) => o.status !== status);
+
+  if (eligible.length === 0) {
+    return NextResponse.json({
+      message: `Todos los pedidos seleccionados ya están en el estado '${status}'.`,
+      updatedCount: 0,
+    });
+  }
+
+  const eligibleIds = eligible.map((o) => o.id);
+
+  // PRD-190: al cancelar en bulk, revertir stock + cupón por pedido.
+  // PRD-050: recopilar destinatarios de email ANTES de la transacción.
+  let cancelledOrders: Array<{
+    id: string;
+    orderNumber: number;
+    customerEmail: string | null;
+    customerName: string;
+  }> = [];
+
+  await prisma.$transaction(async (tx) => {
     if (status === 'Cancelado') {
       const cancellable = await tx.order.findMany({
-        where: { id: { in: orderIds } },
+        where: { id: { in: eligibleIds } },
         include: { items: true },
       });
 
       for (const order of cancellable) {
-        if (shouldRestoreStockOnCancel(order.status, status)) {
-          await restoreOrderStockInTransaction(tx, order.items);
-        }
+        await applyOrderCancellationEffectsInTransaction(tx, order);
       }
+
+      cancelledOrders = cancellable.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        customerEmail: o.customerEmail,
+        customerName: o.customerName,
+      }));
     }
 
-    return tx.order.updateMany({
-      where: { id: { in: orderIds } },
+    await tx.order.updateMany({
+      where: { id: { in: eligibleIds } },
       data: { status },
     });
   });
 
+  // PRD-050: enviar email de cancelación por pedido (best-effort, fuera de la transacción).
+  if (status === 'Cancelado' && cancelledOrders.length > 0) {
+    for (const order of cancelledOrders) {
+      const recipientEmail = order.customerEmail?.trim() ?? '';
+      if (!recipientEmail) continue;
+      const firstName = (order.customerName.trim().split(/\s+/)[0]) || 'Cliente';
+      const ref = orderPathSegment(order.orderNumber);
+      try {
+        await sendOrderCancelledEmail(recipientEmail, firstName, ref);
+      } catch (emailErr) {
+        console.error(
+          '[bulk-cancel-email] Fallo no crítico — pedido cancelado en BD.',
+          `orderId=${order.id} email=${recipientEmail}`,
+          emailErr,
+        );
+      }
+    }
+  }
+
+  const updatedCount = eligibleIds.length;
+
   return NextResponse.json({
-    message:      `${updated.count} de ${orderIds.length} pedidos actualizados al estado '${status}'.`,
-    updatedCount: updated.count,
+    message: `${updatedCount} de ${orderIds.length} pedidos actualizados al estado '${status}'.`,
+    updatedCount,
   });
 }

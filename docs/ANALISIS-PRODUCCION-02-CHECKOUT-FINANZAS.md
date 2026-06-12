@@ -5,8 +5,7 @@
 > **Índice (solo referencia, sin fixes):** [`00-INDICE`](./ANALISIS-PRODUCCION-00-INDICE.md)  
 > **SEO (no tocar aquí):** [`ANALISIS-SEO-COMPLETO.md`](./ANALISIS-SEO-COMPLETO.md)  
 > **Orden:** Bloqueadores PRD-002, 175, 190 → checkout → carrito abandonado → PRD-218, 243  
-> **Última implementación:** sesión 02 — 11 jun 2026 (agente Checkout y Finanzas)  
-> **Verificación:** 12 jun 2026 — revisión código real + `tsc --noEmit` limpio + 7 tests passing. Sin PRDs pendientes en este segmento.
+> **Última implementación:** sesión 02 — 11 jun 2026 · bloque admin/pedidos — 12 jun 2026 · bloque checkout/emails — 12 jun 2026 · **capa Decimal (PRD-204)** — 12 jun 2026 (`lib/checkout-order.ts`, `lib/coupons.ts`, `lib/cart.ts` vía `d()`/`dn()`)
 
 ---
 
@@ -18,7 +17,7 @@
 |-----|--------------|----------------|
 | [x] **PRD-002** | `shouldRestoreStockOnCancel` solo restaura desde `Pendiente verificación Binance`, `Pendiente`, `En Proceso` — **no** desde `Enviado` | `lib/checkout-order.ts` |
 | [x] **PRD-175** | CTA email → `/api/cart/recover?token=…` rehidrata carrito vía `mergeCart` y redirige a `/cart` | `lib/resend.tsx`, `app/api/cart/recover/route.ts` |
-| [x] **PRD-190** | `revertCouponRedemptionInTransaction` + `applyOrderCancellationEffectsInTransaction` en cancel/delete/reject | `lib/coupons.ts`, `lib/checkout-order.ts`, `app/api/orders/[id]/route.ts`, `app/actions/orderActions.ts` |
+| [x] **PRD-190** | `revertCouponRedemptionInTransaction` + `applyOrderCancellationEffectsInTransaction` en cancel/delete/reject **y** cancelación admin (`PUT …/status`, bulk) | `lib/coupons.ts`, `lib/checkout-order.ts`, `app/api/orders/[id]/route.ts`, `app/api/orders/[id]/status/route.ts`, `app/api/orders/bulk-status-update/route.ts`, `app/actions/orderActions.ts` |
 
 ### Alto impacto 🟠 — cerrados
 
@@ -51,7 +50,7 @@
 | [x] PRD-158 | `coupons/[id]/route.ts` DELETE — soft-delete si tiene canjes |
 | [x] PRD-159 | `coupons/[id]/route.ts` PUT — `maxUses >= usedCount` |
 | [x] PRD-177 | `lib/abandoned-cart.ts` — no resetea ciclo `EMAILED_*` |
-| [x] PRD-179 | `cart/unsubscribe/route.ts` — rate limit IP (+ validación token PRD-219) |
+| [x] PRD-179 | `cart/unsubscribe/route.ts` — rate limit IP (+ validación token PRD-219); GET → confirmación; POST ejecuta baja |
 | [x] PRD-180 | `POST /api/orders` — `markCartRecovered` server-side (no action pública en UI) |
 | [x] PRD-181 | Slugs/precios frescos vía `refreshAbandonedCartItems` en cron |
 | [x] PRD-196 | `orderActions.ts` — `updateMany` condicionado al estado esperado |
@@ -75,24 +74,32 @@
 |----|-------------|---------|
 | [x] **PRD-EXTRA-CHK-1** | Input cupón decorativo en carrito sin handler | `app/cart/CartClient.tsx` |
 
-### Pendiente — dependencia en otro segmento (anotado en código, no implementar aquí)
+### Bloque checkout/emails — 12 jun 2026 (dependencias cross-segmento cerradas)
 
-| PRD | Motivo | Segmento |
-|-----|--------|----------|
-| [ ] PRD-025 | `Product.isActive` no existe en schema — comentario `DEPENDENCIA-03` en checkout | **03-INFRA** |
-| [ ] PRD-027, PRD-130 | Binance Pay ID/QR aún en `NEXT_PUBLIC_*` — requiere campo en `readSettings()` | **03-INFRA** (`data-store`) |
-| [ ] PRD-202 | Montos Bs congelados en email confirmación — payload solo USD+tasa | **06-EMAILS** |
-| [ ] PRD-179 (POST) | Unsubscribe sigue siendo GET one-click; falta confirmación POST en template | **06-EMAILS** |
+| PRD | Fix aplicado | Archivos clave |
+|-----|--------------|----------------|
+| [x] **PRD-093** | Cancelación self-service del cliente vía endpoint owner-only `POST /api/orders/[id]/cancel`; estados cancelables estrictos; soft cancel sin borrar pedido; reutiliza `applyOrderCancellationEffectsInTransaction` y email | `app/api/orders/[id]/cancel/route.ts`, `lib/checkout-order.ts`, `components/account/OrderDetailClient.tsx` |
+| [x] **PRD-025** | Checkout rechaza `isActive: false` con mensaje por producto | `lib/checkout-order.ts` |
+| [x] **PRD-027, PRD-130** | `binancePayId` / `binanceQrUrl` en `readSettings()`; Admin editable; método oculto si vacío | `lib/data-store.ts`, `PaymentForm.tsx`, `CheckoutFlow.tsx`, `app/checkout/page.tsx`, `SettingsClient.tsx` |
+| [x] **PRD-202** | Payload email con `subtotalBs` / `totalBs` congelados; plantilla sin recálculo USD×tasa | `app/api/orders/route.ts`, `emails/mundotech/types.ts`, `DualMoneyInline.tsx`, `OrderConfirmationEmail.tsx` |
+| [x] **PRD-179 (POST)** | GET valida token → `/cart/unsubscribe/confirm`; POST ejecuta baja (anti escáneres de correo) | `app/api/cart/unsubscribe/route.ts`, `app/cart/unsubscribe/confirm/*` |
+| [x] **PRD-207/249/250 (server)** | `/checkout/success?orderId={cuid}` acceso guest read-only; middleware bypass; sesión mantiene anti-IDOR | `middleware.ts`, `app/checkout/success/page.tsx` |
 
-### Pendiente — dueño **05-ADMIN** (documentados aquí, implementar en sesión 5)
+### Cerrado vía sesión **05-ADMIN** (bloque Admin / Pedidos — 12 jun 2026)
 
-| PRD | Motivo |
-|-----|--------|
-| [ ] PRD-133 | CSV import transaccional — `productActions.ts` (bloque CSV) |
-| [ ] PRD-134 | Bulk cancel idempotente — `bulk-status-update/route.ts` |
-| [ ] PRD-191–194, PRD-195, PRD-200 | Endpoints/UI admin pedidos |
-| [ ] PRD-205, PRD-206 | `app/admin/stats/page.tsx` |
-| [ ] PRD-231 | `deleteProductAction` pre-check pedidos abiertos |
+| PRD | Fix aplicado | Archivos clave |
+|-----|--------------|----------------|
+| [x] PRD-133 | Import CSV en `prisma.$transaction` (todo-o-nada) — mismo cierre que PRD-155 | `app/actions/productActions.ts` |
+| [x] PRD-134 | Bulk idempotente: salta pedidos ya en estado destino; `updatedCount` real | `app/api/orders/bulk-status-update/route.ts` |
+| [x] PRD-191 | `shippedAt` en PATCH solo si `status === 'Enviado'` | `app/api/orders/[id]/route.ts` |
+| [x] PRD-192 | Cancelación PUT unificada: tracking + `applyOrderCancellationEffectsInTransaction` | `app/api/orders/[id]/status/route.ts` |
+| [x] PRD-193 | Bulk UI refetch tras `updatedCount` (no optimista) | `app/admin/orders/page.tsx` |
+| [x] PRD-194 | Bulk restringido: no `Entregado` ni saltos de pipeline | `app/api/orders/bulk-status-update/route.ts` |
+| [x] PRD-195 | GET `/api/orders` con cursor (`?limit=&cursor=`) | `app/api/orders/route.ts`, `app/admin/orders/page.tsx` |
+| [x] PRD-200 | Bulk solo hasta `En Proceso`; UI oculta `Enviado`/`Entregado` en lote | `bulk-status-update/route.ts`, `StatusUpdateMenu.tsx` |
+| [x] PRD-205 | Revenue por producto prorrateado con descuento cupón | `app/admin/stats/page.tsx` |
+| [x] PRD-206 | Ingresos Bs y USD legado en series separadas | `app/admin/stats/page.tsx` |
+| [x] PRD-231 | Pre-check pedidos no terminales antes de borrar producto | `app/actions/productActions.ts` |
 
 ---
 
@@ -145,10 +152,10 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | `app/api/orders/bulk-status-update/route.ts` | 05-ADMIN | Cancelación/estado masivo panel |
 | `app/api/orders/new-count/route.ts` | 05-ADMIN | Polling notificaciones admin |
 | `app/api/orders/[id]/route.ts` (`PATCH`) | 05-ADMIN | Tracking / `shippedAt` admin (PRD-191, 268) |
-| `app/api/orders/route.ts` (`GET`) | 05-ADMIN | Listado admin sin paginación (PRD-195) |
+| `app/api/orders/route.ts` (`GET`) | 05-ADMIN | Listado admin con paginación por cursor (PRD-195 ✅) |
 | `app/actions/productActions.ts` (`getProducts`, CSV, delete, slug) | 01 / 05 | Solo `quickUpdatePrice`/`quickUpdateStock` aquí (PRD-024) |
 
-> **Nota `schema.prisma`:** Prototipo de solo lectura — los fixes PRD-178 y PRD-204 se implementan en `03-INFRA`; aquí solo documentar el síntoma.  
+> **Nota `schema.prisma`:** PRD-178 y PRD-204 implementados en `03-INFRA` (migraciones `20260611000100_*` y `20260612000003_*`). Consumidores checkout/stats/emails usan `lib/decimal.ts` (`d`/`dn`).  
 > **Nota `app/api/orders/*`:** Solo modificar endpoints de creación (`POST /api/orders`) y cancelación cliente (`DELETE /api/orders/[id]`). Los endpoints de administración de estados (`PUT …/status`, `POST …/bulk-status-update`, `GET …/new-count`, `PATCH …/[id]`) pertenecen a **05-ADMIN** — aunque este segmento documente PRD-191–194, la implementación va en sesión 5.
 
 ---
@@ -164,9 +171,9 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | PRD-022 | 🟠 | UI checkout USD vs cobro real Bs | `ReviewStep.tsx`, `CheckoutFlow.tsx` |
 | PRD-023 | 🟠 | Merge carrito no recorta qty existente en BD | `lib/cart.ts` |
 | PRD-024 | 🟠 | `quickUpdatePrice/Stock` no revalida ficha producto | `app/actions/productActions.ts` |
-| PRD-025 | 🟠 | Sin filtro producto activo en checkout | `lib/checkout-order.ts` |
+| PRD-025 | 🟠 ✅ | Sin filtro producto activo en checkout | `lib/checkout-order.ts` — `isActive: true` validado |
 | PRD-026 | 🟠 | `rejectOrderPayment` demasiado permisivo en estados avanzados | `app/actions/orderActions.ts` |
-| PRD-027 | 🟠 | Binance Pay ID/QR en env, no en `readSettings` | `PaymentForm.tsx` |
+| PRD-027 | 🟠 ✅ | Binance Pay ID/QR en env, no en `readSettings` | `PaymentForm.tsx` — props desde `readSettings()` |
 | PRD-028 | 🟠 ✅ | Flujo Binance un paso admin → `En Proceso` | `approve-binance/route.ts` |
 | PRD-029 | 🟠 | Errores internos expuestos al cliente en checkout | `app/api/orders/route.ts` |
 | PRD-030 | 🟠 | Sin guard carrito vacío en checkout | `CheckoutFlow.tsx` |
@@ -176,7 +183,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | PRD-105 | 🟡 | `upsertCartItem` no valida stock en servidor | `lib/cart.ts` |
 | PRD-128 | 🟠 | Direcciones fijas en payload checkout (retiro tienda) | `ReviewStep.tsx` |
 | PRD-129 | 🟡 | Lista bancos hardcodeada en PaymentForm | `PaymentForm.tsx` |
-| PRD-130 | 🟡 | Binance Pay ID desde env público | `PaymentForm.tsx` |
+| PRD-130 | 🟡 ✅ | Binance Pay ID desde env público | `PaymentForm.tsx` — sin `NEXT_PUBLIC_*` |
 | PRD-131 | 🟠 | Checkout sin clave idempotencia (doble clic = 2 pedidos) | `ReviewStep.tsx` |
 | PRD-132 | 🟡 | Ventana cupón validate → commit | `lib/checkout-order.ts` |
 | PRD-157 | 🟠 | `perUserLimit` cupón no aplica a invitados | `lib/coupons.ts` |
@@ -196,8 +203,8 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 
 | PRD-131 | 🟠 | Checkout sin idempotency key | `ReviewStep.tsx` |
 | PRD-132 | 🟡 | Cupón validado en UI puede fallar en commit | `checkout-order.ts` |
-| PRD-133 | 🟡 | CSV import fila a fila sin transacción | `productActions.ts` |
-| PRD-134 | 🟡 | Bulk cancel no idempotente en reintentos | `bulk-status-update/route.ts` |
+| PRD-133 | 🟡 ✅ | CSV import fila a fila sin transacción | `productActions.ts` — transacción única (sesión 05) |
+| PRD-134 | 🟡 ✅ | Bulk cancel no idempotente en reintentos | `bulk-status-update/route.ts` — idempotente (sesión 05) |
 
 ---
 
@@ -240,7 +247,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | **Qué falla** | `usedCount++` al crear pedido; nunca `--` al cancelar. |
 | **Impacto** | Cupones agotados falsamente tras cancelaciones. |
 | **Fix** | `revertCouponRedemptionInTransaction` dentro de `applyOrderCancellationEffectsInTransaction`. |
-| **Estado jun 2026** | DELETE admin y `rejectOrderPayment` revierten cupón en la misma transacción. |
+| **Estado jun 2026** | DELETE admin, `rejectOrderPayment`, `PUT …/status` (Cancelado) y bulk cancel revierten cupón vía `applyOrderCancellationEffectsInTransaction`. |
 
 ---
 
@@ -322,9 +329,11 @@ flowchart TD
     L --> M[Email confirmación best-effort]
   end
   M --> N[/checkout/success?orderId=]
-  N --> O{¿Verifica customerId?}
-  O -->|Hoy: NO| P[🔴 IDOR - fuga PII]
-  O -->|Debe: SÍ| Q[✅ Solo dueño ve pedido]
+  N --> O{¿Sesión?}
+  O -->|No| P[✅ Guest: cuid como bearer token read-only]
+  O -->|Sí| Q{¿customerId coincide o admin?}
+  Q -->|Sí| R[✅ Vista completa dueño/admin]
+  Q -->|No| S[❌ Anti-enumeración - mismo mensaje]
 ```
 
 ### 3.2 Máquina de estados de pedido
@@ -337,7 +346,7 @@ flowchart TD
 | Pago verificado (PM/Transfer) | `En Proceso` + `paidAt` | `validateOrderPayment` (Server Action) |
 | Envío | `Enviado` + tracking | `PUT /api/orders/[id]/status` |
 | Entrega | `Entregado` | idem |
-| Cancelación | `Cancelado` + restore stock + revert cupón (PRD-190) | DELETE cliente, `rejectOrderPayment`; bulk admin → sesión 05 |
+| Cancelación | `Cancelado` + restore stock + revert cupón (PRD-190) + email (PRD-050) | DELETE cliente, `rejectOrderPayment`, `PUT …/status`, bulk admin |
 
 **Estados definidos en:** `lib/definitions.ts` (`OrderStatus`, `VALID_ORDER_STATUSES`).
 
@@ -351,7 +360,7 @@ flowchart TD
 
 | PRD-176 | 🟠 ✅ | Precios stale en email abandono | `refreshAbandonedCartItems` en cron | — | Cerrado sesión 02 |
 | PRD-177 | 🟠 ✅ | `upsertAbandonedCart` reinicia ciclo emails | `abandoned-cart.ts` | — | No resetea `EMAILED_*` |
-| PRD-179 | 🟡 ~ | Unsubscribe GET sin rate limit | `cart/unsubscribe/route.ts` | Rate limit IP ✅ | POST confirmación → sesión 06 |
+| PRD-179 | 🟡 ✅ | Unsubscribe GET sin rate limit | `cart/unsubscribe/route.ts` | Rate limit IP ✅; GET → confirm; POST baja real | Cerrado 12 jun 2026 |
 | PRD-180 | 🟡 ✅ | `markCartRecoveredAction` sin identidad | `POST /api/orders` | — | Solo server-side |
 | PRD-181 | 🟡 ✅ | Links producto en email usan slug snapshot | cron + `refreshAbandonedCartItems` | — | Slugs actuales al enviar |
 
@@ -359,28 +368,28 @@ flowchart TD
 
 ### 18.6 Pedidos admin: PATCH, bulk, botones (PRD-191–200)
 
-| PRD-191 | 🟠 | PATCH sella `shippedAt` sin estado Enviado | `orders/[id]/route.ts` L97-105 | Métricas envío corruptas | Solo sellar con `status === 'Enviado'` |
-| PRD-192 | 🟡 | Cancel vía PUT status ignora tracking body | `orders/[id]/status/route.ts` L84-102 | Tracking perdido en cancel | Unificar ramas |
-| PRD-193 | 🟠 | Bulk UI optimista sin verificar `updatedCount` | `bulk-status-update`; `admin/orders/page.tsx` L170-172 | Admin cree que cambió N pedidos cuando menos existían | Refrescar o marcar solo confirmados |
-| PRD-194 | 🟠 | Bulk permite saltar a Entregado sin pipeline | `bulk-status-update/route.ts` | Pedido entregado sin pago ni guía | Matriz transiciones + exigir `paidAt` |
-| PRD-195 | 🟠 | `GET /api/orders` sin paginación | `orders/route.ts` L20-24 | OOM con miles de pedidos | Cursor pagination |
+| PRD-191 | 🟠 ✅ | PATCH sella `shippedAt` sin estado Enviado | `orders/[id]/route.ts` | — | Solo sellar con `status === 'Enviado'` (sesión 05) |
+| PRD-192 | 🟡 ✅ | Cancel vía PUT status ignora tracking body | `orders/[id]/status/route.ts` | — | Rama única con tracking + efectos cancelación (sesión 05) |
+| PRD-193 | 🟠 ✅ | Bulk UI optimista sin verificar `updatedCount` | `admin/orders/page.tsx` | — | Refetch tras `updatedCount` (sesión 05) |
+| PRD-194 | 🟠 ✅ | Bulk permite saltar a Entregado sin pipeline | `bulk-status-update/route.ts` | — | Bulk limitado a `Pendiente`/`En Proceso`/`Cancelado` (sesión 05) |
+| PRD-195 | 🟠 ✅ | `GET /api/orders` sin paginación | `orders/route.ts` | — | Cursor pagination opt-in (sesión 05) |
 | PRD-196 | 🟡 ✅ | Sin locking optimista en transiciones | `orderActions.ts` | — | `updateMany` condicionado |
 | PRD-197 | 🟡 ✅ | `validateOrderPayment` no idempotente | `orderActions.ts` | — | Idempotente si ya `En Proceso` |
 | PRD-198 | 🟡 ✅ | Binance `paidAt` en approve vs validate | `approve-binance/route.ts` | — | `paidAt` en approve (un paso) |
 | PRD-199 | 🟡 ✅ | ApproveBinanceButton POST sin CSRF explícito | `approve-binance/route.ts` | — | `verifySameOrigin` |
-| PRD-200 | 🟡 | Bulk Enviado sin tracking ni email envío | `StatusUpdateMenu.tsx`; bulk route | Clientes sin notificación | Bulk solo hasta En Proceso |
+| PRD-200 | 🟡 ✅ | Bulk Enviado sin tracking ni email envío | `StatusUpdateMenu.tsx`; bulk route | — | Bulk solo hasta En Proceso (sesión 05) |
 
 ---
 
 ### 18.7 Dinero, redondeo, stats (PRD-201–207)
 
 | PRD-201 | 🟡 ✅ | Redondeo per-línea Bs vs total pedido | `checkout-order.ts` | — | Total = suma líneas en céntimos |
-| PRD-202 | 🟡 ~ | Emails recalculan Bs desde USD | `orders/route.ts` email payload | — | `DEPENDENCIA-06` (sesión emails) |
+| PRD-202 | 🟡 ✅ | Emails recalculan Bs desde USD | `orders/route.ts` email payload | `subtotalBs`/`totalBs` congelados en payload | Cerrado 12 jun 2026 |
 | PRD-203 | 🟠 ✅ | `parseFloat` silencioso en tasa | `exchange-rate.ts` | — | Regex estricto |
-| PRD-205 | 🟠 | Stats: ingresos suman líneas sin cupón | `admin/stats/page.tsx` L85-100 | Revenue **inflado** vs caja real | Usar `order.total` o prorratear descuento |
-| PRD-206 | 🟠 | Stats: mezcla Bs/USD como VES | `admin/stats/page.tsx` L19-20 | Dashboard financiero incorrecto en pedidos legacy | `getOrderDualMoney` / series separadas |
+| PRD-205 | 🟠 ✅ | Stats: ingresos suman líneas sin cupón | `admin/stats/page.tsx` | — | Prorrateo cupón + `order.total` (sesión 05) |
+| PRD-206 | 🟠 ✅ | Stats: mezcla Bs/USD como VES | `admin/stats/page.tsx` | — | Series Bs / USD legado separadas (sesión 05) |
 
-**Nota:** `app/admin/page.tsx` (dashboard home) **sí** usa `orderStoredRevenueTotal` correctamente (L75-77). Solo `admin/stats/page.tsx` está mal — inconsistencia interna admin (→ PRD-220).
+**Nota:** PRD-220 (dashboard home vs stats) también cerrado — ambas pantallas usan lógica coherente con `orderStoredRevenueTotal` / prorrateo.
 
 ---
 
@@ -398,7 +407,7 @@ flowchart TD
 
 ### 20.1 Producto, catálogo y carrito (PRD-231–236)
 
-| PRD-231 | 🟠 | `deleteProductAction` elimina producto sin avisar pedidos abiertos | `productActions.ts` L252-258 | Admin borra SKU con pedidos `Pendiente`/`En Proceso`; ítems quedan huérfanos por `productId` sin FK | Pre-check: contar pedidos no terminales con ese producto; confirmación |
+| PRD-231 | 🟠 ✅ | `deleteProductAction` elimina producto sin avisar pedidos abiertos | `productActions.ts` | — | Pre-check pedidos no terminales + `forceIfActiveOrders` (sesión 05) |
 
 ### 20.3 Admin — cupones, users, reviews, home (PRD-243–248)
 
@@ -420,7 +429,7 @@ flowchart TD
 
 ### Checklist completo sesión 02
 
-Ver tabla [Progreso sesión 02](#-progreso-sesión-02-implementado-en-código). Resumen: **38 PRDs cerrados** (3🔴 + 14🟠 + 19🟡 + 2⚪) + 1 extra; **5 dependencias** anotadas; **6 PRDs** delegados a sesión 05.
+Ver tabla [Progreso sesión 02](#-progreso-sesión-02-implementado-en-código). Resumen: **52/52 PRDs cerrados** en segmento 02 (+1 extra UI; incl. bloque admin/pedidos sesión 05 + bloque checkout/emails 12 jun 2026 + cierre cross-segmento PRD-093); **0 dependencias** cross-segmento pendientes.
 
 ---
 
@@ -429,6 +438,11 @@ Ver tabla [Progreso sesión 02](#-progreso-sesión-02-implementado-en-código). 
 | # | Prueba | IDs |
 |---|--------|-----|
 | 1–6 | Compra PM/Transfer/Binance, cupón, stock concurrente | PRD-021–031, 157 |
+| 7 | Producto `isActive: false` en checkout → 404 con nombre | PRD-025 |
+| 8 | Guest `?orderId={cuid}` OK; sesión ajena / `orderNumber` rechazado | PRD-207/249/250 |
+| 9 | Email confirmación: Bs en correo = `order.total` congelado | PRD-202 |
+| 10 | Unsubscribe: GET no da de baja; POST tras confirmar | PRD-179 |
+| 11 | Binance oculto si `binancePayId` vacío; visible tras Admin | PRD-027, 130 |
 | 13 | Cancelar Enviado NO restaura stock | PRD-002 |
 | 16 | Email abandono → carrito rehidratado | PRD-175 |
 | 17 | Cancelar pedido revierte usedCount cupón | PRD-190 |

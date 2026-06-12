@@ -1,6 +1,15 @@
-/** URL pública usada en enlaces de correo (productos, cuenta, CTA). */
+/**
+ * URL pública usada en enlaces de correo (productos, cuenta, CTA).
+ * PRD-111: el fallback hardcodeado a producción puede desalinear entornos.
+ * Si NEXT_PUBLIC_SITE_URL no está definida, se usa localhost en desarrollo
+ * y la URL de producción en producción. En staging DEBE definirse la variable.
+ */
 export function emailSiteBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_SITE_URL?.trim() || 'https://mundotechve.com';
+  const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (explicit) return explicit;
+  return process.env.NODE_ENV === 'production'
+    ? 'https://mundotechve.com'
+    : 'http://localhost:3000';
 }
 
 export function emailContactAddress(): string {

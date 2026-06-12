@@ -5,13 +5,29 @@
 > **Índice (solo referencia, sin fixes):** [`00-INDICE`](./ANALISIS-PRODUCCION-00-INDICE.md)  
 > **SEO (no tocar aquí):** [`ANALISIS-SEO-COMPLETO.md`](./ANALISIS-SEO-COMPLETO.md)  
 > **Orden:** Bloqueadores PRD-001, 005, 006, 007 → auth/API → PRD-169–174, 224, 228, 237–242, 278–284  
-> **Última implementación:** sesión agente **01-SEGURIDAD** — 12 jun 2026
+> **Última implementación:** PRD-007 fuente checkout — 12 jun 2026 · bloque **Seguridad/Datos** — 12 jun 2026 · sesión agente **01-SEGURIDAD** — 12 jun 2026
 
 ---
 
 ## ✅ Progreso sesión 01 — implementado en código
 
-**Estado:** 58/65 PRDs cerrados en código · 3 bloqueadores 🔴 resueltos · 1 bloqueador 🔴 parcial (PRD-007) · 6 PRDs con dependencia en otro segmento o cierre documental.
+**Estado:** 65/65 PRDs cerrados en código · 4 bloqueadores 🔴 resueltos · 0 bloqueadores 🔴 abiertos · 0 PRDs con dependencia cross-segmento pendientes.
+
+### Verificación 12 jun 2026 — PRD-007 fuente checkout
+
+| PRD | Fix | Archivos |
+|-----|-----|----------|
+| PRD-007 | `checkoutSchema.paymentProofUrl` — `.refine()` con `isTrustedPaymentProofUrl()` (misma función que sink admin); rechazo HTTP 400 antes de transacción en `POST /api/orders` | `lib/checkout-order.ts`, `lib/payment-proof.ts`, `lib/r2-public-url.ts` |
+| PRD-007 | Tests unitarios helper + schema | `tests/payment-proof.test.ts`, `tests/checkout-order.test.ts` |
+
+### Verificación 12 jun 2026 — bloque Seguridad/Datos
+
+| PRD | Fix | Archivos |
+|-----|-----|----------|
+| PRD-014/089 | Email change con Zod; `pendingEmail` + token SHA-256 (1h); confirmación GET | `app/account/actions.ts`, `app/api/account/confirm-email/route.ts`, `app/account/details/page.tsx` |
+| PRD-173 | `passwordChangedAt` en cambio/reset contraseña del usuario | `app/account/actions.ts`, `app/actions/authActions.ts` |
+| PRD-240 | `passwordChangedAt` en reset admin | `app/actions/userActions.ts`; JWT callback compara `pwv` |
+| PRD-043/044 | try/catch + logging en listado/polling pedidos admin | `app/api/orders/route.ts`, `app/api/orders/new-count/route.ts` |
 
 ### Verificación 12 jun 2026 (sesión continuación)
 
@@ -27,10 +43,10 @@ Correcciones puntuales realizadas (bugs de call sites — consecuencia directa d
 
 | PRD | Estado | Notas |
 |-----|--------|-------|
-| [x] PRD-001 | Código ✅ | `checkout/success/page.tsx` — sesión + `customerId === session.user.id`; admin bypass con `isAdminRole`. |
+| [x] PRD-001 | Código ✅ | `checkout/success/page.tsx` — sesión autenticada: `customerId === session.user.id` + anti-enumeración; admin con `isAdminRole`. Guest read-only vía `?orderId={cuid}` (PRD-207/249/250, 12 jun 2026) — no acepta `orderNumber`. |
 | [x] PRD-005 / PRD-102 | Código ✅ | `lib/rate-limit.ts` — Upstash Redis REST con fallback Map. **Manual:** configurar `UPSTASH_REDIS_REST_URL/TOKEN` en Vercel. |
 | [x] PRD-006 | Código ✅ | `triggerRestockNotifications` blindado con `requireAdminAction()`. |
-| [~] PRD-007 | Parcial | **Sink:** `lib/payment-proof.ts` + `PaymentVerificationPanel.tsx` validan dominio R2 (`lib/r2-public-url.ts`). **Fuente:** `lib/checkout-order.ts` sigue con `z.string().min(1)` → **DEPENDENCIA-02** (sesión 02). |
+| [x] PRD-007 | Código ✅ | **Fuente + sink:** `isTrustedPaymentProofUrl()` → `isR2PublicHttpsUrl()` (`lib/r2-public-url.ts`). Schema en `lib/checkout-order.ts` L44–53; admin en `PaymentVerificationPanel.tsx`. Dominio desde `R2_PUBLIC_BASE_URL` / `NEXT_PUBLIC_R2_PUBLIC_BASE_URL`. |
 
 ### PRDs cerrados (resto del segmento 01)
 
@@ -39,20 +55,25 @@ Correcciones puntuales realizadas (bugs de call sites — consecuencia directa d
 | [x] 🟠 | PRD-009, PRD-010, PRD-011, PRD-012, PRD-013, PRD-015, PRD-016, PRD-017, PRD-018, PRD-019, PRD-020, PRD-103, PRD-104, PRD-118, PRD-119, PRD-169, PRD-170, PRD-237, PRD-238, PRD-255, PRD-261, PRD-283 |
 | [x] 🟡 | PRD-041, PRD-042, PRD-045, PRD-060, PRD-090, PRD-091, PRD-108, PRD-171, PRD-172, PRD-212, PRD-224, PRD-228, PRD-239, PRD-242, PRD-256, PRD-257, PRD-259, PRD-262, PRD-263, PRD-278, PRD-279, PRD-280, PRD-281, PRD-282 |
 | [x] ⚪ | PRD-046, PRD-047, PRD-048, PRD-174, PRD-265 |
-| [~] | PRD-014, PRD-089 — Zod en cuenta; falta reverificación email → **DEPENDENCIA-06** (sesión 06) |
-| [~] | PRD-043 — logging en rutas del segmento; `orders/new-count` → **DEPENDENCIA-05** (sesión 05) |
-| [~] | PRD-044 — try/catch en `exchange-rate`; `orders` / `new-count` → **DEPENDENCIA-05** |
-| [~] | PRD-173, PRD-240 — invalidación JWT vía huella `pwv` en callback; admin reset en `userActions.ts` → **DEPENDENCIA-05** |
+| [x] 🟠 | PRD-014, PRD-089 — flujo confirmación email (PRD-014/089) |
+| [x] 🟡 | PRD-043, PRD-044 — try/catch + `console.error` en orders admin |
+| [x] 🟡 | PRD-173, PRD-240 — invalidación JWT vía `passwordChangedAt` + huella `pwv` |
 | [x] doc | PRD-241 — comportamiento aceptado documentado en `lib/auth-path.ts` |
 | [x] doc | PRD-264 — persistencia popup/cookies entre usuarios: aceptable; documentado |
 | [x] doc | PRD-284 — JSON-LD hijos sin nonce CSP: decisión ISR estático documentada en `JsonLd.tsx` |
 
-### Archivos nuevos (sesión 01)
+### Archivos nuevos (sesión 01 + bloque Seguridad/Datos)
 
 | Archivo | PRD(s) |
 |---------|--------|
 | `lib/payment-proof.ts` | PRD-007 |
+| `lib/r2-public-url.ts` | PRD-007 |
+| `tests/payment-proof.test.ts` | PRD-007 |
+| `tests/checkout-order.test.ts` | PRD-007 |
 | `lib/safe-link.ts` | PRD-283 |
+| `app/api/account/confirm-email/route.ts` | PRD-014, PRD-089 |
+| `emails/mundotech/EmailChangeConfirmEmail.tsx` | PRD-014, PRD-089 (plantilla — sesión 06) |
+| `prisma/migrations/20260612000002_add_user_security_fields/` | PRD-014/089, PRD-173/240 |
 
 ---
 
@@ -94,7 +115,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 
 | Archivo | Dueño | Motivo |
 |---------|-------|--------|
-| `lib/checkout-order.ts` | 02-CHECKOUT | Lógica stock/cupón/checkout (salvo validación paymentProofUrl PRD-007) |
+| `lib/checkout-order.ts` | 02-CHECKOUT | Lógica stock/cupón/checkout — validación `paymentProofUrl` (PRD-007 ✅) solo vía PRD-007 en segmento 01 |
 | `lib/coupons.ts` | 02-CHECKOUT | Redeem/revert cupones |
 | `lib/data-store.ts` | 03-INFRA | Settings/DEFAULT_SETTINGS |
 | `context/CartContext.tsx (resto)` | 04-UX-CLIENTE | Solo permitido aquí para PRD-261 y PRD-263 (cleanup signOut) |
@@ -114,20 +135,20 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | PRD-001 | 🔴 | IDOR `/checkout/success` sin verificar `customerId` | `app/checkout/success/page.tsx` |
 | PRD-005 | 🔴 | Rate limit en memoria (Map por instancia Lambda) | `lib/rate-limit.ts` |
 | PRD-006 | 🔴 | `triggerRestockNotifications` sin auth (Server Action) | `app/actions/restockActions.ts` |
-| PRD-007 | 🔴 | `paymentProofUrl` acepta URL arbitraria → XSS/phishing admin | `lib/checkout-order.ts`, `PaymentVerificationPanel.tsx` |
+| PRD-007 | 🔴 ✅ | `paymentProofUrl` — validación dominio R2 en fuente y sink | `lib/checkout-order.ts`, `lib/payment-proof.ts`, `PaymentVerificationPanel.tsx` |
 | PRD-009 | 🟠 | Env prod solo advierte (Resend, CRON, NEXTAUTH_URL) | `lib/env-validation.ts` |
 | PRD-010 | 🟠 | `R2_*` validadas al arranque en prod | `lib/env-validation.ts` |
 | PRD-011 | 🟠 | CSRF ausente en APIs de carrito | `app/api/cart/*` |
 | PRD-012 | 🟠 | `getProducts` Server Action pública sin `select` | `app/actions/productActions.ts` |
 | PRD-013 | 🟠 | Enumeración de emails en registro | `app/actions/authActions.ts` |
-| PRD-014 | 🟠 | Cambio de email sin verificación | `app/account/actions.ts` |
+| PRD-014 | 🟠 ✅ | Cambio de email sin verificación | `app/account/actions.ts` |
 | PRD-015 | 🟠 | Contraseña nueva sin mínimo en servidor (cuenta) | `app/account/actions.ts` |
 | PRD-016 | 🟠 | `markCartRecoveredAction` sin auth | `app/actions/abandonedCartActions.ts` |
 | PRD-017 | 🟠 | `saveCartSnapshotAction` permite emails ajenos | `app/actions/abandonedCartActions.ts` |
 | PRD-018 | 🟠 | Middleware no protege `/api/orders`, `/api/settings`, etc. | `middleware.ts` |
 | PRD-019 | 🟠 | IP inconsistente en restock (primer XFF) | `app/actions/restockActions.ts` |
 | PRD-020 | 🟠 | Fallback email `noreply@jummper.pro` si falta env | `lib/resend.tsx` |
-| PRD-089 | 🟠 | Cambio email sin Zod ni reverificación (duplicado PRD-014) | `app/account/actions.ts` |
+| PRD-089 | 🟠 ✅ | Cambio email sin Zod ni reverificación (duplicado PRD-014) | `app/account/actions.ts` |
 | PRD-090 | 🟠 | Política contraseña débil en cuenta vs registro | `app/account/actions.ts` |
 | PRD-091 | 🟡 | JWT desincronizado tras cambiar email | `app/account/actions.ts` |
 | PRD-102 | 🟠 | Rate limit no global (duplicado PRD-005) | `lib/rate-limit.ts` |
@@ -140,8 +161,8 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 
 | PRD-041 | 🟡 | `PUT /api/categories/[id]` sin Zod | `categories/[id]/route.ts` |
 | PRD-042 | 🟡 | POST banners/promotions sin `.url()` en imageUrl | `banners/route.ts`, `promotions/route.ts` |
-| PRD-043 | 🟡 | Varios `catch` sin `console.error` | múltiples routes |
-| PRD-044 | ⚪ | Endpoints admin sin try/catch | `orders`, `new-count`, `exchange-rate` |
+| PRD-043 | 🟡 ✅ | Varios `catch` sin `console.error` | `app/api/orders/route.ts`, `new-count/route.ts` |
+| PRD-044 | ⚪ ✅ | Endpoints admin sin try/catch | `orders/route.ts`, `new-count/route.ts` |
 | PRD-045 | 🟡 | `GET /api/config/exchange-rate` sin rate limit | `config/exchange-rate/route.ts` |
 | PRD-046 | ⚪ | Upload admin sin rate limit ni CSRF | `app/api/upload/route.ts` |
 | PRD-047 | ⚪ | `purpose` en upload sin enum estricto | `upload/route.ts` |
@@ -158,7 +179,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 
 ### PRD-001 🔴 IDOR en página de éxito del checkout
 
-> **Estado sesión 01:** ✅ Cerrado — `getServerSession` + `order.customerId === session.user.id`; admin con `isAdminRole`.
+> **Estado sesión 01 + 02:** ✅ Cerrado — con sesión: `getServerSession` + `order.customerId === session.user.id`; admin con `isAdminRole`. Sin sesión: acceso read-only solo con `?orderId={cuid}` (bearer token no adivinable); middleware bypass en esa ruta. Nunca por `orderNumber` secuencial.
 
 | Campo | Detalle |
 |-------|---------|
@@ -208,16 +229,16 @@ return <SuccessClientPage order={order} />;
 
 
 
-### PRD-007 🔴 `paymentProofUrl` sin validar dominio
+### PRD-007 🔴 ✅ `paymentProofUrl` — validación dominio R2 (cerrado)
 
-> **Estado sesión 01:** ⚠️ Parcial — sink admin (`lib/payment-proof.ts`, `PaymentVerificationPanel`) ✅. Fuente `lib/checkout-order.ts` → **DEPENDENCIA-02** (sesión 02).
+> **Estado 12 jun 2026:** ✅ Cerrado — fuente + sink unificados con `isTrustedPaymentProofUrl()`.
 
 | Campo | Detalle |
 |-------|---------|
-| **Archivos** | `lib/checkout-order.ts` L32, `components/admin/PaymentVerificationPanel.tsx` L78-85 |
-| **Qué falla** | Zod: `z.string().min(1)`. Admin renderiza `<a href>` y `<img src>` sin validar origen. |
+| **Archivos** | `lib/checkout-order.ts` L44–53, `lib/payment-proof.ts`, `lib/r2-public-url.ts`, `components/admin/PaymentVerificationPanel.tsx` L90 |
+| **Qué fallaba** | Zod aceptaba `z.string().min(1)` — URL arbitraria (`javascript:`, dominio externo) persistía en BD. |
 | **Impacto** | Phishing/XSS dirigido al admin que verifica pagos. |
-| **Fix** | Restringir a dominio público R2 (`upload-proof`) — implementado en sink admin vía `lib/r2-public-url.ts`. Fuente checkout pendiente en DEPENDENCIA-02. |
+| **Fix** | `checkoutSchema.paymentProofUrl`: `.refine()` formato URL + `isTrustedPaymentProofUrl()` (protocolo `https:` + hostname exacto de R2). Rechazo en `checkoutSchema.safeParse()` antes de stock/cupón/Order. Sink admin ya validaba; misma función compartida. Tests: `tests/payment-proof.test.ts`, `tests/checkout-order.test.ts`. |
 
 ---
 
@@ -232,7 +253,7 @@ return <SuccessClientPage order={order} />;
 | PRD-011 | CSRF ausente en carrito | Mutaciones forzadas cross-site | `verifySameOrigin` |
 | PRD-012/104 | `getProducts` pública | Scraping inventario completo | `select` o endpoint paginado |
 | PRD-013 | Email enumeration en registro | Confirmación de emails registrados | Mensaje genérico |
-| PRD-014/089 | Email change sin verificación | Secuestro de cuenta | Flujo confirmación |
+| PRD-014/089 | ✅ | Email change sin verificación | Secuestro de cuenta | Flujo confirmación implementado |
 | PRD-015/090 | Password sin mínimo en cuenta | Contraseñas débiles | `min(8)` como registro |
 | PRD-016 | `markCartRecoveredAction` pública | DoS remarketing | Solo server-side interno |
 | PRD-017 | Snapshot carrito con email ajeno | Spam abandono | Forzar email = sesión |
@@ -249,7 +270,7 @@ return <SuccessClientPage order={order} />;
 ### API y validación
 - PRD-041: Zod en `PUT /api/categories/[id]`
 - PRD-042: `.url()` en POST banners/promotions
-- PRD-043: Logging uniforme en catches
+- ~~PRD-043~~ ✅ Logging uniforme en catches (`orders`, `new-count`)
 - PRD-045: Rate limit en exchange-rate público
 - PRD-108: Fail-fast Cloudinary/Resend en prod
 ### Emails y notificaciones
@@ -275,7 +296,7 @@ return <SuccessClientPage order={order} />;
 ## 8. Impacto bajo y deuda técnica
 
 | ID | Hallazgo | Archivo |
-| PRD-044 | Endpoints admin sin try/catch | `api/orders`, `new-count` |
+| PRD-044 | ✅ | Endpoints admin sin try/catch | `api/orders/route.ts`, `new-count/route.ts` |
 | PRD-046–048 | Upload admin gaps | `upload/route.ts`, OAuth role |
 
 ---
@@ -291,7 +312,7 @@ return <SuccessClientPage order={order} />;
 | CSRF | ✅ Amplio | Orders, cupones, carrito, upload — `verifySameOrigin` (PRD-011, PRD-046) |
 | Rate limit | ✅ Distribuido* | PRD-005, PRD-102 — Upstash + fallback; *requiere env en prod |
 | Server Actions públicas | ✅ Reducido | PRD-006, PRD-016 blindados; PRD-012/104 con `select` acotado |
-| XSS admin | ⚠️ Parcial | Sink Cloudinary OK (PRD-007); fuente checkout → DEPENDENCIA-02 |
+| XSS admin | ✅ Cerrado | PRD-007 — `isTrustedPaymentProofUrl` en fuente (`checkoutSchema`) y sink (`PaymentVerificationPanel`) |
 | Enumeración emails | ✅ Mitigado | PRD-013, PRD-169, PRD-238 — mensaje genérico + normalización |
 | PII en repo | ✅ Cerrado | ~~PRD-003~~ sesión 03; manual `filter-repo` si aplica |
 
@@ -309,8 +330,8 @@ return <SuccessClientPage order={order} />;
 | PRD-170 | 🟠 | `resetPassword` sin rate limit | `authActions.ts` L152-203 | Brute-force de contraseña si token filtrado | Rate limit por IP + por hash de token |
 | PRD-171 | 🟡 | Race TOCTOU en reset contraseña | `authActions.ts` L171-193 | Dos requests concurrentes con mismo token | Delete atómico con `expiresAt > now` + count check |
 | PRD-172 | 🟡 | Token reset en query string | `resend.tsx`; `reset-password/page.tsx` L16-18 | Token en logs servidor, historial navegador, Referer | Token en fragmento `#` o POST one-time |
-| PRD-173 | 🟡 | Sesiones JWT activas tras cambio contraseña | `authActions.ts`; `userActions.ts` | Sesión robada sigue válida post-reset | `passwordChangedAt` en JWT callback |
-| PRD-174 | ⚪ | Google OAuth crea `role: 'client'` minúsculas | `auth/[...nextauth]/route.ts` L72 | Inconsistencia BD (mitigado por `isAdminRole`) | `role: 'CLIENT'` en create |
+| PRD-173 | 🟡 ✅ | Sesiones JWT activas tras cambio contraseña | `authActions.ts`; `userActions.ts`; JWT callback `pwv` |
+| PRD-174 | ⚪ ✅ | Google OAuth crea `role: 'CLIENT'` | `auth/[...nextauth]/route.ts` L100 |
 
 ---
 
@@ -340,7 +361,7 @@ Hallazgos encontrados al verificar manualmente los del agente y ampliar áreas r
 | PRD-237 | 🟠 | Login credentials sin `trim().toLowerCase()` en lookup | `auth/[...nextauth]/route.ts` L33-34 | Complementa PRD-169: login falla con espacios o casing distinto al registrado | Normalizar email en `authorize` |
 | PRD-238 | 🟠 | Registro guarda email sin `.toLowerCase()` | `authActions.ts` L66-70 | `createAdminUser` sí normaliza (L65); registro público no → duplicados | `.toLowerCase().trim()` en create |
 | PRD-239 | 🟡 | Google OAuth upsert sin normalizar email | `auth/[...nextauth]/route.ts` L65-66 | Email de Google con casing mixto en BD | `email: user.email.toLowerCase()` |
-| PRD-240 | 🟡 | Admin reset password de otro usuario sin invalidar sesiones | `userActions.ts` L101-109 | Complementa PRD-173: admin reset deja JWT activo del usuario | `passwordChangedAt` + validación JWT |
+| PRD-240 | 🟡 ✅ | Admin reset password de otro usuario sin invalidar sesiones | `userActions.ts` | `passwordChangedAt` + validación JWT |
 | PRD-241 | 🟡 | `resolvePostLoginRedirect` permite admin en `/checkout` con carrito ajeno | `auth-path.ts` L138-161 | Admin de prueba puede mezclar sesión admin con flujo cliente | Documentar o separar cuentas admin |
 | PRD-242 | ⚪ | Rate limit login solo en POST NextAuth global, no por email | `auth/[...nextauth]/route.ts` L104-112 | Un atacante rota IPs contra un email conocido | Bucket secundario `auth:email:{hash}` |
 
@@ -386,7 +407,7 @@ Hallazgos encontrados al verificar manualmente los del agente y ampliar áreas r
 - [x] PRD-005 — rate limit Upstash en código; **manual:** vars Upstash en Vercel
 - [x] PRD-102 — (duplicado PRD-005)
 - [x] PRD-006 — `triggerRestockNotifications` con auth admin
-- [~] PRD-007 — sink admin ✅; validación en `checkout-order.ts` → sesión 02
+- [x] PRD-007 — fuente + sink: `isTrustedPaymentProofUrl` en `checkoutSchema` y panel admin; tests Vitest
 
 ---
 
@@ -396,4 +417,5 @@ Hallazgos encontrados al verificar manualmente los del agente y ampliar áreas r
 |---|--------|-----|
 | 12 | Pedido ajeno en `/checkout/success?orderId=` → 403 | PRD-001 |
 | 10 | Reset password + rate limit | PRD-170 |
+| 13 | `POST /api/orders` con `paymentProofUrl` maliciosa → 400, sin pedido en BD | PRD-007 |
 | 18 | Email case-insensitive login/registro | PRD-169, 237, 238 |

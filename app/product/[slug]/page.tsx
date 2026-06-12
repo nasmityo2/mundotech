@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { d, dn } from '@/lib/decimal';
 import { readSettings } from '@/lib/data-store';
 import {
   ChevronRight, ShieldCheck, Truck, Wallet, Store, Clock,
@@ -65,7 +66,9 @@ function buildOgImageUrl(src: string): string {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug }  = await params;
-  const product   = await getProduct(slug);
+  const rawMeta   = await getProduct(slug);
+  // PRD-204: normalizar Decimal → number
+  const product   = rawMeta ? { ...rawMeta, price: d(rawMeta.price), originalPrice: dn(rawMeta.originalPrice) } : null;
 
   if (!product) {
     // P19/H28: el 404 de producto no debe quedar como soft-404 indexable.
@@ -199,26 +202,28 @@ const TRUST_ICONS: Record<TrustIcon, LucideIcon> = {
 
 export default async function ProductDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const [product, bsRate, siteContent, settings] = await Promise.all([
+  const [rawProduct, bsRate, siteContent, settings] = await Promise.all([
     getProduct(slug),
     getExchangeRate(),
     readSiteContent(),
     readSettings(),
   ]);
 
-  if (!product) {
+  if (!rawProduct) {
     // PRD-066: slug renombrado en el admin → redirect permanente a la URL vigente
     const redirectTarget = await resolveSlugRedirect(slug);
     if (redirectTarget) permanentRedirect(`/product/${redirectTarget}`);
     notFound();
   }
 
-  // P01/H05: una sola URL canónica por producto. Si se accede por id (u otro
-  // alias distinto al slug vigente), redirect permanente 308 hacia el slug —
-  // elimina el contenido duplicado /product/{id} vs /product/{slug}.
-  // DEPENDENCIA-05 (PRD-066): el redirect 301 de slug VIEJO → slug nuevo al
-  // renombrar un producto requiere registrar el alias en productActions.ts
-  // (segmento Admin) — aquí solo se cubre el acceso por id.
+  // PRD-204: normalizar Decimal → number en la frontera BD→página
+  const product = {
+    ...rawProduct,
+    price:         d(rawProduct.price),
+    originalPrice: dn(rawProduct.originalPrice),
+  };
+
+  // P01/H05: una sola URL canónica por producto.
   if (product.slug && slug !== product.slug) {
     permanentRedirect(`/product/${product.slug}`);
   }
@@ -438,8 +443,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
                 slug:          related.slug,
                 name:          related.name,
                 description:   related.description ?? '',
-                price:         related.price,
-                originalPrice: related.originalPrice,
+                // PRD-204: convertir Decimal → number
+                price:         d(related.price),
+                originalPrice: dn(related.originalPrice),
                 stock:         related.stock,
                 category:      related.category,
                 brand:         related.brand,

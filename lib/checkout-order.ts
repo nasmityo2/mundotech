@@ -3,11 +3,13 @@ import { z } from 'zod';
 import { loadExchangeRateUsdBsFromTx, roundMoney2 } from '@/lib/exchange-rate';
 import type { OrderStatus } from '@/lib/definitions';
 import { CheckoutError } from '@/lib/checkout-error';
+import { d } from '@/lib/decimal';
 import {
   validateCouponForCheckout,
   redeemCouponInTransaction,
   revertCouponRedemptionInTransaction,
 } from '@/lib/coupons';
+import { isTrustedPaymentProofUrl } from '@/lib/payment-proof';
 
 export const orderItemSchema = z.object({
   productId: z.string().min(1),
@@ -39,7 +41,16 @@ export const checkoutSchema = z
     paymentHolderIdNumber: z.string().optional().nullable(),
     paymentHolderPhone: z.string().optional().nullable(),
     paymentReference: z.string().optional().nullable(),
-    paymentProofUrl: z.string().min(1).optional().nullable(),
+    paymentProofUrl: z
+      .string()
+      .optional()
+      .nullable()
+      .refine((val) => !val?.trim() || z.string().url().safeParse(val.trim()).success, {
+        message: 'Comprobante inválido',
+      })
+      .refine((val) => !val?.trim() || isTrustedPaymentProofUrl(val.trim()), {
+        message: 'El comprobante de pago debe provenir del almacenamiento autorizado.',
+      }),
     couponCode: z.string().trim().max(40).optional().nullable(),
     items: z
       .array(orderItemSchema)
@@ -133,12 +144,11 @@ export async function executeCheckoutInTransaction(
   const orderStatus: OrderStatus = options?.orderStatus ?? 'Pendiente';
 
   const productIds = [...new Set(items.map((i) => i.productId))];
-  // DEPENDENCIA-03 (PRD-025/PRD-121): Product no tiene flag isActive/published en
-  // schema.prisma. Cuando 03-INFRA lo agregue, este where debe incluirlo para
-  // impedir comprar productos despublicados. Hoy solo se valida existencia+stock.
+  // PRD-025: se incluye isActive en la consulta para detectar productos
+  // despublicados/soft-deleted y rechazar el pedido con mensaje claro.
   const dbProducts = await tx.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, price: true, stock: true, name: true },
+    select: { id: true, price: true, stock: true, name: true, isActive: true },
   });
 
   const productMap = new Map(dbProducts.map((p) => [p.id, p]));
@@ -161,6 +171,16 @@ export async function executeCheckoutInTransaction(
         404
       );
     }
+    // PRD-025: rechazar productos despublicados (soft-deleted) antes de descontar
+    // stock o calcular totales. El mensaje nombra el producto para que el cliente
+    // pueda retirarlo del carrito y completar la compra con el resto.
+    if (!dbProduct.isActive) {
+      throw new CheckoutError(
+        `"${dbProduct.name}" ya no está disponible en el catálogo. ` +
+          'Por favor retíralo de tu carrito e intenta de nuevo.',
+        404
+      );
+    }
     if (dbProduct.stock < totalQty) {
       throw new CheckoutError(
         `Stock insuficiente para "${dbProduct.name}". ` +
@@ -180,9 +200,11 @@ export async function executeCheckoutInTransaction(
   let subtotalUsd = 0;
   for (const item of items) {
     const p = productMap.get(item.productId)!;
-    const unitVes = roundMoney2(p.price * rate);
+    // PRD-204: p.price es Decimal en BD — convertir a number antes de aritmética.
+    const priceNum = d(p.price);
+    const unitVes = roundMoney2(priceNum * rate);
     totalCents += Math.round(unitVes * 100) * item.quantity;
-    subtotalUsd += p.price * item.quantity;
+    subtotalUsd += priceNum * item.quantity;
   }
   const serverTotal = totalCents / 100;
   subtotalUsd = roundMoney2(subtotalUsd);
@@ -250,7 +272,7 @@ export async function executeCheckoutInTransaction(
       items: {
         create: items.map((item) => {
           const p = productMap.get(item.productId)!;
-          const unitVes = roundMoney2(p.price * rate);
+          const unitVes = roundMoney2(d(p.price) * rate);
           return {
             productId: item.productId,
             productName: p.name,
@@ -370,4 +392,41 @@ export function shouldRestoreStockOnCancel(
   to: OrderStatus | string
 ): boolean {
   return to === 'Cancelado' && STOCK_RESTORABLE_FROM.includes(from as OrderStatus);
+}
+
+/** Estados en los que el dueño autenticado puede cancelar el pedido (conservador). */
+export const SELF_CANCEL_STATUSES = [
+  'Pendiente',
+  'Pendiente verificación Binance',
+] as const satisfies readonly OrderStatus[];
+
+type SelfCancelDenyReason = 'cancelled' | 'forbidden' | 'shipped';
+
+type SelfCancelOrderSnapshot = {
+  status: OrderStatus | string;
+  trackingNumber?: string | null;
+  trackingCarrier?: string | null;
+  trackingUrl?: string | null;
+  trackingPhotoUrl?: string | null;
+  shippedAt?: Date | string | null;
+};
+
+function getSelfCancelDenyReason(order: SelfCancelOrderSnapshot): SelfCancelDenyReason | null {
+  if (order.status === 'Cancelado') return 'cancelled';
+  if (!SELF_CANCEL_STATUSES.includes(order.status as (typeof SELF_CANCEL_STATUSES)[number])) {
+    return 'forbidden';
+  }
+  const hasShippingData = !!(
+    order.shippedAt
+    || order.trackingNumber?.trim()
+    || order.trackingCarrier?.trim()
+    || order.trackingUrl?.trim()
+    || order.trackingPhotoUrl?.trim()
+  );
+  if (hasShippingData) return 'shipped';
+  return null;
+}
+
+export function canOwnerCancelOrder(order: SelfCancelOrderSnapshot): boolean {
+  return getSelfCancelDenyReason(order) === null;
 }

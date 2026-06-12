@@ -5,8 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { prismaOrderToOrder, type OrderStatus, VALID_ORDER_STATUSES } from '@/lib/definitions';
 import { orderPathSegment } from '@/lib/order-ref';
-import { sendOrderDeliveredEmail, sendShippingEmail } from '@/lib/resend';
-import { restoreOrderStockInTransaction, shouldRestoreStockOnCancel } from '@/lib/checkout-order';
+import { sendOrderDeliveredEmail, sendShippingEmail, sendOrderCancelledEmail } from '@/lib/resend';
+import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order';
 import { trackingUrlSchema, trackingPhotoUrlSchema } from '@/lib/tracking-url-validation';
 
 type OrderWithRelations = Prisma.OrderGetPayload<{
@@ -70,32 +70,42 @@ export async function PUT(
     );
   }
 
-  // Si pasa a Enviado, sellamos shippedAt si aún no estaba.
-  // Permitimos limpiar tracking pasando explícitamente `null`; si la prop no viene, mantiene lo previo.
+  // PRD-192: detectar si vienen datos de tracking en el body (para aplicarlos en todos los casos).
   const trackingProvided = Object.prototype.hasOwnProperty.call(body ?? {}, 'trackingNumber')
     || Object.prototype.hasOwnProperty.call(body ?? {}, 'trackingCarrier')
     || Object.prototype.hasOwnProperty.call(body ?? {}, 'trackingUrl')
     || Object.prototype.hasOwnProperty.call(body ?? {}, 'trackingPhotoUrl');
 
-  // El stock se descuenta en el checkout para todos los métodos de pago, así que
-  // al cancelar un pedido (que no esté ya cancelado ni entregado) hay que devolver
-  // las unidades al inventario para mantener el catálogo consistente.
-  const restoreStock = shouldRestoreStockOnCancel(existing.status, status);
+  const trackingData = trackingProvided ? {
+    trackingNumber:   tracking.trackingNumber   ?? null,
+    trackingCarrier:  tracking.trackingCarrier  ?? null,
+    trackingUrl:      tracking.trackingUrl      ?? null,
+    trackingPhotoUrl: tracking.trackingPhotoUrl ?? null,
+  } : {};
+
+  const isCancelling = status === 'Cancelado';
+
   let updated: OrderWithRelations;
 
-  if (restoreStock) {
+  if (isCancelling) {
+    // PRD-190: al cancelar, ejecutar dentro de una transacción:
+    // restaurar stock (solo si no venía de 'Enviado') Y revertir cupón.
+    // Usa applyOrderCancellationEffectsInTransaction que respeta shouldRestoreStockOnCancel.
     const orderWithItems = await prisma.order.findUnique({
       where: { id: orderId },
       include: { items: true },
     });
 
     updated = await prisma.$transaction(async (tx) => {
-      if (orderWithItems?.items) {
-        await restoreOrderStockInTransaction(tx, orderWithItems.items);
+      if (orderWithItems) {
+        await applyOrderCancellationEffectsInTransaction(tx, orderWithItems);
       }
       return tx.order.update({
         where: { id: orderId },
-        data: { status },
+        data: {
+          status,
+          ...trackingData,
+        },
         include: {
           items: true,
           customer: { select: { email: true, name: true } },
@@ -103,18 +113,13 @@ export async function PUT(
       });
     });
 
-    console.info('[order-cancel] Stock restaurado y pedido cancelado:', orderId);
+    console.info('[order-cancel] Stock y cupón revertidos, pedido cancelado:', orderId);
   } else {
     updated = await prisma.order.update({
       where: { id: orderId },
       data: {
         status,
-        ...(trackingProvided && {
-          trackingNumber:   tracking.trackingNumber   ?? null,
-          trackingCarrier:  tracking.trackingCarrier  ?? null,
-          trackingUrl:      tracking.trackingUrl      ?? null,
-          trackingPhotoUrl: tracking.trackingPhotoUrl ?? null,
-        }),
+        ...trackingData,
         shippedAt: status === 'Enviado' && !existing.shippedAt ? new Date() : undefined,
       },
       include: {
@@ -130,6 +135,22 @@ export async function PUT(
     updated.customerEmail?.trim() || updated.customer?.email?.trim() || '';
   const displayNameForEmail =
     updated.customerName?.trim() || updated.customer?.name?.trim() || '';
+  const firstName = firstNameFromCustomerName(displayNameForEmail);
+
+  // PRD-050: enviar email de cancelación al cliente (best-effort, fuera de la transacción).
+  if (isCancelling && recipientEmail) {
+    const orderRef = orderPathSegment(updated.orderNumber);
+    try {
+      await sendOrderCancelledEmail(recipientEmail, firstName, orderRef);
+    } catch (emailErr) {
+      console.error(
+        '[order-cancel-email] Fallo no crítico — pedido cancelado en BD.',
+        `orderId=${orderId} email=${recipientEmail}`,
+        emailErr,
+      );
+    }
+  }
+
   const transitionedToShipped = existing.status !== 'Enviado' && status === 'Enviado';
   const shouldSendShippingEmail =
     status === 'Enviado' &&
@@ -151,7 +172,7 @@ export async function PUT(
   if (shouldSendShippingEmail) {
     await sendShippingEmail(
       recipientEmail,
-      firstNameFromCustomerName(displayNameForEmail),
+      firstName,
       newTracking,
       {
         carrier: updated.trackingCarrier,
@@ -164,7 +185,7 @@ export async function PUT(
   if (shouldSendDeliveredEmail) {
     await sendOrderDeliveredEmail(
       recipientEmail,
-      firstNameFromCustomerName(displayNameForEmail),
+      firstName,
       orderPathSegment(updated.orderNumber)
     );
   }

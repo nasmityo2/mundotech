@@ -18,17 +18,56 @@ import { markCartRecovered } from '@/lib/abandoned-cart';
 import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { verifySameOrigin } from '@/lib/security';
+import { d, dn } from '@/lib/decimal';
 
-/** Solo admins pueden ver el listado global de pedidos. */
-export async function GET() {
+/**
+ * PRD-195: GET /api/orders con paginación por cursor (opt-in).
+ * - Sin parámetros: devuelve el array completo (compatibilidad con /admin/stats).
+ * - Con ?limit=N: devuelve { orders: [...], nextCursor: string | null }.
+ * - Con ?limit=N&cursor=lastId: devuelve la página siguiente.
+ */
+export async function GET(request: Request) {
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
-  const orders = await prisma.order.findMany({
-    include: { items: true },
-    orderBy: { createdAt: 'desc' },
-  });
-  return NextResponse.json(orders.map(prismaOrderToOrder));
+  try {
+    const { searchParams } = new URL(request.url);
+    const limitParam = searchParams.get('limit');
+    const cursor = searchParams.get('cursor') ?? undefined;
+
+    if (limitParam !== null) {
+      const limit = Math.min(Math.max(parseInt(limitParam, 10) || 50, 1), 200);
+
+      const orders = await prisma.order.findMany({
+        take: limit + 1,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        include: { items: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const hasNextPage = orders.length > limit;
+      const page = hasNextPage ? orders.slice(0, limit) : orders;
+      const nextCursor = hasNextPage ? (page[page.length - 1]?.id ?? null) : null;
+
+      return NextResponse.json({
+        orders: page.map(prismaOrderToOrder),
+        nextCursor,
+      });
+    }
+
+    // Fallback sin paginación (mantiene compatibilidad con /admin/stats y exportación CSV).
+    const orders = await prisma.order.findMany({
+      include: { items: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return NextResponse.json(orders.map(prismaOrderToOrder));
+  } catch (error) {
+    console.error('[GET /api/orders]', error);
+    return NextResponse.json(
+      { message: 'Error al obtener los pedidos.' },
+      { status: 500 },
+    );
+  }
 }
 
 /**
@@ -175,7 +214,8 @@ export async function POST(request: Request) {
         products.map((p) => [p.id, p.images?.[0]?.trim() || p.media?.[0]?.url?.trim() || null])
       );
 
-      const rate = order.exchangeRateUsdBs;
+      // PRD-204: convertir Decimal → number en la frontera BD→email payload
+      const rate = dn(order.exchangeRateUsdBs);
       const priceUsdFromStored = (priceStored: number) =>
         rate != null && rate > 0 ? roundMoney2(priceStored / rate) : roundMoney2(priceStored);
 
@@ -183,21 +223,23 @@ export async function POST(request: Request) {
         name: i.productName,
         slug: slugById.get(i.productId) ?? i.productId,
         image: absoluteEmailUrl(i.imageUrl || fallbackImageById.get(i.productId) || null),
-        priceUsd: priceUsdFromStored(i.price),
+        priceUsd: priceUsdFromStored(d(i.price)),
         quantity: i.quantity,
       }));
 
       // La tienda no cobra envío: el total autoritativo (Bs) es el subtotal.
       // Evita una "Tarifa de envío" fantasma por redondeo Bs↔USD por línea.
+      const totalNum = d(order.total);
       const totalUsd =
-        rate != null && rate > 0 ? roundMoney2(order.total / rate) : roundMoney2(order.total);
+        rate != null && rate > 0 ? roundMoney2(totalNum / rate) : roundMoney2(totalNum);
       const subtotalUsd = totalUsd;
       const shippingUsd = 0;
 
-      // DEPENDENCIA-06 (PRD-202): OrderConfirmationPayload solo transporta USD +
-      // tasa y la plantilla recalcula los Bs. Cuando 06-EMAILS agregue campos de
-      // montos Bs congelados al payload, aquí debe pasarse order.total (Bs)
-      // directamente en vez de derivarlo de totalUsd × tasa.
+      // PRD-202: montos Bs congelados — order.total ya está en Bs.
+      const totalBs = totalNum;
+      const subtotalBs = totalBs;
+      const shippingBs = 0;
+
       const confirmationPayload: OrderConfirmationPayload = {
         id: order.id,
         orderNumber: order.orderNumber,
@@ -209,7 +251,10 @@ export async function POST(request: Request) {
         subtotalUsd,
         shippingUsd,
         totalUsd,
-        exchangeRateUsdBs: rate ?? null,
+        subtotalBs,
+        shippingBs,
+        totalBs,
+        exchangeRateUsdBs: rate,
         paymentMethod: order.paymentMethod,
         paymentBank: order.paymentBank,
         paymentReference: order.paymentReference,
@@ -224,10 +269,16 @@ export async function POST(request: Request) {
 
       // Best-effort: el pedido YA está confirmado en BD; un fallo de Resend
       // jamás debe presentarse al cliente como checkout fallido.
+      // PRD-051: el log incluye id y orderNumber para que ops pueda reenviar
+      // manualmente desde admin → PRD-051 requiere endpoint resend (DEPENDENCIA-05).
       try {
         await sendOrderConfirmationEmail(confirmationPayload);
       } catch (emailError) {
-        console.error('[order-confirmation-email] Fallo no crítico:', emailError);
+        console.error(
+          '[order-confirmation-email] Fallo no crítico — pedido confirmado en BD.',
+          `Reenviar manualmente: orderId=${order.id} orderNumber=${order.orderNumber} email=${recipientEmail}`,
+          emailError,
+        );
       }
     } else {
       console.warn(

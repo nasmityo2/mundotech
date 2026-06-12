@@ -2,9 +2,13 @@ import type { Metadata } from 'next';
 
 import ResetPasswordClient from './ResetPasswordClient';
 
+// P96/H61: página de auth — noindex para no desperdiciar crawl budget.
+// robots.txt la PERMITE (debe ser rastreable para que Googlebot vea la directiva).
 export const metadata: Metadata = {
   title: 'Nueva contraseña',
   description: 'Establece una nueva contraseña para tu cuenta MundoTech.',
+  robots: { index: false, follow: false },
+  alternates: { canonical: '/reset-password' },
 };
 
 /*
