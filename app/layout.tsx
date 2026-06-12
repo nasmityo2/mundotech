@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Jost } from "next/font/google";
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 import "./globals.css";
 import AuthProvider from "./components/AuthProvider";
 import { CartProvider } from "../context/CartContext";
@@ -128,15 +128,19 @@ export default async function RootLayout({
 }>) {
   // Datos vivos editables desde /admin/settings/seo-local, /admin/settings
   // y /admin/personalizar.
-  const [seo, settings, announcement, siteContent, headersList] = await Promise.all([
+  const [seo, settings, announcement, siteContent, headersList, cookieStore] = await Promise.all([
     readSeoLocal(),
     readSettings(),
     readAnnouncement(),
     readSiteContent(),
     headers(),
+    cookies(),
   ]);
   // Nonce generado por middleware para CSP strict-dynamic (sin unsafe-inline en script-src).
   const nonce = headersList.get('x-nonce') ?? undefined;
+  // PRD-287: consentimiento leído del cookie HTTP para evitar flash en visitas recurrentes.
+  const rawConsent = cookieStore.get('mt_cookie_consent')?.value;
+  const initialConsent = rawConsent === 'accepted' || rawConsent === 'essential' ? rawConsent : null;
   const sameAs = [settings.instagram, settings.facebook].filter(Boolean) as string[];
 
   const localBusinessSchema = {
@@ -237,7 +241,7 @@ export default async function RootLayout({
                     />
                   ) : null}
                   <PromoPopup popup={siteContent.popup} />
-                  <CookieConsent />
+                  <CookieConsent initialConsent={initialConsent} />
                 </ExchangeRateProvider>
               </ProductProvider>
             </WishlistProvider>

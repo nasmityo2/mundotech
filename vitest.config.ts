@@ -11,6 +11,7 @@ export default defineConfig({
     env: {
       DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
       NEXTAUTH_SECRET: 'vitest-secret',
+      NEXTAUTH_URL: 'http://localhost:3000',
       CRON_SECRET: 'vitest-cron-secret',
     },
   },

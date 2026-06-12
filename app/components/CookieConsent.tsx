@@ -1,31 +1,55 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import Script from 'next/script';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cookie } from 'lucide-react';
 
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+    dataLayer?: unknown[];
+  }
+}
+
 type Consent = 'accepted' | 'essential';
 
 const STORAGE_KEY = 'mt_cookie_consent';
+const COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 const GA_ID = process.env.NEXT_PUBLIC_GA4_ID;
 
+function persistConsent(value: Consent) {
+  try {
+    localStorage.setItem(STORAGE_KEY, value);
+  } catch { /* noop */ }
+  try {
+    document.cookie = `${STORAGE_KEY}=${value};max-age=${COOKIE_MAX_AGE};path=/;SameSite=Lax`;
+  } catch { /* noop */ }
+}
+
+interface Props {
+  /** Valor leído en servidor via cookie HTTP — evita flash en visitas recurrentes (PRD-287). */
+  initialConsent?: Consent | null;
+}
+
 /**
- * Consentimiento de cookies + carga condicional de GA4.
- * Google Analytics solo se inyecta si el usuario aceptó cookies de medición
- * y `NEXT_PUBLIC_GA4_ID` está configurado. Sin dark patterns: rechazar es
- * igual de fácil que aceptar.
+ * PRD-286: Consent Mode v2 — gtag se carga siempre con consent denied por defecto;
+ *   se actualiza dinámicamente cuando el usuario elige.
+ * PRD-287: Banner SSR — acepta initialConsent del servidor vía cookie HTTP para
+ *   eliminar el flash post-hidratación en visitas recurrentes.
  */
-export default function CookieConsent() {
+export default function CookieConsent({ initialConsent = null }: Props) {
   const pathname = usePathname();
-  const [consent, setConsent] = useState<Consent | null>(null);
-  const [ready, setReady] = useState(false);
+  const [consent, setConsent] = useState<Consent | null>(initialConsent);
+  // Si el servidor ya conoce el consentimiento, ready=true desde el inicio.
+  const [ready, setReady] = useState(initialConsent !== null);
 
   useEffect(() => {
+    if (initialConsent !== null) return;
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(STORAGE_KEY) as Consent | null;
       if (stored === 'accepted' || stored === 'essential') {
         setConsent(stored);
       }
@@ -33,32 +57,50 @@ export default function CookieConsent() {
       setConsent('essential');
     }
     setReady(true);
-  }, []);
+  }, [initialConsent]);
 
-  const choose = (value: Consent) => {
+  // PRD-286: actualizar gtag consent cuando cambia el estado (tanto al cargar
+  // con valor previo como tras elección nueva del usuario).
+  useEffect(() => {
+    if (!GA_ID || typeof window.gtag !== 'function' || consent === null) return;
+    const granted = consent === 'accepted' ? 'granted' : 'denied';
+    window.gtag('consent', 'update', {
+      analytics_storage: granted,
+      ad_storage: granted,
+      ad_user_data: granted,
+      ad_personalization: granted,
+    });
+  }, [consent]);
+
+  const choose = useCallback((value: Consent) => {
     setConsent(value);
-    try {
-      localStorage.setItem(STORAGE_KEY, value);
-    } catch {
-      /* sin persistencia: la elección vale para esta visita */
-    }
-  };
+    persistConsent(value);
+  }, []);
 
   const isAdmin = pathname?.startsWith('/admin') ?? false;
   const showBanner = ready && consent === null && !isAdmin;
 
   return (
     <>
-      {consent === 'accepted' && GA_ID ? (
+      {GA_ID ? (
         <>
           <Script
             src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
             strategy="afterInteractive"
           />
-          <Script id="ga4-init" strategy="afterInteractive">
+          {/* PRD-286: Consent Mode v2 — inicializa gtag con todo denegado por defecto.
+              El useEffect de arriba dispara el update cuando consent se resuelve. */}
+          <Script id="ga4-consent-init" strategy="afterInteractive">
             {`
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
+              gtag('consent', 'default', {
+                analytics_storage: 'denied',
+                ad_storage: 'denied',
+                ad_user_data: 'denied',
+                ad_personalization: 'denied',
+                wait_for_update: 500
+              });
               gtag('js', new Date());
               gtag('config', '${GA_ID}', { anonymize_ip: true });
             `}

@@ -304,7 +304,7 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 
 > Detalle ampliado, evidencia en código y dependencias: [`05-ADMIN-OPERACIONES`](./ANALISIS-PRODUCCION-05-ADMIN-OPERACIONES.md#-progreso-sesión-05-implementado-en-código).
 
-**Estado:** 43/46 PRDs del segmento cerrados en código · 0 bloqueadores 🔴 propios · 1 delegado a sesión **03-INFRA** (PRD-039) · 1 verificado sin cambio (PRD-270) · 2 pendientes (PRD-286/287).
+**Estado:** 45/46 PRDs del segmento cerrados en código · 0 bloqueadores 🔴 propios · 1 delegado a sesión **03-INFRA** (PRD-039) · 1 verificado sin cambio (PRD-270) · 0 pendientes.
 
 ### Bloqueadores 🔴 del segmento 05
 
@@ -317,7 +317,7 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | [x] 🟠 | PRD-081, PRD-153, PRD-154, PRD-182, PRD-184, PRD-208, PRD-220 |
 | [x] 🟡 | PRD-066, PRD-082, PRD-083, PRD-084, PRD-085, PRD-086, PRD-137, PRD-138, PRD-155, PRD-156, PRD-183, PRD-209, PRD-210, PRD-216, PRD-219, PRD-221, PRD-222, PRD-223, PRD-225, PRD-226, PRD-227, PRD-229, PRD-244, PRD-245, PRD-246, PRD-247, PRD-248, PRD-266, PRD-267, PRD-268, PRD-269, PRD-274 |
 | [x] ⚪ | PRD-139, PRD-213, PRD-230, PRD-270 (OK by design) |
-| [ ] | PRD-286, PRD-287 — Consent Mode v2 + cookie consent SSR (`CookieConsent.tsx`) |
+| [x] 🟡 | PRD-286, PRD-287 — Consent Mode v2 + cookie consent SSR (`CookieConsent.tsx`, `layout.tsx`) — ✅ sesión 06 |
 | [ ] | PRD-039 → **DEPENDENCIA-03** (`lib/data-store.ts` — sesión **03-INFRA**) |
 
 ### Archivos nuevos (sesión 05)
@@ -1139,7 +1139,7 @@ flowchart TD
 | 02-Checkout | PRD-002, PRD-021–030, PRD-049, PRD-068–070, PRD-105, PRD-128–134, PRD-157–160, PRD-175–177, PRD-179–181, PRD-190–203, PRD-205–206, PRD-218, PRD-231, PRD-243 | ~~002, 175, 190~~ **✅ código** (ver [§Progreso sesión 02](#progreso-sesión-02--checkout-y-finanzas)) |
 | 03-Infra | PRD-003–004, PRD-031–036, PRD-040, PRD-056–059, PRD-064–065, PRD-101, PRD-106–107, PRD-121–127, PRD-140–152, PRD-178, PRD-185–189, PRD-204, PRD-211, PRD-217, PRD-232–233 | ~~003, 004, 101, 140~~ **✅ código** (ver [§Progreso sesión 03](#progreso-sesión-03--infra-datos-caché)) |
 | 04-UX-Cliente | PRD-008, PRD-037–038, PRD-053–055, PRD-061–063, PRD-067, PRD-071–080, PRD-087–088, PRD-092–100, PRD-112–117, PRD-120, PRD-135–136, PRD-161–168, PRD-214–215, PRD-234–236, PRD-258, PRD-260, PRD-271–273, PRD-275–277, PRD-285, PRD-289–290 | ~~008~~ **✅ código** · 42/64 cerrados (ver [§Progreso sesión 04](#progreso-sesión-04--ux-cliente)) |
-| 05-Admin | PRD-039, PRD-066, PRD-081–086, PRD-137–139, PRD-153–156, PRD-182–184, PRD-208–210, PRD-213, PRD-216, PRD-219–223, PRD-225–227, PRD-229–230, PRD-244–248, PRD-266–270, PRD-274, PRD-286–287 | ~~066, 081–086, 137–139, 153–156, 182–184, 208–210, 213, 216, 219–223, 225–227, 229–230, 244–248, 266–269, 270, 274~~ **✅ código** · 43/46 (ver [§Progreso sesión 05](#progreso-sesión-05--admin-operaciones)) |
+| 05-Admin | PRD-039, PRD-066, PRD-081–086, PRD-137–139, PRD-153–156, PRD-182–184, PRD-208–210, PRD-213, PRD-216, PRD-219–223, PRD-225–227, PRD-229–230, PRD-244–248, PRD-266–270, PRD-274, PRD-286–287 | ~~066, 081–086, 137–139, 153–156, 182–184, 208–210, 213, 216, 219–223, 225–227, 229–230, 244–248, 266–269, 270, 274, 286, 287~~ **✅ código** · 45/46 (ver [§Progreso sesión 05](#progreso-sesión-05--admin-operaciones)) |
 | 06-Emails | PRD-050–052, PRD-109–111, PRD-207, PRD-249–254, PRD-288 | — |
 
 ### Archivos compartidos — quién toca qué PRD

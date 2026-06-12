@@ -5,13 +5,13 @@
 > **Índice (solo referencia, sin fixes):** [`00-INDICE`](./ANALISIS-PRODUCCION-00-INDICE.md)  
 > **SEO (no tocar aquí):** [`ANALISIS-SEO-COMPLETO.md`](./ANALISIS-SEO-COMPLETO.md)  
 > **Orden:** Admin UI → CSV/slug → analytics → reseñas admin → PRD-266+  
-> **Última implementación:** sesión 05 — 11 jun 2026 (agente Admin y Operaciones)
+> **Última implementación:** sesión 06 — 12 jun 2026 (PRD-286/287: Consent Mode v2 + banner SSR)
 
 ---
 
 ## ✅ Progreso sesión 05 (implementado en código)
 
-**Estado:** 43/46 PRDs cerrados en código · 1 delegado a sesión **03-INFRA** (PRD-039) · 1 verificado sin cambio (PRD-270) · 2 pendientes (PRD-286/287).
+**Estado:** 45/46 PRDs cerrados en código · 1 delegado a sesión **03-INFRA** (PRD-039) · 1 verificado sin cambio (PRD-270) · 0 pendientes.
 
 ### Alto impacto 🟠 — cerrados
 
@@ -65,12 +65,12 @@
 |-----|--------|-------|
 | [ ] PRD-039 | **DEPENDENCIA-03** | Fix de `DEFAULT_SETTINGS` bancarios en `lib/data-store.ts` — sesión **03-INFRA** (PRD-101) |
 
-### Pendiente — propio del segmento
+### Cerrado — propio del segmento (sesión 06)
 
-| PRD | Estado | Notas |
-|-----|--------|-------|
-| [ ] PRD-286 | Pendiente | Consent Mode v2 + eventos esenciales anonimizados — `CookieConsent.tsx` |
-| [ ] PRD-287 | Pendiente | Banner consentimiento SSR sin depender de localStorage — `CookieConsent.tsx` |
+| PRD | Estado | Archivos | Notas |
+|-----|--------|----------|-------|
+| [x] PRD-286 | ✅ sesión 06 | `app/components/CookieConsent.tsx` | Consent Mode v2: gtag siempre cargado con `consent.default` denegado; `useEffect` dispara `gtag('consent','update',…)` al resolverse el estado. |
+| [x] PRD-287 | ✅ sesión 06 | `app/components/CookieConsent.tsx`, `app/layout.tsx` | Banner SSR: `layout.tsx` lee cookie HTTP `mt_cookie_consent` vía `cookies()`, pasa `initialConsent` prop; estado inicia como `ready=true` en visitas recurrentes, eliminando flash post-hidratación. |
 
 ### Archivos nuevos (sesión 05)
 
@@ -80,6 +80,13 @@
 | `app/actions/adminDashboardActions.ts` | PRD-083, PRD-225 |
 | `app/api/orders/export.csv/route.ts` | PRD-084, PRD-156, PRD-213 |
 | `lib/tracking-url-validation.ts` | PRD-267, PRD-268 |
+
+### Archivos modificados (sesión 06 — PRD-286/287)
+
+| Archivo | PRD(s) | Cambio |
+|---------|--------|--------|
+| `app/components/CookieConsent.tsx` | PRD-286, PRD-287 | Consent Mode v2 + prop `initialConsent` + `persistConsent` cookie HTTP |
+| `app/layout.tsx` | PRD-287 | Lee `cookies()` server-side, calcula `initialConsent` y lo pasa a `<CookieConsent>` |
 
 ---
 
@@ -310,7 +317,7 @@ Hallazgos encontrados al verificar manualmente los del agente y ampliar áreas r
 | PRD | Estado | Notas |
 |-----|--------|-------|
 | [x] PRD-220 | ✅ | Stats y dashboard usan `orderStoredRevenueTotal` |
-| [ ] PRD-286/287 | Pendiente | Consent Mode v2 + banner SSR |
+| [x] PRD-286/287 | ✅ sesión 06 | Consent Mode v2 + banner SSR — `CookieConsent.tsx`, `layout.tsx` |
 | [ ] PRD-039 | DEPENDENCIA-03 | Fix en `lib/data-store.ts` (sesión 03) |
 
 ---
