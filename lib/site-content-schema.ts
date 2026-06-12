@@ -110,9 +110,9 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
   },
   productTrust: [
     {
-      icon: 'shield',
-      title: '12 meses de garantía directa',
-      sub: 'La gestionas con nosotros, sin intermediarios',
+      icon: 'store',
+      title: 'Tienda física en el Centro',
+      sub: 'Pásate por Carrera 21 o pide desde la web',
     },
     {
       // P89–P92: sin promesa "24h" — /shipping-policy define plazos orientativos.

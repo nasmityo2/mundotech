@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   MapPin, Phone, Clock, ArrowRight,
-  Store, Wallet, Truck, ShieldCheck, Navigation,
+  Store, Wallet, Truck, Navigation,
 } from 'lucide-react';
 
 /** Glyph de Instagram (lucide 1.x no exporta iconos de marca). */
@@ -176,9 +176,9 @@ export default async function NosotrosPage() {
                 desc: 'Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001. Búscanos en Google Maps o pasa a saludar.',
               },
               {
-                icon: ShieldCheck,
-                title: '12 meses de garantía directa',
-                desc: 'La gestionas con nosotros en la tienda, sin intermediarios ni tickets eternos.',
+                icon: Clock,
+                title: 'Retiro en tienda el mismo día',
+                desc: 'Compra por la web y recoge en Carrera 21 cuando te convenga.',
               },
               {
                 icon: Wallet,

@@ -27,6 +27,7 @@ import { parseProductSpecs } from '@/lib/definitions';
 import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
 import { getExchangeRate } from '@/app/actions/configActions';
 import { resolveSlugRedirect } from '@/lib/slug-redirects';
+import { PRODUCT_CARD_SELECT, PRODUCT_DETAIL_SELECT } from '@/lib/product-select';
 import type { Product as CatalogProduct } from '@/context/ProductContext';
 
 interface PageProps {
@@ -173,20 +174,26 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 async function getProduct(slug: string) {
   return prisma.product.findFirst({
     where: { OR: [{ slug }, { id: slug }] },
-    include: { media: { orderBy: { sortOrder: 'asc' } } },
+    select: PRODUCT_DETAIL_SELECT,
   });
 }
 
 async function getRelatedProducts(category: string, excludeId: string) {
-  return prisma.product.findMany({
-    where: {
-      category,
-      id: { not: excludeId },
-      stock: { gt: 0 },
-    },
-    take: 5,
-    orderBy: { createdAt: 'desc' },
-  });
+  try {
+    return await prisma.product.findMany({
+      where: {
+        category,
+        id: { not: excludeId },
+        stock: { gt: 0 },
+      },
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      select: PRODUCT_CARD_SELECT,
+    });
+  } catch (error) {
+    console.error('[ProductDetailPage] Error al cargar productos relacionados:', error);
+    return [];
+  }
 }
 
 // Iconos disponibles para los badges de confianza (editables en /admin/personalizar)

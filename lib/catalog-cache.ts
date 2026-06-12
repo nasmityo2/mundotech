@@ -27,12 +27,44 @@
 import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { d, dn } from '@/lib/decimal';
+import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
 
 /** Products per page — must be a multiple of 4 (grid columns). */
 export const PAGE_SIZE = 24;
 
 /** TTL safety net in seconds. Tags are the primary freshness mechanism. */
 const REVALIDATE = 600;
+
+type ProductCardRow = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  price: Parameters<typeof d>[0];
+  originalPrice: Parameters<typeof dn>[0];
+  stock: number;
+  category: string;
+  brand: string | null;
+  images: string[];
+};
+
+/** Convierte filas Prisma (Decimal) al modelo de tarjeta usado en catálogo/categoría. */
+function mapProductRowsToCardModels(rows: ProductCardRow[]) {
+  return rows.map((p) => ({
+    id:            p.id,
+    slug:          p.slug,
+    name:          p.name,
+    description:   p.description ?? '',
+    price:         d(p.price),
+    originalPrice: dn(p.originalPrice),
+    stock:         p.stock,
+    category:      p.category,
+    brand:         p.brand,
+    image:         p.images[0] ?? '/placeholder-product.png',
+    images:        p.images,
+    details:       {} as Record<string, string>,
+  }));
+}
 
 // ── Catalog (all-products page) ───────────────────────────────────────────────
 
@@ -54,34 +86,9 @@ export const getCachedCatalogProducts = unstable_cache(
       orderBy: { createdAt: 'desc' },
       skip:    (page - 1) * PAGE_SIZE,
       take:    PAGE_SIZE,
-      select: {
-        id:            true,
-        slug:          true,
-        name:          true,
-        description:   true,
-        price:         true,
-        originalPrice: true,
-        stock:         true,
-        category:      true,
-        brand:         true,
-        images:        true,
-      },
+      select: PRODUCT_CARD_SELECT,
     });
-    // PRD-204: convertir Decimal → number en la frontera BD→cache
-    return rows.map((p) => ({
-      id:            p.id,
-      slug:          p.slug,
-      name:          p.name,
-      description:   p.description ?? '',
-      price:         d(p.price),
-      originalPrice: dn(p.originalPrice),
-      stock:         p.stock,
-      category:      p.category,
-      brand:         p.brand,
-      image:         p.images[0] ?? '/placeholder-product.png',
-      images:        p.images,
-      details:       {} as Record<string, string>,
-    }));
+    return mapProductRowsToCardModels(rows);
   },
   ['catalog-products', String(PAGE_SIZE)],
   { tags: ['catalog'], revalidate: REVALIDATE },
@@ -161,34 +168,9 @@ export const getCachedCategoryProducts = unstable_cache(
       orderBy: { createdAt: 'desc' },
       skip:    (page - 1) * PAGE_SIZE,
       take:    PAGE_SIZE,
-      select: {
-        id:            true,
-        slug:          true,
-        name:          true,
-        description:   true,
-        price:         true,
-        originalPrice: true,
-        stock:         true,
-        category:      true,
-        brand:         true,
-        images:        true,
-      },
+      select: PRODUCT_CARD_SELECT,
     });
-    // PRD-204: convertir Decimal → number en la frontera BD→cache
-    return rows.map((p) => ({
-      id:            p.id,
-      slug:          p.slug,
-      name:          p.name,
-      description:   p.description ?? '',
-      price:         d(p.price),
-      originalPrice: dn(p.originalPrice),
-      stock:         p.stock,
-      category:      p.category,
-      brand:         p.brand,
-      image:         p.images[0] ?? '/placeholder-product.png',
-      images:        p.images,
-      details:       {} as Record<string, string>,
-    }));
+    return mapProductRowsToCardModels(rows);
   },
   ['category-products', String(PAGE_SIZE)],
   { tags: ['catalog'], revalidate: REVALIDATE },

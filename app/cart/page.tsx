@@ -7,6 +7,7 @@ import { fullProductToCardModel } from '@/lib/search-shared';
 import CartClient from './CartClient';
 import RecentlyViewed from '@/components/RecentlyViewed';
 import { d, dn } from '@/lib/decimal';
+import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,12 +20,19 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
+/** Campos mínimos para ProductCard — sin `select` Prisma pide todas las columnas del modelo (p. ej. `isActive`) y falla si la migración aún no corrió. */
 async function getRecommendedProducts() {
-  return prisma.product.findMany({
-    where: { stock: { gt: 0 } },
-    take: 5,
-    orderBy: { createdAt: 'desc' },
-  });
+  try {
+    return await prisma.product.findMany({
+      where: { stock: { gt: 0 } },
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      select: PRODUCT_CARD_SELECT,
+    });
+  } catch (error) {
+    console.error('[CartPage] Error al cargar recomendados:', error);
+    return [];
+  }
 }
 
 export default async function CartPage() {

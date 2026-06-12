@@ -10,6 +10,7 @@ import {
   type FullProduct,
   type FullSearchResult,
 } from '@/lib/search-shared';
+import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
 
 const EMPTY_FULL_RESULT: FullSearchResult = {
   products: [],
@@ -133,18 +134,7 @@ export async function searchProductsFull({
       orderBy,
       skip,
       take: SEARCH_PAGE_SIZE,
-      select: {
-        id:            true,
-        slug:          true,
-        name:          true,
-        description:   true,
-        price:         true,
-        originalPrice: true,
-        stock:         true,
-        category:      true,
-        brand:         true,
-        images:        true,
-      },
+      select: PRODUCT_CARD_SELECT,
     }),
     prisma.product.count({ where }),
     // Opciones de filtro: categorías y marcas del conjunto sin filtro de cat/brand

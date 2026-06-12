@@ -64,29 +64,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   // ── Productos dinámicos ────────────────────────────────────────────────────
-  // DEPENDENCIA-03: filtro isActive:true — productos desactivados (soft-delete)
-  // no deben aparecer en sitemap ni consumir crawl budget.
-  // P42/H40: images[] incluidas para Google Images / Lens (image sitemap inline).
-  const products = await prisma.product.findMany({
-    where: { isActive: true },
-    select: { id: true, slug: true, updatedAt: true, name: true, images: true },
-    orderBy: { updatedAt: 'desc' },
-  });
+  // DEPENDENCIA-03: filtro isActive:true — requiere columna migrada.
+  let productPages: MetadataRoute.Sitemap = [];
+  try {
+    const products = await prisma.product.findMany({
+      where: { isActive: true },
+      select: { id: true, slug: true, updatedAt: true, name: true, images: true },
+      orderBy: { updatedAt: 'desc' },
+    });
 
-  const productPages: MetadataRoute.Sitemap = products.map((p) => {
-    // P42/H40: imágenes del producto para Google Images/Lens.
-    // Next.js MetadataRoute.Sitemap espera images: string[] (solo URLs).
-    // Máx. 3 por producto para no inflar el XML.
-    const images = p.images.filter(Boolean).slice(0, 3);
+    productPages = products.map((p) => {
+      const images = p.images.filter(Boolean).slice(0, 3);
 
-    return {
-      url: `${SITE_URL}/product/${p.slug ?? p.id}`,
-      lastModified: p.updatedAt,
-      changeFrequency: 'weekly' as const,
-      priority: 0.8,
-      ...(images.length > 0 ? { images } : {}),
-    };
-  });
+      return {
+        url: `${SITE_URL}/product/${p.slug ?? p.id}`,
+        lastModified: p.updatedAt,
+        changeFrequency: 'weekly' as const,
+        priority: 0.8,
+        ...(images.length > 0 ? { images } : {}),
+      };
+    });
+  } catch (error) {
+    console.error('[sitemap] Error al cargar productos activos:', error);
+  }
 
   // ── Categorías dinámicas ───────────────────────────────────────────────────
   const categories = await prisma.category.findMany({

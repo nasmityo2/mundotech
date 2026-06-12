@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { d, dn } from '@/lib/decimal';
+import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
 import HomeHeroCyber from '@/app/components/HomeHeroCyber';
 import Promotions from '@/app/components/Promotions';
 import ProductShelf from '@/app/components/ProductShelf';
@@ -95,17 +96,7 @@ async function getData() {
       await Promise.all([
         prisma.product.findMany({
           orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            slug: true,
-            name: true,
-            price: true,
-            originalPrice: true,
-            images: true,
-            category: true,
-            brand: true,
-            stock: true,
-          },
+          select: PRODUCT_CARD_SELECT,
         }),
         prisma.banner.findMany({
           where: { type: 'hero', active: true },

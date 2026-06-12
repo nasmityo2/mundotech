@@ -12,6 +12,7 @@ import { triggerRestockNotifications } from '@/app/actions/restockActions';
 import { parseProductSpecs } from '@/lib/definitions';
 import { saveSlugRedirect } from '@/lib/slug-redirects';
 import { d } from '@/lib/decimal';
+import { PRODUCT_CARD_SELECT, PRODUCT_ADMIN_SELECT } from '@/lib/product-select';
 
 const absoluteUrl = z.string().refine(
   (s) => {
@@ -344,18 +345,7 @@ export async function getProducts(searchTerm?: string, categoryFilter?: string) 
   const products = await prisma.product.findMany({
     where,
     orderBy: { createdAt: 'desc' },
-    select: {
-      id:            true,
-      slug:          true,
-      name:          true,
-      description:   true,
-      price:         true,
-      originalPrice: true,
-      stock:         true,
-      category:      true,
-      brand:         true,
-      images:        true,
-    },
+    select: PRODUCT_CARD_SELECT,
   });
 
   const categories = await prisma.product
@@ -732,7 +722,7 @@ export async function getProductsAdmin(params: {
   const products = await prisma.product.findMany({
     where,
     orderBy: { createdAt: 'desc' },
-    include: { media: { orderBy: { sortOrder: 'asc' } } },
+    select: PRODUCT_ADMIN_SELECT,
   });
 
   const allCategories = await prisma.product

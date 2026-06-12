@@ -1,21 +1,12 @@
 import { prisma } from '@/lib/prisma';
 import type { CartItemAPI } from '@/lib/definitions';
 import { d, dn } from '@/lib/decimal';
+import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
 import type { Prisma } from '@prisma/client';
 type Decimal = Prisma.Decimal;
 
 /** Selección base de campos de producto que expone la API de carrito. */
-const PRODUCT_SELECT = {
-  id: true,
-  name: true,
-  slug: true,
-  price: true,
-  originalPrice: true,
-  stock: true,
-  category: true,
-  brand: true,
-  images: true,
-} as const;
+const PRODUCT_SELECT = PRODUCT_CARD_SELECT;
 
 /** Mapea un CartItem con producto incluido al shape CartItemAPI. */
 function toCartItemAPI(item: {
