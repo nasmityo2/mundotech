@@ -29,6 +29,8 @@ interface ProductShelfProps {
   theme?:        'light' | 'dark';
   /** Máximo de ítems a mostrar (desktop) */
   maxItems?:     number;
+  /** Primeras N tarjetas del carrusel móvil con priority (candidatos LCP en home) */
+  priorityFirstItems?: number;
 }
 
 const BADGE_COLORS: Record<string, string> = {
@@ -65,6 +67,7 @@ const ProductShelf = ({
   viewAllLabel = 'Ver todo',
   theme = 'light',
   maxItems = 6,
+  priorityFirstItems = 0,
 }: ProductShelfProps) => {
   if (products.length === 0) return null;
 
@@ -88,7 +91,7 @@ const ProductShelf = ({
             {title}
           </h2>
           {subtitle && (
-            <p className={`text-[12px] sm:text-[13px] mt-0.5 leading-snug hidden sm:block ${isDark ? 'text-white/55' : 'text-slate-500'}`}>
+            <p className={`text-[12px] sm:text-[13px] mt-0.5 leading-snug hidden sm:block ${isDark ? 'text-white/55' : 'text-on-light'}`}>
               {subtitle}
             </p>
           )}
@@ -100,7 +103,7 @@ const ProductShelf = ({
           }`}
         >
           {viewAllLabel}
-          <ChevronRight size={15} />
+          <ChevronRight size={15} aria-hidden="true" />
         </Link>
       </div>
 
@@ -108,9 +111,9 @@ const ProductShelf = ({
       <div className="-mx-4 sm:mx-0">
         {/* Mobile snap carousel */}
         <div className="flex gap-3 overflow-x-auto scrollbar-hide snap-x-mandatory px-4 pb-2 sm:hidden">
-          {slice.map((product) => (
+          {slice.map((product, index) => (
             <div key={product.id} className="flex-shrink-0 w-[160px] xs:w-[170px] snap-start">
-              <ProductCard product={toCardProduct(product)} />
+              <ProductCard product={toCardProduct(product)} priority={index < priorityFirstItems} />
             </div>
           ))}
           <Link
@@ -121,7 +124,7 @@ const ProductShelf = ({
                 : 'border-slate-200 bg-white text-navy shadow-sm'
             }`}
           >
-            <ArrowRight size={20} />
+            <ArrowRight size={20} aria-hidden="true" />
             Ver todo
           </Link>
         </div>

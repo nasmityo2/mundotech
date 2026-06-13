@@ -1,26 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
 const COOKIE_KEY = 'mt_announcement_dismissed';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 año
+
+function readDismissedTextKey(textKey: string): boolean {
+  if (typeof document === 'undefined') return false;
+  try {
+    const match = document.cookie.match(
+      new RegExp(`(?:^|; )${COOKIE_KEY.replace(/[$()*+.?[\\\]^{|}]/g, '\\$&')}=([^;]*)`),
+    );
+    if (!match?.[1]) return false;
+    return decodeURIComponent(match[1]) === textKey;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Wrapper cliente del AnnouncementBar. El contenido real (texto/enlace) llega
  * como `children` desde el Server Component padre, por lo que ya está en el
  * HTML inicial (visible para Googlebot).
  *
- * Dismiss: graba una cookie HTTP (legible en el servidor) para que en la
- * siguiente visita el servidor no renderice el bar → cero CLS para usuarios
- * que ya cerraron el aviso.
+ * Dismiss: cookie HTTP leída en cliente (useLayoutEffect) para no usar
+ * cookies() en el layout raíz — requisito para ISR del home.
  *
- * Trade-off documentado (P87/H55):
- *   - Cookie vs localStorage: la cookie se lee en layout.tsx server-side.
- *     Si el usuario borra cookies, el aviso reaparece (comportamiento correcto).
- *   - Sin parpadeo ("flash"): el servidor ya excluye el bar si la cookie coincide
- *     con el texto actual, así que el cliente parte de dismissed=false cuando
- *     debe mostrar, y el bar se omite en SSR cuando ya fue cerrado.
+ * Trade-off: usuarios que ya cerraron el aviso pueden ver un frame breve
+ * antes de ocultarse; el contenido indexable del home no se ve afectado.
  */
 export default function AnnouncementBarClient({
   children,
@@ -34,6 +42,12 @@ export default function AnnouncementBarClient({
   textColor: string;
 }) {
   const [dismissed, setDismissed] = useState(false);
+
+  useLayoutEffect(() => {
+    if (readDismissedTextKey(textKey)) {
+      setDismissed(true);
+    }
+  }, [textKey]);
 
   const dismiss = () => {
     try {
@@ -58,10 +72,10 @@ export default function AnnouncementBarClient({
         type="button"
         onClick={dismiss}
         aria-label="Cerrar anuncio"
-        className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-black/10 active:bg-black/20"
+        className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-full hover:bg-black/10 active:bg-black/20"
         style={{ color: textColor }}
       >
-        <X size={15} />
+        <X size={15} aria-hidden="true" />
       </button>
     </div>
   );

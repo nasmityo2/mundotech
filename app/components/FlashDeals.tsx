@@ -95,15 +95,15 @@ function FlashCard({ product }: { product: FlashProduct }) {
         />
       </div>
       <div className="flex flex-1 flex-col p-2 sm:p-2.5">
-        <p className="truncate text-[11px] text-slate-500 sm:text-[12px]">{product.brand || product.category}</p>
+        <p className="truncate text-[11px] text-on-light sm:text-[12px]">{product.brand || product.category}</p>
         <p className="mt-0.5 line-clamp-2 text-[12px] font-semibold leading-snug text-[#0f172a] sm:text-[13px]">
           {product.name}
         </p>
-        <p className="mt-1.5 text-[14px] font-bold text-[#FFD700] nums sm:text-[15px]">
+        <p className="mt-1.5 text-[14px] font-bold text-price-on-light nums sm:text-[15px]">
           ${product.price.toLocaleString()}
         </p>
         {product.originalPrice && (
-          <p className="text-[10px] text-slate-400 line-through nums sm:text-[11px]">
+          <p className="text-[10px] text-on-light line-through nums sm:text-[11px]">
             ${product.originalPrice.toLocaleString()}
           </p>
         )}
@@ -114,7 +114,7 @@ function FlashCard({ product }: { product: FlashProduct }) {
               style={{ width: `${stockPct}%` }}
             />
           </div>
-          <p className="mt-1 text-[9px] font-medium text-slate-500 sm:text-[10px]">
+          <p className="mt-1 text-[9px] font-medium text-on-light sm:text-[10px]">
             {product.stock < 5 ? `¡Solo ${product.stock} en stock!` : 'En inventario'}
           </p>
         </div>

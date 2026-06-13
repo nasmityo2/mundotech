@@ -1,20 +1,28 @@
-import { prisma } from '@/lib/prisma';
-import { d, dn } from '@/lib/decimal';
-import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
+import dynamic from 'next/dynamic';
 import HomeHeroCyber from '@/app/components/HomeHeroCyber';
-import Promotions from '@/app/components/Promotions';
 import ProductShelf from '@/app/components/ProductShelf';
-import FlashDeals from '@/app/components/FlashDeals';
 import Benefits, { type BenefitItem } from '@/app/components/Benefits';
-import { readSiteContent, DEFAULT_SITE_CONTENT } from '@/lib/site-content';
-import { readSettings, DEFAULT_SETTINGS } from '@/lib/data-store';
+import { DEFAULT_SITE_CONTENT } from '@/lib/site-content';
+import { DEFAULT_SETTINGS } from '@/lib/data-store';
 import type { SiteContent } from '@/lib/site-content-schema';
 import type { StoreSettings } from '@/lib/data-store';
-import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
+import {
+  getCachedHomeProducts,
+  getCachedHeroBanners,
+  getCachedCtaBanner,
+  getCachedHomePromotions,
+  getCachedHomepageConfig,
+  getCachedHomeSiteContent,
+  getCachedHomeSettings,
+  getCachedGamingPath,
+} from '@/lib/home-cache';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import type { Metadata } from 'next';
+
+const Promotions = dynamic(() => import('@/app/components/Promotions'));
+const FlashDeals = dynamic(() => import('@/app/components/FlashDeals'));
 
 // PRD-140 — ISR: 5 min máximo de obsolescencia para precio/stock visibles.
 // Las mutaciones relevantes también revalidan on-demand: tasa USD/Bs en
@@ -92,61 +100,34 @@ async function getData() {
   // regeneración rompe la página completa. Con fallbacks seguros, la home
   // renderiza vacía-pero-viva y el error queda registrado.
   try {
-    const [products, heroBanners, ctaBannerRow, activePromotions, configRows, siteContent, settings, gamingPath] =
-      await Promise.all([
-        prisma.product.findMany({
-          orderBy: { createdAt: 'desc' },
-          select: PRODUCT_CARD_SELECT,
-        }),
-        prisma.banner.findMany({
-          where: { type: 'hero', active: true },
-          orderBy: [{ order: 'asc' }],
-          take: 10,
-        }),
-        prisma.banner.findFirst({
-          where: { type: 'cta_banner', active: true },
-          orderBy: [{ order: 'asc' }],
-        }),
-        prisma.promotion.findMany({
-          where: { active: true },
-          orderBy: [{ order: 'asc' }],
-          take: 3,
-        }),
-        prisma.appConfig.findMany({
-          where: { key: { in: ['homepage_flashdeals', 'homepage_shelves', 'homepage_benefits'] } },
-        }),
-        readSiteContent(),
-        readSettings(),
-        // P46/H14: el shelf de gaming enlaza a la URL canónica /categoria/[slug]
-        // (con fallback /productos si la categoría no existe en BD).
-        resolveCategoryPathFromProductCategory('Consolas'),
-      ]);
-
-    const configMap = Object.fromEntries(
-      configRows.map((r) => {
-        try {
-          return [r.key, JSON.parse(r.value)];
-        } catch {
-          return [r.key, null];
-        }
-      })
-    );
-
-    // PRD-204: normalizar Decimal → number en la frontera BD→página
-    const normalizedProducts = products.map(p => ({
-      ...p,
-      price:         d(p.price),
-      originalPrice: dn(p.originalPrice),
-    }));
-
-    return {
-      products: normalizedProducts,
+    const [
+      products,
       heroBanners,
       ctaBannerRow,
       activePromotions,
-      flashConfig: configMap['homepage_flashdeals'] as { title: string; endHour: number } | null,
-      shelvesConfig: configMap['homepage_shelves'] as ShelvesConfig | null,
-      benefitsConfig: configMap['homepage_benefits'] as BenefitItem[] | null,
+      { flashConfig, shelvesConfig, benefitsConfig },
+      siteContent,
+      settings,
+      gamingPath,
+    ] = await Promise.all([
+      getCachedHomeProducts(),
+      getCachedHeroBanners(),
+      getCachedCtaBanner(),
+      getCachedHomePromotions(),
+      getCachedHomepageConfig(),
+      getCachedHomeSiteContent(),
+      getCachedHomeSettings(),
+      getCachedGamingPath(),
+    ]);
+
+    return {
+      products,
+      heroBanners,
+      ctaBannerRow,
+      activePromotions,
+      flashConfig,
+      shelvesConfig,
+      benefitsConfig,
       siteContent,
       settings,
       gamingPath,
@@ -196,8 +177,8 @@ function CtaBanner({ data }: { data: CtaBannerData | null }) {
 
       <div className="relative flex flex-col items-center justify-between gap-4 sm:gap-5 px-5 py-7 sm:flex-row sm:px-10 sm:py-10 lg:px-12 lg:py-12">
         <div className="text-center sm:text-left w-full sm:w-auto sm:flex-1">
-          <span className="mb-2 sm:mb-3 inline-flex items-center gap-1.5 rounded-full border border-[#E6C200]/60 bg-[#FFF8D1] px-3 py-1 text-[10px] sm:text-[11px] font-semibold text-[#9a7b00]">
-            <Sparkles size={11} className="text-[#FFD700]" aria-hidden />
+          <span className="mb-2 sm:mb-3 inline-flex items-center gap-1.5 rounded-full border border-[#E6C200]/60 bg-[#FFF8D1] px-3 py-1 text-[10px] sm:text-[11px] font-semibold text-amber-800">
+            <Sparkles size={11} className="text-amber-700" aria-hidden="true" />
             {badge}
           </span>
           <h2 className="text-balance text-[1.25rem] xs:text-[1.4rem] sm:text-2xl md:text-3xl lg:text-[2.25rem] font-bold tracking-tight text-navy leading-tight">
@@ -265,8 +246,16 @@ const HomePage = async () => {
   const newest = products.slice(0, 8);
   const gaming = pickGaming(products).slice(0, 8);
 
+  const lcpHeroImage =
+    heroBanners[0]?.imageUrl?.trim() ||
+    siteContent.heroFallback.imageUrl?.trim() ||
+    null;
+
   return (
     <div className="w-full max-w-full overflow-x-hidden">
+      {lcpHeroImage ? (
+        <link rel="preload" as="image" href={lcpHeroImage} fetchPriority="high" />
+      ) : null}
       {/* Hero — ancho completo solo en móvil (< sm); desde sm conserva el padding del container */}
       <div className="-mx-4 w-[calc(100%+2rem)] sm:mx-0 sm:w-full">
         <div className="-mt-1 sm:-mt-2">
@@ -296,6 +285,7 @@ const HomePage = async () => {
             viewAllLabel="Ver todas las novedades"
             theme="light"
             maxItems={8}
+            priorityFirstItems={2}
           />
 
           <ProductShelf

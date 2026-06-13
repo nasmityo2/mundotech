@@ -6,10 +6,12 @@
 | **Stack** | Next.js 16 (App Router) · React 19 · Tailwind CSS 3 · Framer Motion 11 |
 | **Alcance** | iPhone (Safari) · Android (Chrome/WebView) · tablets |
 | **Tipo** | Auditoría estática de código + evaluación UX táctil |
-| **Fecha** | Junio 2026 |
+| **Fecha** | Junio 2026 (actualizado 13 jun 2026 — bloque Lighthouse home) |
 | **Audiencia** | Desarrollo, producto, operaciones |
 
 > **Sesión 8 de 8** — corre en paralelo con producción (PRD) y SEO (P/H). Lee la sección [⚠️ anti-colisión](#-sesión-8--trabajo-en-paralelo-con-sesiones-16-y-7) antes de tocar código.
+>
+> **13 jun 2026:** implementado bloque CWV/a11y del home (ver [`04-UX-CLIENTE`](./ANALISIS-PRODUCCION-04-UX-CLIENTE.md) § Lighthouse). Local: a11y **100**; perf ~**77** (TTFB local ~1.5 s). Re-auditar en prod tras deploy.
 
 ---
 
@@ -890,11 +892,11 @@ Transformaciones automáticas: `f_auto`, `q_auto:good`, `w_*`, `c_limit`, `dpr_a
 
 | Factor | Estado | Detalle |
 |--------|--------|---------|
-| JS inicial | ⚠️ Pesado | ~95 archivos `'use client'` |
+| JS inicial | ⚠️ Pesado | ~95 archivos `'use client'`; **parcialmente mitigado** en home (13 jun 2026) |
 | Providers globales | ❌ | 5 contexts en cada ruta pública |
-| `ProductProvider` | ❌ | `findMany` catálogo completo en mount |
-| Code splitting | ❌ | Cero `next/dynamic` |
-| Framer Motion | ⚠️ | 20 archivos en shell global |
+| `ProductProvider` | ⚠️ | Carga perezosa (`ensureLoaded`, PRD-095); sigue en shell global |
+| Code splitting | ⚠️ | **Parcial** — `DeferredClientWidgets`, `Promotions`/`FlashDeals` dynamic en home |
+| Framer Motion | ⚠️ | Hero home sin motion en first paint (CSS); sigue en Navbar/drawers |
 | Animaciones CSS | ⚠️ | Shimmer infinito, `animate-ping` en stock badge |
 | `backdrop-blur` | ⚠️ | Drawers, navbar, checkout sticky — costoso GPU |
 | Exchange rate poll | ⚠️ | Cada 60s en todas las rutas |
@@ -955,7 +957,7 @@ Sin medición real, se puede estimar el impacto basado en el análisis estático
 ### Recomendaciones performance móvil
 
 1. Endpoint ligero solo categorías (reemplazar `ProductProvider` full-fetch)
-2. `next/dynamic` para checkout, drawers, admin
+2. `next/dynamic` para checkout, drawers, admin — **parcial en home** (13 jun 2026): `DeferredClientWidgets`, `Promotions`, `FlashDeals`
 3. `prefers-reduced-motion` global
 4. Eliminar `@stripe/*` si no se usa
 5. Reducir `quality` en cards a 75-80 en móvil
@@ -1158,12 +1160,13 @@ Definidos en `lib/admin-nav.ts`: Mostrador, Pedidos, Catálogo, Analítica, Más
 
 | Criterio | Estado | Detalle |
 |----------|--------|---------|
-| Touch targets 44px (principales) | ✅ | Navbar, CTAs checkout |
-| Touch targets 44px (secundarios) | ⚠️ | Muchos por debajo (ver §9) |
+| Touch targets 44px (principales) | ✅ | Navbar, CTAs checkout, announcement bar, búsqueda móvil (13 jun 2026) |
+| Touch targets 44px (secundarios) | ⚠️ | Admin, cart drawer qty, algunos legacy |
 | `role="dialog"` en drawers principales | ✅ | Cart, Category, Search, Admin sidebar |
 | Focus trap en drawers | ⚠️ | Parcial — filtros catálogo sin |
 | `prefers-reduced-motion` | ❌ | No implementado — ver corrección en §17 Sprint 3 |
-| Contraste texto pequeño | ⚠️ | Ver tabla de ratios más abajo |
+| Contraste texto pequeño (home) | ✅ | Tokens `on-light` / `on-dark` en cards, footer, flash deals (13 jun 2026) |
+| Contraste texto pequeño (resto) | ⚠️ | Checkout, admin, auth — ver tabla |
 | Zoom permitido | ✅ | `maximumScale: 5` |
 | Labels en formularios | ✅ | react-hook-form + `Field` component |
 | Anuncios screen reader en carrusel | ⚠️ | Hero auto-advance sin `aria-live` controlado |
@@ -1177,15 +1180,15 @@ No existe ningún análisis previo de lectores de pantalla. Los componentes de m
 
 | Componente | Riesgo VoiceOver/TalkBack | WCAG 2.2 criterio |
 |------------|--------------------------|-------------------|
-| Navbar — iconos sin texto visible (wishlist, carrito, búsqueda) | ❌ Sin `aria-label` → lector anuncia "botón" sin contexto | 4.1.2 Name, Role, Value |
+| Navbar — iconos sin texto visible (wishlist, carrito, búsqueda, login) | ✅ `aria-label` + `sr-only` (13 jun 2026) | 4.1.2 Name, Role, Value |
 | `HomeHeroCyber` carrusel auto-advance | ❌ Sin `aria-live` → cambios de slide no anunciados | 4.1.3 Status Messages |
-| `ProductCard` — botón wishlist (corazón) | ⚠️ Verificar si tiene `aria-label="Agregar a favoritos"` | 4.1.2 |
+| `ProductCard` — botón wishlist (corazón) | ✅ `aria-label` + 44×44px (13 jun 2026) | 4.1.2 |
 | `CartDrawer` — ítem eliminado | ⚠️ Sin confirmación vocal de que se eliminó | 4.1.3 |
 | `CheckoutStepper` — paso activo | ⚠️ ¿Anuncia "Paso 2 de 3: Pago"? | 1.3.1 Info and Relationships |
 | `PaymentForm` — upload comprobante | ❌ `<input type="file">` sin label asociado visible | 1.3.1 |
 | `PromoPopup` / `CookieConsent` — modales | ⚠️ ¿Reciben foco al aparecer? ¿Hay `aria-modal`? | 2.4.3 Focus Order |
 | Estrellas de reseña — selector interactivo | ❌ Solo eventos `mouse*`; sin `aria-label` por estrella | 4.1.2 |
-| Dots del carrusel hero (~6px) | ❌ Sin `aria-label` ("Slide 1 de 5"), imposibles de activar | 2.4.3 / 2.5.5 |
+| Dots del carrusel hero | ✅ Botones con `aria-label` (`Ir al slide N`); área táctil sigue pequeña (~6px alto) | 2.5.5 Target Size ⚠️ |
 
 **Acción recomendada Sprint 4:** ejecutar VoiceOver en iPhone en el flujo completo home → PDP → carrito → checkout y TalkBack en Android en el mismo flujo. Registrar todos los puntos donde el lector anuncia "botón" sin contexto.
 
@@ -1197,9 +1200,11 @@ WCAG 2.2 criterio 1.4.3 exige ratio mínimo **4.5:1** para texto < 18px (o < 14p
 |----------|---------------------|----------------|--------------|
 | `text-[11px]` trust strip (gris sobre oscuro) | `#9CA3AF` / `#0B1220` | ~5.2:1 | ✅ (verificar) |
 | `text-xs` badges hero (texto claro sobre gradiente) | Variable según slide | **verificar** | ? |
-| `text-sm text-gray-400` en cards | `#9CA3AF` / `#1F2937` | ~3.8:1 | ❌ Falla |
+| Etiqueta producto / Bs en `ProductCard` | `text-on-light` `#475569` / blanco | ~7:1 | ✅ (13 jun 2026) |
+| Precio FlashDeals sobre card blanca | `text-price-on-light` `#A16207` / blanco | ~4.7:1 | ✅ (13 jun 2026) |
+| Footer copy sobre `bg-navy` | `text-on-dark` `#D1D5DB` / navy | ~9:1 | ✅ (13 jun 2026) |
+| Logo `Tech` amarillo en header blanco | ~~`#FFD700`~~ → `text-navy` | ~14:1 | ✅ (13 jun 2026) |
 | Placeholder en inputs (checkout) | `#6B7280` / `#111827` | ~4.1:1 | ⚠️ Marginal |
-| Precio tachado (antes) `line-through text-gray-500` | `#6B7280` / fondo card | ~3.5:1 | ❌ Falla |
 
 > Los valores son estimados basados en las clases Tailwind del proyecto. **Medir con exactitud** usando el Colour Contrast Analyser o DevTools → Accessibility → Contrast Ratio antes de Sprint 4.
 
@@ -1843,10 +1848,11 @@ Ver §17 cabecera. Resumen rápido:
 | Métrica | Baseline (antes de sprints) | Target (post Sprint 1) | Target (post Sprint 4) |
 |---------|----------------------------|----------------------|----------------------|
 | Tasa de abandono checkout móvil | — (medir antes) | < 70% | < 55% |
-| LCP móvil en home | — (medir antes) | < 4s | < 2.5s |
+| LCP móvil en home | ~4.4 s local (TTFB ~1.5 s); prod TBD | < 4s | < 2.5s |
+| Lighthouse a11y home | 93 PSI prod → **100 local** post-fix | 100 | 100 |
 | Bugs P0 abiertos | 6 (P0-1 a P0-6) | 0 | 0 |
-| Touch targets < 44px | ~10 elementos | < 3 | 0 |
-| Contraste < 4.5:1 (textos pequeños) | Sin medir | Medido y documentado | Corregidos |
+| Touch targets < 44px (home shell) | Reducido (navbar, announcement, search) | < 3 | 0 |
+| Contraste < 4.5:1 (home) | Corregido en cards/footer/header | Medido en prod | Corregidos |
 
 ### Fechas clave
 
@@ -1855,7 +1861,7 @@ Ver §17 cabecera. Resumen rápido:
 | Sprint 1 completado + checklist en device real | — (definir con equipo) |
 | Sprint 2 completado | — |
 | Baseline de métricas GA4 medido | Antes de iniciar Sprint 1 |
-| Primer Lighthouse móvil documentado | Antes de Sprint 3 |
+| Primer Lighthouse móvil documentado | **13 jun 2026** (local; prod pendiente post-deploy) |
 
 ### Secciones nuevas añadidas en auditoría de vacíos (Junio 2026)
 

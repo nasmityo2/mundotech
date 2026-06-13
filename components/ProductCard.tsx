@@ -31,7 +31,7 @@ function formatBs(amount: number, rate: number): string {
  * botones (wishlist / carrito) quedan FUERA del enlace (HTML válido, sin
  * controles interactivos anidados) elevados con z-10.
  */
-const ProductCard = ({ product }: { product: Product }) => {
+const ProductCard = ({ product, priority = false }: { product: Product; priority?: boolean }) => {
   const { addToCart }                                      = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { rate, stale }                                    = useExchangeRate();
@@ -74,8 +74,10 @@ const ProductCard = ({ product }: { product: Product }) => {
             src={product.image}
             alt={product.name}
             fill
+            priority={priority}
+            fetchPriority={priority ? 'high' : undefined}
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            quality={90}
+            quality={priority ? 75 : 90}
             className="object-contain p-4 sm:p-6 transition-transform duration-500 drop-shadow-[0_6px_18px_rgba(11,18,32,0.10)] group-hover:scale-[1.04]"
           />
 
@@ -102,12 +104,12 @@ const ProductCard = ({ product }: { product: Product }) => {
           <button
             type="button"
             onClick={handleWishlist}
-            className="absolute z-10 top-1.5 right-1.5 min-w-[40px] min-h-[40px] rounded-full bg-white/90 backdrop-blur
+            className="absolute z-10 top-1.5 right-1.5 min-w-[44px] min-h-[44px] rounded-full bg-white/90 backdrop-blur
                        border border-slate-200/70 shadow-soft flex items-center justify-center
                        text-slate-400 hover:text-rose-500 active:text-rose-600 active:scale-95 hover:bg-white transition-all"
             aria-label={isFav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
           >
-            <Heart size={16} className={isFav ? 'text-rose-500 fill-rose-500' : ''} />
+            <Heart size={16} aria-hidden="true" className={isFav ? 'text-rose-500 fill-rose-500' : ''} />
           </button>
 
           {/* Overlay agotado */}
@@ -122,7 +124,7 @@ const ProductCard = ({ product }: { product: Product }) => {
 
         {/* Info */}
         <div className="p-3 sm:p-4 flex flex-col flex-grow gap-1.5">
-          <p className="text-[10px] sm:text-[11px] font-medium text-slate-400 uppercase tracking-wider truncate">
+          <p className="text-[10px] sm:text-[11px] font-medium text-on-light uppercase tracking-wider truncate">
             {brandLabel}
           </p>
 
@@ -139,7 +141,7 @@ const ProductCard = ({ product }: { product: Product }) => {
           {product.reviewCount && product.reviewCount > 0 ? (
             <div className="flex items-center gap-1 mt-0.5">
               <Stars rating={product.rating ?? 0} size={11} />
-              <span className="text-[10px] text-slate-400 ml-0.5 nums">({product.reviewCount})</span>
+              <span className="text-[10px] text-on-light ml-0.5 nums">({product.reviewCount})</span>
             </div>
           ) : null}
 
@@ -150,25 +152,25 @@ const ProductCard = ({ product }: { product: Product }) => {
                 {formatUSD(product.price)}
               </span>
               {product.originalPrice && product.originalPrice > product.price && (
-                <span className="text-[11px] sm:text-xs text-slate-400 line-through nums">
+                <span className="text-[11px] sm:text-xs text-on-light line-through nums">
                   {formatUSD(product.originalPrice)}
                 </span>
               )}
             </div>
             <p
-              className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 nums truncate"
+              className="text-[10px] sm:text-[11px] text-on-light mt-0.5 nums truncate"
               title={stale ? 'Tasa USD/Bs referencial — se confirma al pagar' : undefined}
             >
               {formatBs(product.price, rate)}
               {/* PRD-215: la tasa mostrada no se pudo refrescar — monto referencial */}
-              {stale ? <span className="text-slate-400"> (ref.)</span> : null}
+              {stale ? <span className="text-on-light"> (ref.)</span> : null}
             </p>
 
             <button
               type="button"
               onClick={handleCart}
               disabled={isOut}
-              className={`relative z-10 mt-2.5 sm:mt-3 w-full inline-flex items-center justify-center gap-1.5 min-h-[42px] sm:min-h-[44px] rounded-xl
+              className={`relative z-10 mt-2.5 sm:mt-3 w-full inline-flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl
                           text-[12px] sm:text-[13px] font-bold transition-all duration-200 border
                           active:scale-[0.97]
                           disabled:opacity-50 disabled:cursor-not-allowed
@@ -178,12 +180,12 @@ const ProductCard = ({ product }: { product: Product }) => {
             >
               {justAdded ? (
                 <>
-                  <Check size={15} />
+                  <Check size={15} aria-hidden="true" />
                   ¡En el carrito!
                 </>
               ) : (
                 <>
-                  <ShoppingCart size={14} />
+                  <ShoppingCart size={14} aria-hidden="true" />
                   {isOut ? 'Agotado' : '¡Me lo llevo!'}
                 </>
               )}

@@ -38,6 +38,10 @@ const nextConfig = {
   // PRD-071: no exponer el framework al servidor ("X-Powered-By: Next.js").
   poweredByHeader: false,
 
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'framer-motion'],
+  },
+
   serverExternalPackages: ['@prisma/client', '.prisma/client', 'sharp', '@aws-sdk/client-s3'],
 
   async headers() {
@@ -46,6 +50,18 @@ const nextConfig = {
         // Aplica a todas las rutas del sitio
         source: '/(.*)',
         headers: securityHeaders,
+      },
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        source: '/icon.svg',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
+        ],
       },
     ];
   },

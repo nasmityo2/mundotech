@@ -1,4 +1,3 @@
-import sharp from 'sharp';
 import {
   detectImageMimeFromBuffer,
   type DetectedImageMime,
@@ -12,12 +11,29 @@ export interface ProcessedImage {
   height: number;
 }
 
+type SharpFactory = typeof import('sharp').default;
+
 const MIME_TO_EXT: Record<DetectedImageMime, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
   'image/gif': 'gif',
 };
+
+/** undefined = no intentado; null = falló la carga nativa (p. ej. libvips en Vercel). */
+let sharpCache: SharpFactory | null | undefined;
+
+async function loadSharp(): Promise<SharpFactory | null> {
+  if (sharpCache !== undefined) return sharpCache;
+  try {
+    const mod = await import('sharp');
+    sharpCache = mod.default;
+  } catch (err) {
+    console.error('[image-processing] sharp module failed to load:', err);
+    sharpCache = null;
+  }
+  return sharpCache;
+}
 
 function originalImagePayload(buffer: Buffer, mime: DetectedImageMime): ProcessedImage {
   return {
@@ -29,32 +45,8 @@ function originalImagePayload(buffer: Buffer, mime: DetectedImageMime): Processe
   };
 }
 
-/**
- * Igual que processImage, pero si sharp no carga (p. ej. binario nativo ausente en
- * el runtime) guarda el buffer original sin convertir — evita 500 en comprobantes.
- */
-export async function processImageWithFallback(
-  buffer: Buffer,
-  options: { maxWidth: number },
-): Promise<ProcessedImage> {
-  const detectedMime = detectImageMimeFromBuffer(buffer);
-  if (!detectedMime) {
-    throw new Error('Tipo de imagen no reconocido.');
-  }
-
-  try {
-    return await processImage(buffer, options);
-  } catch (err) {
-    console.error('[upload-proof] sharp failed, storing original:', err);
-    return originalImagePayload(buffer, detectedMime);
-  }
-}
-
-/**
- * Redimensiona y convierte a WebP (quality 80), salvo GIF animados que se
- * conservan tal cual para no perder frames.
- */
-export async function processImage(
+async function processImageWithSharp(
+  sharp: SharpFactory,
   buffer: Buffer,
   { maxWidth }: { maxWidth: number },
 ): Promise<ProcessedImage> {
@@ -89,12 +81,59 @@ export async function processImage(
   };
 }
 
+/**
+ * Igual que processImage, pero si sharp no carga (p. ej. binario nativo ausente en
+ * el runtime) guarda el buffer original sin convertir — evita 500 en comprobantes.
+ */
+export async function processImageWithFallback(
+  buffer: Buffer,
+  options: { maxWidth: number },
+): Promise<ProcessedImage> {
+  const detectedMime = detectImageMimeFromBuffer(buffer);
+  if (!detectedMime) {
+    throw new Error('Tipo de imagen no reconocido.');
+  }
+
+  const sharp = await loadSharp();
+  if (!sharp) {
+    console.error('[upload-proof] sharp unavailable, storing original');
+    return originalImagePayload(buffer, detectedMime);
+  }
+
+  try {
+    return await processImageWithSharp(sharp, buffer, options);
+  } catch (err) {
+    console.error('[upload-proof] sharp failed, storing original:', err);
+    return originalImagePayload(buffer, detectedMime);
+  }
+}
+
+/**
+ * Redimensiona y convierte a WebP (quality 80), salvo GIF animados que se
+ * conservan tal cual para no perder frames.
+ */
+export async function processImage(
+  buffer: Buffer,
+  options: { maxWidth: number },
+): Promise<ProcessedImage> {
+  const sharp = await loadSharp();
+  if (!sharp) {
+    throw new Error('El procesador de imágenes no está disponible.');
+  }
+  return processImageWithSharp(sharp, buffer, options);
+}
+
 /** Para migración: conserva GIF; el resto pasa por processImage. */
 export async function processImageForMigration(
   buffer: Buffer,
   mime: DetectedImageMime,
   maxWidth: number,
 ): Promise<ProcessedImage> {
+  const sharp = await loadSharp();
+  if (!sharp) {
+    throw new Error('El procesador de imágenes no está disponible.');
+  }
+
   if (mime === 'image/gif') {
     const meta = await sharp(buffer, { animated: true }).metadata();
     return {
@@ -105,5 +144,5 @@ export async function processImageForMigration(
       height: meta.height ?? 0,
     };
   }
-  return processImage(buffer, { maxWidth });
+  return processImageWithSharp(sharp, buffer, { maxWidth });
 }

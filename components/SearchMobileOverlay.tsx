@@ -88,12 +88,13 @@ export default function SearchMobileOverlay({ open, onClose }: Props) {
               className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-navy hover:bg-slate-100 active:bg-slate-200 transition-colors flex-shrink-0"
               aria-label="Volver"
             >
-              <ArrowLeft size={20} />
+              <ArrowLeft size={20} aria-hidden="true" />
             </button>
             <form onSubmit={handleSubmit} className="flex-1 flex items-center gap-2 min-w-0">
               <div className="relative flex-1 flex items-center min-w-0">
                 <Search
                   size={18}
+                  aria-hidden="true"
                   className="absolute left-3 text-slate-400 pointer-events-none flex-shrink-0"
                 />
                 <input
@@ -117,10 +118,10 @@ export default function SearchMobileOverlay({ open, onClose }: Props) {
                       setOpen(false);
                       inputRef.current?.focus();
                     }}
-                    className="absolute right-1.5 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-400 hover:text-navy active:bg-slate-200 rounded-lg"
+                    className="absolute right-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-navy active:bg-slate-200 rounded-lg"
                     aria-label="Limpiar"
                   >
-                    <X size={18} />
+                    <X size={18} aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -129,7 +130,7 @@ export default function SearchMobileOverlay({ open, onClose }: Props) {
                 className="min-w-[44px] min-h-[48px] flex items-center justify-center rounded-xl bg-navy text-white px-3 active:scale-95 transition-transform"
                 aria-label="Ir al catálogo con esta búsqueda"
               >
-                <Search size={18} />
+                <Search size={18} aria-hidden="true" />
               </button>
             </form>
           </div>

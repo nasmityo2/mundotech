@@ -159,7 +159,7 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
                 className="text-lg font-bold tracking-tight text-navy flex items-center gap-0.5"
               >
                 <span>Mundo</span>
-                <span className="text-brand-yellow">Tech</span>
+                <span className="text-navy">Tech</span>
               </Link>
               <button
                 type="button"
@@ -167,7 +167,7 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
                 className="min-w-[44px] min-h-[44px] -mr-2 rounded-xl flex items-center justify-center text-slate-500 hover:text-navy hover:bg-slate-100 active:bg-slate-200 transition-colors"
                 aria-label="Cerrar menú"
               >
-                <X size={20} />
+                <X size={20} aria-hidden="true" />
               </button>
             </div>
 
@@ -217,7 +217,7 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
 
               {/* ── Sección: Categorías ──────────────────────────── */}
               <div className="px-4 pb-2">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 px-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-on-light px-2">
                   Categorías
                 </p>
               </div>

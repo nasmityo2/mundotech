@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireAdminAction } from '@/lib/api-auth';
 import {
   siteContentSchema,
@@ -43,5 +43,6 @@ export async function updateSiteContent(input: SiteContent): Promise<UpdateSiteC
   }
 
   revalidatePath('/', 'layout');
+  revalidateTag('site-content', 'default');
   return { success: true };
 }

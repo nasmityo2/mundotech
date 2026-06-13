@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 
 // ── Keys managed by this endpoint ────────────────────────────────────────────
 
@@ -118,6 +118,7 @@ export async function PUT(request: Request) {
   });
 
   revalidatePath('/', 'layout');
+  revalidateTag('homepage-config', 'default');
 
   return NextResponse.json({ success: true });
 }

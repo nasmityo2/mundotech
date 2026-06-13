@@ -1365,6 +1365,8 @@ Migrar enlaces internos de `/productos?cat=X` a `/categoria/{slug}` consolidarí
 
 ## 14. Rendimiento, Core Web Vitals e imágenes
 
+> **Estado (13 jun 2026):** bloque Lighthouse home implementado — ver detalle en [`ANALISIS-PRODUCCION-04-UX-CLIENTE.md`](./ANALISIS-PRODUCCION-04-UX-CLIENTE.md) § Lighthouse. Local: a11y **100**; perf ~**77** (TTFB SSR ~1.5 s). Producción: re-auditar tras deploy.
+
 ### 14.1 Tipografía
 
 ```typescript
@@ -1388,16 +1390,20 @@ Comentario en código: reduce ~60-70% peso en móvil (contexto Venezuela).
 
 | Componente | Optimización |
 |------------|--------------|
-| `HomeHeroCyber.tsx` | `priority` + `fetchPriority: 'high'` en slide 0 |
+| `HomeHeroCyber.tsx` | `priority` + `fetchPriority: 'high'` en slide 0; animación CSS (sin framer-motion en copy) |
 | `ProductGallery.tsx` | `priority` + `fetchPriority: 'high'` en imagen principal |
 | `categoria/[slug]` hero | `priority` en imagen de fondo |
-| `ProductCard` en grids | Sin priority (correcto para below-fold) |
+| `ProductCard` primer shelf home | `priorityFirstItems={2}` **solo carrusel móvil** (`sm:hidden`) — LCP real en PSI móvil fue imagen de producto lazy, no hero |
+| `ProductCard` resto de grids | Sin `priority` (below-fold) |
+| `app/page.tsx` | `<link rel="preload">` imagen hero (URL R2 directa; beneficio parcial vs `/_next/image`) |
 
 ### 14.4 Arquitectura de layout y JS
 
 `AppLayoutShell` separa:
 - **Cliente:** Navbar, CartDrawer (`AppContent`)
 - **Servidor:** `<main>`, `Footer`
+
+`DeferredClientWidgets` (13 jun 2026) difiere WhatsApp FAB + PromoPopup en chunk separado (`ssr: false`). Home: `Promotions` y `FlashDeals` vía `next/dynamic`.
 
 Comentario en layout: reduce JS bundle, mejora LCP/INP.
 
@@ -1406,7 +1412,13 @@ Comentario en layout: reduce JS bundle, mejora LCP/INP.
 `next.config.mjs`:
 - HSTS 1 año
 - `Referrer-Policy: strict-origin-when-cross-origin`
-- Sin `poweredByHeader: false` explícito (Next.js lo oculta por defecto en versiones recientes)
+- `poweredByHeader: false`
+- `Cache-Control: public, max-age=31536000, immutable` en `/_next/static/*` (refuerzo app; CDN debe respetarlo)
+- `experimental.optimizePackageImports`: `lucide-react`, `framer-motion`
+
+### 14.6 Targets de compilación (legacy JS)
+
+`package.json` → `browserslist` (Chrome/Safari/Firefox/Edge ≥111). `tsconfig.json` → `"target": "ES2022"`. Objetivo: eliminar polyfills `Array.at`, `Object.fromEntries`, etc. en bundle cliente.
 
 ---
 
@@ -2203,6 +2215,21 @@ Productos sin `description` usan fallback genérico. Muchos productos con descri
 | `app/page.tsx` CtaBanner | `"Tecnología MundoTech"` (genérico, no describe imagen) |
 | `app/product/[slug]/ProductGallery.tsx` poster video | `alt=""` + `aria-hidden` (OK decorativo) |
 | `components/ProductGallery.tsx` (legacy) | `"Product Image"` (malo) |
+
+---
+
+### 32.11 Contraste y tokens semánticos (home) — ✅ Parcial (13 jun 2026)
+
+**Archivos:** `tailwind.config.ts`, `ProductCard.tsx`, `Footer.tsx`, `FlashDeals.tsx`, `Navbar.tsx`, `CategoryDrawer.tsx`
+
+Tokens Tailwind para evitar regresiones WCAG:
+- `text-on-light` / `text-on-light-muted` — texto secundario sobre fondos claros
+- `text-on-dark` / `text-on-dark-muted` — texto sobre `bg-navy`
+- `text-price-on-light` — precios en cards blancas (no `#FFD700`)
+
+Amarillo de marca (`#FFD700`) reservado para fondos oscuros (hero, footer marca, badges con texto `#0B1220`).
+
+**Pendiente:** auth (`AuthSplitLayout`), admin, checkout — fuera del alcance del audit home.
 
 ---
 

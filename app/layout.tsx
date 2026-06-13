@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Jost } from "next/font/google";
-import { headers, cookies } from "next/headers";
 import "./globals.css";
 import AuthProvider from "./components/AuthProvider";
 import { CartProvider } from "../context/CartContext";
@@ -11,8 +10,7 @@ import AppContent from "./AppContent";
 import Footer from "./components/Footer";
 import AppLayoutShell from "./components/AppLayoutShell";
 import AnnouncementBar from "./components/AnnouncementBar";
-import WhatsAppFab from "./components/WhatsAppFab";
-import PromoPopup from "./components/PromoPopup";
+import DeferredClientWidgets from "./components/DeferredClientWidgets";
 import CookieConsent from "./components/CookieConsent";
 import JsonLd from "./components/JsonLd";
 import { Toaster } from "@/components/ui/Toaster";
@@ -128,23 +126,15 @@ export default async function RootLayout({
 }>) {
   // Datos vivos editables desde /admin/settings/seo-local, /admin/settings
   // y /admin/personalizar.
-  const [seo, settings, announcement, siteContent, headersList, cookieStore] = await Promise.all([
+  // Sin cookies()/headers() aquí: el layout raíz debe poder cachearse (ISR/estático).
+  // Lo per-usuario (consentimiento, dismiss del aviso, badge carrito, sesión) se
+  // resuelve en Client Components tras hidratar — ver CookieConsent, AnnouncementBarClient, Navbar.
+  const [seo, settings, announcement, siteContent] = await Promise.all([
     readSeoLocal(),
     readSettings(),
     readAnnouncement(),
     readSiteContent(),
-    headers(),
-    cookies(),
   ]);
-  // Nonce generado por middleware para CSP strict-dynamic (sin unsafe-inline en script-src).
-  const nonce = headersList.get('x-nonce') ?? undefined;
-  // PRD-287: consentimiento leído del cookie HTTP para evitar flash en visitas recurrentes.
-  const rawConsent = cookieStore.get('mt_cookie_consent')?.value;
-  const initialConsent = rawConsent === 'accepted' || rawConsent === 'essential' ? rawConsent : null;
-  // P87/H55: cookie de dismissal del AnnouncementBar leída en servidor para que
-  // el bar se omita en SSR si el usuario ya lo cerró (cero CLS, cero flash).
-  const rawDismissed = cookieStore.get('mt_announcement_dismissed')?.value;
-  const announcementDismissedText = rawDismissed ? decodeURIComponent(rawDismissed) : undefined;
   const sameAs = [settings.instagram, settings.facebook].filter(Boolean) as string[];
 
   const localBusinessSchema = {
@@ -209,7 +199,8 @@ export default async function RootLayout({
         >
           Saltar al contenido
         </a>
-        <JsonLd data={[websiteSchema, localBusinessSchema, organizationSchema]} nonce={nonce} />
+        {/* Sin nonce: JSON-LD no es ejecutable; compatible con HTML cacheado (JsonLd.tsx). */}
+        <JsonLd data={[websiteSchema, localBusinessSchema, organizationSchema]} />
         <AuthProvider>
           <CartProvider>
             <WishlistProvider>
@@ -221,7 +212,7 @@ export default async function RootLayout({
                     y mejorar LCP / INP (Core Web Vitals).
                   */}
                   <div className="flex min-h-[100dvh] flex-col w-full max-w-full overflow-x-hidden">
-                    <AnnouncementBar data={announcement} dismissedText={announcementDismissedText} />
+                    <AnnouncementBar data={announcement} />
                     <AppContent
                       contact={{
                         phone: settings.phone,
@@ -238,14 +229,11 @@ export default async function RootLayout({
                       {children}
                     </AppLayoutShell>
                   </div>
-                  {siteContent.whatsapp.enabled ? (
-                    <WhatsAppFab
-                      phone={siteContent.whatsapp.phone}
-                      message={siteContent.whatsapp.message}
-                    />
-                  ) : null}
-                  <PromoPopup popup={siteContent.popup} />
-                  <CookieConsent initialConsent={initialConsent} />
+                  <DeferredClientWidgets
+                    whatsapp={siteContent.whatsapp}
+                    popup={siteContent.popup}
+                  />
+                  <CookieConsent />
                 </ExchangeRateProvider>
               </ProductProvider>
             </WishlistProvider>

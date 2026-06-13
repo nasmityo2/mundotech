@@ -24,11 +24,11 @@ const Benefits = ({ items }: { items: BenefitItem[] }) => {
           return (
             <div key={i} className="flex items-center gap-3 px-4 sm:px-6 py-3.5 sm:py-4">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-yellowSft text-navy flex-shrink-0">
-                <Icon size={18} />
+                <Icon size={18} aria-hidden="true" />
               </div>
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold text-navy tracking-tight leading-tight">{item.title}</p>
-                <p className="text-[11px] text-slate-500 mt-0.5 leading-snug hidden sm:block">{item.sub}</p>
+                <p className="text-[11px] text-on-light mt-0.5 leading-snug hidden sm:block">{item.sub}</p>
               </div>
             </div>
           );

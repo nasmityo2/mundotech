@@ -28,9 +28,9 @@ export interface NavbarContact {
 }
 
 const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: NavbarContact }) => {
-  const { data: session }                  = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const { cart, isCartLoading, itemAdded } = useCart();
-  const { wishlist }                       = useWishlist();
+  const { wishlist, isWishlistLoading }    = useWishlist();
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [drawerOpen,   setDrawerOpen]   = useState(false);
@@ -107,7 +107,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                   className="lg:hidden flex items-center justify-center min-w-[44px] min-h-[44px] rounded-xl text-navy hover:bg-slate-100 active:bg-slate-200 transition-colors"
                   aria-label="Abrir menú de categorías"
                 >
-                  <Menu size={22} />
+                  <Menu size={22} aria-hidden="true" />
                 </button>
 
                 <Link
@@ -115,7 +115,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                   className="text-[1.15rem] sm:text-2xl font-bold tracking-tight text-navy flex items-center gap-0.5 px-1"
                 >
                   <span>Mundo</span>
-                  <span className="text-brand-yellow">Tech</span>
+                  <span className="text-navy">Tech</span>
                 </Link>
 
                 <button
@@ -124,7 +124,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                   className="hidden lg:inline-flex ml-3 items-center gap-1.5 text-sm font-semibold text-navy/80
                              hover:text-navy hover:bg-slate-100 transition-colors px-3 py-2 rounded-xl"
                 >
-                  <Menu size={15} />
+                  <Menu size={15} aria-hidden="true" />
                   Categorías
                 </button>
               </div>
@@ -147,25 +147,38 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                   className="md:hidden flex items-center justify-center min-w-[44px] min-h-[44px] rounded-xl text-navy hover:bg-slate-100 active:bg-slate-200 transition-colors"
                   aria-label="Abrir búsqueda"
                 >
-                  <Search size={20} />
+                  <Search size={20} aria-hidden="true" />
                 </button>
 
-                {/* Wishlist */}
+                {/* Wishlist — espacio reservado para el badge (evita CLS al hidratar) */}
                 <Link
                   href="/wishlist"
                   className="relative flex items-center justify-center min-w-[44px] min-h-[44px] text-navy/80 hover:text-navy hover:bg-slate-100 active:bg-slate-200 rounded-xl transition-colors"
-                  aria-label="Lista de deseos"
+                  aria-label={wishlist.length > 0 ? `Lista de deseos (${wishlist.length})` : 'Lista de deseos'}
                 >
-                  <Heart size={20} />
-                  {wishlist.length > 0 && (
-                    <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
-                      {wishlist.length}
-                    </span>
-                  )}
+                  <span className="sr-only">Lista de deseos</span>
+                  <Heart size={20} aria-hidden="true" />
+                  <span
+                    className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center ring-2 ring-white"
+                    aria-hidden="true"
+                  >
+                    {!isWishlistLoading && wishlist.length > 0 ? (
+                      <span className="bg-rose-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+                        {wishlist.length}
+                      </span>
+                    ) : null}
+                  </span>
                 </Link>
 
-                {/* Cuenta */}
-                {session ? (
+                {/* Cuenta — skeleton neutro mientras useSession resuelve */}
+                {sessionStatus === 'loading' ? (
+                  <div
+                    className="flex items-center justify-center min-w-[44px] min-h-[44px] px-2 rounded-xl"
+                    aria-hidden="true"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-slate-200" />
+                  </div>
+                ) : session ? (
                   <div className="relative" ref={userMenuRef}>
                     <button
                       type="button"
@@ -182,7 +195,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                       <span className="hidden lg:block text-sm font-semibold max-w-[100px] truncate">
                         {session.user?.name?.split(' ')[0] ?? 'Cuenta'}
                       </span>
-                      <ChevronDown size={13} className={`hidden lg:block transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDown size={13} aria-hidden="true" className={`hidden lg:block transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
                     </button>
 
                     <AnimatePresence>
@@ -240,10 +253,12 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                 ) : (
                   <Link
                     href="/login"
+                    aria-label="Iniciar sesión"
                     className="flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] sm:px-3 text-navy
                                hover:bg-slate-100 active:bg-slate-200 rounded-xl text-sm font-semibold transition-colors"
                   >
-                    <UserCircle size={20} />
+                    <span className="sr-only">Iniciar sesión</span>
+                    <UserCircle size={20} aria-hidden="true" />
                     <span className="hidden sm:inline">Entrar</span>
                   </Link>
                 )}
@@ -258,13 +273,16 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                   animate={cartAnim}
                   aria-label="Carrito de compras"
                 >
-                  <ShoppingBag size={18} />
+                  <span className="sr-only">Carrito de compras</span>
+                  <ShoppingBag size={18} aria-hidden="true" />
                   <span className="hidden sm:inline">Carrito</span>
-                  {totalItems > 0 && (
-                    <span className="bg-brand-yellow text-navy text-[11px] font-bold rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center nums">
-                      {totalItems}
-                    </span>
-                  )}
+                  <span className="inline-flex min-w-[20px] h-5 items-center justify-center" aria-hidden={totalItems === 0}>
+                    {!isCartLoading && totalItems > 0 ? (
+                      <span className="bg-brand-yellow text-navy text-[11px] font-bold rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center nums">
+                        {totalItems}
+                      </span>
+                    ) : null}
+                  </span>
                 </motion.button>
               </nav>
             </div>

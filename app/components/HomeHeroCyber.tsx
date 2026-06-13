@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { ArrowRight, Tag, MapPin } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -143,8 +142,8 @@ export default function HomeHeroCyber({
             fill
             priority={active === 0}
             fetchPriority={active === 0 ? 'high' : 'auto'}
-            quality={90}
-            sizes="(max-width: 640px) 100vw, (max-width: 1400px) 100vw, 1400px"
+            quality={75}
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1400px"
             className="object-cover object-center"
           />
         ) : (
@@ -178,12 +177,9 @@ export default function HomeHeroCyber({
 
         {showCopy ? (
           <div className="relative z-10 flex h-full w-full items-end sm:items-center px-4 pb-5 pt-4 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
-            <motion.div
+            <div
               key={active}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-              className="w-full max-w-full sm:max-w-2xl lg:max-w-[min(36rem,52%)] xl:max-w-2xl text-left"
+              className="w-full max-w-full sm:max-w-2xl lg:max-w-[min(36rem,52%)] xl:max-w-2xl text-left animate-fade-up"
             >
               <BadgePill label={slide.badge} />
 
@@ -217,7 +213,7 @@ export default function HomeHeroCyber({
                   Conoce la tienda
                 </Link>
               </div>
-            </motion.div>
+            </div>
           </div>
         ) : null}
 

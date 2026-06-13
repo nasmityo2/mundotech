@@ -57,21 +57,21 @@ const Footer = async () => {
               Conectados Contigo
             </p>
             {settings.tagline && (
-              <p className="text-gray-400 text-sm leading-relaxed mt-3 max-w-sm">
+              <p className="text-on-dark text-sm leading-relaxed mt-3 max-w-sm">
                 {settings.tagline}
               </p>
             )}
 
             <div className="mt-5 space-y-2.5">
               {settings.address && (
-                <div className="flex items-start gap-2 text-[13px] text-gray-400">
-                  <MapPin size={13} className="text-brand-yellow flex-shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2 text-[13px] text-on-dark">
+                  <MapPin size={13} className="text-brand-yellow flex-shrink-0 mt-0.5" aria-hidden="true" />
                   <span>{settings.address}</span>
                 </div>
               )}
               {hours.length > 0 && (
-                <div className="flex items-start gap-2 text-[13px] text-gray-400">
-                  <Clock size={13} className="text-brand-yellow flex-shrink-0 mt-0.5" />
+                <div className="flex items-start gap-2 text-[13px] text-on-dark">
+                  <Clock size={13} className="text-brand-yellow flex-shrink-0 mt-0.5" aria-hidden="true" />
                   <span>
                     {hours.map((h) => `${h.day}: ${h.hours}`).join(' · ')}
                   </span>
@@ -80,17 +80,17 @@ const Footer = async () => {
               {settings.phone && (
                 <a
                   href={`tel:+58${settings.phone.replace(/^0/, '').replace(/[-\s]/g, '')}`}
-                  className="flex items-center gap-2 text-[13px] text-gray-400 hover:text-brand-yellow transition-colors"
+                  className="flex items-center gap-2 text-[13px] text-on-dark hover:text-brand-yellow transition-colors"
                 >
-                  <Phone size={13} className="text-brand-yellow flex-shrink-0" />
+                  <Phone size={13} className="text-brand-yellow flex-shrink-0" aria-hidden="true" />
                   {settings.phone}{settings.phone2 ? ` · ${settings.phone2}` : ''}
                 </a>
               )}
               <a
                 href={`mailto:${settings.email}`}
-                className="flex items-center gap-2 text-[13px] text-gray-400 hover:text-brand-yellow transition-colors"
+                className="flex items-center gap-2 text-[13px] text-on-dark hover:text-brand-yellow transition-colors"
               >
-                <Mail size={13} className="text-brand-yellow flex-shrink-0" />
+                <Mail size={13} className="text-brand-yellow flex-shrink-0" aria-hidden="true" />
                 {settings.email}
               </a>
             </div>
@@ -99,7 +99,7 @@ const Footer = async () => {
               href={waHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-5 inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/10 px-4 text-[13px] font-semibold text-[#7bedaa] transition-colors hover:bg-[#25D366]/20"
+              className="mt-5 inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-[#25D366]/40 bg-[#25D366]/10 px-4 text-[13px] font-semibold text-[#7bedaa] transition-colors hover:bg-[#25D366]/20"
             >
               <svg viewBox="0 0 32 32" fill="currentColor" className="h-4 w-4" aria-hidden>
                 <path d="M16.04 4C9.5 4 4.2 9.3 4.2 15.83c0 2.08.55 4.12 1.6 5.92L4 28l6.42-1.68a11.8 11.8 0 0 0 5.62 1.43h.01c6.53 0 11.84-5.3 11.84-11.84C27.89 9.3 22.57 4 16.04 4Zm5.4 14.37c-.3-.15-1.75-.86-2.02-.96-.27-.1-.47-.15-.66.15-.2.3-.77.96-.94 1.15-.17.2-.35.22-.64.08-.3-.15-1.25-.46-2.38-1.47a8.9 8.9 0 0 1-1.65-2.04c-.17-.3-.02-.46.13-.6.13-.14.3-.35.44-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.66-1.6-.9-2.18-.24-.58-.49-.5-.66-.51l-.57-.01c-.2 0-.52.07-.79.37-.27.3-1.04 1.01-1.04 2.47s1.06 2.87 1.21 3.06c.15.2 2.09 3.2 5.07 4.48.71.3 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.75-.72 2-1.41.24-.7.24-1.29.17-1.41-.07-.13-.27-.2-.57-.35Z" />
@@ -112,12 +112,12 @@ const Footer = async () => {
           <div className="md:col-span-2">
             <h3 className="text-sm font-bold uppercase tracking-widest text-gray-300 mb-4">Tienda</h3>
             <ul className="space-y-2">
-              <li><Link href="/"                        className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Inicio</Link></li>
-              <li><Link href="/productos"                className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Catálogo</Link></li>
-              <li><Link href="/nosotros"                 className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Quiénes somos</Link></li>
-              <li><Link href="/tienda-barquisimeto"      className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Nuestra tienda</Link></li>
-              <li><Link href={gamingPath}     className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Gaming</Link></li>
-              <li><Link href={accesoriosPath} className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Accesorios</Link></li>
+              <li><Link href="/"                        className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Inicio</Link></li>
+              <li><Link href="/productos"                className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Catálogo</Link></li>
+              <li><Link href="/nosotros"                 className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Quiénes somos</Link></li>
+              <li><Link href="/tienda-barquisimeto"      className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Nuestra tienda</Link></li>
+              <li><Link href={gamingPath}     className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Gaming</Link></li>
+              <li><Link href={accesoriosPath} className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Accesorios</Link></li>
             </ul>
           </div>
 
@@ -125,11 +125,11 @@ const Footer = async () => {
           <div className="md:col-span-2">
             <h3 className="text-sm font-bold uppercase tracking-widest text-gray-300 mb-4">Ayuda</h3>
             <ul className="space-y-2">
-              <li><Link href="/account/orders"   className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Mis pedidos</Link></li>
-              <li><Link href="/devoluciones"     className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Devoluciones y garantía</Link></li>
-              <li><Link href="/shipping-policy"  className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Envíos</Link></li>
-              <li><Link href="/privacy-policy"   className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Privacidad</Link></li>
-              <li><Link href="/terms-of-service" className="text-sm text-gray-400 hover:text-brand-yellow transition-colors">Términos</Link></li>
+              <li><Link href="/account/orders"   className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Mis pedidos</Link></li>
+              <li><Link href="/devoluciones"     className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Devoluciones y garantía</Link></li>
+              <li><Link href="/shipping-policy"  className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Envíos</Link></li>
+              <li><Link href="/privacy-policy"   className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Privacidad</Link></li>
+              <li><Link href="/terms-of-service" className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Términos</Link></li>
             </ul>
           </div>
 
@@ -160,16 +160,16 @@ const Footer = async () => {
                 </span>
               ))}
             </div>
-            <p className="mt-3 text-[11.5px] leading-relaxed text-gray-500">
+            <p className="mt-3 text-[11.5px] leading-relaxed text-on-dark">
               Precios en dólares y bolívares, a la tasa del día. El total en Bs se
               calcula al momento de pagar.
             </p>
           </div>
         </div>
 
-        <div className="border-t border-white/5 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-gray-500 text-[12px]">
+        <div className="border-t border-white/5 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-on-dark-muted text-[12px]">
           <p>&copy; {new Date().getFullYear()} {settings.storeName}{settings.address ? ` · ${settings.address}` : ''}</p>
-          <p className="text-gray-600">Hecho en Barquisimeto, con sabor a Lara.</p>
+          <p className="text-on-dark">Hecho en Barquisimeto, con sabor a Lara.</p>
         </div>
       </div>
     </footer>

@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireAdminAction } from '@/lib/api-auth';
 import { storeSettingsSchema, writeSettings, type StoreSettings } from '@/lib/data-store';
 
@@ -27,6 +27,7 @@ export async function updateSettings(input: unknown): Promise<SettingsActionResu
 
   revalidatePath('/', 'layout');
   revalidatePath('/admin/settings');
+  revalidateTag('store-settings', 'default');
 
   return { success: true, message: 'Configuración guardada.', data: parsed.data };
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { isSafeEditableImageUrl, isSafeEditableLink } from '@/lib/safe-link';
 
@@ -94,6 +95,8 @@ export async function POST(request: Request) {
         order:    order    ?? 0,
       },
     });
+    revalidatePath('/');
+    revalidateTag('banners', 'default');
     return NextResponse.json(banner, { status: 201 });
   } catch (error) {
     console.error('[/api/banners][POST] Error al crear banner:', error);

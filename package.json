@@ -75,5 +75,11 @@
     "@next/swc-darwin-x64": "^16.2.4",
     "@next/swc-linux-x64-gnu": "^16.2.4",
     "@next/swc-win32-x64-msvc": "^16.2.4"
-  }
+  },
+  "browserslist": [
+    "chrome >= 111",
+    "safari >= 16",
+    "firefox >= 111",
+    "edge >= 111"
+  ]
 }

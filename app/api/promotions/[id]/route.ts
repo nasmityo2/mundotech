@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { isSafeEditableLink } from '@/lib/safe-link';
+import { revalidatePath, revalidateTag } from 'next/cache';
 
 const promotionSchema = z.object({
   title:        z.string().min(1, 'El título es obligatorio.').max(200),
@@ -48,6 +49,8 @@ export async function PUT(
       where: { id },
       data:  parsed.data,
     });
+    revalidatePath('/');
+    revalidateTag('promotions', 'default');
     return NextResponse.json(promo);
   } catch (error) {
     console.error('[PUT /api/promotions/[id]]', error);
@@ -65,6 +68,8 @@ export async function DELETE(
   try {
     const { id } = await params;
     await prisma.promotion.delete({ where: { id } });
+    revalidatePath('/');
+    revalidateTag('promotions', 'default');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[DELETE /api/promotions/[id]]', error);

@@ -5,7 +5,47 @@
 > **Índice (solo referencia, sin fixes):** [`00-INDICE`](./ANALISIS-PRODUCCION-00-INDICE.md)  
 > **SEO (no tocar aquí):** [`ANALISIS-SEO-COMPLETO.md`](./ANALISIS-SEO-COMPLETO.md)  
 > **Orden:** Contextos → Navbar/carrito → cuenta → reseñas cliente → PRD-276+  
-> **Última implementación:** sesión 04 — 12 jun 2026 · bloque Seguridad/Datos — 12 jun 2026 (PRD-087/088/260 cerrados vía otros segmentos)
+> **Última implementación:** Lighthouse / CWV home — 13 jun 2026 · sesión 04 — 12 jun 2026 · bloque Seguridad/Datos — 12 jun 2026 (PRD-087/088/260 cerrados vía otros segmentos)
+
+---
+
+## ✅ Progreso Lighthouse / CWV home (13 jun 2026)
+
+Auditoría PageSpeed Insights móvil (`mundotechve.com`, baseline ~83 perf / ~93 a11y). Cambios **solo markup/CSS/carga** — sin lógica de checkout, cupones, stock ni auth.
+
+### Accesibilidad (objetivo 100)
+
+| Hallazgo | Fix | Archivos |
+|----------|-----|----------|
+| Contraste logo `Tech` amarillo sobre header blanco | `text-navy` en header claro (`Navbar`, `CategoryDrawer`) | `components/Navbar.tsx`, `components/layout/CategoryDrawer.tsx` |
+| Etiqueta producto / textos secundarios `slate-400/500` | Tokens semánticos `text-on-light`, `text-on-dark`, `text-price-on-light` | `tailwind.config.ts`, `ProductCard.tsx`, `FlashDeals.tsx`, `Benefits.tsx`, `ProductShelf.tsx`, `Footer.tsx` |
+| Footer grises sobre `bg-navy` | `text-on-dark` / `text-on-dark-muted` | `app/components/Footer.tsx` |
+| Enlaces solo-ícono (login, wishlist, buscar, carrito, WhatsApp, announcement) | `aria-label` + `sr-only` + `aria-hidden` en íconos decorativos | `Navbar.tsx`, `WhatsAppFab.tsx`, `SearchMobileOverlay.tsx`, `AnnouncementBarClient.tsx` |
+| Touch targets &lt; 44px (announcement, búsqueda móvil, CTA carrito, WhatsApp footer) | `min-h/w-[44px]` | `AnnouncementBarClient.tsx`, `SearchMobileOverlay.tsx`, `ProductCard.tsx`, `Footer.tsx` |
+
+**Medición local post-fix:** Lighthouse móvil (localhost, 3 runs) → **Accesibilidad 100**, BP/SEO 100.
+
+### Rendimiento (objetivo ≥90 en prod)
+
+| Hallazgo | Fix | Archivos |
+|----------|-----|----------|
+| LCP = imagen producto con `loading="lazy"` | `priorityFirstItems={2}` solo en carrusel móvil del primer shelf | `ProductShelf.tsx`, `ProductCard.tsx`, `app/page.tsx` |
+| JS inicial pesado (popup, WhatsApp, promos) | `DeferredClientWidgets` + `next/dynamic` | `app/components/DeferredClientWidgets.tsx`, `app/layout.tsx`, `app/page.tsx` |
+| Polyfills legacy (~14 KiB) | `browserslist` moderno + `tsconfig` `ES2022` | `package.json`, `tsconfig.json` |
+| Tree-shake iconos/motion | `experimental.optimizePackageImports` | `next.config.mjs` |
+| Hero: framer-motion en first paint | Animación CSS `animate-fade-up` | `HomeHeroCyber.tsx` |
+| Cache assets estáticos | `Cache-Control: immutable` en `/_next/static/*` | `next.config.mjs` |
+
+**Medición local post-fix:** Perf ~76–78; LCP ~4.4 s — **TTFB ~1.5 s** domina (SSR dinámico por cookies en `layout.tsx`). Validar en prod tras deploy + CDN/Nginx.
+
+**Pendiente infra (no solo repo):** caché HTML ISR en edge, TTL CDN para `/_next/static` e imágenes R2, desactivar Cloudflare beacon si no se usa.
+
+### Archivos nuevos / tocados (CWV home)
+
+| Archivo | Rol |
+|---------|-----|
+| `app/components/DeferredClientWidgets.tsx` | Chunk diferido WhatsApp + PromoPopup (`ssr: false`) |
+| `tailwind.config.ts` | Tokens `on-light`, `on-dark`, `price-on-light` |
 
 ---
 
@@ -160,6 +200,12 @@ _Ninguna — PRD-093 cerrado en sesión 02/04 (ver abajo)._
 | `app/api/orders/[id]/cancel/route.ts` | PRD-093 |
 | `public/opensearch.xml` | PRD-289 |
 | `public/llms.txt` | PRD-290 |
+
+### Archivos nuevos (Lighthouse / CWV home — 13 jun 2026)
+
+| Archivo | Rol |
+|---------|-----|
+| `app/components/DeferredClientWidgets.tsx` | WhatsApp FAB + PromoPopup en chunk diferido |
 
 ---
 

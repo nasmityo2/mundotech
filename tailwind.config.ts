@@ -46,6 +46,16 @@ const config: Config = {
         primary:        '#0B1220',
         accent:         '#FFD700',
         border:         '#E2E8F0',
+        /* Contraste WCAG AA — texto sobre fondos claros u oscuros */
+        'on-light': {
+          DEFAULT: '#475569', /* slate-600 ≈ 7:1 sobre blanco */
+          muted:   '#64748b', /* slate-500 — solo ≥18px bold / ≥24px */
+        },
+        'on-dark': {
+          DEFAULT: '#d1d5db', /* gray-300 ≈ 9:1 sobre navy */
+          muted:   'rgba(255,255,255,0.70)',
+        },
+        'price-on-light': '#a16207', /* amber-700 ≈ 4.7:1 sobre blanco */
       },
       fontFamily: {
         sans: ['var(--font-jost)', 'Jost', 'Arial', 'Helvetica', 'sans-serif'],

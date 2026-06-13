@@ -59,6 +59,7 @@
 | PRD-148 | [x] | PNGs Playwright eliminados + `.gitignore` |
 | PRD-150 | [x] | `CRON_SECRET` fail-fast runtime prod en `lib/env-validation.ts` |
 | PRD-151 | [x] | `images.remotePatterns` — dominio público R2 (`next.config.mjs`; Cloudinary eliminado post-migración) |
+| CWV home (cross) | [x] | `Cache-Control: immutable` en `/_next/static/*`; `browserslist` + `ES2022` — 13 jun 2026 (ver [`04-UX`](./ANALISIS-PRODUCCION-04-UX-CLIENTE.md) § Lighthouse) |
 | PRD-152 | [x] | `instrumentation.ts` — Sentry + normalización DATABASE_URL |
 | PRD-178 | [x] | `recoveryTokenHash` schema; `lib/abandoned-cart.ts` SHA-256; cron rota token antes de enviar |
 | PRD-185 | [x] | `categories/sync/route.ts` — `slugify()` + sufijo colisión |

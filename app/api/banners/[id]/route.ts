@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { isSafeEditableLink } from '@/lib/safe-link';
+import { revalidatePath, revalidateTag } from 'next/cache';
 
 /**
  * Tipos de banner válidos según la UI del panel admin.
@@ -83,6 +84,8 @@ export async function PUT(
       where: { id },
       data:  parsed.data,
     });
+    revalidatePath('/');
+    revalidateTag('banners', 'default');
     return NextResponse.json(banner);
   } catch (error) {
     console.error('[PUT /api/banners/[id]]', error);
@@ -100,6 +103,8 @@ export async function DELETE(
   try {
     const { id } = await params;
     await prisma.banner.delete({ where: { id } });
+    revalidatePath('/');
+    revalidateTag('banners', 'default');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[DELETE /api/banners/[id]]', error);

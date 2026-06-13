@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { isSafeEditableImageUrl, isSafeEditableLink } from '@/lib/safe-link';
+import { revalidatePath, revalidateTag } from 'next/cache';
 
 const promotionSchema = z.object({
   title: z.string().trim().min(1).max(160),
@@ -85,6 +86,8 @@ export async function POST(request: Request) {
         order:        body.order        ?? 1,
       },
     });
+    revalidatePath('/');
+    revalidateTag('promotions', 'default');
     return NextResponse.json(promo, { status: 201 });
   } catch (error) {
     console.error('[/api/promotions][POST] Error al crear promoción:', error);
