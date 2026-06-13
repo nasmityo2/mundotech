@@ -26,8 +26,15 @@ const absoluteUrl = z.string().refine(
   { message: 'URL inválida' },
 );
 
-/** Slots de galería enviados desde el modal (solo imágenes). */
-const gallerySlotSchema = z.object({ type: z.literal('IMAGE'), url: absoluteUrl });
+/** Slots de galería enviados desde el modal (imágenes y videos). */
+const gallerySlotSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('IMAGE'), url: absoluteUrl }),
+  z.object({
+    type: z.literal('VIDEO'),
+    url: absoluteUrl,
+    posterUrl: absoluteUrl.optional(),
+  }),
+]);
 
 function parseSpecsFromFormData(formData: FormData) {
   const raw = formData.get('specsJson');
@@ -140,9 +147,10 @@ export async function createProductAction(formData: FormData) {
         specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
         media: {
           create: slots.map((s, i) => ({
-            type: ProductMediaType.IMAGE,
+            type:
+              s.type === 'VIDEO' ? ProductMediaType.VIDEO : ProductMediaType.IMAGE,
             url: s.url,
-            posterUrl: null,
+            posterUrl: s.type === 'VIDEO' ? s.posterUrl ?? null : null,
             sortOrder: i,
           })),
         },
@@ -211,9 +219,10 @@ export async function updateProductAction(productId: string, formData: FormData)
           specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
           media: {
             create: slots.map((s, i) => ({
-              type: ProductMediaType.IMAGE,
+              type:
+                s.type === 'VIDEO' ? ProductMediaType.VIDEO : ProductMediaType.IMAGE,
               url: s.url,
-              posterUrl: null,
+              posterUrl: s.type === 'VIDEO' ? s.posterUrl ?? null : null,
               sortOrder: i,
             })),
           },

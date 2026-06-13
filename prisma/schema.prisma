@@ -415,6 +415,21 @@ enum ProductMediaType {
   VIDEO
 }
 
+model VideoJob {
+  id        String   @id @default(cuid())
+  status    String   @default("PROCESSING") // PROCESSING | READY | FAILED
+  videoUrl  String
+  posterUrl String?
+  width     Int?
+  height    Int?
+  durationS Int?
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
 /// PRD-122: estados de moderación de reseñas (coincide 1:1 con ReviewStatus de
 /// lib/definitions.ts — mismos literales en runtime).
 enum ReviewStatus {

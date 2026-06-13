@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import { Play } from 'lucide-react';
 import type { ProductGalleryItem } from '@/lib/product-media';
 import { cn } from '@/lib/utils';
 
@@ -25,16 +26,29 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
           'shadow-[0_8px_30px_-12px_rgba(15,23,42,0.25)] transition-shadow duration-300',
         )}
       >
-        <Image
-          key={`${activeItem.url}-${active}`}
-          src={activeItem.url}
-          alt={name}
-          fill
-          priority={active === 0}
-          fetchPriority={active === 0 ? 'high' : 'auto'}
-          sizes="(max-width: 1024px) 100vw, 50vw"
-          className="object-contain p-6 sm:p-8 animate-fade-up bg-slate-50"
-        />
+        {activeItem.type === 'VIDEO' ? (
+          <video
+            key={`${activeItem.url}-${active}`}
+            controls
+            playsInline
+            preload="metadata"
+            poster={activeItem.posterUrl ?? undefined}
+            className="absolute inset-0 w-full h-full object-contain p-6 sm:p-8 bg-slate-50 animate-fade-up"
+          >
+            <source src={activeItem.url} type="video/mp4" />
+          </video>
+        ) : (
+          <Image
+            key={`${activeItem.url}-${active}`}
+            src={activeItem.url}
+            alt={name}
+            fill
+            priority={active === 0}
+            fetchPriority={active === 0 ? 'high' : 'auto'}
+            sizes="(max-width: 1024px) 100vw, 50vw"
+            className="object-contain p-6 sm:p-8 animate-fade-up bg-slate-50"
+          />
+        )}
 
         {discountPct != null && discountPct > 0 && (
           <div className="absolute top-3 left-3 z-10 bg-rose-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-md">
@@ -56,6 +70,10 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
           <div className="flex gap-2.5 overflow-x-auto pb-1 pt-0.5 [scrollbar-gutter:stable]">
             {safeItems.map((item, i) => {
               const selected = i === active;
+              const thumbSrc =
+                item.type === 'VIDEO'
+                  ? item.posterUrl ?? '/placeholder-product.png'
+                  : item.url;
 
               return (
                 <button
@@ -73,12 +91,17 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
                   )}
                 >
                   <Image
-                    src={item.url}
+                    src={thumbSrc}
                     alt={`${name} vista ${i + 1}`}
                     fill
                     sizes="80px"
                     className="object-cover"
                   />
+                  {item.type === 'VIDEO' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
+                      <Play size={22} className="text-white fill-white/90" />
+                    </div>
+                  )}
                 </button>
               );
             })}

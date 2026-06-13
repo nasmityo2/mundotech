@@ -1,8 +1,8 @@
 'use client'
 import { useTransition, useRef, useEffect, useState, useCallback } from 'react';
 import { createProductAction, updateProductAction } from '@/app/actions/productActions';
-import { X, GripVertical, ImagePlus, Star, Camera, Plus, Trash2 } from 'lucide-react';
-import { deriveLegacyImagesFromSlots } from '@/lib/product-media';
+import { X, GripVertical, ImagePlus, Star, Camera, Plus, Trash2, Video, Play } from 'lucide-react';
+import { deriveLegacyImagesFromSlots, type ProductGalleryItem } from '@/lib/product-media';
 import { parseProductSpecs, type ProductSpec } from '@/lib/definitions';
 
 interface Product {
@@ -25,7 +25,16 @@ interface Product {
   }[];
 }
 
-type GallerySlot = { type: 'IMAGE'; url: string };
+type ImageGallerySlot = { type: 'IMAGE'; url: string };
+type VideoGallerySlot = {
+  type: 'VIDEO';
+  url: string;
+  posterUrl?: string;
+  jobId?: string;
+  status?: 'processing' | 'ready' | 'failed';
+  error?: string;
+};
+type GallerySlot = ImageGallerySlot | VideoGallerySlot;
 
 interface AddProductModalProps {
   isOpen:   boolean;
@@ -34,6 +43,7 @@ interface AddProductModalProps {
 }
 
 const MAX_SLOTS = 6;
+const MAX_VIDEO_BYTES = 95 * 1024 * 1024;
 
 const inputCls = "appearance-none border border-gray-200 bg-gray-50 w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-1 focus:ring-navy/30 focus:border-navy rounded-md";
 const labelCls = "block text-gray-700 text-sm font-bold mb-1";
@@ -43,7 +53,10 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
   const formRef        = useRef<HTMLFormElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef  = useRef<HTMLInputElement>(null);
   const [slots, setSlots] = useState<GallerySlot[]>([]);
+  const slotsRef = useRef(slots);
+  slotsRef.current = slots;
   const [serverUploading, setServerUploading] = useState(false);
   const [specs, setSpecs] = useState<ProductSpec[]>([]);
   // Bloquear scroll del body con modal abierto
@@ -69,8 +82,17 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
         setSlots(
           [...product.media]
             .sort((a, b) => a.sortOrder - b.sortOrder)
-            .filter((m) => m.type !== 'VIDEO')
-            .map((m) => ({ type: 'IMAGE' as const, url: m.url })),
+            .map((m) => {
+              if (m.type === 'VIDEO') {
+                return {
+                  type: 'VIDEO' as const,
+                  url: m.url,
+                  posterUrl: m.posterUrl ?? undefined,
+                  status: 'ready' as const,
+                };
+              }
+              return { type: 'IMAGE' as const, url: m.url };
+            }),
         );
       } else {
         setSlots(product.images.filter(Boolean).map((url) => ({ type: 'IMAGE' as const, url })));
@@ -81,6 +103,73 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
       setSpecs([]);
     }
   }, [product, isOpen]);
+
+  // Polling de trabajos de video en procesamiento
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+
+    const poll = async () => {
+      const processing = slotsRef.current.filter(
+        (s): s is VideoGallerySlot =>
+          s.type === 'VIDEO' && s.status === 'processing' && !!s.jobId,
+      );
+      if (processing.length === 0) return;
+
+      for (const slot of processing) {
+        if (cancelled) return;
+        try {
+          const res = await fetch(`/api/upload-video/status?jobId=${slot.jobId}`);
+          const data = (await res.json()) as {
+            status?: string;
+            url?: string;
+            posterUrl?: string;
+            error?: string;
+          };
+          if (data.status === 'ready') {
+            setSlots((prev) =>
+              prev.map((s) =>
+                s.type === 'VIDEO' && s.jobId === slot.jobId
+                  ? {
+                      type: 'VIDEO',
+                      url: data.url ?? s.url,
+                      posterUrl: data.posterUrl ?? s.posterUrl,
+                      status: 'ready',
+                    }
+                  : s,
+              ),
+            );
+          } else if (data.status === 'failed') {
+            setSlots((prev) =>
+              prev.map((s) =>
+                s.type === 'VIDEO' && s.jobId === slot.jobId
+                  ? {
+                      type: 'VIDEO',
+                      url: s.url,
+                      posterUrl: s.posterUrl,
+                      jobId: s.jobId,
+                      status: 'failed',
+                      error: data.error ?? 'Error al procesar el video.',
+                    }
+                  : s,
+              ),
+            );
+          }
+        } catch {
+          /* reintento en el siguiente intervalo */
+        }
+      }
+    };
+
+    const interval = setInterval(poll, 3000);
+    void poll();
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isOpen]);
 
   const addImages = useCallback((urls: string[]) => {
     setSlots((prev) => {
@@ -127,6 +216,49 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
     }
   }, [addImages, slots.length]);
 
+  const uploadVideoViaApi = useCallback(async (file: File) => {
+    if (slots.length >= MAX_SLOTS) return;
+    if (file.size > MAX_VIDEO_BYTES) {
+      alert('El video supera el tamaño máximo permitido (95 MB).');
+      return;
+    }
+    setServerUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const title = formRef.current?.elements.namedItem('name') as HTMLInputElement | null;
+      const currentTitle = title?.value?.trim();
+      if (currentTitle) {
+        fd.append('name', currentTitle);
+      }
+      const res = await fetch('/api/upload-video', { method: 'POST', body: fd });
+      const data = (await res.json()) as {
+        jobId?: string;
+        url?: string;
+        posterUrl?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.url) {
+        alert(data.error ?? 'No se pudo subir el video.');
+        return;
+      }
+      setSlots((prev) =>
+        [
+          ...prev,
+          {
+            type: 'VIDEO' as const,
+            url: data.url!,
+            posterUrl: data.posterUrl,
+            jobId: data.jobId,
+            status: 'processing' as const,
+          },
+        ].slice(0, MAX_SLOTS),
+      );
+    } finally {
+      setServerUploading(false);
+    }
+  }, [slots.length]);
+
   const moveLeft = (idx: number) => {
     if (idx === 0) return;
     setSlots((prev) => {
@@ -169,11 +301,11 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
 
         <div className="flex-1 px-4 sm:px-6 py-4 overflow-y-auto">
 
-            {/* ── Galería de imágenes ──────────────────────────────── */}
+            {/* ── Galería de medios ──────────────────────────────── */}
             <div className="mb-5">
               <div className="flex items-center justify-between mb-1">
                 <label className={labelCls}>
-                  Galería de imágenes
+                  Galería de medios
                   <span className="ml-1.5 text-xs font-normal text-gray-400">
                     ({slots.length}/{MAX_SLOTS}) · El primer elemento es el principal en la tienda
                   </span>
@@ -182,17 +314,43 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
 
               {slots.length > 0 && (
                 <div className="grid grid-cols-3 gap-2 mb-3">
-                  {slots.map((slot, idx) => (
+                  {slots.map((slot, idx) => {
+                    const previewSrc =
+                      slot.type === 'VIDEO'
+                        ? slot.posterUrl ?? '/placeholder-product.png'
+                        : slot.url;
+
+                    return (
                       <div
                         key={`${slot.type}-${idx}-${slot.url.slice(0, 24)}`}
                         className="relative group rounded-lg overflow-hidden border border-gray-200 bg-gray-50 aspect-square"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={slot.url}
-                          alt={`Foto ${idx + 1}`}
+                          src={previewSrc}
+                          alt={`Medio ${idx + 1}`}
                           className="w-full h-full object-contain p-1"
                         />
+
+                        {slot.type === 'VIDEO' && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="bg-black/40 rounded-full p-1.5">
+                              <Play size={14} className="text-white fill-white" />
+                            </div>
+                          </div>
+                        )}
+
+                        {slot.type === 'VIDEO' && slot.status === 'processing' && (
+                          <div className="absolute bottom-1 left-1 right-1 z-[1] bg-amber-500/95 text-white text-[9px] font-bold px-1.5 py-0.5 rounded text-center">
+                            Procesando…
+                          </div>
+                        )}
+
+                        {slot.type === 'VIDEO' && slot.status === 'failed' && (
+                          <div className="absolute bottom-1 left-1 right-1 z-[1] bg-red-500/95 text-white text-[9px] font-bold px-1.5 py-0.5 rounded text-center truncate">
+                            {slot.error ?? 'Error'}
+                          </div>
+                        )}
 
                         {idx === 0 && (
                           <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-brand-yellow/90 text-navy text-[9px] font-black px-1.5 py-0.5 rounded z-[1]">
@@ -221,7 +379,8 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                           </button>
                         </div>
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -251,6 +410,18 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                       e.target.value = '';
                     }}
                   />
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,video/x-matroska,.mp4,.mov,.webm,.avi,.mkv"
+                    className="hidden"
+                    disabled={serverUploading}
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (file) void uploadVideoViaApi(file);
+                      e.target.value = '';
+                    }}
+                  />
 
                   <div className="grid grid-cols-2 gap-2">
                     <button
@@ -270,6 +441,17 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                       <ImagePlus size={17} /> Galería
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    disabled={serverUploading}
+                    onClick={() => videoInputRef.current?.click()}
+                    className="w-full min-h-[44px] flex items-center justify-center gap-2 bg-white text-gray-700 border border-gray-200 font-semibold rounded-xl active:bg-gray-100 transition text-sm disabled:opacity-60"
+                  >
+                    <Video size={17} /> Subir video
+                  </button>
+                  <p className="text-[11px] text-gray-400 text-center">
+                    Video: máx. 95 MB y 3 min. Espera a &ldquo;listo&rdquo; antes de guardar.
+                  </p>
                   {serverUploading && (
                     <p className="text-xs text-center text-gray-500">Subiendo imagen…</p>
                   )}
@@ -305,9 +487,30 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
             <form
               ref={formRef}
               action={async (formData) => {
-                const legacyImages = deriveLegacyImagesFromSlots(slots);
+                const hasProcessing = slots.some(
+                  (s) => s.type === 'VIDEO' && s.status === 'processing',
+                );
+                if (hasProcessing) {
+                  alert('Espera a que el video termine de procesarse antes de guardar.');
+                  return;
+                }
+                const hasFailed = slots.some(
+                  (s) => s.type === 'VIDEO' && s.status === 'failed',
+                );
+                if (hasFailed) {
+                  alert('Quita o reemplaza los videos con error antes de guardar.');
+                  return;
+                }
+
+                const mediaForSave: ProductGalleryItem[] = slots.map((s) => {
+                  if (s.type === 'VIDEO') {
+                    return { type: 'VIDEO' as const, url: s.url, posterUrl: s.posterUrl };
+                  }
+                  return { type: 'IMAGE' as const, url: s.url };
+                });
+                const legacyImages = deriveLegacyImagesFromSlots(mediaForSave);
                 formData.set('imagesJson', JSON.stringify(legacyImages));
-                formData.set('mediaJson',  JSON.stringify(slots));
+                formData.set('mediaJson', JSON.stringify(mediaForSave));
                 formData.set('specsJson',  JSON.stringify(specs));
                 startTransition(async () => {
                   const action = product

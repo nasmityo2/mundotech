@@ -1,17 +1,3 @@
-/**
- * Rate limiter global (PRD-005 / PRD-102).
- *
- * Estrategia:
- *  1. Si `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` están configuradas,
- *     usa Upstash Redis vía REST (ventana fija con INCR + PEXPIRE NX). El límite
- *     es GLOBAL entre todas las instancias serverless (Vercel multi-lambda).
- *  2. Sin Upstash (dev / instancia única) cae al Map en memoria de siempre.
- *  3. Si Redis falla en runtime (timeout, 5xx) se degrada al Map en memoria y
- *     se registra el error: fail-open controlado — nunca bloquea el checkout
- *     por una caída del rate limiter.
- *
- * La función `rateLimit` es ahora ASYNC. Todos los call sites usan `await`.
- */
 
 interface Entry {
   count: number;
