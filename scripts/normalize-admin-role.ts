@@ -7,16 +7,13 @@
  * Ejecutar:
  *   npx tsx scripts/normalize-admin-role.ts
  */
-import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import { createScriptPrisma } from './lib/script-prisma';
 
+dotenv.config({ path: '.env.local' });
 dotenv.config();
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = createScriptPrisma();
 
 async function main() {
   const all = await prisma.user.findMany({ select: { id: true, role: true, email: true } });
@@ -39,7 +36,7 @@ async function main() {
     console.warn(
       '\n⚠ No hay ningún ADMIN. Crea uno desde /admin/settings/users (necesitarás promover a un usuario manualmente vía SQL primero):',
     );
-    console.warn('  UPDATE "User" SET role = \'ADMIN\' WHERE email = \'tu@correo.com\';');
+    console.warn('  UPDATE "User" SET role = \'ADMIN\' WHERE email = \'admin@ejemplo.com\';');
   }
 }
 

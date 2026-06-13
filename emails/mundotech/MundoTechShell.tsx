@@ -18,6 +18,8 @@ type Props = {
   heroCustomerName?: string;
   /** Solo logo + eslogan (ej. confirmación de pedido estilo mockup). */
   headerCompact?: boolean;
+  /** Pie personalizado; por defecto usa MundoTechFooter. */
+  footer?: React.ReactNode;
   children: React.ReactNode;
 };
 
@@ -26,6 +28,7 @@ export function MundoTechShell({
   title,
   heroCustomerName,
   headerCompact,
+  footer,
   children,
 }: Props) {
   return (
@@ -98,7 +101,7 @@ export function MundoTechShell({
                       compact={headerCompact}
                     />
                     {children}
-                    <MundoTechFooter />
+                    {footer ?? <MundoTechFooter />}
                   </Section>
                 </Container>
               </td>

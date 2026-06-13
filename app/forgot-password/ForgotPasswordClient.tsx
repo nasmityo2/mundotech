@@ -65,7 +65,7 @@ export default function ForgotPasswordClient() {
                 autoComplete="email"
                 required
                 disabled={pending}
-                placeholder="tu@correo.com"
+                placeholder="Correo electrónico"
                 className={cn(
                   'w-full min-h-[44px] rounded-2xl border border-slate-200 bg-slate-100/70 pl-11 pr-4 text-base text-navy placeholder:text-slate-400 outline-none transition-colors duration-200 focus:bg-white focus:ring-2 focus:ring-navy/40 disabled:opacity-55',
                 )}

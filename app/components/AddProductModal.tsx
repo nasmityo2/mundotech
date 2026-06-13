@@ -1,7 +1,7 @@
 'use client'
 import { useTransition, useRef, useEffect, useState, useCallback } from 'react';
 import { createProductAction, updateProductAction } from '@/app/actions/productActions';
-import { X, GripVertical, ImagePlus, Star, Play, Video, Camera, Plus, Trash2 } from 'lucide-react';
+import { X, GripVertical, ImagePlus, Star, Camera, Plus, Trash2 } from 'lucide-react';
 import { deriveLegacyImagesFromSlots } from '@/lib/product-media';
 import { parseProductSpecs, type ProductSpec } from '@/lib/definitions';
 
@@ -25,9 +25,7 @@ interface Product {
   }[];
 }
 
-type GallerySlot =
-  | { type: 'IMAGE'; url: string }
-  | { type: 'VIDEO'; url: string; posterUrl?: string };
+type GallerySlot = { type: 'IMAGE'; url: string };
 
 interface AddProductModalProps {
   isOpen:   boolean;
@@ -47,8 +45,6 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [slots, setSlots] = useState<GallerySlot[]>([]);
   const [serverUploading, setServerUploading] = useState(false);
-  const [bunnyUrl, setBunnyUrl] = useState('');
-  const [bunnyPoster, setBunnyPoster] = useState('');
   const [specs, setSpecs] = useState<ProductSpec[]>([]);
   // Bloquear scroll del body con modal abierto
   useEffect(() => {
@@ -73,11 +69,8 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
         setSlots(
           [...product.media]
             .sort((a, b) => a.sortOrder - b.sortOrder)
-            .map((m) =>
-              m.type === 'VIDEO'
-                ? { type: 'VIDEO', url: m.url, posterUrl: m.posterUrl ?? undefined }
-                : { type: 'IMAGE', url: m.url },
-            ),
+            .filter((m) => m.type !== 'VIDEO')
+            .map((m) => ({ type: 'IMAGE' as const, url: m.url })),
         );
       } else {
         setSlots(product.images.filter(Boolean).map((url) => ({ type: 'IMAGE' as const, url })));
@@ -87,14 +80,12 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
       setSlots([]);
       setSpecs([]);
     }
-    setBunnyUrl('');
-    setBunnyPoster('');
   }, [product, isOpen]);
 
   const addImages = useCallback((urls: string[]) => {
     setSlots((prev) => {
       const imageSlots: GallerySlot[] = urls
-        .filter((u) => !prev.some((s) => s.type === 'IMAGE' && s.url === u))
+        .filter((u) => !prev.some((s) => s.url === u))
         .map((url) => ({ type: 'IMAGE' as const, url }));
       const combined = [...prev, ...imageSlots];
       return combined.slice(0, MAX_SLOTS);
@@ -117,6 +108,11 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
         const fd = new FormData();
         fd.append('file', file);
         fd.append('purpose', 'product');
+        const title = formRef.current?.elements.namedItem('name') as HTMLInputElement | null;
+        const currentTitle = title?.value?.trim();
+        if (currentTitle) {
+          fd.append('name', currentTitle);
+        }
         const res = await fetch('/api/upload', { method: 'POST', body: fd });
         const data = (await res.json()) as { url?: string; error?: string };
         if (!res.ok || !data.url) {
@@ -138,43 +134,6 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
       [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
       return next;
     });
-  };
-
-  const addBunnyVideo = () => {
-    const url = bunnyUrl.trim();
-    if (!url) {
-      alert('Pega la URL del iframe de Bunny Stream (embed).');
-      return;
-    }
-    try {
-      // eslint-disable-next-line no-new
-      new URL(url);
-    } catch {
-      alert('URL del vídeo no válida.');
-      return;
-    }
-    if (slots.length >= MAX_SLOTS) {
-      alert(`Máximo ${MAX_SLOTS} elementos en la galería.`);
-      return;
-    }
-    const poster = bunnyPoster.trim();
-    setSlots((prev) => [
-      ...prev,
-      {
-        type: 'VIDEO',
-        url,
-        ...(poster ? { posterUrl: poster } : {}),
-      },
-    ]);
-    setBunnyUrl('');
-    setBunnyPoster('');
-  };
-
-  const thumbSrcForSlot = (slot: GallerySlot, all: GallerySlot[]) => {
-    if (slot.type === 'IMAGE') return slot.url;
-    if (slot.posterUrl?.trim()) return slot.posterUrl.trim();
-    const firstImg = all.find((s) => s.type === 'IMAGE');
-    return firstImg?.url ?? '';
   };
 
   if (!isOpen) return null;
@@ -214,7 +173,7 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
             <div className="mb-5">
               <div className="flex items-center justify-between mb-1">
                 <label className={labelCls}>
-                  Galería (fotos + vídeo Bunny)
+                  Galería de imágenes
                   <span className="ml-1.5 text-xs font-normal text-gray-400">
                     ({slots.length}/{MAX_SLOTS}) · El primer elemento es el principal en la tienda
                   </span>
@@ -223,34 +182,17 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
 
               {slots.length > 0 && (
                 <div className="grid grid-cols-3 gap-2 mb-3">
-                  {slots.map((slot, idx) => {
-                    const thumb = thumbSrcForSlot(slot, slots);
-                    return (
+                  {slots.map((slot, idx) => (
                       <div
                         key={`${slot.type}-${idx}-${slot.url.slice(0, 24)}`}
                         className="relative group rounded-lg overflow-hidden border border-gray-200 bg-gray-50 aspect-square"
                       >
-                        {thumb ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={thumb}
-                            alt={slot.type === 'VIDEO' ? `Vídeo ${idx + 1}` : `Foto ${idx + 1}`}
-                            className="w-full h-full object-contain p-1"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-slate-100 text-slate-500 text-[10px] font-semibold p-2 text-center">
-                            <Video size={20} />
-                            Vídeo
-                          </div>
-                        )}
-
-                        {slot.type === 'VIDEO' && (
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <span className="rounded-full bg-brand-yellow/95 p-1.5 border border-yellow-500/80 shadow">
-                              <Play className="w-3.5 h-3.5 text-navy" fill="currentColor" strokeWidth={0} />
-                            </span>
-                          </div>
-                        )}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={slot.url}
+                          alt={`Foto ${idx + 1}`}
+                          className="w-full h-full object-contain p-1"
+                        />
 
                         {idx === 0 && (
                           <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-brand-yellow/90 text-navy text-[9px] font-black px-1.5 py-0.5 rounded z-[1]">
@@ -279,42 +221,12 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                           </button>
                         </div>
                       </div>
-                    );
-                  })}
+                    ))}
                 </div>
               )}
 
               {slots.length < MAX_SLOTS && (
                 <div className="space-y-3">
-                  <div className="rounded-lg border border-dashed border-gray-300 bg-slate-50/80 p-3 space-y-2">
-                    <p className="text-xs font-bold text-navy uppercase tracking-wide">Vídeo Bunny Stream</p>
-                    <p className="text-[11px] text-gray-500">
-                      Pega la URL del embed (<code className="text-[10px]">iframe.mediadelivery.net/embed/…</code>).
-                      Opcional: URL de poster (R2) para miniatura y carga rápida.
-                    </p>
-                    <input
-                      type="url"
-                      value={bunnyUrl}
-                      onChange={(e) => setBunnyUrl(e.target.value)}
-                      placeholder="https://iframe.mediadelivery.net/embed/…"
-                      className={inputCls}
-                    />
-                    <input
-                      type="url"
-                      value={bunnyPoster}
-                      onChange={(e) => setBunnyPoster(e.target.value)}
-                      placeholder="Poster (opcional) — imagen R2"
-                      className={inputCls}
-                    />
-                    <button
-                      type="button"
-                      onClick={addBunnyVideo}
-                      className="w-full text-sm font-bold py-2 rounded-lg bg-navy text-white hover:bg-navy/90 transition"
-                    >
-                      Añadir vídeo a la galería
-                    </button>
-                  </div>
-
                   <input
                     ref={cameraInputRef}
                     type="file"

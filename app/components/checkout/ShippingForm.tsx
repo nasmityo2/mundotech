@@ -230,7 +230,7 @@ const ShippingForm = ({ onFormSubmit }: ShippingFormProps) => {
             id="email"
             type="email"
             autoComplete="email"
-            placeholder="tu@correo.com"
+            placeholder="Correo electrónico"
             {...register('email', {
               required: 'Requerido para enviarte la confirmación del pedido',
               pattern: {

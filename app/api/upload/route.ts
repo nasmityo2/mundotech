@@ -81,7 +81,10 @@ export async function POST(request: Request) {
     }
 
     const { buffer: processed, contentType, ext, width, height } = await processImage(buffer, { maxWidth });
-    const key = buildKey(folder, ext);
+    const rawName = formData.get('name') ?? formData.get('slug');
+    const descriptiveName =
+      typeof rawName === 'string' && rawName.trim() ? rawName.trim() : undefined;
+    const key = buildKey(folder, ext, descriptiveName);
     const url = await uploadToR2({ buffer: processed, key, contentType });
 
     return NextResponse.json({

@@ -20,7 +20,7 @@ export default async function TermsOfServicePage() {
   return (
     <LegalPageLayout
       title="Términos y condiciones"
-      lastUpdated="Última actualización: 30 de abril de 2026."
+      lastUpdated="Última actualización: 13 de junio de 2026."
     >
       <p>
         Los presentes términos regulan el acceso y uso del sitio web operado por{' '}
@@ -45,10 +45,17 @@ export default async function TermsOfServicePage() {
 
       <h2>3. Precios y moneda</h2>
       <p>
-        Los precios se muestran en moneda extranjera (USD) y, cuando aplique, referencia en bolívares
-        según la tasa configurada por la tienda. Los montos pueden actualizarse; el precio aplicable es
-        el vigente en el momento de la confirmación del pago o del pedido según lo indicado en el
-        proceso de checkout.
+        Los precios del catálogo se expresan en dólares (USD) como referencia
+        comercial. De acuerdo con la normativa cambiaria venezolana, el bolívar es la moneda de curso
+        legal; por ello, cuando el pago se realice en bolívares, el equivalente se calculará al{' '}
+        <strong>tipo de cambio oficial del dólar publicado por el Banco Central de Venezuela (BCV)</strong>{' '}
+        vigente al momento de la operación.
+      </p>
+      <p>
+        La referencia en bolívares que ves en el sitio se actualiza conforme a esa tasa oficial del día.
+        El monto definitivo en Bs. es el confirmado en el checkout y queda reflejado en tu pedido una
+        vez validado el pago. Si la operación ocurre en día no hábil para el sector financiero, se
+        aplicará la tasa oficial correspondiente conforme a la normativa vigente.
       </p>
 
       <h2>4. Pedidos</h2>
@@ -65,9 +72,9 @@ export default async function TermsOfServicePage() {
 
       <h2>5. Pagos</h2>
       <p>
-        Los métodos de pago disponibles se indican durante el checkout y pueden incluir transferencia,
-        pago móvil u otros autorizados por la tienda. El pedido puede quedar condicionado a la
-        verificación del abono y de los datos del comprobante.
+        Los métodos de pago disponibles se indican durante el checkout y pueden incluir Pago Móvil,
+        transferencia bancaria o Binance Pay, según lo habilitado en cada momento. El pedido puede
+        quedar condicionado a la verificación del abono y de los datos del comprobante.
       </p>
 
       <h2>6. Envíos y entregas</h2>

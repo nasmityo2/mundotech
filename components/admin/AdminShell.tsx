@@ -1,6 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { ADMIN_CHUNK_RELOAD_KEY, clearChunkReloadFlag } from '@/lib/chunk-load-error';
 import SidebarDesktop from './SidebarDesktop';
 import SidebarDrawer from './SidebarDrawer';
 import MobileTopBar from './MobileTopBar';
@@ -15,6 +17,18 @@ interface AdminShellProps {
 
 export default function AdminShell({ children, userName, userEmail }: AdminShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    // El layout sigue montado aunque error.tsx reemplace children; solo limpiar
+    // la clave cuando la ruta cargó sin el boundary de error visible.
+    const id = requestAnimationFrame(() => {
+      if (!document.querySelector('[data-admin-error]')) {
+        clearChunkReloadFlag(ADMIN_CHUNK_RELOAD_KEY);
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [pathname]);
 
   return (
     <div className="flex min-h-[100dvh] bg-[#F1F5F9]">

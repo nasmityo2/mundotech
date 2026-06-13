@@ -11,7 +11,7 @@ import { deriveLegacyImagesFromSlots } from '@/lib/product-media';
 import { triggerRestockNotifications } from '@/app/actions/restockActions';
 import { parseProductSpecs } from '@/lib/definitions';
 import { saveSlugRedirect } from '@/lib/slug-redirects';
-import { d } from '@/lib/decimal';
+import { d, dn } from '@/lib/decimal';
 import { PRODUCT_CARD_SELECT, PRODUCT_ADMIN_SELECT } from '@/lib/product-select';
 
 const absoluteUrl = z.string().refine(
@@ -26,15 +26,8 @@ const absoluteUrl = z.string().refine(
   { message: 'URL inválida' },
 );
 
-/** Slots de galería enviados desde el modal (imágenes + vídeo Bunny). */
-const gallerySlotSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('IMAGE'), url: absoluteUrl }),
-  z.object({
-    type: z.literal('VIDEO'),
-    url: absoluteUrl,
-    posterUrl: z.union([absoluteUrl, z.literal('')]).optional(),
-  }),
-]);
+/** Slots de galería enviados desde el modal (solo imágenes). */
+const gallerySlotSchema = z.object({ type: z.literal('IMAGE'), url: absoluteUrl });
 
 function parseSpecsFromFormData(formData: FormData) {
   const raw = formData.get('specsJson');
@@ -147,10 +140,9 @@ export async function createProductAction(formData: FormData) {
         specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
         media: {
           create: slots.map((s, i) => ({
-            type: s.type === 'VIDEO' ? ProductMediaType.VIDEO : ProductMediaType.IMAGE,
+            type: ProductMediaType.IMAGE,
             url: s.url,
-            posterUrl:
-              s.type === 'VIDEO' ? (s.posterUrl?.trim() ? s.posterUrl.trim() : null) : null,
+            posterUrl: null,
             sortOrder: i,
           })),
         },
@@ -219,10 +211,9 @@ export async function updateProductAction(productId: string, formData: FormData)
           specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
           media: {
             create: slots.map((s, i) => ({
-              type: s.type === 'VIDEO' ? ProductMediaType.VIDEO : ProductMediaType.IMAGE,
+              type: ProductMediaType.IMAGE,
               url: s.url,
-              posterUrl:
-                s.type === 'VIDEO' ? (s.posterUrl?.trim() ? s.posterUrl.trim() : null) : null,
+              posterUrl: null,
               sortOrder: i,
             })),
           },
@@ -729,5 +720,11 @@ export async function getProductsAdmin(params: {
     .findMany({ distinct: ['category'], select: { category: true } })
     .then(res => res.map(p => p.category));
 
-  return { products, categories: allCategories };
+  const normalizedProducts = products.map((p) => ({
+    ...p,
+    price: d(p.price),
+    originalPrice: dn(p.originalPrice),
+  }));
+
+  return { products: normalizedProducts, categories: allCategories };
 }

@@ -4,6 +4,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { v4 as uuidv4 } from 'uuid';
+import { slugify } from '@/lib/slugify';
 
 const R2_FOLDERS = ['products', 'banners', 'proofs', 'assets'] as const;
 export type R2Folder = (typeof R2_FOLDERS)[number];
@@ -60,7 +61,7 @@ function getS3Client(): S3Client {
 export const R2_BUCKET = process.env.R2_BUCKET_NAME ?? '';
 export const R2_PUBLIC_BASE_URL = (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
 
-export function buildKey(folder: R2Folder, ext: string): string {
+export function buildKey(folder: R2Folder, ext: string, descriptiveName?: string): string {
   assertR2Env();
   if (!R2_FOLDERS.includes(folder)) {
     throw new Error(`[r2] Carpeta no permitida: ${folder}`);
@@ -69,6 +70,16 @@ export function buildKey(folder: R2Folder, ext: string): string {
   if (!safeExt) {
     throw new Error('[r2] Extensión de archivo inválida.');
   }
+
+  const trimmedName = descriptiveName?.trim();
+  if (trimmedName) {
+    const slug = slugify(trimmedName).slice(0, 60).replace(/-+$/g, '');
+    if (slug) {
+      const shortId = uuidv4().replace(/-/g, '').slice(0, 8);
+      return `${folder}/${slug}-${shortId}.${safeExt}`;
+    }
+  }
+
   return `${folder}/${uuidv4()}.${safeExt}`;
 }
 

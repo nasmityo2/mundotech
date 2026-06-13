@@ -408,7 +408,7 @@ Hallazgos encontrados al verificar manualmente los del agente y ampliar áreas r
 
 **Fuente única de CSP:** `middleware.ts`. `next.config.mjs` solo emite HSTS, X-Frame-Options, Referrer-Policy, etc.
 
-**Dominios en `img-src` / `connect-src` (ambas ramas):** R2 (`R2_PUBLIC_BASE_URL`), `*.google-analytics.com`, `*.googletagmanager.com`, `*.analytics.google.com`, `iframe.mediadelivery.net`, Google Maps.
+**Dominios en `img-src` / `connect-src` (ambas ramas):** R2 (`R2_PUBLIC_BASE_URL`), `*.google-analytics.com`, `*.googletagmanager.com`, `*.analytics.google.com`, `iframe.mediadelivery.net` *(legacy — vídeo Bunny retirado jun 2026; limpieza opcional en CSP)*, Google Maps.
 
 **Sentry (PRD-033):** al activar DSN, añadir el dominio de ingesta a `connect-src` en **ambas** funciones CSP (`buildStrictCsp` y `buildPublicCachedCsp`).
 

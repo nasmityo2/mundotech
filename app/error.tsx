@@ -9,6 +9,11 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { AlertTriangle, RefreshCw, Home, MessageCircle } from "lucide-react";
+import {
+  APP_CHUNK_RELOAD_KEY,
+  isChunkLoadError,
+  tryRecoverFromChunkLoadError,
+} from "@/lib/chunk-load-error";
 
 interface ErrorProps {
   error: Error & { digest?: string };
@@ -19,10 +24,13 @@ export default function GlobalError({ error, reset }: ErrorProps) {
   useEffect(() => {
     // Log silencioso: en producción puedes enviar a Sentry / Datadog aquí
     console.error("[GlobalError boundary]", error);
+    if (isChunkLoadError(error)) {
+      tryRecoverFromChunkLoadError(APP_CHUNK_RELOAD_KEY);
+    }
   }, [error]);
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
+    <div data-app-error className="min-h-[70vh] flex items-center justify-center px-4 py-16">
       <div className="max-w-lg w-full text-center">
 
         {/* Icono */}

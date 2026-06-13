@@ -268,7 +268,7 @@ export function AuthLoginForm({ callbackUrl, defaultEmail }: LoginPanelProps) {
               iconPadLeft
               invalid={!!form.formState.errors.email}
               disabled={submitting}
-              placeholder="tu@correo.com"
+              placeholder="Correo electrónico"
             />
           </div>
           {form.formState.errors.email && (
@@ -585,7 +585,7 @@ export function AuthRegisterForm({ callbackUrl }: RegisterPanelProps) {
               iconPadLeft
               invalid={!!form.formState.errors.email}
               disabled={submitting}
-              placeholder="tu@correo.com"
+              placeholder="Correo electrónico"
             />
           </div>
           {form.formState.errors.email && (

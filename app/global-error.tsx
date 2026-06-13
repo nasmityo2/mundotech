@@ -9,6 +9,11 @@
 import * as Sentry from '@sentry/nextjs';
 import Link from 'next/link';
 import { useEffect } from 'react';
+import {
+  APP_CHUNK_RELOAD_KEY,
+  isChunkLoadError,
+  tryRecoverFromChunkLoadError,
+} from '@/lib/chunk-load-error';
 
 export default function GlobalError({
   error,
@@ -20,6 +25,9 @@ export default function GlobalError({
   useEffect(() => {
     Sentry.captureException(error);
     console.error('[global-error]', error);
+    if (isChunkLoadError(error)) {
+      tryRecoverFromChunkLoadError(APP_CHUNK_RELOAD_KEY);
+    }
   }, [error]);
 
   return (

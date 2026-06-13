@@ -7,7 +7,7 @@
 > **Fecha del análisis:** 11 de junio de 2026  
 > **Última ampliación:** revisión de alcance — solo hallazgos con impacto directo en rastreo, indexación, ranking o rich results  
 > **Última implementación:** sesiones 7–15 SEO + caché catálogo (§39–§46) — 12 de junio de 2026  
-> **Última sincronización doc↔código:** 12 de junio de 2026 (3.ª pasada) — ver [§47](#47-sincronización-doc--código-auditoría-12-jun-2026) · [§47.6](#476-segunda-pasada-de-sincronización) · [§47.7](#477-tercera-pasada-de-sincronización)  
+> **Última sincronización doc↔código:** 13 de junio de 2026 — retiro vídeo Bunny Stream (galería solo imágenes); ver [§47.8](#478-cuarta-pasada--retiro-vídeo-bunny-stream-13-jun-2026) · [§47](#47-sincronización-doc--código-auditoría-12-jun-2026) · [§47.7](#477-tercera-pasada-de-sincronización)  
 > **Alcance:** Exclusivamente SEO (Google/buscadores). Malas prácticas **P01–P97** · hallazgos globales **H01–H66** (ver criterio de inclusión abajo).
 
 ---
@@ -153,7 +153,6 @@ Esta sección explica **cómo está armada la web** para que cualquier IA (o des
 | BD | **PostgreSQL** + **Prisma 7** |
 | Auth | **NextAuth.js** (JWT, roles `ADMIN` / `client`) |
 | Imágenes | **Cloudflare R2** (`R2_PUBLIC_BASE_URL`, `next/image`) |
-| Video producto | **Bunny.net** embed (`iframe.mediadelivery.net`) |
 | Email | React Email (`emails/mundotech/`) |
 | Analytics | GA4 opcional con consentimiento (`CookieConsent.tsx`) |
 | Deploy típico | Compatible Vercel/Node (`next build` / `next start`) |
@@ -216,7 +215,7 @@ flowchart TB
 
 **Creación/edición producto** (`app/actions/productActions.ts`):
 
-1. Admin guarda en `Product` + `ProductMedia` (imágenes/video).
+1. Admin guarda en `Product` + `ProductMedia` (solo imágenes; el enum `VIDEO` permanece en schema pero ya no se produce ni renderiza).
 2. Se genera `slug` con `slugify()` + unicidad.
 3. `revalidatePath('/')`, `/product/{slug}` en update completo.
 4. `quickUpdateStockAction` / `quickUpdatePriceAction` revalidan `/product/{slug}` + `revalidateTag('catalog')` (PRD-024, sesión 2).
@@ -278,7 +277,6 @@ flowchart TB
 | Servicio | Uso | Variable env |
 |----------|-----|--------------|
 | Cloudflare R2 | Imágenes producto, OG, hero | `R2_*` env; URLs en BD |
-| Bunny Stream | Video en ficha producto | URLs en `ProductMedia` |
 | Google Maps | Embed + `hasMap` schema | `NEXT_PUBLIC_GOOGLE_MAPS_*` |
 | Google Analytics | Tráfico (no ranking directo) | `NEXT_PUBLIC_GA4_ID` |
 | Search Console | Verificación | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` |
@@ -498,7 +496,7 @@ Cada fila es una práctica que **reducía** posibilidad de ranking o rich snippe
 | P27 | 🟠 | `priceValidUntil` calculado +30 días en cada render, no ligado a campaña real | `ProductJsonLd.tsx` L77-80 | Si Google valida fechas, puede marcar offer stale |
 | P28 | 🟡 | `aggregateRating` solo si hay reseñas — mayoría de productos sin estrellas en SERP | `ProductJsonLd.tsx` | Sin ventaja CTR de estrellas |
 | P29 | 🟡 | Máximo 5 `Review` en schema aunque haya más aprobadas | `ProductJsonLd.tsx` L101 | Menor; aceptable |
-| P30 | ✅ | ~~Sin `VideoObject`~~ — emitido si hay `ProductMedia` VIDEO | `ProductJsonLd.tsx` | Cerrado sesión 8 |
+| P30 | ⏸ | ~~`VideoObject`~~ — implementado sesión 8, **retirado jun 2026** (sin vídeo en galería) | `ProductJsonLd.tsx` | N/A — feature Bunny eliminada |
 | P31 | ✅ | JSON-LD / ISR sin nonce — CSP pública `unsafe-inline` (H19/PRD-284) | `JsonLd.tsx`, `middleware.ts` | Cerrado jun 2026 |
 | P32 | ✅ | ~~`category` texto libre~~ — URL canónica (P80) | `ProductJsonLd.tsx` | Cerrado sesión 8 |
 
@@ -522,8 +520,8 @@ Cada fila es una práctica que **reducía** posibilidad de ranking o rich snippe
 | P41 | ✅ | Asset `/placeholder-product.png` en `public/` | múltiples | Cerrado PRD-008 |
 | P42 | ✅ | ~~Sin image sitemap~~ — `images: string[]` en sitemap | `sitemap.ts` | Cerrado sesión 8 |
 | P43 | 🟠 | OG fuerza recorte 1200×630 `c_fill` — puede recortar producto | `buildOgImageUrl` | Preview social puede ser engañosa |
-| P44 | 🟡 | `ProductGallery` principal es cliente; video en iframe Bunny no indexable como imagen | `ProductGallery.tsx` | Contenido multimedia invisible para Images |
-| P45 | 🟡 | Poster de video con `alt=""` y `aria-hidden` | `ProductGallery.tsx` L37-38 | OK decorativo pero pierde alt keyword |
+| P44 | ✅ | ~~Vídeo Bunny en iframe no indexable~~ — galería solo imágenes (`next/image`) | `ProductGallery.tsx` | Cerrado jun 2026 — retiro Bunny Stream |
+| P45 | ⚪ | ~~Poster de video~~ — N/A tras retiro vídeo | `ProductGallery.tsx` | Obsoleto jun 2026 |
 
 ### P-G. Catálogo y categorías (puerta de entrada a productos)
 
@@ -699,7 +697,7 @@ Orden recomendado de corrección (dependencias respetadas). Cada fase desbloquea
 | Orden | Tarea | Cierra |
 |-------|-------|--------|
 | ~~5.1~~ | ~~Image sitemap inline~~ | ✅ P42/H40 |
-| ~~5.2~~ | ~~VideoObject~~ | ✅ P30/H35 |
+| ~~5.2~~ | ~~VideoObject~~ | ⏸ Retirado jun 2026 (sin vídeo en galería) |
 | ~~5.3~~ | ~~Merchant Center feed~~ | ✅ P67–P68/H50 |
 | 5.4 | Páginas `/marca/{slug}` | P65 ⏳ |
 | ~~5.5~~ | ~~generateStaticParams productos~~ | ✅ H38 |
@@ -1075,7 +1073,7 @@ Host: {SITE_URL}
 | Página | Schemas emitidos | Nonce CSP |
 |--------|------------------|-----------|
 | **Todas** (layout) | WebSite + SearchAction, Organization, LocalBusiness | ⏸ Sin nonce (ISR + CSP pública) |
-| `/product/[slug]` | Product+Offer+Warranty, BreadcrumbList, VideoObject (si hay video) | ⏸ Sin nonce (CSP pública) |
+| `/product/[slug]` | Product+Offer+Warranty, BreadcrumbList | ⏸ Sin nonce (CSP pública) |
 | `/categoria/[slug]` | CollectionPage, ItemList (paginado), BreadcrumbList | ⏸ Sin nonce (CSP pública) |
 | `/tienda-barquisimeto` | ElectronicsStore (`@id` = layout), BreadcrumbList | ⏸ Sin nonce (CSP pública) |
 | `/nosotros` | AboutPage, BreadcrumbList | ⏸ Sin nonce (CSP pública) |
@@ -1138,7 +1136,7 @@ Host: {SITE_URL}
 
 | Schema | Estado |
 |--------|--------|
-| `VideoObject` en ficha | ✅ Sesión 8 (si `ProductMedia` VIDEO) |
+| `VideoObject` en ficha | ⏸ Retirado jun 2026 — galería solo imágenes |
 | `BreadcrumbList` catálogo/legales | ✅ Sesión 7 (`/productos`, `/tienda-barquisimeto`, `/nosotros`) |
 | Google Merchant feed XML | ✅ Sesión 8 (`/api/merchant-feed`) |
 | `FAQPage` en home/productos | ⏳ Solo `/devoluciones` |
@@ -1481,7 +1479,8 @@ Dominios compartidos en ambas ramas (`img-src`, `connect-src`, etc.):
 
 - R2 (`R2_PUBLIC_BASE_URL`)
 - `https://*.google-analytics.com`, `https://*.googletagmanager.com`, `https://*.analytics.google.com`
-- `https://iframe.mediadelivery.net`, `https://www.google.com`, `https://maps.google.com`
+- `https://iframe.mediadelivery.net` *(legacy CSP — vídeo Bunny retirado jun 2026; pendiente limpieza en `middleware.ts`)*
+- `https://www.google.com`, `https://maps.google.com`
 
 **Motivo:** el HTML ISR se genera en build sin nonce en scripts inline de Next (`self.__next_f.push`). Exigir nonce por request bloqueaba la hidratación → skeleton congelado en `app/loading.tsx`. `'strict-dynamic'` anula `'unsafe-inline'`, por eso la rama pública no lo incluye.
 
@@ -2238,7 +2237,6 @@ Productos sin `description` usan fallback genérico. Muchos productos con descri
 | Archivo | alt |
 |---------|-----|
 | `app/page.tsx` CtaBanner | `"Tecnología MundoTech"` (genérico, no describe imagen) |
-| `app/product/[slug]/ProductGallery.tsx` poster video | `alt=""` + `aria-hidden` (OK decorativo) |
 | `components/ProductGallery.tsx` (legacy) | `"Product Image"` (malo) |
 
 ---
@@ -2465,7 +2463,7 @@ Lista numerada de **todos** los hallazgos documentados. Columna **Estado** conso
 | H32 | 🟡 | meta keywords obsoleto | layout + pages | ⏳ |
 | H33 | 🟡 | GPTBot completamente bloqueado | `robots.ts` | ⏳ |
 | H34 | 🟡 | Sin blog / contenido editorial | — | ⏳ |
-| H35 | 🟡 | Sin VideoObject para productos con video | ProductMedia | ✅ Sesión 8 — `VideoObject` en `ProductJsonLd.tsx` |
+| H35 | ⏸ | ~~VideoObject para productos con video~~ — retirado jun 2026 | `ProductJsonLd.tsx` | N/A — sin vídeo en galería |
 | H36 | 🟡 | Sin FAQ schema en home/productos | — | ⏳ Solo `/devoluciones` tiene FAQPage |
 | H37 | 🟡 | PWA sin SW ni iconos PNG | manifest | ⏳ Solo `icon.svg` en manifest |
 | H38 | 🟡 | Sin generateStaticParams productos | product page | ✅ Sesión 7 |
@@ -2770,14 +2768,15 @@ Ver [§36](#36-checklist-operativo-post-despliegue) — ítems de código ya res
 | `app/checkout/page.tsx` | `export const metadata` noindex (H03) |
 | `app/checkout/success/page.tsx` | `export const metadata` noindex (H03) |
 | `app/sitemap.ts` | Filtro `isActive: true`; image sitemap (`images: string[]`) para productos y categorías (DEPENDENCIA-03, P42/H40) |
-| `app/components/ProductJsonLd.tsx` | `dateModified` (P79); `category` como URL canónica (P80); `shippingDetails.url` (P95); `VideoObject` para media VIDEO (P30/H35); campo `media` en interfaz |
+| `app/components/ProductJsonLd.tsx` | `dateModified` (P79); `category` como URL canónica (P80); `shippingDetails.url` (P95); ~~`VideoObject`~~ retirado jun 2026 |
 | `app/api/merchant-feed/route.ts` | **Nuevo** — feed XML RSS 2.0 para Google Merchant Center (P67/P68/H50) |
 
 ### 40.3 Ítems cerrados
 
 | Estado | IDs |
 |--------|-----|
-| ✅ **Implementado sesión 8** | P79 (`dateModified`), P80 (category URL), P95 (shippingDetails.url), P30 (VideoObject), H35 (VideoObject), P42 (image sitemap), H40 (image sitemap), P96/H61 (reset-password noindex), H03 (checkout/success noindex), P67 (Merchant feed), P68 (Merchant feed), H50 (Merchant feed) |
+| ✅ **Implementado sesión 8** | P79 (`dateModified`), P80 (category URL), P95 (shippingDetails.url), P42 (image sitemap), H40 (image sitemap), P96/H61 (reset-password noindex), H03 (checkout/success noindex), P67 (Merchant feed), P68 (Merchant feed), H50 (Merchant feed) |
+| ⏸ **Retirado jun 2026** | P30/H35 (`VideoObject` — sin vídeo Bunny en galería) |
 | ✅ **DEPENDENCIA-03 resuelta** | `sitemap.ts` filtra `isActive: true` — campo ya disponible desde sesión 3 |
 
 ### 40.4 Pendientes restantes (post sesión 8)
@@ -2902,7 +2901,6 @@ Razones:
 - `TODO-MC-03` — Evaluar agregar campo `gtin` a `Product` para mayor elegibilidad en Shopping (actualmente se usa `sku` como `mpn`).
 - `TODO-MC-04` — Cuando se agregue política de envío a settings, reactivar el bloque `<g:shipping>` por ítem con `<g:price>` real (actualmente gestionado a nivel de cuenta).
 - **Backfill manual:** las categorías existentes en BD tienen `googleCategoryId = null` → el mapa automático corre como fallback hasta que un admin edite cada categoría desde el panel y asigne el ID explícito.
-- [ ] Validar `VideoObject` en Rich Results Test si algún producto tiene video Bunny
 - [x] Confirmar que `/sitemap.xml` excluye productos `isActive: false` (DEPENDENCIA-03, sesión 8)
 - [x] Confirmar que imágenes de producto aparecen en el sitemap XML (P42, sesión 8)
 - [ ] Revisar `dateModified` en Schema Markup Validator para un producto recién editado
@@ -3538,7 +3536,7 @@ curl -w "TTFB: %{time_starttransfer}s\n" -o /dev/null -s "https://mundotechve.co
 | H08 / P64 | SearchAction → `/buscar?q=` | 7 | `layout.tsx` |
 | H17 / DEP-03 | Sitemap filtra `isActive: true` | 8 | `sitemap.ts` |
 | H29 | ElectronicsStore mismo `@id` que layout | 7+ | `tienda-barquisimeto/page.tsx` |
-| H35 / P30 | `VideoObject` en schema producto | 8 | `ProductJsonLd.tsx` |
+| ~~H35 / P30~~ | ~~`VideoObject` en schema producto~~ — retirado jun 2026 | 8→13 | `ProductJsonLd.tsx` |
 | H40 / P42 | Image sitemap inline | 8 | `sitemap.ts` |
 | H43 / P51 | CategoryDrawer enlaza `/categoria/` | 9 | `CategoryDrawer.tsx` |
 | H50 / P67–P68 | Merchant feed XML + taxonomía Google | 8+14+15 | `api/merchant-feed/route.ts`, `google-product-categories.ts` |
@@ -3643,3 +3641,17 @@ Revisión de huecos tras la 2.ª pasada — secciones **§30–§33, §31, §32,
 | **§32.5–32.8** | Categorías vacías, soft 404, breadcrumbs — estado actual |
 | **§33.16–33.17** | Claim 24h y auth indexables → ✅ cerrados |
 | **§33.1, §33.4, §5.7** | robots/meta alineados; tienda `@id` compartido; páginas especiales |
+
+### 47.8 Cuarta pasada — retiro vídeo Bunny Stream (13 jun 2026)
+
+Eliminada la funcionalidad de vídeo Bunny.net en la galería de productos. La galería admin y PDP operan **solo con imágenes**. El modelo `ProductMedia` y el enum `ProductMediaType.VIDEO` permanecen en Prisma (sin migración); registros `VIDEO` heredados se ignoran al renderizar.
+
+| Archivo | Cambio |
+|---------|--------|
+| `lib/product-media.ts` | Eliminados `buildBunnyEmbedSrc`, `BUNNY_PLAYER_PARAMS`; `ProductGalleryItem` solo `IMAGE` |
+| `app/components/AddProductModal.tsx` | UI Bunny retirada; label «Galería de imágenes» |
+| `app/product/[slug]/ProductGallery.tsx` | Eliminado `BunnySlide`; solo `<Image>` |
+| `app/actions/productActions.ts` | `gallerySlotSchema` solo `IMAGE`; create/update siempre `ProductMediaType.IMAGE` |
+| `app/components/ProductJsonLd.tsx` | Eliminados `VideoObject` y campo `media` del schema |
+
+**Impacto SEO documentado:** P30, H35, P44, P45 actualizados en este doc. CSP en `middleware.ts` aún incluye `iframe.mediadelivery.net` en `frame-src` (legacy — limpieza opcional).

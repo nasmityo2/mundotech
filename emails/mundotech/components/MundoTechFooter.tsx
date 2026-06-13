@@ -1,5 +1,6 @@
 import { Link, Section, Text } from '@react-email/components';
 import * as React from 'react';
+import { EmailSocialIcons } from './EmailSocialIcons';
 import { MT, fontSans } from '../theme';
 import {
   emailContactAddress,
@@ -20,7 +21,8 @@ export function MundoTechFooter() {
   const instagram = emailInstagramHandle();
 
   return (
-    <Section
+    <>
+      <Section
       style={{
         padding: '24px 24px 28px',
         textAlign: 'center',
@@ -50,5 +52,17 @@ export function MundoTechFooter() {
         Conectados Contigo · Si tienes dudas, responde a este correo y te atendemos.
       </Text>
     </Section>
+    <Section
+      style={{
+        padding: '20px 24px',
+        textAlign: 'center',
+        backgroundColor: MT.bandBg,
+        borderTop: `3px solid ${MT.gold}`,
+        fontFamily: fontSans,
+      }}
+    >
+      <EmailSocialIcons />
+    </Section>
+    </>
   );
 }

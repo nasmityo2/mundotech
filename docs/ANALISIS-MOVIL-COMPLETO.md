@@ -6,7 +6,7 @@
 | **Stack** | Next.js 16 (App Router) · React 19 · Tailwind CSS 3 · Framer Motion 11 |
 | **Alcance** | iPhone (Safari) · Android (Chrome/WebView) · tablets |
 | **Tipo** | Auditoría estática de código + evaluación UX táctil |
-| **Fecha** | Junio 2026 (actualizado 13 jun 2026 — bloque Lighthouse home) |
+| **Fecha** | Junio 2026 (actualizado 13 jun 2026 — retiro vídeo Bunny en galería PDP) |
 | **Audiencia** | Desarrollo, producto, operaciones |
 
 > **Sesión 8 de 8** — corre en paralelo con producción (PRD) y SEO (P/H). Lee la sección [⚠️ anti-colisión](#-sesión-8--trabajo-en-paralelo-con-sesiones-16-y-7) antes de tocar código.
@@ -662,7 +662,7 @@ async function handleBuyNow(product, quantity) {
 | P3-2 | Breakpoint `xs` solo en ~10 archivos | Por debajo de 420px algunos labels ocultos |
 | P3-3 | Sin bottom nav tienda | Decisión de diseño — depende de header + FAB |
 | P3-4 | `quality={90}` en todas las cards | Peso extra en redes lentas |
-| P3-5 | Galería video `scale-[1.22]` costoso en GPU | `ProductGallery.tsx` |
+| P3-5 | ~~Galería video `scale-[1.22]`~~ — N/A (vídeo Bunny retirado jun 2026) | — |
 | P3-6 | Sin `prefers-reduced-motion` global | Framer Motion, shimmer, `animate-ping` |
 | P3-7 | Stripe en `package.json` sin uso | Bundle surface innecesario |
 | P3-8 | Sin `next/dynamic` en todo el repo | Checkout y drawers no code-split |
@@ -866,7 +866,7 @@ async function copyToClipboard(text: string) {
 | Comprobantes con `<img>` nativo | `PaymentForm.tsx` | Sin optimización ni lazy |
 | QR Binance `<img>` sin max-height responsive | `PaymentForm.tsx` | Overflow con teclado abierto |
 | `quality={90}` universal | `ProductCard.tsx`, `FlashDeals.tsx` | Peso en 3G/4G |
-| Video iframe `scale-[1.22]` | `ProductGallery.tsx` | GPU móvil |
+| ~~Video iframe `scale-[1.22]`~~ | — | N/A — vídeo Bunny retirado jun 2026 |
 | `components/ProductGallery.tsx` legacy `h-96` fijo | Si aún se usa | No responsive |
 
 ### Imágenes R2
@@ -946,7 +946,7 @@ Sin medición real, se puede estimar el impacto basado en el análisis estático
 |------|------------------------------------|-----------------|
 | `/` (Home) | Alto — `ProductProvider` + `FramerMotion` + 5 contexts | `ProductContext` fetch completo |
 | `/productos` | Alto — mismo shell + `ProductGridAndFilters` | Sin code-split |
-| `/product/[slug]` | Medio-alto — galería + tabs + reviews + sticky | `ProductGallery` video iframe |
+| `/product/[slug]` | Medio-alto — galería + tabs + reviews + sticky | Galería solo imágenes (`next/image`) |
 | `/checkout` | Alto — 3 pasos + `PaymentForm` + upload | Sin `next/dynamic` |
 | `/cart` | Medio | `CartClient` + totales hardcoded |
 | `/login` | Bajo | ✅ Relativamente aislado |

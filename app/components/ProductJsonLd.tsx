@@ -46,8 +46,6 @@ interface ProductForJsonLd {
   images: string[];
   specs?: unknown | null;
   updatedAt: Date;
-  /** Medios enriquecidos (imágenes + vídeo Bunny) desde ProductMedia. */
-  media?: Array<{ type: string; url: string; posterUrl?: string | null }>;
 }
 
 interface Props {
@@ -134,19 +132,6 @@ export default function ProductJsonLd({ product, categoryPath, storeName, review
   // P80: category como URL canónica de categoría en vez de texto libre.
   const categoryUrl = `${baseUrl}${categoryPath}`;
 
-  // P30/H35: VideoObject si hay medios tipo VIDEO (Bunny Stream).
-  // Emite contentUrl del iframe y thumbnail si hay posterUrl.
-  const videoMedia = (product.media ?? []).filter((m) => m.type === 'VIDEO');
-  const videoObjects = videoMedia.map((v) => ({
-    '@type': 'VideoObject',
-    name: product.name,
-    description: cleanDescription,
-    thumbnailUrl: v.posterUrl || (schemaImages[0] ?? `${baseUrl}/og-default.png`),
-    contentUrl: v.url,
-    embedUrl: v.url,
-    uploadDate: product.updatedAt.toISOString(),
-  }));
-
   const productSchema = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -166,8 +151,6 @@ export default function ProductJsonLd({ product, categoryPath, storeName, review
     ...(additionalProperty.length > 0 ? { additionalProperty } : {}),
     ...(aggregateRating ? { aggregateRating } : {}),
     ...(reviewSchema.length > 0 ? { review: reviewSchema } : {}),
-    // P30/H35: vídeos de producto si existen.
-    ...(videoObjects.length > 0 ? { video: videoObjects } : {}),
     offers: {
       '@type': 'Offer',
       price: product.price.toFixed(2),
@@ -293,12 +276,9 @@ export default function ProductJsonLd({ product, categoryPath, storeName, review
     ],
   };
 
-  // P30/H35: emitir VideoObject como schemas independientes (además del
-  // `video` embebido en Product) para elegibilidad en rich results de vídeo.
   const allSchemas = [
     productSchema,
     breadcrumbSchema,
-    ...videoObjects,
   ] satisfies Record<string, unknown>[];
 
   return <JsonLd data={allSchemas} />;

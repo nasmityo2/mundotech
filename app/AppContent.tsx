@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { APP_CHUNK_RELOAD_KEY, clearChunkReloadFlag } from '@/lib/chunk-load-error';
 import { useCart } from "../context/CartContext";
 import Navbar, { type NavbarContact } from "../components/Navbar";
 import CartDrawer from "../components/CartDrawer";
@@ -16,6 +18,16 @@ export default function AppContent({ contact }: { contact: NavbarContact }) {
   const { openCart } = useCart();
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith('/admin') ?? false;
+
+  useEffect(() => {
+    if (isAdmin) return;
+    const id = requestAnimationFrame(() => {
+      if (!document.querySelector('[data-app-error]')) {
+        clearChunkReloadFlag(APP_CHUNK_RELOAD_KEY);
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [isAdmin, pathname]);
 
   if (isAdmin) return null;
 
