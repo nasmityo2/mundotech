@@ -4,19 +4,23 @@ CREATE SCHEMA IF NOT EXISTS "public";
 -- CreateEnum
 CREATE TYPE "ProductMediaType" AS ENUM ('IMAGE', 'VIDEO');
 
+-- CreateEnum
+CREATE TYPE "ReviewStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+
 -- CreateTable
 CREATE TABLE "Product" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "slug" TEXT,
+    "slug" TEXT NOT NULL,
     "sku" TEXT,
     "description" TEXT,
-    "price" DOUBLE PRECISION NOT NULL,
-    "originalPrice" DOUBLE PRECISION,
+    "price" DECIMAL(12,2) NOT NULL,
+    "originalPrice" DECIMAL(12,2),
     "stock" INTEGER NOT NULL DEFAULT 0,
     "category" TEXT NOT NULL,
     "brand" TEXT,
     "images" TEXT[],
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "specs" JSONB,
@@ -44,6 +48,9 @@ CREATE TABLE "Category" (
     "imageUrl" TEXT,
     "isFeatured" BOOLEAN NOT NULL DEFAULT false,
     "order" INTEGER NOT NULL DEFAULT 0,
+    "description" TEXT,
+    "seoTitle" TEXT,
+    "googleCategoryId" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -92,9 +99,13 @@ CREATE TABLE "User" (
     "email" TEXT NOT NULL,
     "password" TEXT NOT NULL,
     "name" TEXT,
-    "role" TEXT NOT NULL DEFAULT 'client',
+    "role" TEXT NOT NULL DEFAULT 'CLIENT',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "passwordChangedAt" TIMESTAMP(3),
+    "pendingEmail" TEXT,
+    "emailChangeToken" TEXT,
+    "emailChangeTokenExpiry" TIMESTAMP(3),
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -139,7 +150,7 @@ CREATE TABLE "Order" (
     "customerName" TEXT NOT NULL,
     "customerEmail" TEXT,
     "customerPhone" TEXT,
-    "total" DOUBLE PRECISION NOT NULL,
+    "total" DECIMAL(12,2) NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'Pendiente',
     "paymentMethod" TEXT NOT NULL,
     "shippingAddress" TEXT NOT NULL,
@@ -159,10 +170,10 @@ CREATE TABLE "Order" (
     "trackingNumber" TEXT,
     "trackingPhotoUrl" TEXT,
     "trackingUrl" TEXT,
-    "exchangeRateUsdBs" DOUBLE PRECISION,
+    "exchangeRateUsdBs" DECIMAL(12,4),
     "paidAt" TIMESTAMP(3),
     "couponCode" TEXT,
-    "couponDiscount" DOUBLE PRECISION,
+    "couponDiscount" DECIMAL(12,2),
     "paymentRejectionReason" TEXT,
     "paymentVerifiedBy" TEXT,
 
@@ -176,7 +187,7 @@ CREATE TABLE "OrderItem" (
     "productId" TEXT NOT NULL,
     "productName" TEXT NOT NULL,
     "quantity" INTEGER NOT NULL,
-    "price" DOUBLE PRECISION NOT NULL,
+    "price" DECIMAL(12,2) NOT NULL,
     "imageUrl" TEXT,
 
     CONSTRAINT "OrderItem_pkey" PRIMARY KEY ("id")
@@ -211,7 +222,7 @@ CREATE TABLE "Review" (
     "rating" INTEGER NOT NULL,
     "title" TEXT,
     "comment" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "status" "ReviewStatus" NOT NULL DEFAULT 'PENDING',
     "verifiedPurchase" BOOLEAN NOT NULL DEFAULT false,
     "adminReply" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -226,9 +237,9 @@ CREATE TABLE "Coupon" (
     "code" TEXT NOT NULL,
     "description" TEXT,
     "discountType" TEXT NOT NULL,
-    "discountValue" DOUBLE PRECISION NOT NULL,
-    "minPurchase" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "maxDiscount" DOUBLE PRECISION,
+    "discountValue" DECIMAL(12,2) NOT NULL,
+    "minPurchase" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "maxDiscount" DECIMAL(12,2),
     "maxUses" INTEGER,
     "usedCount" INTEGER NOT NULL DEFAULT 0,
     "perUserLimit" INTEGER,
@@ -247,7 +258,7 @@ CREATE TABLE "CouponRedemption" (
     "couponId" TEXT NOT NULL,
     "orderId" TEXT NOT NULL,
     "userId" TEXT,
-    "discount" DOUBLE PRECISION NOT NULL,
+    "discount" DECIMAL(12,2) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "CouponRedemption_pkey" PRIMARY KEY ("id")
@@ -270,8 +281,8 @@ CREATE TABLE "AbandonedCart" (
     "email" TEXT NOT NULL,
     "userId" TEXT,
     "items" JSONB NOT NULL,
-    "totalUsd" DOUBLE PRECISION NOT NULL,
-    "recoveryToken" TEXT NOT NULL,
+    "totalUsd" DECIMAL(12,2) NOT NULL,
+    "recoveryTokenHash" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'PENDING',
     "emailSentAt" TIMESTAMP(3),
     "lastActivityAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -320,6 +331,9 @@ CREATE INDEX "Product_category_idx" ON "Product"("category");
 CREATE INDEX "Product_sku_idx" ON "Product"("sku");
 
 -- CreateIndex
+CREATE INDEX "Product_isActive_idx" ON "Product"("isActive");
+
+-- CreateIndex
 CREATE INDEX "ProductMedia_productId_sortOrder_idx" ON "ProductMedia"("productId", "sortOrder");
 
 -- CreateIndex
@@ -339,6 +353,9 @@ CREATE INDEX "Banner_type_active_idx" ON "Banner"("type", "active");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_emailChangeToken_key" ON "User"("emailChangeToken");
 
 -- CreateIndex
 CREATE INDEX "SavedAddress_userId_idx" ON "SavedAddress"("userId");
@@ -363,6 +380,9 @@ CREATE INDEX "Order_createdAt_idx" ON "Order"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "Order_paidAt_idx" ON "Order"("paidAt");
+
+-- CreateIndex
+CREATE INDEX "Order_customerEmail_idx" ON "Order"("customerEmail");
 
 -- CreateIndex
 CREATE INDEX "OrderItem_orderId_idx" ON "OrderItem"("orderId");
@@ -416,7 +436,7 @@ CREATE INDEX "RestockSubscription_productId_notifiedAt_idx" ON "RestockSubscript
 CREATE UNIQUE INDEX "RestockSubscription_email_productId_key" ON "RestockSubscription"("email", "productId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "AbandonedCart_recoveryToken_key" ON "AbandonedCart"("recoveryToken");
+CREATE UNIQUE INDEX "AbandonedCart_recoveryTokenHash_key" ON "AbandonedCart"("recoveryTokenHash");
 
 -- CreateIndex
 CREATE INDEX "AbandonedCart_email_status_idx" ON "AbandonedCart"("email", "status");
@@ -452,6 +472,9 @@ ALTER TABLE "Order" ADD CONSTRAINT "Order_customerId_fkey" FOREIGN KEY ("custome
 ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "ProductView" ADD CONSTRAINT "ProductView_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -476,4 +499,17 @@ ALTER TABLE "Cart" ADD CONSTRAINT "Cart_userId_fkey" FOREIGN KEY ("userId") REFE
 ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_cartId_fkey" FOREIGN KEY ("cartId") REFERENCES "Cart"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- PRD-122: CHECK de Order.status (superset deliberado; no modelable en schema.prisma).
+-- Literales alineados con OrderStatus en lib/definitions.ts (invariante R2).
+ALTER TABLE "Order" ADD CONSTRAINT "Order_status_valid" CHECK (
+  "status" IN (
+    'Pendiente verificación Binance',
+    'Pendiente',
+    'En Proceso',
+    'Enviado',
+    'Entregado',
+    'Cancelado'
+  )
+);
