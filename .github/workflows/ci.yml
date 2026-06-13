@@ -53,6 +53,8 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://ci:ci@localhost:5432/mundotech_ci
+      # migrate deploy lee DIRECT_URL vía prisma.config.ts (sin PgBouncer en CI = mismo valor)
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/mundotech_ci
       NEXTAUTH_SECRET: ci-secret-no-real
       NEXTAUTH_URL: http://localhost:3000
       CRON_SECRET: ci-cron-secret
