@@ -1,13 +1,13 @@
 /**
  * MIME real desde magic bytes — no usar file.type ni extensión del nombre para seguridad.
- * Algoritmo alineado con lo que Cloudinary suele recibir como `resource_type: 'image'`.
+ * Tipos de imagen permitidos en uploads (JPG, PNG, WEBP, GIF).
  */
 export type DetectedImageMime = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 
 /** Comprobantes de pago: solo tipos permitidos públicos (sin GIF). */
 const PROOF_ALLOWED = new Set<DetectedImageMime>(['image/jpeg', 'image/png', 'image/webp']);
 
-/** Upload admin Cloudinary / assets: JPG, PNG, WEBP, GIF. */
+/** Upload admin / assets: JPG, PNG, WEBP, GIF. */
 const ADMIN_UPLOAD_ALLOWED = new Set<DetectedImageMime>([
   'image/jpeg',
   'image/png',

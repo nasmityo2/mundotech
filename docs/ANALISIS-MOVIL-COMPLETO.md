@@ -258,7 +258,7 @@ img, video, iframe, svg {
 
 ### Imágenes
 
-- Loader Cloudinary custom: `f_auto`, `q_auto:good`, `dpr_auto`, `c_limit`
+- `next/image` con `remotePatterns` R2 y `sizes` responsivos en componentes clave
 - `ProductCard`: `sizes="(max-width: 640px) 50vw, ..."` acorde al grid 2 columnas
 - Galería PDP: `sizes` responsivos + `priority` en primera imagen
 
@@ -869,11 +869,11 @@ async function copyToClipboard(text: string) {
 | Video iframe `scale-[1.22]` | `ProductGallery.tsx` | GPU móvil |
 | `components/ProductGallery.tsx` legacy `h-96` fijo | Si aún se usa | No responsive |
 
-### Loader Cloudinary
+### Imágenes R2
 
-**Archivo:** `lib/cloudinaryLoader.js`
+**Archivos:** `lib/r2.ts`, `next.config.mjs` (`remotePatterns`)
 
-Transformaciones automáticas: `f_auto`, `q_auto:good`, `w_*`, `c_limit`, `dpr_auto` — orientado correctamente a redes móviles venezolanas.
+Imágenes servidas desde el CDN público de Cloudflare R2 con `next/image` y `sizes` responsivos — orientado a redes móviles venezolanas.
 
 ---
 
@@ -884,7 +884,7 @@ Transformaciones automáticas: `f_auto`, `q_auto:good`, `w_*`, `c_limit`, `dpr_a
 | Factor | Estado |
 |--------|--------|
 | Fuentes | Una familia Jost, `display: swap` |
-| Imágenes | Cloudinary + `sizes` en componentes clave |
+| Imágenes | Cloudflare R2 + `sizes` en componentes clave |
 | SSR | Home, PDP, categorías traen datos por servidor |
 | `100dvh` | Usado en layout y drawers (mejor que `100vh` en iOS) |
 
@@ -1249,8 +1249,8 @@ La paleta base del proyecto (`#0B1220` fondos, `#F3F4F6` textos) es inherentemen
 | `@stripe/react-stripe-js` | ^6.2.0 | **Sin uso en código** — peso muerto |
 | `@stripe/stripe-js` | ^9.3.1 | **Sin uso en código** |
 | `@radix-ui/*` | — | Toast, Label — uso acotado |
-| `next-cloudinary` | ^6.17.5 | Solo `AddProductModal.tsx` |
-| `cloudinary` | ^2.10.0 | Servidor + loader |
+| `@aws-sdk/client-s3` | ^3.x | Upload/delete R2 (`lib/r2.ts`) |
+| `sharp` | ^0.35.x | Procesamiento de imágenes en upload |
 
 ---
 
@@ -1429,8 +1429,8 @@ La paleta base del proyecto (`#0B1220` fondos, `#F3F4F6` textos) es inherentemen
 | `tailwind.config.ts` | Breakpoints incl. `xs: 420px` |
 | `app/manifest.ts` | PWA tienda |
 | `public/admin-manifest.json` | PWA admin (iconos rotos) |
-| `next.config.mjs` | Images Cloudinary, headers |
-| `lib/cloudinaryLoader.js` | Optimización imágenes móvil |
+| `next.config.mjs` | Images R2 (`remotePatterns`), headers |
+| `lib/r2.ts` | Cliente Cloudflare R2 (upload/delete) |
 
 ### Navegación tienda
 

@@ -290,7 +290,7 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                     <p className="text-xs font-bold text-navy uppercase tracking-wide">Vídeo Bunny Stream</p>
                     <p className="text-[11px] text-gray-500">
                       Pega la URL del embed (<code className="text-[10px]">iframe.mediadelivery.net/embed/…</code>).
-                      Opcional: URL de poster (Cloudinary) para miniatura y carga rápida.
+                      Opcional: URL de poster (R2) para miniatura y carga rápida.
                     </p>
                     <input
                       type="url"
@@ -303,7 +303,7 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                       type="url"
                       value={bunnyPoster}
                       onChange={(e) => setBunnyPoster(e.target.value)}
-                      placeholder="Poster (opcional) — imagen Cloudinary"
+                      placeholder="Poster (opcional) — imagen R2"
                       className={inputCls}
                     />
                     <button

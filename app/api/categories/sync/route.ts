@@ -32,7 +32,7 @@ export async function POST() {
           name,
           slug: candidate,
           // PRD-186: sin imágenes Unsplash hardcodeadas — el admin sube la imagen
-          // real (Cloudinary) desde el panel; null = sin imagen, la UI lo tolera.
+          // real (R2) desde el panel; null = sin imagen, la UI lo tolera.
           imageUrl: null,
           isFeatured: i < 5,
           order: i,

@@ -152,7 +152,7 @@ Esta sección explica **cómo está armada la web** para que cualquier IA (o des
 | UI | React 19, Tailwind CSS, Framer Motion, Radix UI |
 | BD | **PostgreSQL** + **Prisma 7** |
 | Auth | **NextAuth.js** (JWT, roles `ADMIN` / `client`) |
-| Imágenes | **Cloudinary** (`res.cloudinary.com`, loader custom) |
+| Imágenes | **Cloudflare R2** (`R2_PUBLIC_BASE_URL`, `next/image`) |
 | Video producto | **Bunny.net** embed (`iframe.mediadelivery.net`) |
 | Email | React Email (`emails/mundotech/`) |
 | Analytics | GA4 opcional con consentimiento (`CookieConsent.tsx`) |
@@ -164,7 +164,8 @@ Esta sección explica **cómo está armada la web** para que cualquier IA (o des
 Request HTTP
     │
     ▼
-middleware.ts          ← CSP nonce, auth /admin /account /checkout
+middleware.ts          ← CSP dual: pública cacheada (`unsafe-inline`, sin nonce) vs
+    │                    dinámica/sensible (nonce + `strict-dynamic`); auth /admin /account /checkout
     │
     ▼
 app/layout.tsx (RSC)   ← metadata global, JSON-LD WebSite/Org/LocalBusiness,
@@ -276,7 +277,7 @@ flowchart TB
 
 | Servicio | Uso | Variable env |
 |----------|-----|--------------|
-| Cloudinary | Imágenes producto, OG, hero | URLs en BD; API en upload |
+| Cloudflare R2 | Imágenes producto, OG, hero | `R2_*` env; URLs en BD |
 | Bunny Stream | Video en ficha producto | URLs en `ProductMedia` |
 | Google Maps | Embed + `hasMap` schema | `NEXT_PUBLIC_GOOGLE_MAPS_*` |
 | Google Analytics | Tráfico (no ranking directo) | `NEXT_PUBLIC_GA4_ID` |
@@ -359,7 +360,7 @@ Un hallazgo entra en este documento **solo si** afecta al menos una de estas pal
 | WhatsAppFab / enlaces `wa.me` | [PRD-276–277](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md) |
 | Emails de pedido con slug roto | [PRD-288](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md) |
 | GA4, cookies, Consent Mode | [PRD-286–287](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md) |
-| CSP / nonce en JSON-LD hijos | [PRD-284](ANALISIS-PRODUCCION-01-SEGURIDAD.md) |
+| CSP / nonce en JSON-LD hijos | [PRD-284](ANALISIS-PRODUCCION-01-SEGURIDAD.md) — ✅ CSP dual jun 2026 |
 | AnnouncementBar link sin validar | [PRD-283](ANALISIS-PRODUCCION-01-SEGURIDAD.md) |
 | OpenSearch / `llms.txt` | ✅ Implementado — `public/opensearch.xml`, `public/llms.txt`, `<link rel="search">` en `layout.tsx` (origen PRD-289–290) |
 | Stripe en package.json, PWA offline, auth JWT | [`00-INDICE`](ANALISIS-PRODUCCION-00-INDICE.md) (infra general) |
@@ -498,7 +499,7 @@ Cada fila es una práctica que **reducía** posibilidad de ranking o rich snippe
 | P28 | 🟡 | `aggregateRating` solo si hay reseñas — mayoría de productos sin estrellas en SERP | `ProductJsonLd.tsx` | Sin ventaja CTR de estrellas |
 | P29 | 🟡 | Máximo 5 `Review` en schema aunque haya más aprobadas | `ProductJsonLd.tsx` L101 | Menor; aceptable |
 | P30 | ✅ | ~~Sin `VideoObject`~~ — emitido si hay `ProductMedia` VIDEO | `ProductJsonLd.tsx` | Cerrado sesión 8 |
-| P31 | ⏸ | JSON-LD hijo sin nonce CSP — cerrado por diseño ISR (H19) | `JsonLd.tsx` | PRD-284 |
+| P31 | ✅ | JSON-LD / ISR sin nonce — CSP pública `unsafe-inline` (H19/PRD-284) | `JsonLd.tsx`, `middleware.ts` | Cerrado jun 2026 |
 | P32 | ✅ | ~~`category` texto libre~~ — URL canónica (P80) | `ProductJsonLd.tsx` | Cerrado sesión 8 |
 
 ### P-E. Contenido visible en la ficha (lo que Google indexa)
@@ -636,7 +637,7 @@ No todo está mal — esto **conservar** al corregir:
 | H1 = nombre del producto | una sola vez | `product/[slug]/page.tsx` |
 | ISR + revalidate al editar producto completo | `revalidatePath(/product/${slug})` | `productActions.ts` update |
 | Listados SSR con `<a href="/product/...">` | ProductCard en server parents | `productos/page.tsx`, `categoria/` |
-| Cloudinary `f_auto,q_auto,w_*` en imágenes | loader | `cloudinaryLoader.js` |
+| R2 + `next/image` con `sizes` en imágenes | `remotePatterns` | `next.config.mjs` |
 | `googleBot` max-snippet / max-image-preview en producto | metadata | `product/[slug]/page.tsx` |
 | Páginas `/categoria/[slug]` con metadata + ItemList + generateStaticParams | categoría | `categoria/[slug]/page.tsx` |
 
@@ -728,7 +729,7 @@ Usa esto **por cada producto** antes de dar por cerrada la optimización:
 - [ ] `Product` + `Offer` sin errores en Rich Results Test
 - [ ] Precio schema = precio visible
 - [ ] `availability` = stock real
-- [ ] `image` con al menos 1 URL válida Cloudinary
+- [ ] `image` con al menos 1 URL válida R2
 - [ ] Sin LocalBusiness duplicado en ficha
 - [ ] Envío y devoluciones desde config real
 
@@ -869,7 +870,7 @@ export const viewport: Viewport = {
 
 ### 4.3 JSON-LD global (en cada página del sitio)
 
-Tres bloques `<script type="application/ld+json">` con **nonce CSP** (`headers().get('x-nonce')`):
+Tres bloques `<script type="application/ld+json">` **sin nonce** (compatible con HTML ISR cacheado y CSP pública `unsafe-inline`; ver §18.2):
 
 1. **WebSite** — incluye `SearchAction` → `/buscar?q=` ✅ (H08/P64)
 2. **LocalBusiness** — construido con `buildLocalBusinessSchema(readSeoLocal(), settings)`
@@ -913,7 +914,7 @@ Los datos de LocalBusiness son **vivos**: se leen de BD en cada render del layou
 **Keywords dinámicos:** nombre, marca, categoría, `{nombre} precio Venezuela`, `{nombre} Barquisimeto`, términos genéricos locales.
 
 **Open Graph:**
-- Imagen principal Cloudinary o fallback `/og-default.png`
+- Imagen principal R2 o fallback `/og-default.png`
 - `locale: es_VE`; `og:type: product` vía `other` (P13/H20)
 
 **Meta namespace product (campo `other`):**
@@ -1067,18 +1068,19 @@ Host: {SITE_URL}
 
 ## 8. Datos estructurados (JSON-LD / Schema.org)
 
-> **Estado (12 jun 2026):** sección sincronizada con sesiones 7–15. Nonce en JSON-LD hijo: cerrado por diseño (H19/PRD-284). LocalBusiness **solo** en layout — no en fichas producto.
+> **Estado (13 jun 2026):** sección sincronizada con sesiones 7–15 y fix CSP dual ISR (jun 2026). JSON-LD sin nonce en layout e hijos ISR: permitido por `buildPublicCachedCsp()` (`script-src 'unsafe-inline'`, sin `strict-dynamic`). LocalBusiness **solo** en layout — no en fichas producto.
 
 ### 8.1 Resumen por página
 
 | Página | Schemas emitidos | Nonce CSP |
 |--------|------------------|-----------|
-| **Todas** (layout) | WebSite + SearchAction, Organization, LocalBusiness | ✅ Sí |
-| `/product/[slug]` | Product+Offer+Warranty, BreadcrumbList, VideoObject (si hay video) | ⏸ Sin nonce (diseño ISR) |
-| `/categoria/[slug]` | CollectionPage, ItemList (paginado), BreadcrumbList | ⏸ Sin nonce (diseño ISR) |
-| `/tienda-barquisimeto` | ElectronicsStore (`@id` = layout), BreadcrumbList | ⏸ Sin nonce |
-| `/nosotros` | AboutPage, BreadcrumbList | ⏸ Sin nonce |
-| `/devoluciones` | FAQPage | ⏸ Sin nonce |
+| **Todas** (layout) | WebSite + SearchAction, Organization, LocalBusiness | ⏸ Sin nonce (ISR + CSP pública) |
+| `/product/[slug]` | Product+Offer+Warranty, BreadcrumbList, VideoObject (si hay video) | ⏸ Sin nonce (CSP pública) |
+| `/categoria/[slug]` | CollectionPage, ItemList (paginado), BreadcrumbList | ⏸ Sin nonce (CSP pública) |
+| `/tienda-barquisimeto` | ElectronicsStore (`@id` = layout), BreadcrumbList | ⏸ Sin nonce (CSP pública) |
+| `/nosotros` | AboutPage, BreadcrumbList | ⏸ Sin nonce (CSP pública) |
+| `/devoluciones` | FAQPage | ⏸ Sin nonce (CSP pública) |
+| `/cart`, `/checkout`, `/login`, `/admin/*` | — (sin JSON-LD extra de catálogo) | ✅ Nonce estricto (CSP dinámica) |
 
 ### 8.2 WebSite + SearchAction (layout)
 
@@ -1227,7 +1229,7 @@ Reemplazó `/og-default.jpg` que no existía y causaba **404 en previews** de Wh
 | Página | Fuente imagen OG |
 |--------|------------------|
 | Default / home / legales | `opengraph-image.tsx` (auto) |
-| Producto | Primera imagen Cloudinary → `buildOgImageUrl()` 1200×630 `c_fill` |
+| Producto | Primera imagen R2 → `buildOgImageUrl()` 1200×630 |
 | Categoría | `category.imageUrl` si existe |
 | Categoría Twitter | **Sin imagen** explícita |
 
@@ -1375,16 +1377,11 @@ const jost = Jost({ subsets: ["latin"], display: "swap", variable: "--font-jost"
 
 `display: "swap"` reduce FOIT — positivo para LCP/CLS.
 
-### 14.2 Loader de imágenes Cloudinary
+### 14.2 Imágenes R2
 
-**Archivo:** `lib/cloudinaryLoader.js`
+**Archivos:** `lib/r2.ts`, `next.config.mjs`
 
-Transformaciones automáticas:
-- `f_auto` — WebP/AVIF según navegador
-- `q_auto:good` — compresión inteligente
-- `w_{width}`, `c_limit`, `dpr_auto`
-
-Comentario en código: reduce ~60-70% peso en móvil (contexto Venezuela).
+Imágenes servidas desde Cloudflare R2 vía `next/image` con `remotePatterns` y `sizes` responsivos por componente.
 
 ### 14.3 Priorización LCP
 
@@ -1473,10 +1470,22 @@ Comentario en layout: reduce JS bundle, mejora LCP/INP.
 | Privacidad | `anonymize_ip: true` |
 | Admin | Banner desactivado en rutas `/admin` |
 
-**CSP** (`middleware.ts`) permite dominios:
-- `*.google-analytics.com`
-- `*.googletagmanager.com`
-- `*.analytics.google.com`
+**CSP** (`middleware.ts`) — política dual según ruta (jun 2026):
+
+| Rama | Rutas | `script-src` | `x-nonce` |
+|------|-------|--------------|-----------|
+| **Pública cacheada** | `/`, `/productos`, `/product/*`, `/categoria/*`, legales, `/tienda-barquisimeto`, `/nosotros`, `/devoluciones` | `'self' 'unsafe-inline'` (+ GTM) — **sin** `strict-dynamic` | No |
+| **Dinámica / sensible** | `/admin/*`, `/checkout`, `/cart`, `/account/*`, `/login`, `/registro`, `/api/*`, resto | `'self' 'nonce-…' 'strict-dynamic'` (+ GTM) | Sí |
+
+Dominios compartidos en ambas ramas (`img-src`, `connect-src`, etc.):
+
+- R2 (`R2_PUBLIC_BASE_URL`)
+- `https://*.google-analytics.com`, `https://*.googletagmanager.com`, `https://*.analytics.google.com`
+- `https://iframe.mediadelivery.net`, `https://www.google.com`, `https://maps.google.com`
+
+**Motivo:** el HTML ISR se genera en build sin nonce en scripts inline de Next (`self.__next_f.push`). Exigir nonce por request bloqueaba la hidratación → skeleton congelado en `app/loading.tsx`. `'strict-dynamic'` anula `'unsafe-inline'`, por eso la rama pública no lo incluye.
+
+**Fuente única:** la CSP vive solo en `middleware.ts`; `next.config.mjs` emite HSTS, X-Frame-Options, etc., pero **no** Content-Security-Policy.
 
 **Impacto SEO indirecto:**
 - Sin consentimiento no hay datos de comportamiento en GA4
@@ -1533,15 +1542,31 @@ matcher: ['/((?!_next/static|_next/image|favicon\\.ico).*)']
 
 Assets estáticos de Next.js **excluidos** de CSP/auth — crawlables sin fricción.
 
-### 18.2 CSP y JSON-LD
+### 18.2 CSP dual (ISR + nonce)
 
-- Scripts requieren `nonce` en `script-src`
-- JSON-LD del **layout** usa nonce ✅
-- JSON-LD de páginas hijas (ProductJsonLd, categorías…) **sin nonce** ❌
+**Helpers:** `isPublicCached(pathname)` (regex) → `buildPublicCachedCsp()`; resto → `buildStrictCsp(nonce)`.
 
-Googlebot tradicionalmente no ejecuta JS como navegador; parsea JSON-LD del HTML estático. El riesgo CSP afectaría más a validadores browser-side que a indexación Google.
+**Rutas públicas cacheadas** (`isPublicCached`):
 
-### 18.3 Rutas protegidas vs bots
+- `/`, `/productos`, `/product/[slug]`, `/categoria/[slug]`
+- `/privacy-policy`, `/terms-of-service`, `/shipping-policy`
+- `/tienda-barquisimeto`, `/nosotros`, `/devoluciones`
+
+Respuesta: `NextResponse.next()` **sin** `x-nonce`; CSP con `'unsafe-inline'` en `script-src` (sin `strict-dynamic`).
+
+**Rutas dinámicas / sensibles:** nonce por request en cabecera y CSP estricta (`nonce` + `strict-dynamic`).
+
+**Regla crítica:** no leer `headers()`/`cookies()` ni inyectar `x-nonce` en el árbol del home ISR — `/` permanece ○ (revalidate 300s).
+
+### 18.3 CSP y JSON-LD
+
+- Scripts **ejecutables** de Next en HTML cacheado: permitidos por `'unsafe-inline'` en rama pública.
+- JSON-LD (`type="application/ld+json"`) en layout e hijos ISR: **sin nonce** — datos no ejecutables; la CSP pública los tolera.
+- Rutas dinámicas (checkout, cart, admin): scripts con nonce vía middleware.
+
+Googlebot parsea JSON-LD del HTML estático sin ejecutar JS como Chrome.
+
+### 18.4 Rutas protegidas vs bots
 
 | Ruta | Sin sesión | Bot behavior |
 |------|------------|--------------|
@@ -1706,11 +1731,11 @@ lib/
 ├── slugify.ts                    # Slugs productos
 ├── resolve-category-path.ts      # URLs categoría canónicas
 ├── google-maps.ts                # URLs Maps
-├── cloudinaryLoader.js           # Optimización imágenes CWV
+├── r2.ts                         # Upload/delete Cloudflare R2
 └── mundotech-social.ts           # URLs redes (sameAs indirecto)
 
 next.config.mjs                   # Redirects 301, headers seguridad, images
-middleware.ts                     # CSP, auth (impacto crawlers)
+middleware.ts                     # CSP dual (pública cacheada / dinámica nonce), auth (impacto crawlers)
 .env.example                      # Variables (incompleto para SEO)
 public/admin-manifest.json        # PWA admin
 ```
@@ -2257,13 +2282,25 @@ Bots sin cookie ven redirect 302 a `/login`, no el contenido. Correcto, pero con
 
 ---
 
-### 33.3 JSON-LD en páginas hijas sin nonce CSP — ⏸ Cerrado por diseño (H19/PRD-284)
+### 33.3 JSON-LD sin nonce en layout e hijos ISR — ✅ Cerrado (H19/PRD-284 + CSP dual, jun 2026)
 
-Scripts JSON-LD en producto, categoría, nosotros, devoluciones, tienda-barquisimeto **no** llevan `nonce`. El layout sí.
+Scripts JSON-LD en layout, producto, categoría, nosotros, devoluciones y tienda-barquisimeto **no** llevan `nonce` (decisión ISR documentada en `JsonLd.tsx`).
 
-CSP: `script-src 'self' 'nonce-…' 'strict-dynamic'`
+**Antes (bug):** CSP estricta con `nonce` + `strict-dynamic` en `/` bloqueaba scripts inline de hidratación cacheados → skeleton congelado.
 
-Googlebot no ejecuta JS igual que Chrome; el riesgo real es bajo para indexación, alto para **validadores** y navegadores estrictos.
+**Ahora:** rutas públicas cacheadas usan `buildPublicCachedCsp()` — `script-src 'self' 'unsafe-inline'` **sin** `strict-dynamic`. JSON-LD y bootstrap de Next hidratan sin errores CSP.
+
+Rutas sensibles (`/cart`, `/admin`, `/login`…) mantienen nonce estricto.
+
+---
+
+### 33.3b ~~Skeleton congelado en `/` por CSP vs ISR~~ — ✅ Cerrado (jun 2026)
+
+**Síntoma:** tras ISR en home, pantalla congelada en `app/loading.tsx`; consola: `Executing inline script violates Content-Security-Policy`.
+
+**Causa:** nonce por request en middleware incompatible con HTML pre-renderizado sin nonce en scripts inline.
+
+**Fix:** política dual en `middleware.ts` (`isPublicCached` + `buildPublicCachedCsp`). Rebuild obligatorio (`rm -rf .next && npm run build`) para regenerar HTML ISR.
 
 ---
 
@@ -2412,7 +2449,7 @@ Lista numerada de **todos** los hallazgos documentados. Columna **Estado** conso
 | H16 | 🟠 | Categorías: Twitter sin imagen | `categoria/[slug]/page.tsx` | ✅ Sesión 7 |
 | H17 | 🟠 | Sitemap incluye productos inactivos | `sitemap.ts` | ✅ Sesión 8 — `where: { isActive: true }` (agotados con stock=0 sí entran) |
 | H18 | 🟠 | sitemap lastModified: new Date() en estáticas | `sitemap.ts` | ✅ Sesión 7 |
-| H19 | 🟠 | JSON-LD hijos sin nonce CSP | páginas hijas | ⏸ Cerrado por diseño — `JsonLd.tsx` sin nonce en ISR (PRD-284) |
+| H19 | 🟠 | JSON-LD / scripts ISR sin nonce CSP | layout, páginas hijas | ✅ CSP dual pública — `middleware.ts` (jun 2026) |
 | H20 | 🟠 | openGraph.type website + og:type product | `product/[slug]/page.tsx` | ✅ Sesión 7 |
 | H21 | 🟠 | 404/500 sin noindex | not-found, error | ⏸ 404 producto sí; `not-found.tsx`/`error.tsx` global sin metadata |
 | H22 | 🟠 | not-found busca /productos?q= no /buscar | `not-found.tsx` | ✅ Sesión 7 |
@@ -2695,7 +2732,7 @@ Google espera coherencia entre `numberOfItems` y entradas listadas. **Correcció
 | Estado | IDs |
 |--------|-----|
 | ✅ **Implementado** | H01–H08, H11–H18, H20, H22–H24, H27–H29, H35, H38–H40, H43, H45, H49–H56, H58, H61–H62, H65–H66, **H04** |
-| ⏸ **Parcial** | H09 (sin `shippingRate`), H10 (seller vía props), H19 (sin nonce ISR por diseño), H21 (404 producto sí; global no), H25 (settings vs seo_local), H26 (schema OK; copy UI residual), H30 (`PaginationBar` ✅; `/buscar` pendiente), H44 (legacy huérfano), H46 (index agotados por diseño) |
+| ⏸ **Parcial** | H09 (sin `shippingRate`), H10 (seller vía props), ~~H19 (sin nonce ISR)~~ ✅ CSP dual, H21 (404 producto sí; global no), H25 (settings vs seo_local), H26 (schema OK; copy UI residual), H30 (`PaginationBar` ✅; `/buscar` pendiente), H44 (legacy huérfano), H46 (index agotados por diseño) |
 | ⏳ **Pendiente** | H32–H34, H36–H37, H41–H42, H47–H48, H57, H63–H64 |
 | 🔗 **Otra sesión** | H31→PRD-288 |
 
@@ -2705,7 +2742,7 @@ Google espera coherencia entre `numberOfItems` y entradas listadas. **Correcció
 |----------|-------|--------|
 | `DEPENDENCIA-05` | Sesión 13 | ✅ Cerrado — 308 slug viejo → nuevo (productos + categorías) |
 | `DEPENDENCIA-03` | Sesión 8 | ✅ Cerrado — `sitemap.ts` filtra `isActive: true` |
-| `DEPENDENCIA-01` | PRD-284 | ✅ Cerrado por diseño — JSON-LD ISR sin nonce |
+| `DEPENDENCIA-01` | PRD-284 | ✅ CSP dual — JSON-LD ISR + hidratación en rutas públicas cacheadas |
 
 ### 39.8 Checklist post-despliegue (operativo)
 
@@ -3041,7 +3078,7 @@ web/
 │   ├── slugify.ts
 │   ├── slug-redirects.ts       # DEPENDENCIA-05
 │   ├── resolve-category-path.ts
-│   ├── cloudinaryLoader.js
+│   ├── r2.ts
 │   └── reviews.ts
 ├── public/
 │   ├── opensearch.xml
@@ -3053,7 +3090,7 @@ web/
 │   ├── CartContext.tsx
 │   └── ExchangeRateContext.tsx
 ├── prisma/schema.prisma        # Product, Category (+ SEO fields), Review…
-├── middleware.ts               # CSP, auth, 301 ?cat=, ?page=1
+├── middleware.ts               # CSP dual, auth, 301 ?cat=, ?page=1
 ├── next.config.mjs             # redirects 301, headers
 └── docs/
     └── ANALISIS-SEO-COMPLETO.md  # Este documento

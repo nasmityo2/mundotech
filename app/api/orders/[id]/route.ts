@@ -47,7 +47,7 @@ export async function GET(
 const patchSchema = z.object({
   trackingNumber:   z.string().trim().max(80).optional().nullable(),
   trackingCarrier:  z.string().trim().max(80).optional().nullable(),
-  // PRD-267: solo https. PRD-268: foto restringida a Cloudinary.
+  // PRD-267: solo https. PRD-268: foto restringida a R2.
   trackingUrl:      trackingUrlSchema.optional().nullable(),
   trackingPhotoUrl: trackingPhotoUrlSchema.optional().nullable(),
   notes:            z.string().trim().max(2000).optional().nullable(),

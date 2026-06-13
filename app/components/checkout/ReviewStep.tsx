@@ -32,7 +32,7 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // PRD-049: si el pedido falla DESPUÉS de subir el comprobante, el reintento
-  // reutiliza la URL ya subida en vez de duplicar la imagen en Cloudinary.
+  // reutiliza la URL ya subida en vez de duplicar la imagen en R2.
   const uploadedProofRef = useRef<{ file: File; url: string } | null>(null);
 
   // Cupón de descuento (validado contra el servidor).

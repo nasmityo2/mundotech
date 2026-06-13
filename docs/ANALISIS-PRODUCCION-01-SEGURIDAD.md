@@ -60,7 +60,7 @@ Correcciones puntuales realizadas (bugs de call sites — consecuencia directa d
 | [x] 🟡 | PRD-173, PRD-240 — invalidación JWT vía `passwordChangedAt` + huella `pwv` |
 | [x] doc | PRD-241 — comportamiento aceptado documentado en `lib/auth-path.ts` |
 | [x] doc | PRD-264 — persistencia popup/cookies entre usuarios: aceptable; documentado |
-| [x] doc | PRD-284 — JSON-LD hijos sin nonce CSP: decisión ISR estático documentada en `JsonLd.tsx` |
+| [x] doc | PRD-284 — JSON-LD ISR sin nonce + CSP dual pública (`buildPublicCachedCsp`) documentado en `JsonLd.tsx` y `middleware.ts` (jun 2026) |
 
 ### Archivos nuevos (sesión 01 + bloque Seguridad/Datos)
 
@@ -167,7 +167,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | PRD-046 | ⚪ | Upload admin sin rate limit ni CSRF | `app/api/upload/route.ts` |
 | PRD-047 | ⚪ | `purpose` en upload sin enum estricto | `upload/route.ts` |
 | PRD-048 | ⚪ | Rol OAuth Google en minúsculas (`client`) | `auth/[...nextauth]/route.ts` |
-| PRD-108 | 🟡 | env-validation no exige Cloudinary en prod (duplicado PRD-010) | `lib/env-validation.ts` |
+| PRD-108 | 🟡 ✅ | env-validation exige R2 en prod (resuelto con PRD-010) | `lib/env-validation.ts` |
 
 ### Miscelánea (PRD-053–063, PRD-067–079, PRD-120)
 
@@ -249,7 +249,7 @@ return <SuccessClientPage order={order} />;
 ### Seguridad (PRD-009–020, PRD-089–091, PRD-103–104, PRD-118)
 
 | PRD-009 | Env prod solo `console.error` | Emails/cron rotos sin fallar deploy | `throw` en producción |
-| PRD-010 | Cloudinary no en env-validation | Uploads fallan en runtime | Añadir a REQUIRED |
+| PRD-010 | ✅ | R2 en env-validation | Uploads fallan sin credenciales | Variables R2 en REQUIRED |
 | PRD-011 | CSRF ausente en carrito | Mutaciones forzadas cross-site | `verifySameOrigin` |
 | PRD-012/104 | `getProducts` pública | Scraping inventario completo | `select` o endpoint paginado |
 | PRD-013 | Email enumeration en registro | Confirmación de emails registrados | Mensaje genérico |
@@ -272,7 +272,7 @@ return <SuccessClientPage order={order} />;
 - PRD-042: `.url()` en POST banners/promotions
 - ~~PRD-043~~ ✅ Logging uniforme en catches (`orders`, `new-count`)
 - PRD-045: Rate limit en exchange-rate público
-- PRD-108: Fail-fast Cloudinary/Resend en prod
+- PRD-108: Fail-fast R2/Resend en prod
 ### Emails y notificaciones
 
 ### Admin operaciones
@@ -397,7 +397,20 @@ Hallazgos encontrados al verificar manualmente los del agente y ampliar áreas r
 ### 21.4 Seguridad: enlaces admin y CSP (PRD-283–284)
 
 | PRD-283 | 🟠 | **AnnouncementBar** acepta `data.link` arbitrario (externo o javascript:) | `AnnouncementBar.tsx` L40-43 | Barra global en todas las páginas → vector phishing si admin comprometido | Zod en admin: solo paths `/...` o allowlist HTTPS |
-| PRD-284 | 🟡 | **JSON-LD en páginas hijas sin nonce CSP** | `ProductJsonLd.tsx`, `categoria/[slug]/page.tsx`, etc. | Layout usa nonce; hijos no → CSP del navegador bloquea script en DevTools (no afecta Googlebot HTML estático) | Pasar `nonce` desde layout o mover schemas a RSC padre |
+| PRD-284 | ✅ doc | **CSP dual ISR + JSON-LD sin nonce** | `middleware.ts`, `JsonLd.tsx`, `layout.tsx` | ~~Layout con nonce vs hijos ISR sin nonce → aviso DevTools / bloqueo hidratación~~ Resuelto jun 2026: `isPublicCached()` → `buildPublicCachedCsp()` (`unsafe-inline`, sin `strict-dynamic`, sin `x-nonce`); rutas sensibles mantienen `buildStrictCsp(nonce)` | Mantener política dual; no reintroducir nonce en `/` ISR |
+
+#### CSP dual — referencia rápida (`middleware.ts`, jun 2026)
+
+| Rama | Rutas | `script-src` | Header `x-nonce` |
+|------|-------|--------------|------------------|
+| Pública cacheada | `/`, `/productos`, `/product/*`, `/categoria/*`, legales, `/tienda-barquisimeto`, `/nosotros`, `/devoluciones` | `'self' 'unsafe-inline'` | No |
+| Dinámica / sensible | `/admin/*`, `/checkout`, `/cart`, `/account/*`, `/login`, `/registro`, `/api/*`, resto | `'self' 'nonce-…' 'strict-dynamic'` | Sí |
+
+**Fuente única de CSP:** `middleware.ts`. `next.config.mjs` solo emite HSTS, X-Frame-Options, Referrer-Policy, etc.
+
+**Dominios en `img-src` / `connect-src` (ambas ramas):** R2 (`R2_PUBLIC_BASE_URL`), `*.google-analytics.com`, `*.googletagmanager.com`, `*.analytics.google.com`, `iframe.mediadelivery.net`, Google Maps.
+
+**Sentry (PRD-033):** al activar DSN, añadir el dominio de ingesta a `connect-src` en **ambas** funciones CSP (`buildStrictCsp` y `buildPublicCachedCsp`).
 
 ---
 

@@ -17,7 +17,7 @@ export type PaymentFormData = {
   holderPhone:        string;
   referenceNumber:    string;
   /**
-   * PRD-049: el archivo se retiene localmente y se sube a Cloudinary recién al
+   * PRD-049: el archivo se retiene localmente y se sube a R2 recién al
    * confirmar el pedido (ReviewStep). Antes se subía al seleccionarlo y cada
    * checkout abandonado dejaba imágenes huérfanas.
    */

@@ -1,13 +1,14 @@
 /**
- * migrate-cloudinary-to-r2.ts
+ * migrate-legacy-images-to-r2.ts
  *
- * Copia imágenes legacy de Cloudinary a R2 y actualiza la base de datos.
+ * Copia imágenes legacy del CDN anterior a R2 y actualiza la BD.
+ * Requiere LEGACY_IMAGE_CDN_HOST en .env.local (hostname del CDN de origen).
  * Idempotente: omite URLs que ya apuntan a R2_PUBLIC_BASE_URL.
- * NO borra objetos en Cloudinary.
+ * NO borra objetos en el CDN de origen.
  *
  * Uso:
- *   npx tsx scripts/migrate-cloudinary-to-r2.ts --dry-run
- *   npx tsx scripts/migrate-cloudinary-to-r2.ts
+ *   npx tsx scripts/migrate-legacy-images-to-r2.ts --dry-run
+ *   npx tsx scripts/migrate-legacy-images-to-r2.ts
  */
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -21,7 +22,18 @@ import { SITE_CONTENT_KEY } from '../lib/site-content-schema';
 dotenv.config({ path: '.env.local' });
 dotenv.config();
 
-const CLOUDINARY_HOST = 'res.cloudinary.com';
+function readLegacyCdnHost(): string {
+  const host = process.env.LEGACY_IMAGE_CDN_HOST?.trim();
+  if (!host) {
+    throw new Error(
+      '[migrate] LEGACY_IMAGE_CDN_HOST no está configurada. ' +
+        'Define el hostname del CDN legacy en .env.local antes de ejecutar la migración.',
+    );
+  }
+  return host;
+}
+
+const LEGACY_CDN_HOST = readLegacyCdnHost();
 const dryRun = process.argv.includes('--dry-run');
 
 function normalizeUrl(raw: string | undefined): string | undefined {
@@ -51,11 +63,11 @@ function isAlreadyOnR2(url: string): boolean {
   return url.startsWith(`${base}/`);
 }
 
-function isCloudinaryUrl(url: string | null | undefined): url is string {
+function isLegacyCdnUrl(url: string | null | undefined): url is string {
   if (!url?.trim()) return false;
   try {
     const u = new URL(url);
-    return u.protocol === 'https:' && u.hostname === CLOUDINARY_HOST;
+    return u.protocol === 'https:' && u.hostname === LEGACY_CDN_HOST;
   } catch {
     return false;
   }
@@ -83,12 +95,12 @@ async function migrateUrl(
 ): Promise<'skipped' | 'migrated' | 'failed'> {
   const { label, url, folder, maxWidth, apply } = task;
 
-  if (!isCloudinaryUrl(url)) {
+  if (!isLegacyCdnUrl(url)) {
     if (isAlreadyOnR2(url)) {
       console.log(`[skip] ${label} — ya en R2`);
       return 'skipped';
     }
-    console.log(`[skip] ${label} — no es Cloudinary: ${url}`);
+    console.log(`[skip] ${label} — no es CDN legacy: ${url}`);
     return 'skipped';
   }
 
@@ -127,7 +139,7 @@ async function main() {
   if (dryRun) {
     if (!r2PublicBase()) {
       console.warn(
-        '[migrate] R2_PUBLIC_BASE_URL vacía — dry-run OK para inventariar Cloudinary; ' +
+        '[migrate] R2_PUBLIC_BASE_URL vacía — dry-run OK para inventariar URLs legacy; ' +
           'configúrala antes de la migración real.',
       );
     }
@@ -153,7 +165,7 @@ async function main() {
     let changed = false;
     for (let i = 0; i < p.images.length; i++) {
       const url = p.images[i];
-      if (!isCloudinaryUrl(url)) continue;
+      if (!isLegacyCdnUrl(url)) continue;
       const result = await migrateUrl({
         label: `Product ${p.id} images[${i}] (${p.name})`,
         url,
@@ -180,7 +192,7 @@ async function main() {
     select: { id: true, url: true, posterUrl: true, productId: true },
   });
   for (const m of media) {
-    if (isCloudinaryUrl(m.url)) {
+    if (isLegacyCdnUrl(m.url)) {
       let newUrl = m.url;
       const result = await migrateUrl({
         label: `ProductMedia ${m.id} url`,
@@ -200,7 +212,7 @@ async function main() {
         });
       }
     }
-    if (isCloudinaryUrl(m.posterUrl)) {
+    if (isLegacyCdnUrl(m.posterUrl)) {
       let newPoster = m.posterUrl!;
       const result = await migrateUrl({
         label: `ProductMedia ${m.id} posterUrl`,
@@ -225,7 +237,7 @@ async function main() {
   // ── Category ──────────────────────────────────────────────────────────────
   const categories = await prisma.category.findMany({ select: { id: true, name: true, imageUrl: true } });
   for (const c of categories) {
-    if (!isCloudinaryUrl(c.imageUrl)) continue;
+    if (!isLegacyCdnUrl(c.imageUrl)) continue;
     let newUrl = c.imageUrl!;
     const result = await migrateUrl({
       label: `Category ${c.id} (${c.name})`,
@@ -249,7 +261,7 @@ async function main() {
   // ── Promotion ─────────────────────────────────────────────────────────────
   const promotions = await prisma.promotion.findMany({ select: { id: true, title: true, imageUrl: true } });
   for (const p of promotions) {
-    if (!isCloudinaryUrl(p.imageUrl)) continue;
+    if (!isLegacyCdnUrl(p.imageUrl)) continue;
     let newUrl = p.imageUrl!;
     const result = await migrateUrl({
       label: `Promotion ${p.id} (${p.title})`,
@@ -273,7 +285,7 @@ async function main() {
   // ── Banner ────────────────────────────────────────────────────────────────
   const banners = await prisma.banner.findMany({ select: { id: true, type: true, imageUrl: true } });
   for (const b of banners) {
-    if (!isCloudinaryUrl(b.imageUrl)) continue;
+    if (!isLegacyCdnUrl(b.imageUrl)) continue;
     let newUrl = b.imageUrl;
     const result = await migrateUrl({
       label: `Banner ${b.id} (${b.type})`,
@@ -304,7 +316,7 @@ async function main() {
     },
   });
   for (const o of orders) {
-    if (isCloudinaryUrl(o.paymentProofUrl)) {
+    if (isLegacyCdnUrl(o.paymentProofUrl)) {
       let newUrl = o.paymentProofUrl!;
       const result = await migrateUrl({
         label: `Order ${o.orderNumber} paymentProofUrl`,
@@ -324,7 +336,7 @@ async function main() {
         });
       }
     }
-    if (isCloudinaryUrl(o.trackingPhotoUrl)) {
+    if (isLegacyCdnUrl(o.trackingPhotoUrl)) {
       let newUrl = o.trackingPhotoUrl!;
       const result = await migrateUrl({
         label: `Order ${o.orderNumber} trackingPhotoUrl`,
@@ -361,7 +373,7 @@ async function main() {
         ['popup.imageUrl', content.popup?.imageUrl] as const,
       ]) {
         const url = ref;
-        if (!isCloudinaryUrl(url)) continue;
+        if (!isLegacyCdnUrl(url)) continue;
         const result = await migrateUrl({
           label: `SiteContent ${field}`,
           url,

@@ -58,7 +58,7 @@
 | PRD-145 | [x] | Resuelto con eliminación `lib/db.json` |
 | PRD-148 | [x] | PNGs Playwright eliminados + `.gitignore` |
 | PRD-150 | [x] | `CRON_SECRET` fail-fast runtime prod en `lib/env-validation.ts` |
-| PRD-151 | [x] | `images.remotePatterns` — dominio público R2 (`next.config.mjs`; Cloudinary eliminado post-migración) |
+| PRD-151 | [x] | `images.remotePatterns` — dominio público R2 (`next.config.mjs`) |
 | CWV home (cross) | [x] | `Cache-Control: immutable` en `/_next/static/*`; `browserslist` + `ES2022` — 13 jun 2026 (ver [`04-UX`](./ANALISIS-PRODUCCION-04-UX-CLIENTE.md) § Lighthouse) |
 | PRD-152 | [x] | `instrumentation.ts` — Sentry + normalización DATABASE_URL |
 | PRD-178 | [x] | `recoveryTokenHash` schema; `lib/abandoned-cart.ts` SHA-256; cron rota token antes de enviar |
@@ -160,7 +160,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | PRD-148 | ⚪ | PNGs Playwright versionados en scripts/ | `scripts/playwright-*.png` |
 | PRD-149 | 🟠 | Cron abandono 1×/día — email 24h puede tardar ~48h | `vercel.json` |
 | PRD-150 | 🟡 | Sin `CRON_SECRET` solo warning en prod | `env-validation.ts` |
-| PRD-151 | 🟡 | `images.remotePatterns` — R2 (+ legacy Cloudinary solo durante transición; ya migrado) | `next.config.mjs` |
+| PRD-151 | 🟡 ✅ | `images.remotePatterns` — dominio público R2 | `next.config.mjs` |
 | PRD-152 | ⚪ | `instrumentation.ts` solo normaliza DATABASE_URL | `instrumentation.ts` |
 
 ### UX, confianza y datos hardcodeados (PRD-008, PRD-037–039, PRD-081–087, PRD-112–117, PRD-143–145)
@@ -190,6 +190,8 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | PRD-140 | 🔴 | ISR 3600s — stock/precio obsoletos hasta 1h | `page.tsx`, `product/[slug]/page.tsx`, `productos/`, `categoria/` |
 | PRD-141 | 🟡 | Reseñas cacheadas 30s en API | `products/[id]/reviews/route.ts` |
 | PRD-142 | 🟡 | Cambio tasa no invalida todas las páginas ISR | `configActions.ts` |
+
+> **Dependencia CSP (jun 2026, PRD-284 / segmento 01-SEGURIDAD):** las páginas ISR (`/`, `/productos`, `/product/*`, `/categoria/*`) emiten scripts inline de Next **sin nonce** en el HTML cacheado. El middleware debe servir `buildPublicCachedCsp()` en esas rutas (`script-src 'unsafe-inline'`, sin `strict-dynamic`, sin `x-nonce`). Usar CSP estricta con nonce en `/` rompe la hidratación → skeleton congelado en `app/loading.tsx`. Ver `isPublicCached()` en `middleware.ts`.
 
 ### Miscelánea (PRD-053–063, PRD-067–079, PRD-120)
 
@@ -297,7 +299,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 ### 18.5 Categorías, config, UI temporal (PRD-185–189)
 
 | PRD-185 | 🟡 | Colisión slugs en `categories/sync` | `categories/sync/route.ts` L27-29 | Categorías huérfanas en `Product.category` | `slugify()` + sufijo colisión |
-| PRD-186 | 🟡 | Imágenes Unsplash hardcodeadas en sync | `categories/sync/route.ts` L6-12 | Dependencia externa; imágenes genéricas | Cloudinary propio o null |
+| PRD-186 | 🟡 | Imágenes Unsplash hardcodeadas en sync | `categories/sync/route.ts` L6-12 | Dependencia externa; imágenes genéricas | R2 propio o null |
 | PRD-187 | 🟡 | `migrate-slugs` sin transacción | `admin/migrate-slugs/route.ts` | Catálogo mitad migrado | Batch transaccional |
 | PRD-188 | 🟡 | `GET /api/config/homepage` público | `config/homepage/route.ts` | Config interna expuesta si se guarda data sensible | Filtrar claves |
 | PRD-189 | 🟡 | FlashDeals countdown sin TZ VET | `FlashDeals.tsx` L32-37 | Urgencia falsa para usuarios fuera de Venezuela | `America/Caracas` server-side |

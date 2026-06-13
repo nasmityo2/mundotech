@@ -33,7 +33,7 @@ npm run dev
 | `npm run db:migrate` | `prisma migrate deploy` |
 | `npm run db:studio` | Prisma Studio |
 | `npm run db:seed:reviews` | Siembra reseñas demo (bloqueado en producción salvo `SEED_REVIEWS_FORCE=1`) |
-| `npm run db:migrate:images` | Migra URLs legacy de Cloudinary a R2 (`--dry-run` para inventario) |
+| `npm run db:migrate:images` | Migra URLs legacy del CDN anterior a R2 (`LEGACY_IMAGE_CDN_HOST` + `--dry-run`) |
 
 ---
 
@@ -72,7 +72,8 @@ NEXT_PUBLIC_CONTACT_EMAIL=ventas@mundotechve.com
 # OBSERVABILIDAD (PRD-033 — opcionales; sin DSN, Sentry es no-op)
 SENTRY_DSN=              # errores de servidor (instrumentation.ts)
 NEXT_PUBLIC_SENTRY_DSN=  # errores de navegador (instrumentation-client.ts)
-                         # ⚠ requiere añadir el dominio de ingesta a connect-src de la CSP (middleware.ts)
+                         # ⚠ añadir dominio de ingesta Sentry a connect-src en
+                         #   buildStrictCsp() y buildPublicCachedCsp() (middleware.ts)
 ```
 
 ---
@@ -191,7 +192,7 @@ Equivalente con BFG: `bfg --delete-files db.json` (mismo flujo de clon fresco + 
 | `lib/definitions.ts` | Tipos y estados canónicos (`OrderStatus`, `ReviewStatus`) |
 | `lib/data-store.ts` | Settings de tienda (`readSettings()` — única fuente de datos bancarios) |
 | `lib/r2.ts` | Cliente Cloudflare R2 (upload/delete, keys UUID) |
-| `scripts/migrate-cloudinary-to-r2.ts` | Migración idempotente de URLs legacy Cloudinary → R2 |
+| `scripts/migrate-legacy-images-to-r2.ts` | Migración idempotente de URLs legacy del CDN anterior → R2 |
 | `lib/abandoned-cart.ts` | Carrito abandonado (tokens de recuperación **hasheados**) |
 | `prisma/schema.prisma` | Schema (dueño: segmento 03 — ver docs/ANALISIS-PRODUCCION-00-INDICE.md) |
 | `app/api/cron/*` | Crons autenticados con `CRON_SECRET` |

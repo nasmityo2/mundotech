@@ -10,7 +10,7 @@ const promotionSchema = z.object({
   title: z.string().trim().min(1).max(160),
   subtitle: z.string().max(300).nullish(),
   discountText: z.string().max(60).nullish(),
-  // PRD-042: URL https válida (Cloudinary), ruta interna o vacío/null.
+  // PRD-042: URL https válida (R2), ruta interna o vacío/null.
   imageUrl: z
     .string()
     .max(600)

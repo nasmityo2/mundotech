@@ -23,18 +23,15 @@ function r2CspOrigin(): string {
 }
 
 /**
- * CSP con nonce por petición. Se elimina unsafe-eval y unsafe-inline de script-src.
+ * CSP estricta con nonce por petición (rutas SSR dinámicas: admin, checkout, login…).
  * strict-dynamic permite que scripts cargados por un script con nonce válido también se ejecuten.
- * img-src restringido a dominios concretos (R2 + data/blob para previews).
  */
-function buildCsp(nonce: string): string {
+function buildStrictCsp(nonce: string): string {
   const r2Origin = r2CspOrigin();
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://www.googletagmanager.com`,
     "style-src 'self' 'unsafe-inline'",
-    // google-analytics/googletagmanager: solo se usan si el usuario aceptó
-    // cookies de medición y NEXT_PUBLIC_GA4_ID está configurado.
     `img-src 'self' data: blob:${r2Origin} https://*.google-analytics.com https://*.googletagmanager.com`,
     `media-src 'self' data: blob:${r2Origin}`,
     "font-src 'self' data:",
@@ -44,6 +41,52 @@ function buildCsp(nonce: string): string {
     "base-uri 'self'",
     "form-action 'self'",
   ].join('; ');
+}
+
+/**
+ * CSP para HTML estático/ISR (/, /productos, /product/*, /categoria/*…).
+ *
+ * El HTML cacheado se genera en build SIN nonce en los scripts inline de Next.js
+ * (self.__next_f.push, bootstrap de hidratación). Si el middleware exige nonce
+ * distinto por request, el navegador bloquea la hidratación → skeleton congelado.
+ *
+ * Sin nonce ni strict-dynamic: 'unsafe-inline' permite esos scripts cacheados.
+ * Las rutas dinámicas/sensibles siguen con buildStrictCsp().
+ */
+function buildPublicCachedCsp(): string {
+  const r2Origin = r2CspOrigin();
+  return [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com",
+    "style-src 'self' 'unsafe-inline'",
+    `img-src 'self' data: blob:${r2Origin} https://*.google-analytics.com https://*.googletagmanager.com`,
+    `media-src 'self' data: blob:${r2Origin}`,
+    "font-src 'self' data:",
+    `connect-src 'self'${r2Origin} https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com`,
+    "frame-src 'self' https://iframe.mediadelivery.net https://www.google.com https://maps.google.com",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ');
+}
+
+/** Rutas públicas cuyo HTML puede servirse desde caché estática/ISR (CSP sin nonce). */
+const PUBLIC_CACHED_PATH_PATTERNS = [
+  /^\/$/,
+  /^\/productos$/,
+  /^\/product\/[^/]+$/,
+  /^\/categoria\/[^/]+$/,
+  /^\/privacy-policy$/,
+  /^\/terms-of-service$/,
+  /^\/shipping-policy$/,
+  /^\/tienda-barquisimeto$/,
+  /^\/nosotros$/,
+  /^\/devoluciones$/,
+] as const;
+
+function isPublicCached(pathname: string): boolean {
+  return PUBLIC_CACHED_PATH_PATTERNS.some((re) => re.test(pathname));
 }
 
 /**
@@ -133,8 +176,9 @@ function matchesPrefix(pathname: string, prefix: string): boolean {
  */
 export async function middleware(req: NextRequest) {
   const nonce = Buffer.from(globalThis.crypto.randomUUID()).toString('base64');
-  const csp = buildCsp(nonce);
   const { pathname } = req.nextUrl;
+  const publicCached = isPublicCached(pathname);
+  const csp = publicCached ? buildPublicCachedCsp() : buildStrictCsp(nonce);
 
   /* Adjunta CSP al response sin importar qué ruta sea. */
   function withCsp(response: NextResponse): NextResponse {
@@ -142,11 +186,15 @@ export async function middleware(req: NextRequest) {
     return response;
   }
 
-  /* next() con nonce inyectado en request headers para el layout. */
+  /* next() con nonce inyectado — solo rutas SSR dinámicas (Next aplica nonce al vuelo). */
   function nextWithNonce(): NextResponse {
     const requestHeaders = new Headers(req.headers);
     requestHeaders.set('x-nonce', nonce);
     return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  function nextForRoute(): NextResponse {
+    return publicCached ? NextResponse.next() : nextWithNonce();
   }
 
   // P82: /productos?page=1 y /categoria/[slug]?page=1 → canonical sin ?page.
@@ -264,7 +312,7 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  return withCsp(nextWithNonce());
+  return withCsp(nextForRoute());
 }
 
 export const config = {

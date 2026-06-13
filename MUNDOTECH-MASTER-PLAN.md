@@ -136,7 +136,7 @@ Lo que encontré, más allá del brief:
 (82 rutas), smoke test en producción local verificado: home con slogan + WhatsApp
 FAB + copy local, `/nosotros` y `/devoluciones` en 200, `/privacidad` redirige,
 `/opengraph-image` genera la imagen de marca, `/admin` y `/checkout` redirigen a
-login, CSP + HSTS + X-Frame-Options activos, seed de reseñas ejecutado contra la BD.
+login, CSP dual (pública cacheada + nonce en rutas sensibles) + HSTS + X-Frame-Options activos, seed de reseñas ejecutado contra la BD.
 
 ### Score estimado post-mejoras: **~27/100** (objetivo < 30 cumplido)
 

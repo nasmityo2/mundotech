@@ -20,7 +20,7 @@ interface Props {
  * Siempre 3 ideas distintas MundoTech — rellenan huecos cuando en admin hay
  * 1–2 promos. Sin fotos stock: si el admin no subió imagen, la tarjeta usa
  * el panel navy de marca (las fotos genéricas de Unsplash además quedaban
- * bloqueadas por el CSP, que solo permite Cloudinary).
+ * bloqueadas por el CSP, que solo permite el CDN de R2).
  */
 // P46/H14: los fallbacks enlazan al catálogo canónico — el filtro ?cat= se
 // aplica solo en cliente y diluía señales hacia URLs no canónicas.
