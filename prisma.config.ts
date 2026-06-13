@@ -6,6 +6,7 @@ dotenv.config();
 
 export default defineConfig({
   datasource: {
-    url: process.env.DATABASE_URL,
+    // Prisma CLI (migrate deploy, etc.) usa conexión directa — nunca PgBouncer.
+    url: process.env.DIRECT_URL,
   },
 });
