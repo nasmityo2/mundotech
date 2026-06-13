@@ -17,6 +17,7 @@ lib/db.json
 
 # PRD-148: artefactos de debug de Playwright (capturas de resultado)
 scripts/playwright-*.png
+scripts/test-proof.png
 
 # Variables de Entorno (¡SEGURIDAD CRÍTICA!)
 .env
@@ -30,7 +31,18 @@ Thumbs.db
 *.log
 
 # Artefactos de build / análisis internos
+*.tsbuildinfo
 tsconfig.tsbuildinfo
 analisis.md
 .vercel
 .env*.local
+
+# Test coverage
+coverage/
+
+# IDEs
+.vscode/
+.idea/
+
+# npm debug logs (redundante con *.log, explícito)
+npm-debug.log*

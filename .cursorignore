@@ -1,4 +1,4 @@
-# Dependencias (El "agujero negro" que ralentiza la IA)
+﻿# Dependencias (El "agujero negro" que ralentiza la IA)
 node_modules/
 
 # Archivos de Next.js (Basura técnica de compilación)
@@ -7,8 +7,8 @@ out/
 build/
 
 # Base de datos y Prisma
+# PRD-004: prisma/migrations/ SÍ debe versionarse — no ocultar a la IA.
 /lib/generated/prisma
-prisma/migrations/
 *.db
 *.db-journal
 
