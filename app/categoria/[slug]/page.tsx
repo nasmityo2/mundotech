@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { notFound, redirect, permanentRedirect } from 'next/navigation';
-import { prisma } from '@/lib/prisma';
 import { resolveSlugRedirect } from '@/lib/slug-redirects';
 import { ChevronRight, Tag } from 'lucide-react';
 import ProductCard from '@/components/ProductCard';
@@ -39,14 +38,6 @@ function sanitizePage(raw: string | undefined, totalPages: number): number {
   const n = parseInt(raw ?? '1', 10);
   if (!isFinite(n) || n < 1) return 1;
   return Math.min(n, totalPages);
-}
-
-// ── Generación estática de parámetros ─────────────────────────────────────────
-export async function generateStaticParams() {
-  const categories = await prisma.category.findMany({
-    select: { slug: true },
-  });
-  return categories.map((cat) => ({ slug: cat.slug }));
 }
 
 // ── Metadata dinámica por categoría ──────────────────────────────────────────
