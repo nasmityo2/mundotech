@@ -27,7 +27,7 @@ const FAQ = [
   },
   {
     q: '¿Cómo hago una devolución si compré por la web?',
-    a: 'Contáctanos por WhatsApp o correo con tu número de pedido y factura. La garantía aplica solo a electrónica en general, dentro de los 7 días. Puedes traer el producto a la tienda con su caja original o enviarlo por MRW, Zoom o Tealca (cobro a destino). Si el caso califica bajo nuestra garantía, coordinamos el cambio contigo.',
+    a: 'Contáctanos por WhatsApp o correo con tu número de pedido y factura. La garantía aplica solo a electrónica en general, dentro de los 7 días. Puedes traer el producto a la tienda con su caja original o enviarlo por MRW, Zoom o Tealca (Pago en Origen). Si el caso califica bajo nuestra garantía, coordinamos el cambio contigo.',
   },
   {
     q: '¿Devuelven el dinero?',

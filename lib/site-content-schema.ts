@@ -117,7 +117,7 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     {
       icon: 'truck',
       title: 'Delivery gratis en Barquisimeto',
-      sub: 'Centro y Este (condiciones aplican). Envíos por MRW, Zoom y Tealca (cobro a destino)',
+      sub: 'Centro y Este (condiciones aplican). Envíos por MRW, Zoom y Tealca',
     },
     {
       icon: 'shield',

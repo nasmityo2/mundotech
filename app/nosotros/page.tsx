@@ -188,7 +188,7 @@ export default async function NosotrosPage() {
               {
                 icon: Truck,
                 title: 'Retira o recibe',
-                desc: 'Retiro en tienda gratis, delivery gratis en Barquisimeto (Centro y Este) y envíos por MRW, Zoom y Tealca (cobro a destino).',
+                desc: 'Retiro en tienda gratis, delivery gratis en Barquisimeto (Centro y Este) y envíos por MRW, Zoom y Tealca.',
               },
             ].map(({ icon: Icon, title, desc }) => (
               <div key={title} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-soft">
