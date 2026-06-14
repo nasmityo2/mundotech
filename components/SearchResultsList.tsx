@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Loader2, Tag } from 'lucide-react';
@@ -13,6 +14,7 @@ interface Props {
   onPick?: () => void;
   /** compact = dropdown; relaxed = overlay móvil */
   density?: 'compact' | 'relaxed';
+  activeIndex?: number;
 }
 
 export default function SearchResultsList({
@@ -21,9 +23,17 @@ export default function SearchResultsList({
   isPending,
   onPick,
   density = 'compact',
+  activeIndex = -1,
 }: Props) {
   const pad = density === 'relaxed' ? 'px-3 py-3.5' : 'px-2.5 py-2.5';
   const img = density === 'relaxed' ? 'w-14 h-14' : 'w-12 h-12';
+  const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
+
+  useEffect(() => {
+    if (activeIndex >= 0) {
+      itemRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [activeIndex]);
 
   if (isPending && results.length === 0 && query.trim().length >= 2) {
     return (
@@ -49,12 +59,22 @@ export default function SearchResultsList({
         Resultados
       </p>
       <ul className="px-1.5 pb-2" role="listbox">
-        {results.map((product) => (
-          <li key={product.id} role="option">
+        {results.map((product, i) => (
+          <li
+            key={product.id}
+            id={`search-option-${i}`}
+            role="option"
+            aria-selected={i === activeIndex}
+            ref={(el) => {
+              itemRefs.current[i] = el;
+            }}
+          >
             <Link
               href={`/product/${product.slug ?? product.id}`}
               onClick={onPick}
-              className={`flex items-center gap-3 ${pad} rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors min-h-[52px]`}
+              className={`flex items-center gap-3 ${pad} rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors min-h-[52px] ${
+                i === activeIndex ? 'bg-slate-100' : ''
+              }`}
             >
               <div
                 className={`relative ${img} flex-shrink-0 bg-slate-50 rounded-xl overflow-hidden border border-slate-100`}

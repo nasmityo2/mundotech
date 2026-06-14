@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, X, Loader2 } from 'lucide-react';
 import { useSearchSuggest } from '@/hooks/useSearchSuggest';
@@ -19,6 +19,15 @@ export default function SearchBar({
   const { query, setQuery, results, open, setOpen, isPending, clear } = useSearchSuggest();
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [results]);
+
+  useEffect(() => {
+    if (!open) setActiveIndex(-1);
+  }, [open]);
 
   useEffect(() => {
     const handler = (e: PointerEvent) => {
@@ -46,6 +55,32 @@ export default function SearchBar({
     clear();
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        if (!open && results.length > 0) setOpen(true);
+        setActiveIndex((i) => Math.min(i + 1, results.length - 1));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setActiveIndex((i) => Math.max(i - 1, -1));
+        break;
+      case 'Enter':
+        if (open && activeIndex >= 0 && results[activeIndex]) {
+          e.preventDefault();
+          setOpen(false);
+          clear();
+          router.push(`/product/${results[activeIndex].slug ?? results[activeIndex].id}`);
+        }
+        break;
+      case 'Escape':
+        setOpen(false);
+        setActiveIndex(-1);
+        break;
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -65,6 +100,7 @@ export default function SearchBar({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
             onFocus={() => results.length > 0 && setOpen(true)}
             placeholder={placeholder}
             autoComplete="off"
@@ -73,6 +109,7 @@ export default function SearchBar({
             aria-expanded={open}
             aria-controls="search-suggestions"
             aria-autocomplete="list"
+            aria-activedescendant={activeIndex >= 0 ? `search-option-${activeIndex}` : undefined}
             className="w-full bg-slate-100/70 text-navy text-base rounded-2xl pl-11 pr-[140px] min-h-[48px] h-12 border border-transparent focus:outline-none focus:bg-white focus:border-navy/30 focus:shadow-ring-navy placeholder:text-slate-400 transition-all"
           />
 
@@ -115,6 +152,7 @@ export default function SearchBar({
             isPending={isPending}
             onPick={handlePick}
             density="compact"
+            activeIndex={activeIndex}
           />
         </div>
       )}

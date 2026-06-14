@@ -1,6 +1,7 @@
 'use server';
 
 import { headers } from 'next/headers';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { d, dn } from '@/lib/decimal';
@@ -10,7 +11,6 @@ import {
   type FullProduct,
   type FullSearchResult,
 } from '@/lib/search-shared';
-import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
 
 const EMPTY_FULL_RESULT: FullSearchResult = {
   products: [],
@@ -18,6 +18,74 @@ const EMPTY_FULL_RESULT: FullSearchResult = {
   categories: [],
   brands: [],
 };
+
+/** Expresión normalizada — debe coincidir con product_search_trgm_idx. */
+const NORMALIZED_SEARCH_EXPR = Prisma.sql`immutable_unaccent(lower(coalesce(name,'') || ' ' || coalesce(brand,'') || ' ' || coalesce(category,'') || ' ' || coalesce(sku,'') || ' ' || coalesce(description,'')))`;
+
+function textMatchWhere(q: string): Prisma.Sql {
+  return Prisma.sql`(
+    ${NORMALIZED_SEARCH_EXPR} LIKE '%' || immutable_unaccent(lower(${q})) || '%'
+    OR immutable_unaccent(lower(name)) % immutable_unaccent(lower(${q}))
+  )`;
+}
+
+function relevanceOrderBy(q: string): Prisma.Sql {
+  return Prisma.sql`
+    CASE
+      WHEN immutable_unaccent(lower(name)) LIKE immutable_unaccent(lower(${q})) || '%' THEN 0
+      WHEN immutable_unaccent(lower(name)) LIKE '%' || immutable_unaccent(lower(${q})) || '%' THEN 1
+      WHEN immutable_unaccent(lower(coalesce(brand,''))) LIKE '%' || immutable_unaccent(lower(${q})) || '%' THEN 2
+      WHEN immutable_unaccent(lower(category)) LIKE '%' || immutable_unaccent(lower(${q})) || '%' THEN 3
+      ELSE 4
+    END ASC,
+    similarity(immutable_unaccent(lower(name)), immutable_unaccent(lower(${q}))) DESC,
+    "createdAt" DESC
+  `;
+}
+
+function buildWhereConditions(options: {
+  q: string;
+  includeTextMatch: boolean;
+  includeOutOfStock: boolean;
+  category?: string;
+  brand?: string;
+}): Prisma.Sql {
+  const conditions: Prisma.Sql[] = [Prisma.sql`"isActive" = true`];
+
+  if (options.includeTextMatch) {
+    conditions.push(textMatchWhere(options.q));
+  }
+  if (!options.includeOutOfStock) {
+    conditions.push(Prisma.sql`stock > 0`);
+  }
+  if (options.category) {
+    conditions.push(
+      Prisma.sql`immutable_unaccent(lower(category)) = immutable_unaccent(lower(${options.category}))`,
+    );
+  }
+  if (options.brand) {
+    conditions.push(
+      Prisma.sql`immutable_unaccent(lower(brand)) = immutable_unaccent(lower(${options.brand}))`,
+    );
+  }
+
+  return Prisma.join(conditions, ' AND ');
+}
+
+function buildOrderBy(sort: string, q: string, qLen: number): Prisma.Sql {
+  switch (sort) {
+    case 'price-asc':
+      return Prisma.sql`price ASC`;
+    case 'price-desc':
+      return Prisma.sql`price DESC`;
+    case 'name-asc':
+      return Prisma.sql`name ASC`;
+    case 'name-desc':
+      return Prisma.sql`name DESC`;
+    default:
+      return qLen >= 2 ? relevanceOrderBy(q) : Prisma.sql`"createdAt" DESC`;
+  }
+}
 
 /** PRD-166: IP real del visitante para rate limit en Server Actions públicas. */
 async function clientIp(): Promise<string> {
@@ -34,31 +102,26 @@ export async function searchProducts(query: string): Promise<SearchResult[]> {
     return [];
   }
 
-  const rows = await prisma.product.findMany({
-    where: {
-      OR: [
-        { name:        { contains: q, mode: 'insensitive' } },
-        { description: { contains: q, mode: 'insensitive' } },
-        { category:    { contains: q, mode: 'insensitive' } },
-        { brand:       { contains: q, mode: 'insensitive' } },
-        // PRD-165: el autocompletado también encuentra por SKU exacto/parcial.
-        { sku:         { contains: q, mode: 'insensitive' } },
-      ],
-    },
-    take: 7,
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id:       true,
-      slug:     true,
-      name:     true,
-      price:    true,
-      category: true,
-      brand:    true,
-      images:   true,
-    },
-  });
-  // PRD-204: price es Decimal → convertir a number
-  return rows.map(p => ({ ...p, price: d(p.price) }));
+  const rows = await prisma.$queryRaw<
+    Array<{
+      id: string;
+      slug: string;
+      name: string;
+      price: string | number;
+      category: string;
+      brand: string | null;
+      images: string[];
+    }>
+  >(Prisma.sql`
+    SELECT id, slug, name, price, category, brand, images
+    FROM "Product"
+    WHERE ${textMatchWhere(q)}
+      AND "isActive" = true
+    ORDER BY ${relevanceOrderBy(q)}
+    LIMIT 7
+  `);
+
+  return rows.map((p) => ({ ...p, price: d(p.price) }));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -74,11 +137,11 @@ export async function searchProductsFull({
   page = 1,
   includeOutOfStock = false,
 }: {
-  query:     string;
+  query: string;
   category?: string;
-  brand?:    string;
-  sort?:     string;
-  page?:     number;
+  brand?: string;
+  sort?: string;
+  page?: number;
   /** PRD-167: por defecto la búsqueda solo lista productos con stock. */
   includeOutOfStock?: boolean;
 }): Promise<FullSearchResult> {
@@ -93,76 +156,86 @@ export async function searchProductsFull({
     return EMPTY_FULL_RESULT;
   }
 
-  const textFilter =
-    q.length >= 2
-      ? {
-          OR: [
-            { name:        { contains: q, mode: 'insensitive' as const } },
-            { description: { contains: q, mode: 'insensitive' as const } },
-            { category:    { contains: q, mode: 'insensitive' as const } },
-            { brand:       { contains: q, mode: 'insensitive' as const } },
-            // PRD-165: búsqueda por SKU también en la página /buscar.
-            { sku:         { contains: q, mode: 'insensitive' as const } },
-          ],
-        }
-      : {};
-
-  // PRD-167: filtro de disponibilidad (server-side, no manipulable más allá
-  // de incluir agotados explícitamente con el toggle de la UI).
-  const stockFilter = includeOutOfStock ? {} : { stock: { gt: 0 } };
-
-  const where = {
-    ...textFilter,
-    ...stockFilter,
-    ...(category ? { category: { equals: category, mode: 'insensitive' as const } } : {}),
-    ...(brand    ? { brand:    { equals: brand,    mode: 'insensitive' as const } } : {}),
-  };
-
-  type OrderBy = { price?: 'asc' | 'desc'; name?: 'asc' | 'desc'; createdAt?: 'asc' | 'desc' };
-  const orderBy: OrderBy =
-    sort === 'price-asc'  ? { price: 'asc' }    :
-    sort === 'price-desc' ? { price: 'desc' }   :
-    sort === 'name-asc'   ? { name: 'asc' }     :
-    sort === 'name-desc'  ? { name: 'desc' }    :
-                            { createdAt: 'desc' };
-
+  const includeTextMatch = q.length >= 2;
   const skip = (page - 1) * SEARCH_PAGE_SIZE;
 
-  const [rows, totalCount, filterOptions] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      orderBy,
-      skip,
-      take: SEARCH_PAGE_SIZE,
-      select: PRODUCT_CARD_SELECT,
-    }),
-    prisma.product.count({ where }),
-    // Opciones de filtro: categorías y marcas del conjunto sin filtro de cat/brand
-    prisma.product.findMany({
-      where: { ...textFilter, ...stockFilter },
-      select: { category: true, brand: true },
-    }),
+  const productWhere = buildWhereConditions({
+    q,
+    includeTextMatch,
+    includeOutOfStock,
+    category,
+    brand,
+  });
+
+  const facetWhere = buildWhereConditions({
+    q,
+    includeTextMatch,
+    includeOutOfStock,
+  });
+
+  const orderBy = buildOrderBy(sort, q, q.length);
+
+  const [productRows, facetRows] = await Promise.all([
+    prisma.$queryRaw<
+      Array<{
+        id: string;
+        slug: string;
+        name: string;
+        description: string | null;
+        price: string | number;
+        originalPrice: string | number | null;
+        stock: number;
+        category: string;
+        brand: string | null;
+        images: string[];
+        totalCount: bigint;
+      }>
+    >(Prisma.sql`
+      SELECT
+        id,
+        slug,
+        name,
+        description,
+        price,
+        "originalPrice",
+        stock,
+        category,
+        brand,
+        images,
+        COUNT(*) OVER() AS "totalCount"
+      FROM "Product"
+      WHERE ${productWhere}
+      ORDER BY ${orderBy}
+      OFFSET ${skip}
+      LIMIT ${SEARCH_PAGE_SIZE}
+    `),
+    prisma.$queryRaw<Array<{ category: string; brand: string | null }>>(Prisma.sql`
+      SELECT category, brand
+      FROM "Product"
+      WHERE ${facetWhere}
+    `),
   ]);
 
-  const categories = [...new Set(filterOptions.map((p) => p.category))].sort();
+  const totalCount = productRows.length > 0 ? Number(productRows[0].totalCount) : 0;
+
+  const categories = [...new Set(facetRows.map((p) => p.category))].sort();
   const brands = [
-    ...new Set(filterOptions.map((p) => p.brand).filter((b): b is string => b != null)),
+    ...new Set(facetRows.map((p) => p.brand).filter((b): b is string => b != null)),
   ].sort();
 
-  const products: FullProduct[] = rows.map((p) => ({
-    id:            p.id,
-    slug:          p.slug,
-    name:          p.name,
-    description:   p.description ?? '',
-    // PRD-204: convertir Decimal → number
-    price:         d(p.price),
+  const products: FullProduct[] = productRows.map((p) => ({
+    id: p.id,
+    slug: p.slug,
+    name: p.name,
+    description: p.description ?? '',
+    price: d(p.price),
     originalPrice: dn(p.originalPrice),
-    stock:         p.stock,
-    category:      p.category,
-    brand:         p.brand,
-    image:         p.images[0] ?? '/placeholder-product.png',
-    images:        p.images,
-    details:       {},
+    stock: p.stock,
+    category: p.category,
+    brand: p.brand,
+    image: p.images[0] ?? '/placeholder-product.png',
+    images: p.images,
+    details: {},
   }));
 
   return { products, totalCount, categories, brands };

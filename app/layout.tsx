@@ -12,6 +12,7 @@ import AppLayoutShell from "./components/AppLayoutShell";
 import AnnouncementBar from "./components/AnnouncementBar";
 import DeferredClientWidgets from "./components/DeferredClientWidgets";
 import CookieConsent from "./components/CookieConsent";
+import ChunkErrorReloader from "@/components/ChunkErrorReloader";
 import JsonLd from "./components/JsonLd";
 import { Toaster } from "@/components/ui/Toaster";
 import { readSeoLocal, buildLocalBusinessSchema } from "@/lib/seo-local";
@@ -185,6 +186,7 @@ export default async function RootLayout({
   return (
     <html lang="es" data-scroll-behavior="smooth" className={jost.variable}>
       <body className="bg-surface-sunken text-navy antialiased nums" suppressHydrationWarning>
+        <ChunkErrorReloader />
         {/* PRD-289: descriptor OpenSearch (React hoistea este link al <head>). */}
         <link
           rel="search"

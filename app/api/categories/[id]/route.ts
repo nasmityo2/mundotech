@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
@@ -66,7 +67,7 @@ export async function PUT(
       revalidatePath(`/categoria/${existing.slug}`, 'page');
     }
     revalidatePath('/categoria/[slug]', 'page');
-    revalidateTag('categories', 'default');
+    revalidateTag('categories', 'max');
     return NextResponse.json(category);
   } catch (error) {
     // PRD-043: logging del fallo (antes el catch tragaba el error).
@@ -85,11 +86,35 @@ export async function DELETE(
   try {
     const { id } = await params;
     await prisma.category.delete({ where: { id } });
-    revalidateTag('categories', 'default');
+    revalidateTag('categories', 'max');
+    revalidatePath('/', 'layout');
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2025'
+    ) {
+      revalidateTag('categories', 'max');
+      return NextResponse.json({ success: true, alreadyDeleted: true });
+    }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2003'
+    ) {
+      return NextResponse.json(
+        { error: 'No se puede eliminar: la categoría tiene registros asociados.' },
+        { status: 409 }
+      );
+    }
     // PRD-043: logging del fallo (antes el catch tragaba el error).
     console.error('[DELETE /api/categories/[id]]', error);
-    return NextResponse.json({ error: 'Error al eliminar' }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: 'Error al eliminar',
+        code: (error as any)?.code ?? null,
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    );
   }
 }
