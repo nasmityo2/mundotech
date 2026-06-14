@@ -210,8 +210,10 @@ type HomeProduct = (typeof getData extends () => Promise<infer R> ? R : never)['
 function pickGaming(products: HomeProduct[]) {
   const re =
     /consola|gaming|retro|game|handheld|r36|portátil|portatil|nintendo|playstation|xbox|steam/;
-  const hit = products.filter((p) => re.test(productHaystack(p)));
-  return hit.length >= 3 ? hit : products;
+  // Solo coincidencias reales. Si no hay ninguna, ProductShelf se oculta
+  // automáticamente (retorna null cuando products.length === 0).
+  // NO usar fallback a products: mostraba todo el catálogo bajo "Consolas y gaming".
+  return products.filter((p) => re.test(productHaystack(p)));
 }
 
 const HomePage = async () => {
@@ -238,7 +240,6 @@ const HomePage = async () => {
   const flashDeals = products
     .filter((p) => p.originalPrice && p.originalPrice > p.price)
     .slice(0, 10);
-  const flashFallback = products.slice(0, 10);
 
   const novedadesTitle = shelvesConfig?.newest?.title ?? 'Novedades en MundoTech';
   const novedadesBadge = shelvesConfig?.newest?.badge ?? 'Recién llegados';
@@ -310,7 +311,7 @@ const HomePage = async () => {
 
           <div className="mt-8 sm:mt-10">
             <FlashDeals
-              products={flashDeals.length > 0 ? flashDeals : flashFallback}
+              products={flashDeals}
               title={flashConfig?.title ?? 'Ofertas MundoTech'}
               endHour={flashConfig?.endHour ?? 23}
             />
