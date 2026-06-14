@@ -68,9 +68,16 @@ const productSchema = z.object({
   name:        z.string().min(1, 'El nombre es obligatorio'),
   description: z.string().min(1, 'La descripción es obligatoria'),
   price:       z.coerce.number().positive('El precio debe ser un número positivo'),
+  originalPrice: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+    z.coerce.number().positive('El precio anterior debe ser un número positivo').nullable().optional(),
+  ),
   stock:       z.coerce.number().int().nonnegative('El stock debe ser un entero no negativo'),
   category:    z.string().min(1, 'La categoría es obligatoria'),
-  brand:       z.string().min(1, 'La marca es obligatoria'),
+  brand: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : 'Sin Marca'),
+    z.string().min(1),
+  ),
   sku: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
     z.string().min(1).nullable().optional()
@@ -163,6 +170,16 @@ async function getUniqueSlug(name: string, excludeId?: string): Promise<string> 
   return candidate;
 }
 
+/** Genera un SKU único tipo "MT-XXXXXX" verificando contra la BD. */
+async function getUniqueSku(): Promise<string> {
+  while (true) {
+    const candidate =
+      `MT-${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
+    const existing = await prisma.product.findUnique({ where: { sku: candidate }, select: { id: true } });
+    if (!existing) return candidate;
+  }
+}
+
 export async function createProductAction(formData: FormData) {
   try {
     await verifyAdminSession();
@@ -171,6 +188,7 @@ export async function createProductAction(formData: FormData) {
       name:        formData.get('name'),
       description: formData.get('description'),
       price:       formData.get('price'),
+      originalPrice: formData.get('originalPrice'),
       stock:       formData.get('stock'),
       category:    formData.get('category'),
       brand:       formData.get('brand'),
@@ -183,18 +201,24 @@ export async function createProductAction(formData: FormData) {
       return { success: false, message: validated.error.issues.map(e => e.message).join(', ') };
     }
 
+    if (validated.data.originalPrice != null && validated.data.originalPrice <= validated.data.price) {
+      return { success: false, message: 'El precio anterior debe ser mayor que el precio actual para marcar la oferta.' };
+    }
+
     const slots  = parseGallerySlots(formData, validated.data.imagesJson);
     const images = deriveLegacyImagesFromSlots(slots);
     const specs  = parseSpecsFromFormData(formData);
 
-    const { imagesJson: _, sku, ...rest } = validated.data;
+    const { imagesJson: _, sku, originalPrice, ...rest } = validated.data;
     const slug = await getUniqueSlug(validated.data.name);
+    const finalSku = sku ?? await getUniqueSku();
 
     await prisma.product.create({
       data: {
         ...rest,
         slug,
-        sku:   sku ?? null,
+        originalPrice: originalPrice ?? null,
+        sku:   finalSku,
         images,
         // Cast requerido: los interfaces TS no satisfacen InputJsonValue de Prisma
         specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
@@ -232,6 +256,7 @@ export async function updateProductAction(productId: string, formData: FormData)
       name:        formData.get('name'),
       description: formData.get('description'),
       price:       formData.get('price'),
+      originalPrice: formData.get('originalPrice'),
       stock:       formData.get('stock'),
       category:    formData.get('category'),
       brand:       formData.get('brand'),
@@ -244,17 +269,22 @@ export async function updateProductAction(productId: string, formData: FormData)
       return { success: false, message: validated.error.issues.map(e => e.message).join(', ') };
     }
 
+    if (validated.data.originalPrice != null && validated.data.originalPrice <= validated.data.price) {
+      return { success: false, message: 'El precio anterior debe ser mayor que el precio actual para marcar la oferta.' };
+    }
+
     const slots  = parseGallerySlots(formData, validated.data.imagesJson);
     const images = deriveLegacyImagesFromSlots(slots);
     const specs  = parseSpecsFromFormData(formData);
 
-    const { imagesJson: _, sku, ...rest } = validated.data;
+    const { imagesJson: _, sku, originalPrice, ...rest } = validated.data;
 
     const current = await prisma.product.findUnique({
       where:  { id: productId },
       select: {
         name: true,
         slug: true,
+        sku: true,
         stock: true,
         images: true,
         media: { select: { type: true, url: true, posterUrl: true } },
@@ -268,6 +298,8 @@ export async function updateProductAction(productId: string, formData: FormData)
       ? await getUniqueSlug(validated.data.name, productId)
       : current.slug;
 
+    const finalSku = sku ?? current?.sku ?? await getUniqueSku();
+
     await prisma.$transaction(async (tx) => {
       await tx.productMedia.deleteMany({ where: { productId } });
       await tx.product.update({
@@ -275,7 +307,8 @@ export async function updateProductAction(productId: string, formData: FormData)
         data: {
           ...rest,
           slug,
-          sku:   sku ?? null,
+          originalPrice: originalPrice ?? null,
+          sku:   finalSku,
           images,
           specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
           media: {

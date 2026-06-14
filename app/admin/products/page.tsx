@@ -23,6 +23,7 @@ interface Product {
   name:        string;
   category:    string;
   price:       number;
+  originalPrice?: number | null;
   stock:       number;
   images:      string[];
   brand:       string;
@@ -520,7 +521,7 @@ function AdminProductsContent() {
         Toca el precio o stock para editar rápido. Doble clic en escritorio.
       </p>
 
-      <AddProductModal isOpen={isModalOpen} onClose={handleClose} product={editingProduct} />
+      <AddProductModal isOpen={isModalOpen} onClose={handleClose} product={editingProduct} categories={categories} />
     </div>
   );
 }

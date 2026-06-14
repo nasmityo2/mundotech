@@ -10,6 +10,7 @@ interface Product {
   name:        string;
   category:    string;
   price:       number;
+  originalPrice?: number | null;
   stock:       number;
   images:      string[];
   brand:       string;
@@ -37,9 +38,10 @@ type VideoGallerySlot = {
 type GallerySlot = ImageGallerySlot | VideoGallerySlot;
 
 interface AddProductModalProps {
-  isOpen:   boolean;
-  onClose:  () => void;
-  product:  Product | null;
+  isOpen:      boolean;
+  onClose:     () => void;
+  product:     Product | null;
+  categories:  string[];
 }
 
 const MAX_SLOTS = 6;
@@ -59,7 +61,7 @@ function deleteOrphanVideo(url: string, posterUrl?: string, keepalive = false): 
   });
 }
 
-export default function AddProductModal({ isOpen, onClose, product }: AddProductModalProps) {
+export default function AddProductModal({ isOpen, onClose, product, categories }: AddProductModalProps) {
   const [isPending, startTransition] = useTransition();
   const formRef        = useRef<HTMLFormElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
@@ -86,6 +88,8 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
       el.name.value        = product.name;
       el.description.value = product.description;
       el.price.value       = product.price.toString();
+      (el.originalPrice as HTMLInputElement).value =
+        product.originalPrice != null ? product.originalPrice.toString() : '';
       el.stock.value       = product.stock.toString();
       el.category.value    = product.category;
       el.brand.value       = product.brand;
@@ -617,6 +621,16 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                   <input type="number" name="price" id="price" required step="0.01" min="0" className={inputCls} />
                 </div>
 
+                <div>
+                  <label htmlFor="originalPrice" className={labelCls}>
+                    Precio anterior (USD)
+                    <span className="ml-1.5 text-xs font-normal text-gray-400">(opcional · actívalo para poner en oferta)</span>
+                  </label>
+                  <input type="number" step="0.01" min="0" name="originalPrice" id="originalPrice"
+                    placeholder="Ej: 50.00" className={inputCls} />
+                  <p className="mt-1 text-xs text-gray-400">Si es mayor al precio actual, el producto aparece en “Ofertas” con su descuento.</p>
+                </div>
+
                 {/* Stock */}
                 <div>
                   <label htmlFor="stock" className={labelCls}>Stock <span className="text-red-500">*</span></label>
@@ -626,13 +640,17 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                 {/* Categoría */}
                 <div>
                   <label htmlFor="category" className={labelCls}>Categoría <span className="text-red-500">*</span></label>
-                  <input type="text" name="category" id="category" required className={inputCls} />
+                  <input list="category-options" name="category" id="category"
+                    className={inputCls} autoComplete="off" placeholder="Elige o escribe una categoría" required />
+                  <datalist id="category-options">
+                    {categories.map((c) => <option key={c} value={c} />)}
+                  </datalist>
                 </div>
 
                 {/* Marca */}
                 <div>
-                  <label htmlFor="brand" className={labelCls}>Marca <span className="text-red-500">*</span></label>
-                  <input type="text" name="brand" id="brand" required className={inputCls} />
+                  <label htmlFor="brand" className={labelCls}>Marca</label>
+                  <input type="text" name="brand" id="brand" className={inputCls} />
                 </div>
 
                 {/* SKU */}
