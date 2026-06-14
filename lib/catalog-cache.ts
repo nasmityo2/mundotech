@@ -95,6 +95,25 @@ export const getCachedCatalogProducts = unstable_cache(
 );
 
 /**
+ * Productos activos EN OFERTA (originalPrice > price), orden newest-first.
+ * Devuelve la lista completa ya filtrada; la página /ofertas pagina en memoria.
+ */
+export const getCachedOfferProducts = unstable_cache(
+  async () => {
+    const rows = await prisma.product.findMany({
+      where:   { isActive: true, originalPrice: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      select:  PRODUCT_CARD_SELECT,
+    });
+    return mapProductRowsToCardModels(rows).filter(
+      (p) => p.originalPrice != null && p.originalPrice > p.price,
+    );
+  },
+  ['offer-products'],
+  { tags: ['catalog'], revalidate: REVALIDATE },
+);
+
+/**
  * Categories ordered by `order` asc, each with a count of active products.
  * Used by the category sidebar and any nav that shows product counts.
  * Tagged with both 'catalog' and 'categories' so that mutations to either

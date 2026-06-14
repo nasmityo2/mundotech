@@ -299,7 +299,7 @@ const HomePage = async () => {
             title="Ofertas del Día"
             subtitle="Precios especiales por tiempo limitado"
             products={flashDeals}
-            viewAllHref="/productos"
+            viewAllHref="/ofertas"
             viewAllLabel="Ver todas las ofertas"
             theme="light"
             maxItems={8}
