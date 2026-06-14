@@ -34,7 +34,20 @@ export async function GET(request: Request) {
       where,
       orderBy: [{ order: 'asc' }, { name: 'asc' }],
     });
-    return NextResponse.json(categories, {
+    // Productos guardan `category` como string (nombre). Conteo por categoría.
+    const counts = await prisma.product.groupBy({
+      by: ['category'],
+      _count: { _all: true },
+    });
+    const countMap = new Map<string, number>();
+    for (const row of counts) {
+      countMap.set((row.category ?? '').toLowerCase(), row._count._all);
+    }
+    const withCounts = categories.map((c) => ({
+      ...c,
+      productCount: countMap.get((c.name ?? '').toLowerCase()) ?? 0,
+    }));
+    return NextResponse.json(withCounts, {
       headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
     });
   } catch (error) {

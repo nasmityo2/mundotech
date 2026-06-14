@@ -116,6 +116,7 @@ export default function HomeHeroCyber({
 
   useEffect(() => {
     if (slides.length <= 1) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const id = setInterval(() => setActive((v) => (v + 1) % slides.length), 6500);
     return () => clearInterval(id);
   }, [slides.length]);
@@ -128,24 +129,34 @@ export default function HomeHeroCyber({
     Boolean(slide.sub?.trim()) ||
     Boolean(slide.title?.trim());
 
-  const altText =
-    slide.title.replace(/\n/g, ' ') || slide.badge || 'MundoTech — Conectados Contigo';
-
   return (
     <section className="relative w-full max-w-full overflow-hidden rounded-none bg-[#0B1220] antialiased shadow-[0_18px_45px_-16px_rgba(11,18,32,0.28)] ring-0 sm:rounded-2xl sm:ring-1 sm:ring-black/10">
       <div className="relative w-full h-[260px] xs:h-[280px] sm:h-[320px] md:h-[380px] lg:h-[420px] xl:h-[460px]">
         {slide.img ? (
-          <Image
-            key={`hero-${slide.img}-${active}`}
-            src={slide.img}
-            alt={altText}
-            fill
-            priority={active === 0}
-            fetchPriority={active === 0 ? 'high' : 'auto'}
-            quality={75}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1400px"
-            className="object-cover object-center"
-          />
+          <div className="absolute inset-0">
+            {slides.map((s, i) => {
+              if (!s.img) return null;
+              const layerAlt =
+                s.title.replace(/\n/g, ' ') || s.badge || 'MundoTech — Conectados Contigo';
+              const isActive = i === active;
+              return (
+                <Image
+                  key={fromDatabase && dbSlides ? (dbSlides[i]?.id ?? i) : i}
+                  src={s.img}
+                  alt={layerAlt}
+                  fill
+                  priority={i === 0}
+                  fetchPriority={i === 0 ? 'high' : 'auto'}
+                  quality={75}
+                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1400px"
+                  className={`absolute inset-0 object-cover object-center transition-opacity duration-700 ease-out motion-reduce:transition-none ${
+                    isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  }`}
+                  aria-hidden={isActive ? undefined : true}
+                />
+              );
+            })}
+          </div>
         ) : (
           /* Panel de marca: el "letrero" de la tienda cuando no hay foto */
           <div className="absolute inset-0" aria-hidden>
@@ -156,10 +167,16 @@ export default function HomeHeroCyber({
         )}
 
         {showCopy && slide.img && (
-          <div
-            className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-t from-[#0B1220]/90 via-[#0B1220]/55 to-[#0B1220]/15 sm:bg-gradient-to-r sm:from-[#0B1220]/80 sm:via-[#0B1220]/40 sm:to-transparent"
-            aria-hidden
-          />
+          <>
+            <div
+              className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(to_top,rgba(11,18,32,0.92)_0%,rgba(11,18,32,0.62)_34%,rgba(11,18,32,0.18)_66%,rgba(11,18,32,0)_100%)] sm:bg-[linear-gradient(100deg,rgba(11,18,32,0.9)_0%,rgba(11,18,32,0.6)_38%,rgba(11,18,32,0.18)_64%,rgba(11,18,32,0)_82%)]"
+              aria-hidden
+            />
+            <div
+              className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(130%_115%_at_50%_0%,transparent_52%,rgba(11,18,32,0.38)_100%)]"
+              aria-hidden
+            />
+          </>
         )}
 
         {slide.tag?.trim() ? (

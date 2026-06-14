@@ -41,26 +41,7 @@ export default function AdminCategoriesPage() {
     const res = await fetch(`/api/categories?t=${Date.now()}`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
-      // Enriquecer con productCount (vía API de productos)
-      try {
-        const productsRes = await fetch(`/api/products?perPage=500&t=${Date.now()}`, { cache: 'no-store' });
-        if (productsRes.ok) {
-          const products = await productsRes.json();
-          const list = Array.isArray(products) ? products : (products?.products ?? []);
-          type ProductLite = { category?: string };
-          const counts = (list as ProductLite[]).reduce<Record<string, number>>((acc, p) => {
-            const k = (p.category ?? '').toLowerCase();
-            acc[k] = (acc[k] ?? 0) + 1;
-            return acc;
-          }, {});
-          for (const c of data) c.productCount = counts[(c.name ?? '').toLowerCase()] ?? 0;
-        }
-      } catch (err) {
-        // PRD-221: el conteo de productos es enriquecimiento opcional, pero el
-        // fallo debe quedar visible para el operador en consola
-        console.error('[admin/categories] no se pudo calcular productCount:', err);
-      }
-      setCategories(data);
+      setCategories(data); // productCount ya viene del servidor
     }
     setLoading(false);
   };
