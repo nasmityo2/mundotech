@@ -359,66 +359,99 @@ export async function updateProductAction(productId: string, formData: FormData)
   }
 }
 
-/** Estados de pedido que mantienen el inventario reservado (no terminales). */
-const NON_TERMINAL_ORDER_STATUSES = [
-  'Pendiente',
-  'Pendiente verificación Binance',
-  'En Proceso',
-  'Enviado',
-] as const;
-
-export async function deleteProductAction(
-  productId: string,
-  opts?: { forceIfActiveOrders?: boolean },
-) {
+export async function deleteProductAction(productId: string) {
   try {
     await verifyAdminSession();
-
-    // PRD-231: verificar que no existan pedidos activos con este producto
-    // antes de eliminar, para evitar ítems huérfanos sin FK.
-    const activeOrderCount = await prisma.orderItem.count({
-      where: {
-        productId,
-        order: {
-          status: { in: NON_TERMINAL_ORDER_STATUSES as unknown as string[] },
-        },
-      },
-    });
-
-    if (activeOrderCount > 0 && !opts?.forceIfActiveOrders) {
-      return {
-        success: false,
-        requiresConfirmation: true,
-        activeOrderCount,
-        message: `Este producto aparece en ${activeOrderCount} pedido${activeOrderCount !== 1 ? 's' : ''} activo${activeOrderCount !== 1 ? 's' : ''} (no cancelados ni entregados). Eliminar el producto dejará esos ítems sin ficha. Confirma explícitamente si quieres continuar.`,
-      };
-    }
 
     const current = await prisma.product.findUnique({
       where: { id: productId },
       select: { slug: true },
     });
-
-    // PRD-233: revalidar la ficha y rutas de catálogo ANTES de borrar,
-    // para que ISR invalide la caché y no sirva la página fantasma.
-    if (current?.slug) {
-      revalidatePath(`/product/${current.slug}`);
+    if (!current) {
+      return { success: false, message: 'El producto ya no existe.' };
     }
+
+    // ¿Está referenciado por algún pedido? FK RESTRICT → no se puede borrar en duro
+    // y, además, romperíamos la auditoría financiera. En ese caso se despublica.
+    const orderItemCount = await prisma.orderItem.count({ where: { productId } });
+
+    // PRD-233: invalidar caches públicas ANTES de mutar (evita la página fantasma).
+    if (current.slug) revalidatePath(`/product/${current.slug}`);
     revalidatePath('/productos');
     revalidatePath('/');
     revalidateTag('catalog', 'default');
     revalidateTag('categories', 'default');
 
-    await prisma.product.delete({ where: { id: productId } });
+    if (orderItemCount > 0) {
+      await prisma.product.update({
+        where: { id: productId },
+        data: { isActive: false },
+      });
+      revalidatePath('/admin/products');
+      return {
+        success: true,
+        softDeleted: true,
+        message: `Este producto aparece en ${orderItemCount} pedido${orderItemCount !== 1 ? 's' : ''}, así que se DESPUBLICÓ (ya no se muestra en la tienda) en lugar de borrarlo, para conservar el historial de esas ventas.`,
+      };
+    }
+
+    // Sin historial → borrado duro real.
+    try {
+      await prisma.product.delete({ where: { id: productId } });
+    } catch (err) {
+      // Red de seguridad: si una FK impide el borrado, despublicar en su lugar.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+        await prisma.product.update({ where: { id: productId }, data: { isActive: false } });
+        revalidatePath('/admin/products');
+        return {
+          success: true,
+          softDeleted: true,
+          message: 'El producto tiene referencias en la base de datos, así que se DESPUBLICÓ en lugar de borrarlo.',
+        };
+      }
+      throw err;
+    }
 
     revalidatePath('/admin/products');
-    return { success: true, message: 'Producto eliminado con éxito.' };
+    return { success: true, softDeleted: false, message: 'Producto eliminado con éxito.' };
   } catch (error) {
     console.error('Error al eliminar el producto:', error);
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No tienes permiso para realizar esta acción.' };
     }
     return { success: false, message: 'No se pudo eliminar el producto.' };
+  }
+}
+
+export async function setProductActiveAction(productId: string, isActive: boolean) {
+  try {
+    await verifyAdminSession();
+
+    const updated = await prisma.product.update({
+      where: { id: productId },
+      data: { isActive },
+      select: { slug: true },
+    });
+
+    revalidatePath('/admin/products');
+    revalidatePath('/');
+    revalidatePath('/productos');
+    if (updated.slug) revalidatePath(`/product/${updated.slug}`);
+    revalidateTag('catalog', 'default');
+    revalidateTag('categories', 'default');
+
+    return {
+      success: true,
+      message: isActive
+        ? 'Producto reactivado: ya vuelve a verse en la tienda.'
+        : 'Producto despublicado.',
+    };
+  } catch (error) {
+    console.error('Error al cambiar la visibilidad del producto:', error);
+    if (error instanceof Error && error.message.startsWith('No autorizado')) {
+      return { success: false, message: 'No tienes permiso para realizar esta acción.' };
+    }
+    return { success: false, message: 'No se pudo actualizar la visibilidad del producto.' };
   }
 }
 
@@ -429,7 +462,7 @@ export async function deleteProductAction(
  * obtiene vía `getProductsAdmin()` (con sesión admin).
  */
 export async function getProducts(searchTerm?: string, categoryFilter?: string) {
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { isActive: true };
 
   if (searchTerm) {
     where.name = { contains: searchTerm, mode: 'insensitive' };

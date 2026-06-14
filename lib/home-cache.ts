@@ -26,6 +26,7 @@ const HOMEPAGE_CONFIG_KEYS = [
 export const getCachedHomeProducts = unstable_cache(
   async () => {
     const rows = await prisma.product.findMany({
+      where: { isActive: true },
       orderBy: { createdAt: 'desc' },
       select: PRODUCT_CARD_SELECT,
     });
@@ -47,6 +48,29 @@ export const getCachedHeroBanners = unstable_cache(
       take: 10,
     }),
   ['home-hero-banners'],
+  { tags: ['banners'], revalidate: REVALIDATE },
+);
+
+export const getCachedHomePromoBanners = unstable_cache(
+  () =>
+    prisma.banner.findMany({
+      where: { type: 'ad_box', active: true },
+      orderBy: { order: 'asc' },
+      take: 2,
+      select: { id: true, imageUrl: true, title: true, link: true },
+    }),
+  ['home-promo-banners'],
+  { tags: ['banners'], revalidate: REVALIDATE },
+);
+
+export const getCachedHomeDiscoverBanners = unstable_cache(
+  () =>
+    prisma.banner.findMany({
+      where: { type: 'discover', active: true },
+      orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
+      take: 6,
+    }),
+  ['home-discover-banners'],
   { tags: ['banners'], revalidate: REVALIDATE },
 );
 

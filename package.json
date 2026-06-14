@@ -11,6 +11,7 @@
     "test": "vitest run",
     "db:studio": "prisma studio",
     "db:migrate": "prisma migrate deploy",
+    "deploy:vps": "bash scripts/deploy-vps.sh",
     "db:seed:reviews": "tsx scripts/seed-reviews.ts",
     "db:migrate:images": "tsx scripts/migrate-legacy-images-to-r2.ts",
     "postinstall": "prisma generate"

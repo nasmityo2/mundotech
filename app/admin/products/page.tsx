@@ -3,10 +3,11 @@
 import { useEffect, useState, useRef, useTransition, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
-import { PlusCircle, Trash2, Edit, Upload, Download, Check, X, Search, ChevronDown } from 'lucide-react';
+import { PlusCircle, Trash2, Edit, Upload, Download, Check, X, Search, ChevronDown, RotateCcw } from 'lucide-react';
 import {
   getProductsAdmin,
   deleteProductAction,
+  setProductActiveAction,
   importProductsFromCSV,
   quickUpdateStockAction,
   quickUpdatePriceAction,
@@ -27,6 +28,7 @@ interface Product {
   stock:       number;
   images:      string[];
   brand:       string;
+  isActive?:   boolean;
   description: string;
   specs?:      unknown | null;
   media?:      {
@@ -153,7 +155,23 @@ function AdminProductsContent() {
 
   const handleDelete = async (id: string, name: string) => {
     if (!window.confirm(`¿Eliminar "${name}"?`)) return;
-    await deleteProductAction(id);
+    const res = await deleteProductAction(id);
+    if (!res?.success) {
+      window.alert(res?.message ?? 'No se pudo eliminar el producto.');
+      return;
+    }
+    if (res.softDeleted) {
+      window.alert(res.message);
+    }
+    loadProducts();
+  };
+
+  const handleReactivate = async (id: string) => {
+    const res = await setProductActiveAction(id, true);
+    if (!res?.success) {
+      window.alert(res?.message ?? 'No se pudo reactivar el producto.');
+      return;
+    }
     loadProducts();
   };
 
@@ -287,6 +305,11 @@ function AdminProductsContent() {
         <span className="block truncate">
           {p.name}
           {p.brand && <span className="text-gray-400 font-normal text-xs ml-1">· {p.brand}</span>}
+          {p.isActive === false && (
+            <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-200 text-gray-600 align-middle">
+              Despublicado
+            </span>
+          )}
         </span>
       ),
     },
@@ -501,6 +524,14 @@ function AdminProductsContent() {
         )}
         actions={p => (
           <>
+            {p.isActive === false && (
+              <TouchIconButton
+                variant="primary"
+                label="Reactivar"
+                icon={<RotateCcw size={18} />}
+                onClick={() => handleReactivate(p.id)}
+              />
+            )}
             <TouchIconButton
               variant="primary"
               label="Editar"

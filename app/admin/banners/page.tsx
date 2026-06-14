@@ -27,6 +27,7 @@ const BANNER_TYPES = [
   { value: 'hero',        label: 'Hero — Slide de carrusel',   desc: 'Desliza en el banner principal. Añade varios para crear el carrusel.' },
   { value: 'ad_box',      label: 'Caja de Departamento',        desc: '4 cajas debajo de las categorías (posición según Orden).'            },
   { value: 'cta_banner',  label: 'Banner CTA (fondo)',          desc: 'Gran banner al final de la página con título, párrafo y botón.'       },
+  { value: 'discover',   label: 'Descubre — Mosaico',  desc: 'Mosaico de banners debajo de Ofertas del Día. Sube tu diseño Canva en 4:3 (rec. 800×600).' },
   { value: 'promo_large', label: 'Promo Grande (legacy)',        desc: 'Banner amarillo de oferta del día (antiguo).'                        },
   { value: 'promo_small_1', label: 'Promo Pequeña 1 (legacy)', desc: 'Banner navy superior derecho (antiguo).'                              },
   { value: 'promo_small_2', label: 'Promo Pequeña 2 (legacy)', desc: 'Banner verde inferior derecho (antiguo).'                             },
@@ -36,6 +37,7 @@ const TYPE_LABELS: Record<string, string> = {
   hero:          'Hero',
   ad_box:        'Caja Depto.',
   cta_banner:    'CTA Banner',
+  discover:      'Descubre',
   promo_large:   'Promo Grande',
   promo_small_1: 'Promo 1',
   promo_small_2: 'Promo 2',
@@ -45,6 +47,7 @@ const TYPE_COLORS: Record<string, string> = {
   hero:          'bg-navy/80',
   ad_box:        'bg-amber-600/80',
   cta_banner:    'bg-purple-700/80',
+  discover:      'bg-pink-600/80',
   promo_large:   'bg-yellow-600/80',
   promo_small_1: 'bg-gray-700/80',
   promo_small_2: 'bg-green-700/80',
@@ -68,6 +71,7 @@ const TYPE_FIELDS: Record<string, string[]> = {
   hero:          ['imageUrl', 'title', 'subtitle', 'label', 'ctaText', 'tagText', 'link', 'order', 'active'],
   ad_box:        ['imageUrl', 'title', 'label', 'ctaText', 'link', 'order', 'active'],
   cta_banner:    ['imageUrl', 'title', 'subtitle', 'label', 'ctaText', 'link', 'order', 'active'],
+  discover:      ['imageUrl', 'title', 'link', 'order', 'active'],
   promo_large:   ['imageUrl', 'title', 'subtitle', 'link', 'order', 'active'],
   promo_small_1: ['imageUrl', 'title', 'subtitle', 'link', 'order', 'active'],
   promo_small_2: ['imageUrl', 'title', 'subtitle', 'link', 'order', 'active'],
@@ -199,7 +203,7 @@ export default function AdminBannersPage() {
 
       {/* Leyenda de tipos */}
       <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
-        {BANNER_TYPES.slice(0, 3).map(t => (
+        {BANNER_TYPES.slice(0, 4).map(t => (
           <div key={t.value} className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm">
             <p className="text-xs font-bold text-navy">{t.label}</p>
             <p className="text-[11px] text-gray-400 mt-0.5">{t.desc}</p>

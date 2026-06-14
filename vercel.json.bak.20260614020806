@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/abandoned-cart",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/purge-product-views",
+      "schedule": "30 5 * * 0"
+    }
+  ]
+}

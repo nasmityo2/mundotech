@@ -7,7 +7,7 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { isSafeEditableImageUrl, isSafeEditableLink } from '@/lib/safe-link';
 
 const bannerSchema = z.object({
-  type: z.enum(['hero', 'ad_box', 'cta_banner', 'promo_large', 'promo_small_1', 'promo_small_2']),
+  type: z.enum(['hero', 'ad_box', 'cta_banner', 'discover', 'promo_large', 'promo_small_1', 'promo_small_2']),
   // PRD-042: la imagen debe ser una URL https válida (R2) o ruta
   // interna — un string basura rompe next/image en la home.
   imageUrl: z

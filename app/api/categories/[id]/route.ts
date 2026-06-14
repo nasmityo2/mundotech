@@ -111,7 +111,10 @@ export async function DELETE(
     return NextResponse.json(
       {
         error: 'Error al eliminar',
-        code: (error as any)?.code ?? null,
+        code:
+          error instanceof Prisma.PrismaClientKnownRequestError
+            ? error.code
+            : null,
         message: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }

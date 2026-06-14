@@ -1,5 +1,7 @@
 import dynamic from 'next/dynamic';
 import HomeHeroCyber from '@/app/components/HomeHeroCyber';
+import PromoBanners from '@/app/components/PromoBanners';
+import DiscoverMosaic from '@/app/components/DiscoverMosaic';
 import ProductShelf from '@/app/components/ProductShelf';
 import Benefits, { type BenefitItem } from '@/app/components/Benefits';
 import { DEFAULT_SITE_CONTENT } from '@/lib/site-content';
@@ -9,6 +11,8 @@ import type { StoreSettings } from '@/lib/data-store';
 import {
   getCachedHomeProducts,
   getCachedHeroBanners,
+  getCachedHomePromoBanners,
+  getCachedHomeDiscoverBanners,
   getCachedCtaBanner,
   getCachedHomePromotions,
   getCachedHomepageConfig,
@@ -22,7 +26,6 @@ import { ArrowRight, Sparkles } from 'lucide-react';
 import type { Metadata } from 'next';
 
 const Promotions = dynamic(() => import('@/app/components/Promotions'));
-const FlashDeals = dynamic(() => import('@/app/components/FlashDeals'));
 
 // PRD-140 — ISR: 5 min máximo de obsolescencia para precio/stock visibles.
 // Las mutaciones relevantes también revalidan on-demand: tasa USD/Bs en
@@ -103,6 +106,8 @@ async function getData() {
     const [
       products,
       heroBanners,
+      promoBanners,
+      discoverBanners,
       ctaBannerRow,
       activePromotions,
       { flashConfig, shelvesConfig, benefitsConfig },
@@ -112,6 +117,8 @@ async function getData() {
     ] = await Promise.all([
       getCachedHomeProducts(),
       getCachedHeroBanners(),
+      getCachedHomePromoBanners(),
+      getCachedHomeDiscoverBanners(),
       getCachedCtaBanner(),
       getCachedHomePromotions(),
       getCachedHomepageConfig(),
@@ -123,6 +130,8 @@ async function getData() {
     return {
       products,
       heroBanners,
+      promoBanners,
+      discoverBanners,
       ctaBannerRow,
       activePromotions,
       flashConfig,
@@ -137,6 +146,8 @@ async function getData() {
     return {
       products: [],
       heroBanners: [],
+      promoBanners: [],
+      discoverBanners: [],
       ctaBannerRow: null,
       activePromotions: [],
       flashConfig: null,
@@ -220,9 +231,10 @@ const HomePage = async () => {
   const {
     products,
     heroBanners,
+    promoBanners,
+    discoverBanners,
     ctaBannerRow,
     activePromotions,
-    flashConfig,
     shelvesConfig,
     benefitsConfig,
     siteContent,
@@ -268,6 +280,10 @@ const HomePage = async () => {
         </div>
       </div>
 
+      <div className="mt-4 sm:mt-6">
+        <PromoBanners banners={promoBanners} />
+      </div>
+
       {/* Barra de beneficios — editable desde Admin → Gestor Home */}
       <div className="-mx-4 w-[calc(100%+2rem)] sm:mx-0 sm:w-full mt-4 sm:mt-6">
         <div className="overflow-hidden rounded-none border-y border-slate-100 sm:rounded-2xl sm:border">
@@ -278,6 +294,21 @@ const HomePage = async () => {
       <div className="w-full max-w-full overflow-x-hidden mt-5 sm:mt-8">
         <div className="w-full max-w-full pb-12 pt-1 sm:pt-2">
           <ProductShelf
+            badge="Ofertas"
+            badgeColor="red"
+            title="Ofertas del Día"
+            subtitle="Precios especiales por tiempo limitado"
+            products={flashDeals}
+            viewAllHref="/productos"
+            viewAllLabel="Ver todas las ofertas"
+            theme="light"
+            maxItems={8}
+            priorityFirstItems={2}
+          />
+
+          <DiscoverMosaic banners={discoverBanners} />
+
+          <ProductShelf
             badge={novedadesBadge}
             badgeColor="yellow"
             title={novedadesTitle}
@@ -286,7 +317,7 @@ const HomePage = async () => {
             viewAllLabel="Ver todas las novedades"
             theme="light"
             maxItems={8}
-            priorityFirstItems={2}
+            priorityFirstItems={0}
           />
 
           <ProductShelf
@@ -306,14 +337,6 @@ const HomePage = async () => {
               promotions={
                 activePromotions.length > 0 ? activePromotions : undefined
               }
-            />
-          </div>
-
-          <div className="mt-8 sm:mt-10">
-            <FlashDeals
-              products={flashDeals}
-              title={flashConfig?.title ?? 'Ofertas MundoTech'}
-              endHour={flashConfig?.endHour ?? 23}
             />
           </div>
 

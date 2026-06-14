@@ -169,11 +169,11 @@ export default function HomeHeroCyber({
         {showCopy && slide.img && (
           <>
             <div
-              className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(to_top,rgba(11,18,32,0.92)_0%,rgba(11,18,32,0.62)_34%,rgba(11,18,32,0.18)_66%,rgba(11,18,32,0)_100%)] sm:bg-[linear-gradient(100deg,rgba(11,18,32,0.9)_0%,rgba(11,18,32,0.6)_38%,rgba(11,18,32,0.18)_64%,rgba(11,18,32,0)_82%)]"
+              className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(to_top,rgba(11,18,32,0.78)_0%,rgba(11,18,32,0.42)_32%,rgba(11,18,32,0.08)_64%,rgba(11,18,32,0)_100%)] sm:bg-[linear-gradient(100deg,rgba(11,18,32,0.72)_0%,rgba(11,18,32,0.40)_38%,rgba(11,18,32,0.08)_64%,rgba(11,18,32,0)_84%)]"
               aria-hidden
             />
             <div
-              className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(130%_115%_at_50%_0%,transparent_52%,rgba(11,18,32,0.38)_100%)]"
+              className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(130%_115%_at_50%_0%,transparent_58%,rgba(11,18,32,0.20)_100%)]"
               aria-hidden
             />
           </>

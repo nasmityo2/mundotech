@@ -13,6 +13,7 @@ const BANNER_TYPES = [
   'hero',
   'ad_box',
   'cta_banner',
+  'discover',
   'promo_large',
   'promo_small_1',
   'promo_small_2',
