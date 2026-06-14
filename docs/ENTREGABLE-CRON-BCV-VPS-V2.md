@@ -179,7 +179,9 @@ HTTP 200. Sin revalidación adicional (comportamiento esperado).
 ### Commit realizado
 
 Rama: `main`  
-Mensaje: `feat(cron): tasa BCV automática + migración de crons a VPS`
+Commit: `f93bfd4`  
+Mensaje: `feat(cron): tasa BCV automática + migración de crons a VPS`  
+Push: `origin/main` ✓
 
 Archivos incluidos:
 - `app/api/cron/update-bcv-rate/route.ts`
