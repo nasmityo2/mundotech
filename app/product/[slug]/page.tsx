@@ -100,11 +100,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     description = clampDescription(rawDesc);
   } else if (rawDesc.length > 0) {
     description = clampDescription(
-      `${rawDesc.replace(/[.!\s]+$/, '')}. Cómpralo en MundoTech Barquisimeto: precio en USD y Bs, garantía real y envío seguro a toda Venezuela.`,
+      `${rawDesc.replace(/[.!\s]+$/, '')}. Cómpralo en MundoTech Barquisimeto: precio en USD y Bs, retiro en tienda y envíos a toda Venezuela.`,
     );
   } else {
     description = clampDescription(
-      `Compra ${product.name} en MundoTech Barquisimeto: precio en USD y Bs, 12 meses de garantía, retiro en tienda y envío seguro a toda Venezuela.`,
+      `Compra ${product.name} en MundoTech Barquisimeto: precio en USD y Bs, retiro en tienda y envíos a toda Venezuela.`,
     );
   }
 

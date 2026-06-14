@@ -76,7 +76,7 @@ export default function ProductJsonLd({ product, categoryPath, storeName, review
 
   // ── 1. Product + Offer ────────────────────────────────────────────────────
   const cleanDescription = stripHtml(product.description)
-    || `${product.name} disponible en ${storeName} Barquisimeto. Garantía real de 12 meses.`;
+    || `${product.name} disponible en ${storeName} Barquisimeto. Compra con factura.`;
 
   const allImages = product.images
     .map((img) => buildOgImageUrl(img))
@@ -179,13 +179,13 @@ export default function ProductJsonLd({ product, categoryPath, storeName, review
         name: storeName,
         url: SITE_URL,
       },
-      // P94/H66: garantía de 12 meses — alineada con el copy visible del sitio.
+      // P94/H66: garantía de 7 días en electrónica general — alineada con el copy visible del sitio.
       warranty: {
         '@type': 'WarrantyPromise',
         durationOfWarranty: {
           '@type': 'QuantitativeValue',
-          value: 12,
-          unitCode: 'MON',
+          value: 7,
+          unitCode: 'DAY',
         },
       },
       // ── Detalles de envío ──

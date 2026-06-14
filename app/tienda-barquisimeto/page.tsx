@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   // el template del layout no duplique la marca (H02/P08).
   title: { absolute: 'Tienda de tecnología en Barquisimeto | MundoTech' },
   description:
-    'MundoTech en el centro de Barquisimeto: tecnología, gadgets y accesorios con garantía real. Precios en USD y Bs, retiro en tienda y envíos a toda Venezuela.',
+    'MundoTech en el centro de Barquisimeto: tecnología, gadgets y accesorios. Precios en USD y Bs, retiro en tienda y envíos a toda Venezuela.',
   keywords: [
     'tienda tecnología Barquisimeto',
     'gadgets tecnología Barquisimeto',
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'MundoTech Barquisimeto — Conectados Contigo',
     description:
-      'Tu tienda en el Centro de Barquisimeto: tecnología, gadgets y accesorios. USD/Bs., garantía real.',
+      'Tu tienda en el Centro de Barquisimeto: tecnología, gadgets y accesorios. USD/Bs., retiro en tienda y envíos nacionales.',
     url: PAGE_URL,
     siteName: 'MundoTech',
     locale: 'es_VE',
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'MundoTech Barquisimeto — Conectados Contigo',
     description:
-      'Tecnología y gadgets en Barquisimeto. USD/Bs., garantía real.',
+      'Tecnología y gadgets en Barquisimeto. USD/Bs., retiro en tienda y envíos nacionales.',
   },
 };
 
@@ -57,9 +57,9 @@ const breadcrumbSchema = {
 };
 
 const TRUST_ITEMS = [
-  { icon: ShieldCheck, title: 'Garantía oficial',     desc: 'Todos nuestros productos son originales con garantía de fábrica.' },
-  { icon: Truck,       title: 'Envío a todo Venezuela', desc: 'Despacho seguro y rastreable en 24–48 h hábiles a cualquier estado.' },
-  { icon: RefreshCcw,  title: 'Devolución en 7 días',  desc: 'Si tu producto llega con defecto, lo cambiamos sin costo adicional.' },
+  { icon: ShieldCheck, title: 'Garantía de 7 días',     desc: 'En electrónica general; con factura y caja original.' },
+  { icon: Truck,       title: 'Envíos nacionales', desc: 'MRW, Zoom y Tealca (cobro a destino). Delivery gratis en Barquisimeto (Centro y Este).' },
+  { icon: RefreshCcw,  title: 'Devolución en 7 días',  desc: 'Electrónica general con factura y caja original.' },
   { icon: Star,        title: 'Atención personalizada', desc: 'Nuestro equipo te asesora para elegir el mejor producto para ti.' },
 ];
 
@@ -106,7 +106,7 @@ export default async function TiendaBarquisimetoPage() {
       email: settings.email,
       phone: settings.phone,
       description:
-        'Tecnología y gadgets en Barquisimeto, Lara. Envíos nacionales, USD/Bs., garantía oficial.',
+        'Tecnología y gadgets en Barquisimeto, Lara. Envíos por MRW, Zoom y Tealca, USD/Bs., retiro en tienda.',
       type: 'ElectronicsStore',
       sameAs,
     }),
@@ -147,7 +147,7 @@ export default async function TiendaBarquisimetoPage() {
             Somos tu tienda de referencia en el centro de {seo.addressLocality} para{' '}
             <strong className="text-white">tecnología, gadgets y accesorios</strong>
             . Precios USD/Bs.,{' '}
-            <strong className="text-white">garantía oficial</strong> y envío seguro.
+            <strong className="text-white">retiro en tienda</strong> y envíos nacionales.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">

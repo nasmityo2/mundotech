@@ -115,10 +115,14 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
       sub: 'Pásate por Carrera 21 o pide desde la web',
     },
     {
-      // P89–P92: sin promesa "24h" — /shipping-policy define plazos orientativos.
       icon: 'truck',
-      title: 'Delivery en Barquisimeto',
-      sub: 'Y envíos a todo el país por MRW o Zoom',
+      title: 'Delivery gratis en Barquisimeto',
+      sub: 'Centro y Este (condiciones aplican). Envíos por MRW, Zoom y Tealca (cobro a destino)',
+    },
+    {
+      icon: 'shield',
+      title: 'Garantía 7 días',
+      sub: 'En electrónica general, con factura y caja',
     },
     {
       icon: 'wallet',

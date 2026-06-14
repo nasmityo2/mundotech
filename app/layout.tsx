@@ -47,7 +47,7 @@ export const metadata: Metadata = {
     template: "%s | MundoTech",
   },
   description:
-    "Tienda de tecnología en Barquisimeto: gadgets, consolas, audio y accesorios con garantía real. Precios en USD y Bs, retiro en tienda y envíos a toda Venezuela.",
+    "Tienda de tecnología en Barquisimeto: gadgets, consolas, audio y accesorios. Precios en USD y Bs, retiro en tienda y envíos a toda Venezuela.",
   keywords: [
     "tecnología Barquisimeto",
     "tienda tecnología Venezuela",
@@ -74,13 +74,13 @@ export const metadata: Metadata = {
     siteName: "MundoTech",
     title: "MundoTech | Tecnología en Barquisimeto, Venezuela",
     description:
-      "Tecnología y gadgets en Barquisimeto. USD/Bs., garantía real y envíos a toda Venezuela.",
+      "Tecnología y gadgets en Barquisimeto. USD/Bs., retiro en tienda y envíos a toda Venezuela.",
   },
   twitter: {
     card: "summary_large_image",
     title: "MundoTech | Tecnología en Barquisimeto, Venezuela",
     description:
-      "Tecnología y gadgets en Barquisimeto. Garantía real y envíos a toda Venezuela.",
+      "Tecnología y gadgets en Barquisimeto. Retiro en tienda y envíos a toda Venezuela.",
   },
   robots: {
     index: true,
@@ -144,7 +144,7 @@ export default async function RootLayout({
       email: settings.email,
       phone: settings.phone,
       description:
-        "Tecnología y gadgets en Lara y Barquisimeto. Envíos nacionales, USD/Bs., garantía oficial.",
+        "Tecnología y gadgets en Lara y Barquisimeto. Envíos por MRW, Zoom y Tealca, USD/Bs., retiro en tienda.",
       sameAs,
     }),
     // H29/P24: mismo @id en todas las páginas — una sola entidad local.

@@ -32,8 +32,9 @@ export function OrderDeliveredEmail({ customerName, orderRef }: Props) {
           ¡Tu pedido llegó! Que lo disfrutes
         </Text>
         <Text style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: MT.textMuted }}>
-          Recuerda que tienes 7 días para reportar cualquier detalle de fábrica
-          y 12 meses de garantía directa con nosotros. Si algo no cuadra,
+          Recuerda que tienes 7 días de garantía en electrónica general (no aplica
+          a electrónica para vehículos ni a productos no electrónicos). Para
+          hacerla válida, conserva tu factura y la caja original. Si algo no cuadra,
           responde a este correo y lo resolvemos.
         </Text>
       </Section>

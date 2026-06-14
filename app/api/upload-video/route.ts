@@ -24,12 +24,46 @@ import {
 } from '@/lib/r2';
 import { prisma } from '@/lib/prisma';
 import { readFile } from 'fs/promises';
+import { deleteFromR2, keyFromR2PublicUrl } from '@/lib/r2';
+import { z } from 'zod';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 const MAX_BYTES = 95 * 1024 * 1024; // 95 MB — debajo del límite Cloudflare 100 MB
 const STALE_JOB_MS = 10 * 60_000;
+
+const deleteVideoSchema = z.object({
+  url: z.string().url(),
+  posterUrl: z.string().url().optional(),
+});
+
+async function safeDeleteR2Key(key: string, label: string): Promise<void> {
+  try {
+    await deleteFromR2(key);
+  } catch (err) {
+    console.error(`[upload-video] DELETE R2 failed (${label}):`, err);
+  }
+}
+
+async function deleteVideoAssets(url: string, posterUrl?: string): Promise<void> {
+  const videoKey = keyFromR2PublicUrl(url);
+  if (videoKey) await safeDeleteR2Key(videoKey, 'video');
+
+  if (posterUrl) {
+    const posterKey = keyFromR2PublicUrl(posterUrl);
+    if (posterKey) await safeDeleteR2Key(posterKey, 'poster');
+  }
+
+  try {
+    await prisma.videoJob.updateMany({
+      where: { videoUrl: url },
+      data: { status: 'DELETED' },
+    });
+  } catch (err) {
+    console.error('[upload-video] DELETE VideoJob mark failed:', err);
+  }
+}
 
 /** Marca trabajos PROCESSING antiguos como FAILED (reinicio del servidor o timeout). */
 async function markStaleVideoJobsFailed(): Promise<void> {
@@ -210,5 +244,36 @@ export async function POST(request: Request) {
     const message =
       err instanceof Error ? err.message : 'Error al subir el video.';
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  if (!verifySameOrigin(request)) {
+    return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
+  }
+
+  const auth = await requireAdmin();
+  if (!auth.authorized) return auth.response;
+
+  const ip = getClientIp(request);
+  if (await rateLimit(`admin-delete-video:${ip}`, { limit: 30, windowMs: 10 * 60_000 })) {
+    return NextResponse.json(
+      { error: 'Demasiadas solicitudes. Espera unos minutos.' },
+      { status: 429 },
+    );
+  }
+
+  try {
+    const body: unknown = await request.json();
+    const parsed = deleteVideoSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Datos inválidos.' }, { status: 400 });
+    }
+
+    await deleteVideoAssets(parsed.data.url, parsed.data.posterUrl);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error('[upload-video] DELETE error:', err);
+    return NextResponse.json({ error: 'Error al eliminar el video.' }, { status: 500 });
   }
 }

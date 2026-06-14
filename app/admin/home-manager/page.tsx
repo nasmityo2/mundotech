@@ -43,23 +43,23 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_BENEFITS: BenefitItem[] = [
-  { title: 'Envío rápido',     sub: 'Entrega segura y trackeable' },
-  { title: 'Garantía oficial', sub: 'Productos 100% originales'   },
-  { title: 'Soporte 24/7',     sub: 'Atención personalizada'      },
-  { title: 'Pago seguro',      sub: 'Pago Móvil · Transferencia'  },
+  { title: 'Envíos nacionales', sub: 'MRW, Zoom y Tealca (cobro a destino)' },
+  { title: 'Garantía 7 días',   sub: 'En electrónica general, con factura'   },
+  { title: 'Soporte 24/7',      sub: 'Atención personalizada'                },
+  { title: 'Pago seguro',       sub: 'Pago Móvil · Transferencia'            },
 ];
 
 const DEFAULT_FLASH: FlashConfig = { title: 'Ofertas MundoTech', endHour: 23 };
 
 const DEFAULT_SHELVES: ShelvesConfig = {
-  bestsellers:  { title: 'Lo más vendido en MundoTech',  badge: 'Más vendidos',    subtitle: 'Productos destacados con respaldo oficial.' },
+  bestsellers:  { title: 'Lo más vendido en MundoTech',  badge: 'Más vendidos',    subtitle: 'Productos destacados de la tienda.' },
   newest:       { title: 'Novedades en tecnología',       badge: 'Recién llegados', subtitle: '' },
   recommended:  { title: 'Selección MundoTech',           badge: 'Recomendados',    subtitle: 'Elegidos por nuestro equipo — calidad garantizada.' },
 };
 
 const PROMO_DEFAULTS = [
   { order: 1, title: 'Hasta 30%\nde descuento', subtitle: 'En consolas, gadgets y tech seleccionados', discountText: 'Hasta 30%', bgColor: '#FFD700', link: '/productos', active: true, imageUrl: null, subtitle_ph: 'Descripción de la oferta' },
-  { order: 2, title: 'Garantía Oficial',          subtitle: 'Todos los productos con respaldo de fábrica',    discountText: '', bgColor: '#1A202C', link: '/productos', active: true, imageUrl: null, subtitle_ph: 'Subtítulo banner navy' },
+  { order: 2, title: 'Garantía 7 días',           subtitle: 'En electrónica general, con factura y caja',     discountText: '', bgColor: '#1A202C', link: '/productos', active: true, imageUrl: null, subtitle_ph: 'Subtítulo banner navy' },
   { order: 3, title: '¡Nuevos Ingresos!',          subtitle: 'Descubre los últimos productos disponibles',   discountText: '', bgColor: '#48BB78', link: '/productos', active: true, imageUrl: null, subtitle_ph: 'Subtítulo banner verde' },
 ];
 

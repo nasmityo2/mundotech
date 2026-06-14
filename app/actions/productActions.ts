@@ -13,6 +13,7 @@ import { parseProductSpecs } from '@/lib/definitions';
 import { saveSlugRedirect } from '@/lib/slug-redirects';
 import { d, dn } from '@/lib/decimal';
 import { PRODUCT_CARD_SELECT, PRODUCT_ADMIN_SELECT } from '@/lib/product-select';
+import { deleteFromR2, isR2PublicUrl, keyFromR2PublicUrl } from '@/lib/r2';
 
 const absoluteUrl = z.string().refine(
   (s) => {
@@ -86,6 +87,58 @@ const productSchema = z.object({
 
 async function verifyAdminSession() {
   return requireAdminAction();
+}
+
+async function safeDeleteR2ByUrl(url: string, context: string): Promise<void> {
+  const key = keyFromR2PublicUrl(url);
+  if (!key) return;
+  try {
+    await deleteFromR2(key);
+  } catch (err) {
+    console.error(`[${context}] R2 delete failed for ${url}:`, err);
+  }
+}
+
+async function markVideoJobDeleted(videoUrl: string, context: string): Promise<void> {
+  try {
+    await prisma.videoJob.updateMany({
+      where: { videoUrl },
+      data: { status: 'DELETED' },
+    });
+  } catch (err) {
+    console.error(`[${context}] VideoJob mark DELETED failed for ${videoUrl}:`, err);
+  }
+}
+
+/** Borra de R2 los medios eliminados tras un update exitoso (best-effort). */
+async function cleanupRemovedProductMedia(
+  previousMedia: { type: ProductMediaType; url: string; posterUrl: string | null }[],
+  previousImages: string[],
+  incomingSlots: z.infer<typeof gallerySlotSchema>[],
+): Promise<void> {
+  const incomingUrls = new Set(incomingSlots.map((s) => s.url));
+
+  for (const prev of previousMedia) {
+    if (incomingUrls.has(prev.url)) continue;
+
+    if (prev.type === ProductMediaType.VIDEO) {
+      await safeDeleteR2ByUrl(prev.url, 'updateProductAction');
+      if (prev.posterUrl) await safeDeleteR2ByUrl(prev.posterUrl, 'updateProductAction');
+      await markVideoJobDeleted(prev.url, 'updateProductAction');
+    } else if (isR2PublicUrl(prev.url)) {
+      await safeDeleteR2ByUrl(prev.url, 'updateProductAction');
+    }
+  }
+
+  const incomingImageUrls = new Set(
+    incomingSlots.filter((s) => s.type === 'IMAGE').map((s) => s.url),
+  );
+  for (const imgUrl of previousImages) {
+    if (incomingImageUrls.has(imgUrl)) continue;
+    if (isR2PublicUrl(imgUrl)) {
+      await safeDeleteR2ByUrl(imgUrl, 'updateProductAction');
+    }
+  }
 }
 
 /** Genera un slug único para un nuevo producto consultando la BD. */
@@ -199,9 +252,17 @@ export async function updateProductAction(productId: string, formData: FormData)
 
     const current = await prisma.product.findUnique({
       where:  { id: productId },
-      select: { name: true, slug: true, stock: true, images: true },
+      select: {
+        name: true,
+        slug: true,
+        stock: true,
+        images: true,
+        media: { select: { type: true, url: true, posterUrl: true } },
+      },
     });
     const previousStock = current?.stock ?? 0;
+    const previousMedia = current?.media ?? [];
+    const previousImages = current?.images ?? [];
 
     const slug = (current?.name !== validated.data.name || !current?.slug)
       ? await getUniqueSlug(validated.data.name, productId)
@@ -229,6 +290,8 @@ export async function updateProductAction(productId: string, formData: FormData)
         },
       });
     });
+
+    await cleanupRemovedProductMedia(previousMedia, previousImages, slots);
 
     // Notificar suscriptores si el producto pasó de agotado a disponible
     if (previousStock === 0 && validated.data.stock > 0) {

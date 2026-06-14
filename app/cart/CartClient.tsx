@@ -66,7 +66,7 @@ const CartClient = () => {
           <h2 className="text-xl font-semibold text-navy">Tu carrito está vacío</h2>
           <p className="mt-2 text-sm text-slate-500 max-w-sm mx-auto">
             Cuando agregues productos aparecerán aquí. Explora nuestro catálogo y encuentra
-            tecnología premium con garantía oficial.
+            tecnología para tu día a día.
           </p>
           <Link
             href="/productos"
@@ -231,7 +231,7 @@ const CartClient = () => {
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-5 space-y-3">
                 {[
                   { icon: ShieldCheck, label: 'Pago Móvil · Transferencia · Binance', sub: 'Verificamos tu pago y te confirmamos por correo' },
-                  { icon: Truck,       label: 'Delivery en Barquisimeto en 24h',      sub: 'Y a todo el país por MRW o Zoom' },
+                  { icon: Truck,       label: 'Delivery gratis en Barquisimeto',      sub: 'Centro y Este. Envíos por MRW, Zoom y Tealca (cobro a destino)' },
                 ].map((trust) => (
                   <div key={trust.label} className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">

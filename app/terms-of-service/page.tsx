@@ -86,10 +86,15 @@ export default async function TermsOfServicePage() {
 
       <h2>7. Garantía y cambios</h2>
       <p>
-        Los productos nuevos cuentan con la garantía del fabricante cuando así corresponda. Para
-        defectos de fábrica o inconformidades cubiertas por política de la tienda, podrás solicitar el
-        cambio o la gestión según los canales de atención indicados. Las políticas específicas de
-        devolución pueden complementarse en comunicaciones posteriores a la compra.
+        La garantía de MundoTech aplica según la categoría del producto: electrónica en general
+        tiene 7 días de garantía de la tienda (no de fábrica); la electrónica para vehículos y
+        los productos no electrónicos no tienen garantía. Para hacerla válida, el producto debe
+        devolverse con su factura y su caja o empaque original. Los detalles completos están en
+        nuestra{' '}
+        <Link href="/devoluciones" className="text-navy underline underline-offset-2">
+          política de devoluciones y garantía
+        </Link>
+        .
       </p>
 
       <h2>8. Propiedad intelectual</h2>

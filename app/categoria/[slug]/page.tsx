@@ -82,7 +82,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   // P85: descripción única por categoría, o fallback genérico.
   const description = category.description
     ? category.description
-    : `Compra ${category.name} al mejor precio de Venezuela en MundoTech Barquisimeto. Pagas en USD o Bs, con garantía real, retiro en tienda y envío seguro a todo el país.`;
+    : `Compra ${category.name} al mejor precio de Venezuela en MundoTech Barquisimeto. Pagas en USD o Bs, retiro en tienda y envíos por MRW, Zoom y Tealca a todo el país.`;
   const socialImage = category.imageUrl || `${SITE_URL}/og-default.png`;
 
   return {
@@ -275,7 +275,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
             <p className="mt-2 text-[13px] sm:text-sm text-slate-500 max-w-2xl">
               Los mejores productos de <strong>{category.name}</strong> en MundoTech,
               líderes en tecnología en el estado Lara, Barquisimeto. Precio en USD y Bs.,
-              garantía oficial y envío seguro a todo Venezuela.
+              retiro en tienda y envíos por MRW, Zoom y Tealca.
             </p>
           )}
 

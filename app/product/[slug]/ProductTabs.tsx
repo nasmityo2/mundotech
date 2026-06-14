@@ -136,20 +136,23 @@ function ShippingPanel() {
       <div className="space-y-4 text-[15px] text-slate-600 leading-relaxed">
         <div className="grid sm:grid-cols-2 gap-4">
           <div className="bg-slate-50 rounded-2xl p-4">
-            <p className="text-sm font-semibold text-navy mb-1">Despacho 24-48 hs</p>
-            <p className="text-[13px] text-slate-500">Una vez confirmado el pago. Trackeable.</p>
+            <p className="text-sm font-semibold text-navy mb-1">Delivery gratis</p>
+            <p className="text-[13px] text-slate-500">Centro y Este de Barquisimeto (condiciones aplican).</p>
           </div>
           <div className="bg-slate-50 rounded-2xl p-4">
-            <p className="text-sm font-semibold text-navy mb-1">Devolución 7 días</p>
-            <p className="text-[13px] text-slate-500">Si llega con defectos o no es lo esperado.</p>
+            <p className="text-sm font-semibold text-navy mb-1">MRW, Zoom y Tealca</p>
+            <p className="text-[13px] text-slate-500">Cobro a destino — pagas el flete al recibir.</p>
           </div>
           <div className="bg-slate-50 rounded-2xl p-4">
-            <p className="text-sm font-semibold text-navy mb-1">Cobertura nacional</p>
-            <p className="text-[13px] text-slate-500">MRW, Tealca y otros couriers a tu ciudad.</p>
+            <p className="text-sm font-semibold text-navy mb-1">Retiro en tienda</p>
+            <p className="text-[13px] text-slate-500">Gratis en Carrera 21, Centro Barquisimeto.</p>
           </div>
           <div className="bg-slate-50 rounded-2xl p-4">
-            <p className="text-sm font-semibold text-navy mb-1">Garantía oficial</p>
-            <p className="text-[13px] text-slate-500">Productos originales con respaldo del fabricante.</p>
+            <p className="text-sm font-semibold text-navy mb-1">Garantía de 7 días</p>
+            <p className="text-[13px] text-slate-500">
+              En electrónica general (tienda, no fábrica). Sin garantía en electrónica para vehículos
+              ni en productos no electrónicos. Requiere factura y caja original.
+            </p>
           </div>
         </div>
       </div>

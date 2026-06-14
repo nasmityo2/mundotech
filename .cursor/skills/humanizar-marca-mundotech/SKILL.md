@@ -42,8 +42,8 @@ Ciudad:          Barquisimeto, estado Lara
 | "Ver más productos" | "Explorar todo el catálogo" |
 | "Soporte 24/7" | "WhatsApp directo con el equipo" |
 | "Oferta especial" | "Tremendo precio" / "Lo más pedido" |
-| "Garantía oficial" | "12 meses de garantía directa" |
-| "Envío seguro" | "Delivery en Barquisimeto en 24h" |
+| "Garantía oficial" | "Garantía → 7 días en electrónica general (con factura y caja); sin garantía en electrónica de carro y no electrónicos" |
+| "Envío seguro" | "Envíos → MRW, Zoom y Tealca (cobro a destino); delivery gratis en Barquisimeto (Centro y Este)" |
 | "Productos relacionados" | "También te puede interesar" |
 | "Pago 100% seguro" | "Pago Móvil · Transferencia · Binance" |
 

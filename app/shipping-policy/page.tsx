@@ -9,7 +9,7 @@ const PAGE_URL = `${SITE_URL}/shipping-policy`;
 export const metadata: Metadata = {
   title: 'Envíos',
   description:
-    'Política de envíos de MundoTech Barquisimeto: cobertura nacional por MRW o Zoom, tiempos de despacho tras validar el pago, costos según destino y seguimiento.',
+    'Política de envíos de MundoTech Barquisimeto: cobertura nacional por MRW, Zoom y Tealca (cobro a destino), delivery gratis en Barquisimeto (Centro y Este), retiro en tienda.',
   alternates: { canonical: PAGE_URL },
   robots: { index: true, follow: true },
 };
@@ -35,8 +35,10 @@ export default async function ShippingPolicyPage() {
 
       <h2>1. Cobertura</h2>
       <p>
-        Atendemos envíos con cobertura nacional; algunas zonas remotas pueden requerir coordinación adicional,
-        tiempo extra o uso de punto de encuentro autorizado si el courier no llega hasta la última milla.
+        Atendemos envíos con cobertura nacional a través de <strong>MRW</strong>,{' '}
+        <strong>Zoom</strong> y <strong>Tealca</strong>. Algunas zonas remotas pueden requerir
+        coordinación adicional, tiempo extra o uso de punto de encuentro autorizado si el courier
+        no llega hasta la última milla.
       </p>
 
       <h2>2. Prepago del pedido</h2>
@@ -54,9 +56,22 @@ export default async function ShippingPolicyPage() {
 
       <h2>4. Coste de envío</h2>
       <p>
-        Los montos de envío (si aplica) se informan en el proceso de compra o por nuestro equipo según
-        destino y peso/volumen. Los precios del catálogo pueden mostrarse en USD con conversión a Bs. según
-        la tasa vigente al momento de la compra.
+        <strong>Envíos nacionales (MRW, Zoom y Tealca):</strong> el flete se paga con{' '}
+        <strong>cobro a destino</strong> — tú pagas el envío al recibir el paquete en la oficina del
+        courier o en tu domicilio, según el operador.
+      </p>
+      <p>
+        <strong>Delivery gratis en Barquisimeto:</strong> ofrecemos delivery sin costo en la zona{' '}
+        <strong>Centro y Este</strong> de Barquisimeto. Aplican ciertas condiciones según el pedido;
+        confírmalo con nuestro equipo antes o después de pagar.
+      </p>
+      <p>
+        <strong>Retiro en tienda:</strong> gratis en Carrera 21 con esquina calle 21, Centro,
+        Barquisimeto 3001. Compra por la web y recoge cuando te convenga.
+      </p>
+      <p>
+        Los precios del catálogo pueden mostrarse en USD con conversión a Bs. según la tasa vigente
+        al momento de la compra.
       </p>
 
       <h2>5. Contacto</h2>

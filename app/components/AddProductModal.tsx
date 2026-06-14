@@ -48,6 +48,17 @@ const MAX_VIDEO_BYTES = 95 * 1024 * 1024;
 const inputCls = "appearance-none border border-gray-200 bg-gray-50 w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-1 focus:ring-navy/30 focus:border-navy rounded-md";
 const labelCls = "block text-gray-700 text-sm font-bold mb-1";
 
+type SessionVideo = { url: string; posterUrl?: string };
+
+function deleteOrphanVideo(url: string, posterUrl?: string, keepalive = false): void {
+  void fetch('/api/upload-video', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, posterUrl }),
+    keepalive,
+  });
+}
+
 export default function AddProductModal({ isOpen, onClose, product }: AddProductModalProps) {
   const [isPending, startTransition] = useTransition();
   const formRef        = useRef<HTMLFormElement>(null);
@@ -57,6 +68,8 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
   const [slots, setSlots] = useState<GallerySlot[]>([]);
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
+  const originalProductVideoUrlsRef = useRef<Set<string>>(new Set());
+  const sessionUploadedVideosRef = useRef<SessionVideo[]>([]);
   const [serverUploading, setServerUploading] = useState(false);
   const [specs, setSpecs] = useState<ProductSpec[]>([]);
   // Bloquear scroll del body con modal abierto
@@ -78,6 +91,12 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
       el.brand.value       = product.brand;
       el.sku.value         = product.sku ?? '';
       setSpecs(parseProductSpecs(product.specs));
+      originalProductVideoUrlsRef.current = new Set(
+        (product.media ?? [])
+          .filter((m) => m.type === 'VIDEO')
+          .map((m) => m.url),
+      );
+      sessionUploadedVideosRef.current = [];
       if (product.media && product.media.length > 0) {
         setSlots(
           [...product.media]
@@ -101,6 +120,8 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
       formRef.current.reset();
       setSlots([]);
       setSpecs([]);
+      originalProductVideoUrlsRef.current = new Set();
+      sessionUploadedVideosRef.current = [];
     }
   }, [product, isOpen]);
 
@@ -182,7 +203,18 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
   }, []);
 
   const removeSlot = (idx: number) => {
+    const slot = slots[idx];
     setSlots((prev) => prev.filter((_, i) => i !== idx));
+    if (slot?.type === 'VIDEO') {
+      const isOriginal = originalProductVideoUrlsRef.current.has(slot.url);
+      const isSessionUpload = sessionUploadedVideosRef.current.some((v) => v.url === slot.url);
+      if (isSessionUpload && !isOriginal) {
+        deleteOrphanVideo(slot.url, slot.posterUrl);
+        sessionUploadedVideosRef.current = sessionUploadedVideosRef.current.filter(
+          (v) => v.url !== slot.url,
+        );
+      }
+    }
   };
 
   const uploadFilesViaApi = useCallback(async (files: FileList | null) => {
@@ -254,6 +286,10 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
           },
         ].slice(0, MAX_SLOTS),
       );
+      sessionUploadedVideosRef.current.push({
+        url: data.url!,
+        posterUrl: data.posterUrl,
+      });
     } finally {
       setServerUploading(false);
     }
@@ -268,14 +304,43 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
     });
   };
 
+  const hasProcessingVideo = slots.some(
+    (s) => s.type === 'VIDEO' && s.status === 'processing',
+  );
+  const hasFailedVideo = slots.some(
+    (s) => s.type === 'VIDEO' && s.status === 'failed',
+  );
+
+  const handleClose = useCallback(() => {
+    for (const v of sessionUploadedVideosRef.current) {
+      if (!originalProductVideoUrlsRef.current.has(v.url)) {
+        deleteOrphanVideo(v.url, v.posterUrl, true);
+      }
+    }
+    sessionUploadedVideosRef.current = [];
+    onClose();
+  }, [onClose]);
+
+  const handleSubmitAttempt = useCallback(() => {
+    if (hasProcessingVideo) {
+      alert('Espera a que el video termine de procesarse antes de guardar.');
+      return;
+    }
+    if (hasFailedVideo) {
+      alert('Quita o reemplaza los videos con error antes de guardar.');
+      return;
+    }
+    formRef.current?.requestSubmit();
+  }, [hasProcessingVideo, hasFailedVideo]);
+
   if (!isOpen) return null;
 
   return (
     <div
       className="fixed z-50 inset-0 flex sm:items-center sm:justify-center"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
 
       <div
         className="relative z-10 bg-white text-left shadow-2xl w-full sm:w-[640px] sm:max-w-[95vw] sm:my-6 sm:rounded-2xl flex flex-col max-h-[100dvh] sm:max-h-[88vh]"
@@ -291,7 +356,7 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
           </h3>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Cerrar"
             className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100"
           >
@@ -486,23 +551,29 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
             {/* ── Formulario ──────────────────────────────────────── */}
             <form
               ref={formRef}
-              action={async (formData) => {
-                const hasProcessing = slots.some(
-                  (s) => s.type === 'VIDEO' && s.status === 'processing',
-                );
-                if (hasProcessing) {
+              onSubmit={(e) => {
+                if (hasProcessingVideo) {
+                  e.preventDefault();
                   alert('Espera a que el video termine de procesarse antes de guardar.');
                   return;
                 }
-                const hasFailed = slots.some(
-                  (s) => s.type === 'VIDEO' && s.status === 'failed',
-                );
-                if (hasFailed) {
+                if (hasFailedVideo) {
+                  e.preventDefault();
+                  alert('Quita o reemplaza los videos con error antes de guardar.');
+                }
+              }}
+              action={async (formData) => {
+                const currentSlots = slotsRef.current;
+                if (currentSlots.some((s) => s.type === 'VIDEO' && s.status === 'processing')) {
+                  alert('Espera a que el video termine de procesarse antes de guardar.');
+                  return;
+                }
+                if (currentSlots.some((s) => s.type === 'VIDEO' && s.status === 'failed')) {
                   alert('Quita o reemplaza los videos con error antes de guardar.');
                   return;
                 }
 
-                const mediaForSave: ProductGalleryItem[] = slots.map((s) => {
+                const mediaForSave: ProductGalleryItem[] = currentSlots.map((s) => {
                   if (s.type === 'VIDEO') {
                     return { type: 'VIDEO' as const, url: s.url, posterUrl: s.posterUrl };
                   }
@@ -518,6 +589,7 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
                     : createProductAction;
                   const result = await action(formData);
                   if (result.success) {
+                    sessionUploadedVideosRef.current = [];
                     onClose();
                     if (!product) formRef.current?.reset();
                   } else {
@@ -644,7 +716,7 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
         >
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isPending}
             className="flex-1 min-h-[52px] rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-semibold active:bg-gray-100 transition"
           >
@@ -652,11 +724,17 @@ export default function AddProductModal({ isOpen, onClose, product }: AddProduct
           </button>
           <button
             type="button"
-            onClick={() => formRef.current?.requestSubmit()}
-            disabled={isPending}
+            onClick={handleSubmitAttempt}
+            disabled={isPending || hasProcessingVideo}
             className="flex-[2] min-h-[52px] rounded-xl bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase tracking-wide active:bg-yellow-300 transition disabled:opacity-60 inline-flex items-center justify-center"
           >
-            {isPending ? 'Guardando…' : product ? 'Guardar cambios' : 'Crear producto'}
+            {isPending
+              ? 'Guardando…'
+              : hasProcessingVideo
+                ? 'Procesando video…'
+                : product
+                  ? 'Guardar cambios'
+                  : 'Crear producto'}
           </button>
         </div>
       </div>

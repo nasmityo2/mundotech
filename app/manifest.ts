@@ -14,7 +14,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     short_name: settings.storeName,
     description:
       settings.tagline ||
-      'Tecnología y gadgets en Barquisimeto. Precios USD/Bs., garantía oficial y envío seguro a toda Venezuela.',
+      'Tecnología y gadgets en Barquisimeto. Precios USD/Bs., retiro en tienda y envíos por MRW, Zoom y Tealca.',
     start_url: '/',
     scope: '/',
     display: 'standalone',

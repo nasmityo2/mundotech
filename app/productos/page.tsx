@@ -67,13 +67,13 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   return {
     title,
     description:
-      'Catálogo de MundoTech Barquisimeto: gadgets, consolas, audio, computación y accesorios con garantía real. Pagas en USD o Bs y recibes en toda Venezuela.',
+      'Catálogo de MundoTech Barquisimeto: gadgets, consolas, audio, computación y accesorios. Pagas en USD o Bs y recibes en toda Venezuela.',
     alternates: { canonical: canonicalUrl },
     robots: { index: true, follow: true },
     openGraph: {
       title: `${title} | MundoTech`,
       description:
-        'Gadgets, consolas, audio y accesorios en Barquisimeto. USD/Bs., garantía real.',
+        'Gadgets, consolas, audio y accesorios en Barquisimeto. USD/Bs., retiro en tienda y envíos nacionales.',
       url: canonicalUrl,
       siteName: 'MundoTech',
       locale: 'es_VE',
@@ -150,7 +150,7 @@ export default async function ProductosPage({ searchParams }: PageProps) {
             </h1>
             <p className="text-[13px] sm:text-sm text-slate-500 mt-2 max-w-xl">
               Filtra por categoría, ordena por precio y encuentra exactamente lo que buscas.
-              Garantía oficial y entrega segura en cada compra desde Barquisimeto, Venezuela.
+              Compra desde Barquisimeto con retiro en tienda o envío nacional.
             </p>
           </div>
         </div>

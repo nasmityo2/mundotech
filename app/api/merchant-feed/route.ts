@@ -112,7 +112,7 @@ export async function GET() {
 
       const desc = escapeXml(
         stripHtml(p.description) ||
-          `${p.name} — disponible en ${settings.storeName} Barquisimeto. Garantía real, envío seguro a toda Venezuela.`,
+          `${p.name} — disponible en ${settings.storeName} Barquisimeto. Compra con factura.`,
       );
 
       // google_product_category: prioridad al override definido por el admin en

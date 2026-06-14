@@ -187,8 +187,8 @@ export default async function NosotrosPage() {
               },
               {
                 icon: Truck,
-                title: 'Delivery rápido en la ciudad',
-                desc: 'Y envíos a todo el país por MRW o Zoom, con número de seguimiento.',
+                title: 'Retira o recibe',
+                desc: 'Retiro en tienda gratis, delivery gratis en Barquisimeto (Centro y Este) y envíos por MRW, Zoom y Tealca (cobro a destino).',
               },
             ].map(({ icon: Icon, title, desc }) => (
               <div key={title} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-soft">
@@ -292,7 +292,7 @@ export default async function NosotrosPage() {
               {
                 step: '3',
                 title: 'Retira o recibe',
-                desc: 'Retiro en tienda el mismo día, delivery en Barquisimeto o envío nacional con tracking.',
+                desc: 'Retiro en tienda el mismo día, delivery gratis en Barquisimeto (Centro y Este) o envío nacional por MRW, Zoom y Tealca.',
               },
             ].map(({ step, title, desc }) => (
               <div key={step} className="text-center">

@@ -262,7 +262,7 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
             {/* ── Footer ──────────────────────────────────────────── */}
             <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex-shrink-0">
               <p className="text-[11px] text-slate-500 text-center">
-                Tecnología premium · Garantía oficial
+                Tecnología · Garantía 7 días en electrónica
               </p>
             </div>
           </motion.aside>
