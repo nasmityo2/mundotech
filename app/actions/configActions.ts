@@ -2,7 +2,6 @@
 
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { isAdminRole } from '@/lib/api-auth';
@@ -11,6 +10,7 @@ import {
   EXCHANGE_RATE_APP_CONFIG_KEY,
   parseExchangeRateFromConfigValue,
 } from '@/lib/exchange-rate';
+import { persistExchangeRate } from '@/lib/persist-exchange-rate';
 
 const exchangeRateSchema = z
   .number({ error: 'La tasa debe ser un número.' })
@@ -41,22 +41,7 @@ export async function updateExchangeRate(rate: unknown) {
     return { success: false, message: parsed.error.issues[0]?.message ?? 'Tasa inválida.' };
   }
 
-  await prisma.appConfig.upsert({
-    where:  { key: EXCHANGE_RATE_APP_CONFIG_KEY },
-    update: { value: parsed.data.toString() },
-    create: { key: EXCHANGE_RATE_APP_CONFIG_KEY, value: parsed.data.toString() },
-  });
-
-  // PRD-142: la tasa afecta TODAS las páginas ISR con precios. El layout-level
-  // invalida el árbol completo y las entradas 'page' cubren explícitamente las
-  // rutas dinámicas pre-renderizadas (ficha de producto y categorías).
-  revalidatePath('/', 'layout');
-  revalidatePath('/');
-  revalidatePath('/productos');
-  revalidatePath('/buscar');
-  revalidatePath('/admin/settings');
-  revalidatePath('/product/[slug]', 'page');
-  revalidatePath('/categoria/[slug]', 'page');
+  await persistExchangeRate(parsed.data);
 
   return { success: true, message: `Tasa actualizada a Bs. ${parsed.data.toFixed(2)}/USD.` };
 }

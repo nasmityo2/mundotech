@@ -1,10 +1,26 @@
 import type { Prisma } from '@prisma/client';
 
 export const EXCHANGE_RATE_APP_CONFIG_KEY = 'exchange_rate_usd_bs';
+export const EXCHANGE_RATE_BCV_DATE_KEY = 'exchange_rate_bcv_date';
 export const DEFAULT_EXCHANGE_RATE_USD_BS = 36.5;
 
 /** Número decimal positivo COMPLETO (acepta coma o punto). Nada de sufijos basura. */
-const EXCHANGE_RATE_VALUE_REGEX = /^\d{1,7}(?:[.,]\d{1,6})?$/;
+export const EXCHANGE_RATE_VALUE_REGEX = /^\d{1,7}(?:[.,]\d{1,6})?$/;
+
+/**
+ * Parseo estricto para fuentes externas (BCV): devuelve null si el valor no es
+ * un número positivo completo — sin fallback silencioso al default.
+ */
+export function tryParseExchangeRateFromString(value: string | null | undefined): number | null {
+  if (value == null || value === '') return null;
+
+  const trimmed = value.trim();
+  if (!EXCHANGE_RATE_VALUE_REGEX.test(trimmed)) return null;
+
+  const parsed = Number(trimmed.replace(',', '.'));
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
 
 /**
  * PRD-203: validación estricta del valor persistido. `parseFloat` aceptaba

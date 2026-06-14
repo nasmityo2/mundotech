@@ -42,7 +42,23 @@ function Field({ label, value, onChange, type = 'text', placeholder }: {
   );
 }
 
-export default function SettingsClient({ initial }: { initial: StoreSettings }) {
+function formatBcvDate(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return parsed.toLocaleDateString('es-VE', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+export default function SettingsClient({
+  initial,
+  bcvDate,
+}: {
+  initial: StoreSettings;
+  bcvDate: string | null;
+}) {
   const router = useRouter();
 
   const [settings, setSettings] = useState<StoreSettings>(initial);
@@ -139,6 +155,11 @@ export default function SettingsClient({ initial }: { initial: StoreSettings }) 
               <p className="text-lg font-bold text-yellow-900">
                 {currentRate !== null ? `Bs. ${currentRate.toFixed(2)} / USD` : '—'}
               </p>
+              {bcvDate && (
+                <p className="text-xs text-yellow-600 mt-0.5">
+                  Tasa BCV del {formatBcvDate(bcvDate)}
+                </p>
+              )}
             </div>
           </div>
           <p className="text-xs text-gray-500">
