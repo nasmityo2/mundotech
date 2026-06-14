@@ -38,12 +38,12 @@ export default function AdminCategoriesPage() {
 
   const fetchCategories = async () => {
     setLoading(true);
-    const res = await fetch('/api/categories');
+    const res = await fetch(`/api/categories?t=${Date.now()}`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       // Enriquecer con productCount (vía API de productos)
       try {
-        const productsRes = await fetch('/api/products?perPage=500');
+        const productsRes = await fetch(`/api/products?perPage=500&t=${Date.now()}`, { cache: 'no-store' });
         if (productsRes.ok) {
           const products = await productsRes.json();
           const list = Array.isArray(products) ? products : (products?.products ?? []);
