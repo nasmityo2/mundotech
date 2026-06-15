@@ -25,6 +25,17 @@ const statusConfig = {
   Cancelado:    { label: 'Cancelado',  variant: 'danger'  },
 } satisfies Record<OrderStatus, { label: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'neutral' }>;
 
+const PROGRESS_LABELS = ['Pedido recibido', 'Pago confirmado', 'En preparación', 'En camino', 'Entregado'];
+
+function orderStepIndex(o: Order): number {
+  switch (o.status) {
+    case 'Entregado':  return 4;
+    case 'Enviado':    return 3;
+    case 'En Proceso': return 2;
+    default:           return o.paidAt ? 1 : 0;
+  }
+}
+
 export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) {
   const router = useRouter();
   const [guestRef, setGuestRef] = useState('');
@@ -108,6 +119,7 @@ export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) 
           const itemCount = order.items.reduce((acc, item) => acc + item.quantity, 0);
           const previewNames = order.items.slice(0, 2).map((i) => i.productName).join(', ');
           const hasMore = order.items.length > 2;
+          const stepIdx = orderStepIndex(order);
 
           return (
             <button
@@ -150,6 +162,21 @@ export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) 
                   <ChevronRight size={18} className="text-slate-300 group-hover:text-navy group-hover:translate-x-1 transition-all" />
                 </div>
               </div>
+              {order.status !== 'Cancelado' && (
+                <div className="mt-4">
+                  <div className="flex items-center gap-1">
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <span
+                        key={i}
+                        className={`h-1.5 flex-1 rounded-full transition-colors ${i <= stepIdx ? 'bg-navy' : 'bg-slate-200'}`}
+                      />
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[11px] font-medium text-slate-500">
+                    {PROGRESS_LABELS[stepIdx]}
+                  </p>
+                </div>
+              )}
             </button>
           );
         })}

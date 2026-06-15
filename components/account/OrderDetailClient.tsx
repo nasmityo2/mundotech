@@ -36,15 +36,23 @@ const statusConfig = {
 } satisfies Record<OrderStatus, { label: string; variant: 'warning' | 'info' | 'success' | 'danger' | 'neutral' }>;
 
 const timelineSteps = [
-  { id: 'Pendiente',    label: 'Pedido recibido',  icon: CheckCircle2 },
-  { id: 'En Proceso',   label: 'En preparación',   icon: Package      },
-  { id: 'Enviado',      label: 'En camino',        icon: Send         },
-  { id: 'Entregado',    label: 'Entregado',        icon: Home         },
+  { id: 'received',  label: 'Pedido recibido', icon: CheckCircle2 },
+  { id: 'paid',      label: 'Pago confirmado', icon: CreditCard   },
+  { id: 'preparing', label: 'En preparación',  icon: Package      },
+  { id: 'shipped',   label: 'En camino',       icon: Send         },
+  { id: 'delivered', label: 'Entregado',       icon: Home         },
 ];
 
-const timelineIndex = (status: string) => {
-  const idx = timelineSteps.findIndex((s) => s.id === status);
-  return idx === -1 ? 0 : idx;
+// Mapea estado + paidAt al índice del paso alcanzado. 'En Proceso' implica pago
+// confirmado (índice 2). Si el pago ya se validó (paidAt) pero el estado sigue
+// 'Pendiente', mostramos al menos 'Pago confirmado'.
+const currentTimelineStep = (o: { status: OrderStatus; paidAt?: string | null }): number => {
+  switch (o.status) {
+    case 'Entregado':  return 4;
+    case 'Enviado':    return 3;
+    case 'En Proceso': return 2;
+    default:           return o.paidAt ? 1 : 0;
+  }
 };
 
 export default function OrderDetailClient({ order }: OrderDetailClientProps) {
@@ -56,7 +64,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
   const status =
     statusConfig[order.status as keyof typeof statusConfig] ??
     { label: order.status, variant: 'neutral' as const };
-  const currentStepIdx = timelineIndex(order.status);
+  const currentStepIdx = currentTimelineStep(order);
   const isCancelled = order.status === ('Cancelado' satisfies OrderStatus);
   const hasTracking = !!(order.trackingNumber || order.trackingCarrier || order.trackingUrl || order.trackingPhotoUrl);
   const showCancelButton = canOwnerCancelOrder(order);
@@ -159,7 +167,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                 const isComplete = idx < currentStepIdx;
                 const isActive   = idx === currentStepIdx;
                 return (
-                  <div key={step.id} className="flex flex-col items-center text-center w-1/4">
+                  <div key={step.id} className="flex flex-col items-center text-center w-1/5">
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 ${
                         isComplete || isActive
@@ -169,13 +177,18 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                     >
                       <step.icon size={15} />
                     </div>
-                    <p className={`mt-2 text-[12px] font-semibold leading-tight ${isComplete || isActive ? 'text-navy' : 'text-slate-400'}`}>
+                    <p className={`mt-2 text-[11px] font-semibold leading-tight px-0.5 ${isComplete || isActive ? 'text-navy' : 'text-slate-400'}`}>
                       {step.label}
                     </p>
                   </div>
                 );
               })}
             </div>
+            {order.status === 'Pendiente verificación Binance' && (
+              <p className="mt-5 text-center text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Estamos verificando tu pago en Binance. Te avisaremos apenas se confirme.
+              </p>
+            )}
           </div>
         )}
       </div>
