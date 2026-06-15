@@ -111,6 +111,8 @@ model Banner {
   ctaText   String?
   tagText   String?
   link      String?  @default("/productos")
+  /// Punto focal para object-position del hero (recorte en móvil).
+  focalPoint String? @default("center")
   active    Boolean  @default(true)
   order     Int      @default(0)
   createdAt DateTime @default(now())

@@ -6,7 +6,7 @@ import { d, dn } from '@/lib/decimal';
 import { readSettings } from '@/lib/data-store';
 import {
   ChevronRight, ShieldCheck, Truck, Wallet, Store, Clock,
-  MessageCircle, Sparkles, Star, CheckCircle2, XCircle, Eye,
+  MessageCircle, Sparkles, Star, CheckCircle2, XCircle, Eye, Flame, Tag,
   type LucideIcon,
 } from 'lucide-react';
 import { readSiteContent, type TrustIcon } from '@/lib/site-content';
@@ -14,7 +14,9 @@ import ProductActions from './ProductActions';
 import ProductGallery from './ProductGallery';
 import { productToGalleryItems } from '@/lib/product-media';
 import ProductTabs from './ProductTabs';
-import { formatCurrency } from '@/lib/utils';
+import PaymentMethods from './PaymentMethods';
+import ProductAboutHighlights from './ProductAboutHighlights';
+import { formatCurrency, isGenericBrand } from '@/lib/utils';
 import ProductCard from '@/components/ProductCard';
 import RecentlyViewedTracker from '@/components/RecentlyViewedTracker';
 import RecentlyViewed from '@/components/RecentlyViewed';
@@ -195,6 +197,30 @@ async function getRelatedProducts(category: string, excludeId: string) {
   }
 }
 
+async function getDealsProducts(excludeIds: string[]) {
+  try {
+    const candidates = await prisma.product.findMany({
+      where: {
+        id: { notIn: excludeIds },
+        stock: { gt: 0 },
+        originalPrice: { not: null },
+      },
+      take: 20,
+      orderBy: { createdAt: 'desc' },
+      select: PRODUCT_CARD_SELECT,
+    });
+    return candidates
+      .filter((p) => {
+        const orig = dn(p.originalPrice);
+        return orig != null && orig > d(p.price);
+      })
+      .slice(0, 5);
+  } catch (error) {
+    console.error('[ProductDetailPage] Error al cargar ofertas:', error);
+    return [];
+  }
+}
+
 // Iconos disponibles para los badges de confianza (editables en /admin/personalizar)
 const TRUST_ICONS: Record<TrustIcon, LucideIcon> = {
   shield: ShieldCheck,
@@ -252,13 +278,27 @@ export default async function ProductDetailPage({ params }: PageProps) {
     details: {} as Record<string, string>,
   };
 
+  const productSpecs = parseProductSpecs(product.specs);
+
   const [relatedProducts, reviewSummary, productReviews] = await Promise.all([
     getRelatedProducts(product.category, product.id),
     getReviewSummary(product.id),
     getApprovedReviews(product.id),
   ]);
 
-  const relatedSummaries = await getReviewSummariesMap(relatedProducts.map((r) => r.id));
+  const dealsProducts = await getDealsProducts([
+    product.id,
+    ...relatedProducts.map((r) => r.id),
+  ]);
+
+  const [relatedSummaries, dealsSummaries] = await Promise.all([
+    getReviewSummariesMap(relatedProducts.map((r) => r.id)),
+    getReviewSummariesMap(dealsProducts.map((r) => r.id)),
+  ]);
+
+  const brandPart = isGenericBrand(product.brand) ? null : product.brand;
+  const brandChipLabel = [brandPart, product.category].filter(Boolean).join(' · ');
+  const isLowStock = !isOut && product.stock <= 5;
 
   return (
     <div className="pb-12 w-full max-w-full">
@@ -272,21 +312,8 @@ export default async function ProductDetailPage({ params }: PageProps) {
         reviews={productReviews}
       />
 
-      {/* ── Banda navy — cabecera de ficha ── */}
-      <div className="-mx-4 sm:-mx-6 lg:-mx-8 w-[calc(100%+2rem)] sm:w-[calc(100%+3rem)] lg:w-[calc(100%+4rem)] section-band-navy mb-5 sm:mb-6 rounded-none sm:rounded-2xl overflow-hidden">
-        <div className="circuit-bg" aria-hidden />
-        <div className="relative px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
-          <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] text-white/70">
-            Detalle del <span className="text-brand-yellow">Producto</span>
-          </p>
-          <h2 className="mt-1 text-lg sm:text-xl font-bold text-white tracking-tight line-clamp-2 sm:line-clamp-1">
-            {product.name}
-          </h2>
-        </div>
-      </div>
-
       {/* ── Breadcrumb ── */}
-      <nav className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6 overflow-hidden whitespace-nowrap" aria-label="Breadcrumb">
+      <nav className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400 mt-1 mb-4 sm:mb-6 overflow-hidden whitespace-nowrap" aria-label="Breadcrumb">
         <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
         <ChevronRight size={12} className="flex-shrink-0" />
         <Link href="/productos" className="hover:text-navy transition-colors">Catálogo</Link>
@@ -304,8 +331,8 @@ export default async function ProductDetailPage({ params }: PageProps) {
       {/* ── Layout principal 2 cols ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 lg:gap-8 items-start mb-8 sm:mb-12">
 
-        {/* Galería — tarjeta flotante */}
-        <div className="card-elevated p-3 sm:p-4 lg:p-5">
+        {/* Galería — edge-to-edge en móvil; tarjeta solo desde md */}
+        <div className="-mx-4 sm:-mx-6 md:mx-0 md:card-elevated md:p-4 lg:p-5">
           <ProductGallery
             items={productToGalleryItems(product)}
             name={product.name}
@@ -317,14 +344,12 @@ export default async function ProductDetailPage({ params }: PageProps) {
         {/* Información — tarjeta flotante */}
         <div className="card-elevated p-5 sm:p-6 lg:p-8 flex flex-col">
 
-          {/* Marca + categoría */}
-          <div className="flex items-center gap-2 flex-wrap mb-3">
-            {(product.brand || product.category) && (
-              <span className="chip-brand">
-                {[product.brand, product.category].filter(Boolean).join(' · ')}
-              </span>
-            )}
-          </div>
+          {/* Marca / categoría — oculta placeholders genéricos de marca */}
+          {brandChipLabel && (
+            <div className="flex items-center gap-2 flex-wrap mb-3">
+              <span className="chip-brand">{brandChipLabel}</span>
+            </div>
+          )}
 
           {/* Título */}
           <h1 className="text-[1.35rem] xs:text-[1.5rem] sm:text-[1.65rem] md:text-[1.85rem] font-bold text-navy leading-[1.15] tracking-tight text-balance">
@@ -373,11 +398,17 @@ export default async function ProductDetailPage({ params }: PageProps) {
             </p>
           </div>
 
+          <PaymentMethods />
+
           {/* Stock */}
-          <div className="flex items-center gap-2 mt-5">
+          <div className="flex items-center gap-2 mt-5 flex-wrap">
             {isOut ? (
               <span className="inline-flex items-center gap-1.5 text-rose-600 text-sm font-semibold">
                 <XCircle size={15} /> Sin existencias
+              </span>
+            ) : isLowStock ? (
+              <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-3 py-1.5 text-sm font-semibold">
+                <Flame size={15} aria-hidden /> ¡Solo quedan {product.stock}!
               </span>
             ) : (
               <>
@@ -415,6 +446,8 @@ export default async function ProductDetailPage({ params }: PageProps) {
         </div>
       </div>
 
+      <ProductAboutHighlights specs={productSpecs} description={product.description} />
+
       {/* ── Tabs ── */}
       <div id="tabs" className="mb-12">
         <ProductTabs
@@ -424,7 +457,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
           sku={product.sku}
           isOut={isOut}
           stock={product.stock}
-          specs={parseProductSpecs(product.specs)}
+          specs={productSpecs}
           reviewsCount={reviewSummary.count}
           reviewsAverage={reviewSummary.average}
         />
@@ -449,15 +482,13 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
-            {relatedProducts.map(related => {
+            {relatedProducts.map((related) => {
               const s = relatedSummaries.get(related.id);
-              // PRD-223: mapeo tipado al Product del catálogo (sin `as any`)
               const cardProduct: CatalogProduct = {
                 id:            related.id,
                 slug:          related.slug,
                 name:          related.name,
                 description:   related.description ?? '',
-                // PRD-204: convertir Decimal → number
                 price:         d(related.price),
                 originalPrice: dn(related.originalPrice),
                 stock:         related.stock,
@@ -470,6 +501,41 @@ export default async function ProductDetailPage({ params }: PageProps) {
                 reviewCount:   s?.count,
               };
               return <ProductCard key={related.id} product={cardProduct} />;
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Otras ofertas ── */}
+      {dealsProducts.length > 0 && (
+        <div className="mt-8 sm:mt-12">
+          <div className="flex items-center gap-2 mb-4 sm:mb-6">
+            <Tag size={18} className="text-slate-400" />
+            <h2 className="text-[1.3rem] sm:text-2xl md:text-[1.75rem] font-bold text-navy tracking-tight">
+              Otras ofertas
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
+            {dealsProducts.map((deal) => {
+              const s = dealsSummaries.get(deal.id);
+              const cardProduct: CatalogProduct = {
+                id:            deal.id,
+                slug:          deal.slug,
+                name:          deal.name,
+                description:   deal.description ?? '',
+                price:         d(deal.price),
+                originalPrice: dn(deal.originalPrice),
+                stock:         deal.stock,
+                category:      deal.category,
+                brand:         deal.brand,
+                image:         deal.images[0] || '/placeholder-product.png',
+                images:        deal.images,
+                details:       {},
+                rating:        s?.average,
+                reviewCount:   s?.count,
+              };
+              return <ProductCard key={deal.id} product={cardProduct} />;
             })}
           </div>
         </div>

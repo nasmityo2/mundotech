@@ -19,6 +19,18 @@ const BANNER_TYPES = [
   'promo_small_2',
 ] as const;
 
+const FOCAL_POINTS = [
+  'center',
+  'top',
+  'bottom',
+  'left',
+  'right',
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+] as const;
+
 const bannerSchema = z.object({
   type: z.enum(BANNER_TYPES, {
     message: `Tipo inválido. Valores permitidos: ${BANNER_TYPES.join(', ')}.`,
@@ -37,6 +49,7 @@ const bannerSchema = z.object({
     .optional()
     .nullable()
     .default('/productos'),
+  focalPoint: z.enum(FOCAL_POINTS).optional().nullable(),
   active:   z.boolean().optional().default(true),
   order:    z.number({ message: 'El orden debe ser un número.' }).int().min(0).max(9999).optional().default(0),
 });

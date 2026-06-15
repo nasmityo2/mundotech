@@ -6,6 +6,18 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { isSafeEditableImageUrl, isSafeEditableLink } from '@/lib/safe-link';
 
+const FOCAL_POINTS = [
+  'center',
+  'top',
+  'bottom',
+  'left',
+  'right',
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+] as const;
+
 const bannerSchema = z.object({
   type: z.enum(['hero', 'ad_box', 'cta_banner', 'discover', 'promo_large', 'promo_small_1', 'promo_small_2']),
   // PRD-042: la imagen debe ser una URL https válida (R2) o ruta
@@ -26,6 +38,7 @@ const bannerSchema = z.object({
     .max(400)
     .nullish()
     .refine((v) => v == null || isSafeEditableLink(v), 'Enlace no permitido: usa ruta interna (/...) o https.'),
+  focalPoint: z.enum(FOCAL_POINTS).optional(),
   active: z.boolean().optional(),
   order: z.number().int().min(0).max(9999).optional(),
 });
@@ -80,7 +93,7 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
-    const { type, imageUrl, title, subtitle, label, ctaText, tagText, link, active, order } = parsed.data;
+    const { type, imageUrl, title, subtitle, label, ctaText, tagText, link, focalPoint, active, order } = parsed.data;
     const banner = await prisma.banner.create({
       data: {
         type,
@@ -91,6 +104,7 @@ export async function POST(request: Request) {
         ctaText:  ctaText  ?? null,
         tagText:  tagText  ?? null,
         link:     link     ?? '/productos',
+        focalPoint: focalPoint ?? 'center',
         active:   active   ?? true,
         order:    order    ?? 0,
       },

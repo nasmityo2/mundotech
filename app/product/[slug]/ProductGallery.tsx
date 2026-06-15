@@ -23,6 +23,7 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
   const [lightbox, setLightbox] = useState<number | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const carouselVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
 
   useEffect(() => {
     const track = trackRef.current;
@@ -32,17 +33,27 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
-            const idx = slides.indexOf(entry.target as HTMLDivElement);
-            if (idx >= 0) setActive(idx);
+          const idx = slides.indexOf(entry.target as HTMLDivElement);
+          if (idx < 0) return;
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.55) {
+            setActive(idx);
+          } else if (!entry.isIntersecting || entry.intersectionRatio < 0.25) {
+            const v = carouselVideoRefs.current[idx];
+            if (v && !v.paused) v.pause();
           }
         });
       },
-      { root: track, threshold: [0.6] },
+      { root: track, threshold: [0, 0.25, 0.55, 0.75, 1] },
     );
     slides.forEach((s) => io.observe(s));
     return () => io.disconnect();
   }, [safeItems.length]);
+
+  useEffect(() => {
+    carouselVideoRefs.current.forEach((v, i) => {
+      if (v && i !== active && !v.paused) v.pause();
+    });
+  }, [active]);
 
   const goTo = (i: number) => {
     slideRefs.current[i]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
@@ -51,15 +62,15 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4 lg:sticky lg:top-[96px]">
-      {/* Carrusel deslizable — borde a borde en móvil */}
-      <div className="relative w-screen ml-[calc(50%-50vw)] sm:w-auto sm:ml-0">
+      {/* Carrusel deslizable — borde a borde en móvil (< md) */}
+      <div className="relative w-full md:w-auto">
         <div
           ref={trackRef}
           className={cn(
             'flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth',
             'touch-pan-x overscroll-x-contain',
             '[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
-            'sm:rounded-2xl sm:border sm:border-slate-200/90',
+            'md:rounded-2xl md:border md:border-slate-200/90',
           )}
         >
           {safeItems.map((item, i) => (
@@ -69,7 +80,11 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
               className="relative w-full shrink-0 snap-center aspect-square bg-white"
             >
               {item.type === 'VIDEO' ? (
-                <CarouselVideo item={item} />
+                <CarouselVideo
+                  item={item}
+                  isActive={i === active}
+                  setVideoRef={(el) => { carouselVideoRefs.current[i] = el; }}
+                />
               ) : (
                 <>
                   <Image
@@ -80,7 +95,7 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
                     fetchPriority={i === 0 ? 'high' : 'auto'}
                     sizes="(max-width: 1024px) 100vw, 50vw"
                     draggable={false}
-                    className="object-contain p-1.5 sm:p-4 select-none pointer-events-none"
+                    className="object-contain p-0 md:p-4 select-none pointer-events-none"
                   />
                   <button
                     type="button"
@@ -93,11 +108,17 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
 
               <button
                 type="button"
-                onClick={() => setLightbox(i)}
+                onClick={() => {
+                  if (item.type === 'VIDEO') {
+                    const v = carouselVideoRefs.current[i];
+                    if (v && !v.paused) v.pause();
+                  }
+                  setLightbox(i);
+                }}
                 aria-label="Pantalla completa"
-                className="absolute top-3 right-3 z-[15] bg-black/45 hover:bg-black/65 text-white rounded-full p-2 backdrop-blur-sm transition"
+                className="absolute z-[15] top-[max(0.75rem,env(safe-area-inset-top))] right-[max(0.75rem,env(safe-area-inset-right))] min-w-[44px] min-h-[44px] flex items-center justify-center bg-black/45 hover:bg-black/65 text-white rounded-full backdrop-blur-sm transition"
               >
-                <Maximize2 size={15} />
+                <Maximize2 size={18} />
               </button>
             </div>
           ))}
@@ -161,9 +182,31 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
 }
 
 /* ── Video del carrusel: fondo negro + póster borroso + play grande + controles nativos ── */
-function CarouselVideo({ item }: { item: Extract<ProductGalleryItem, { type: 'VIDEO' }> }) {
+function CarouselVideo({
+  item,
+  isActive,
+  setVideoRef,
+}: {
+  item: Extract<ProductGalleryItem, { type: 'VIDEO' }>;
+  isActive: boolean;
+  setVideoRef?: (el: HTMLVideoElement | null) => void;
+}) {
   const ref = useRef<HTMLVideoElement>(null);
   const [started, setStarted] = useState(false);
+
+  const assignRef = (el: HTMLVideoElement | null) => {
+    ref.current = el;
+    setVideoRef?.(el);
+  };
+
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    if (!isActive) {
+      if (!v.paused) v.pause();
+      setStarted(false);
+    }
+  }, [isActive]);
 
   return (
     <div className="absolute inset-0 bg-black">
@@ -176,7 +219,7 @@ function CarouselVideo({ item }: { item: Extract<ProductGalleryItem, { type: 'VI
         />
       )}
       <video
-        ref={ref}
+        ref={assignRef}
         className="absolute inset-0 h-full w-full object-contain"
         poster={item.posterUrl ?? undefined}
         controls={started}
@@ -221,8 +264,22 @@ function Lightbox({
   const startY = useRef<number | null>(null);
   const axis = useRef<'h' | 'v' | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const lbVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
 
   useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    lbVideoRefs.current.forEach((v, i) => {
+      if (v && i !== index && !v.paused) v.pause();
+    });
+  }, [index]);
+
+  const handleClose = useCallback(() => {
+    lbVideoRefs.current.forEach((v) => {
+      if (v && !v.paused) v.pause();
+    });
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -235,13 +292,13 @@ function Lightbox({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') handleClose();
       if (e.key === 'ArrowRight') setIndex((i) => Math.min(items.length - 1, i + 1));
       if (e.key === 'ArrowLeft') setIndex((i) => Math.max(0, i - 1));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, items.length]);
+  }, [handleClose, items.length]);
 
   const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
   const goNext = useCallback(() => setIndex((i) => Math.min(items.length - 1, i + 1)), [items.length]);
@@ -289,7 +346,7 @@ function Lightbox({
       <div className="absolute top-0 right-0 z-[4] p-3">
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleClose}
           aria-label="Cerrar"
           className="w-10 h-10 flex items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm hover:bg-black/65 transition"
         >
@@ -313,6 +370,7 @@ function Lightbox({
             <div key={`lb-${i}-${item.url}`} className="relative w-full h-full shrink-0 flex items-center justify-center">
               {item.type === 'VIDEO' ? (
                 <video
+                  ref={(el) => { lbVideoRefs.current[i] = el; }}
                   src={item.url}
                   poster={item.posterUrl ?? undefined}
                   controls

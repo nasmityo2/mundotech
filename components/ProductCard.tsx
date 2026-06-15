@@ -9,6 +9,7 @@ import { useState }    from 'react';
 import type { Product } from '../context/ProductContext';
 import { useExchangeRate } from '../context/ExchangeRateContext';
 import { Stars } from '@/components/reviews/Stars';
+import { isGenericBrand } from '@/lib/utils';
 
 function formatUSD(amount: number): string {
   return `$${new Intl.NumberFormat('en-US', {
@@ -40,7 +41,7 @@ const ProductCard = ({ product, priority = false }: { product: Product; priority
   const isFav      = isInWishlist(product.id);
   const isOut      = product.stock === 0;
   const isLowStock = !isOut && product.stock <= 5;
-  const brandLabel = product.brand ?? product.category;
+  const brandLabel = !isGenericBrand(product.brand) ? product.brand : null;
 
   const discountPct =
     product.originalPrice && product.originalPrice > product.price

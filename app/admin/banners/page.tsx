@@ -18,6 +18,7 @@ interface Banner {
   ctaText:   string | null;
   tagText:   string | null;
   link:      string | null;
+  focalPoint: string | null;
   active:    boolean;
   order:     number;
   createdAt: string;
@@ -62,13 +63,26 @@ const EMPTY_FORM = {
   ctaText:  '',
   tagText:  '',
   link:     '/productos',
+  focalPoint: 'center',
   active:   true,
   order:    0,
 };
 
+const FOCAL_POINT_OPTIONS = [
+  { value: 'center',       label: 'Centro' },
+  { value: 'top',          label: 'Arriba' },
+  { value: 'bottom',       label: 'Abajo' },
+  { value: 'left',         label: 'Izquierda' },
+  { value: 'right',        label: 'Derecha' },
+  { value: 'top-left',     label: 'Arriba izquierda' },
+  { value: 'top-right',    label: 'Arriba derecha' },
+  { value: 'bottom-left',  label: 'Abajo izquierda' },
+  { value: 'bottom-right', label: 'Abajo derecha' },
+] as const;
+
 /** Fields shown per banner type */
 const TYPE_FIELDS: Record<string, string[]> = {
-  hero:          ['imageUrl', 'title', 'subtitle', 'label', 'ctaText', 'tagText', 'link', 'order', 'active'],
+  hero:          ['imageUrl', 'focalPoint', 'title', 'subtitle', 'label', 'ctaText', 'tagText', 'link', 'order', 'active'],
   ad_box:        ['imageUrl', 'title', 'label', 'ctaText', 'link', 'order', 'active'],
   cta_banner:    ['imageUrl', 'title', 'subtitle', 'label', 'ctaText', 'link', 'order', 'active'],
   discover:      ['imageUrl', 'title', 'link', 'order', 'active'],
@@ -129,6 +143,7 @@ export default function AdminBannersPage() {
       ctaText:  b.ctaText  ?? '',
       tagText:  b.tagText  ?? '',
       link:     b.link     ?? '/productos',
+      focalPoint: b.focalPoint ?? 'center',
       active:   b.active,
       order:    b.order,
     });
@@ -373,7 +388,11 @@ export default function AdminBannersPage() {
                 onChange={(url) => setForm(f => ({ ...f, imageUrl: url ?? '' }))}
                 purpose="banner"
                 label="Imagen del banner *"
-                hint="Recomendado JPG/PNG/WebP. Para hero usar 1600×600 aprox."
+                hint={
+                  form.type === 'hero'
+                    ? 'Sube una imagen SIN texto ni logo incrustado (el sistema añade el título, botón y el slogan). Tamaño ideal: 2400×1200 px (2:1), < 500 KB, con lo importante centrado.'
+                    : 'Recomendado JPG/PNG/WebP. Para hero usar 1600×600 aprox.'
+                }
                 optional={false}
                 previewHeight="h-44"
               />
@@ -381,6 +400,26 @@ export default function AdminBannersPage() {
                 <p className="text-xs text-red-600 -mt-2">
                   {uploadError}
                 </p>
+              )}
+
+              {showField('focalPoint') && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">
+                    Punto focal (recorte en móvil)
+                  </label>
+                  <select
+                    value={form.focalPoint}
+                    onChange={e => setForm(f => ({ ...f, focalPoint: e.target.value }))}
+                    className="w-full min-h-[48px] border border-gray-200 rounded-xl px-3 py-2.5 text-base text-navy bg-gray-50 focus:outline-none focus:ring-2 focus:ring-navy/20"
+                  >
+                    {FOCAL_POINT_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Controla qué parte de la imagen se mantiene visible al recortar en pantallas estrechas.
+                  </p>
+                </div>
               )}
 
               {/* Campos dinámicos según tipo */}

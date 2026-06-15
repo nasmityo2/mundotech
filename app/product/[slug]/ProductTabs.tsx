@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { FileText, Settings2, Truck, Star, MessageSquareText } from 'lucide-react';
 import { Stars } from '@/components/reviews/Stars';
 import type { ProductSpec } from '@/lib/definitions';
+import { isGenericBrand } from '@/lib/utils';
 
 interface Props {
   description: string | null;
@@ -20,10 +21,10 @@ interface Props {
 }
 
 const tabs = [
-  { id: 'description', label: 'Descripción',     icon: FileText  },
+  { id: 'description', label: 'Descripción',      icon: FileText  },
   { id: 'specs',       label: 'Especificaciones', icon: Settings2 },
-  { id: 'shipping',    label: 'Envío',            icon: Truck     },
   { id: 'reviews',     label: 'Reseñas',          icon: Star      },
+  { id: 'shipping',    label: 'Envío',            icon: Truck     },
 ] as const;
 
 type TabId = (typeof tabs)[number]['id'];
@@ -86,7 +87,7 @@ function SpecsPanel({
           </div>
         ))}
 
-        {specs && specs.length > 0 && (brand || sku) && (
+        {specs && specs.length > 0 && ((!isGenericBrand(brand) && brand) || sku) && (
           <div className="py-2">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-300">
               Información general
@@ -94,7 +95,7 @@ function SpecsPanel({
           </div>
         )}
 
-        {brand && (
+        {!isGenericBrand(brand) && brand && (
           <div className="flex justify-between py-3">
             <dt className="text-sm text-slate-500">Marca</dt>
             <dd className="text-sm font-semibold text-navy">{brand}</dd>
@@ -117,7 +118,7 @@ function SpecsPanel({
           </div>
         )}
 
-        {(!specs || specs.length === 0) && !brand && !sku && (
+        {(!specs || specs.length === 0) && isGenericBrand(brand) && !sku && (
           <div className="py-4 text-center">
             <p className="text-sm text-slate-400">
               Las especificaciones técnicas de este producto aún no están disponibles.
