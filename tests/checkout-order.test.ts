@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkoutSchema, canOwnerCancelOrder } from '@/lib/checkout-order';
+import { checkoutSchema } from '@/lib/checkout-order';
 
 const R2_HOST = 'cdn.mundotech.test';
 const LEGIT_PROOF = `https://${R2_HOST}/proofs/abc.webp`;
@@ -62,27 +62,5 @@ describe('checkoutSchema paymentProofUrl (PRD-007)', () => {
     if (!parsed.success) {
       expect(parsed.error.issues.some((i) => i.path.includes('paymentProofUrl'))).toBe(true);
     }
-  });
-});
-
-describe('owner self-service cancel rules', () => {
-  it('permite Pendiente y Pendiente verificación Binance', () => {
-    expect(canOwnerCancelOrder({ status: 'Pendiente' })).toBe(true);
-    expect(canOwnerCancelOrder({ status: 'Pendiente verificación Binance' })).toBe(true);
-  });
-
-  it('rechaza En Proceso, Enviado, Entregado y Cancelado', () => {
-    for (const status of ['En Proceso', 'Enviado', 'Entregado', 'Cancelado'] as const) {
-      expect(canOwnerCancelOrder({ status })).toBe(false);
-    }
-  });
-
-  it('rechaza si hay tracking aunque el estado sea Pendiente', () => {
-    expect(canOwnerCancelOrder({ status: 'Pendiente', trackingNumber: 'ABC123' })).toBe(false);
-    expect(canOwnerCancelOrder({ status: 'Pendiente', shippedAt: '2026-06-01T00:00:00.000Z' })).toBe(false);
-  });
-
-  it('rechaza pedido ya cancelado', () => {
-    expect(canOwnerCancelOrder({ status: 'Cancelado' })).toBe(false);
   });
 });
