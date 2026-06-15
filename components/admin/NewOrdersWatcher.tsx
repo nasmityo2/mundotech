@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { Bell, BellOff, Truck, X } from 'lucide-react';
+import { Bell, BellOff, Truck, X, Volume2, MonitorSmartphone } from 'lucide-react';
 import { formatOrderDualInline } from '@/lib/order-pricing';
 
 interface NewOrder {
@@ -18,12 +18,28 @@ interface NewOrder {
 
 /*
  * PRD-265: las claves de localStorage van sufijadas por operador (user id).
- * En un PC de mostrador compartido por varios admins, el "visto hasta" y el
- * mute de notificaciones de un operador no pisan los del siguiente.
+ * En un PC de mostrador compartido por varios admins, el "visto hasta" y las
+ * preferencias de notificación de un operador no pisan los del siguiente.
  */
-const STORAGE_KEY      = 'mt-admin-orders-since';
-const ENABLED_KEY      = 'mt-admin-orders-notify';
-const POLL_INTERVAL_MS = 25_000;
+const STORAGE_KEY        = 'mt-admin-orders-since';
+const SOUND_KEY          = 'mt-admin-orders-sound';
+const TOAST_KEY          = 'mt-admin-orders-toast';
+/** Key legacy del único flag previo (solo sonido). Se migra a la de sonido. */
+const LEGACY_ENABLED_KEY = 'mt-admin-orders-notify';
+const POLL_INTERVAL_MS   = 25_000;
+
+interface NotifyPrefs { sound: boolean; toast: boolean; }
+
+function readPrefs(operatorId: string | null): NotifyPrefs {
+  if (typeof window === 'undefined' || !operatorId) return { sound: true, toast: true };
+  const s = localStorage.getItem(`${SOUND_KEY}:${operatorId}`);
+  const t = localStorage.getItem(`${TOAST_KEY}:${operatorId}`);
+  const legacy = localStorage.getItem(`${LEGACY_ENABLED_KEY}:${operatorId}`);
+  return {
+    sound: s !== null ? s === '1' : legacy !== null ? legacy === '1' : true,
+    toast: t !== null ? t === '1' : true,
+  };
+}
 
 const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: true });
@@ -31,34 +47,59 @@ const formatTime = (iso: string) =>
 const formatOrderTotal = (o: Pick<NewOrder, 'total' | 'exchangeRateUsdBs'>) =>
   formatOrderDualInline(o.total, o);
 
+function PrefToggle({ checked, onChange, label }: {
+  checked: boolean; onChange: () => void; label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onChange}
+      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+        checked ? 'bg-navy' : 'bg-gray-300'
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-5' : 'translate-x-0.5'
+        }`}
+      />
+    </button>
+  );
+}
+
 /**
  * Vigila pedidos nuevos cada 25s y muestra:
- * - Toast in-app con sonido + vibración
- * - Notificación nativa del navegador (si el usuario lo permitió)
- * - Botón flotante para silenciar/activar (persiste en localStorage)
+ * - Toast in-app (si "Avisos en pantalla" está activo)
+ * - Notificación nativa del navegador (si el operador dio permiso)
+ * - Sonido + vibración (si "Sonido" está activo)
+ * La campanita flotante abre un menú para configurar ambas preferencias
+ * (persisten por operador en localStorage — PRD-265).
  */
 export default function NewOrdersWatcher() {
   const { data: session } = useSession();
   const operatorId = session?.user?.id ?? null;
-  const sinceKey   = operatorId ? `${STORAGE_KEY}:${operatorId}`  : null;
-  const enabledKey = operatorId ? `${ENABLED_KEY}:${operatorId}`  : null;
+  const sinceKey   = operatorId ? `${STORAGE_KEY}:${operatorId}` : null;
 
-  const [enabled, setEnabled] = useState(true);
+  const [prefs, setPrefs] = useState<NotifyPrefs>({ sound: true, toast: true });
+  const [menuOpen, setMenuOpen] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [pendingOrders, setPendingOrders] = useState<NewOrder[]>([]);
   const [showToast, setShowToast] = useState(false);
   const sinceRef = useRef<string>(new Date().toISOString());
   const seenIdsRef = useRef<Set<string>>(new Set());
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   // Cargar estado persistido del operador actual (PRD-265)
   useEffect(() => {
-    if (!sinceKey || !enabledKey) return;
+    if (!sinceKey || !operatorId) return;
     const stored = localStorage.getItem(sinceKey);
     if (stored) sinceRef.current = stored;
-    const enabledStored = localStorage.getItem(enabledKey);
-    if (enabledStored !== null) setEnabled(enabledStored === '1');
-  }, [sinceKey, enabledKey]);
+    setPrefs(readPrefs(operatorId));
+  }, [sinceKey, operatorId]);
 
   useEffect(() => {
     if ('Notification' in window) {
@@ -74,33 +115,43 @@ export default function NewOrdersWatcher() {
     );
   }, []);
 
-  // Persistir enabled (por operador — PRD-265)
+  // Cerrar el menú al tocar fuera
   useEffect(() => {
-    if (!enabledKey) return;
-    localStorage.setItem(enabledKey, enabled ? '1' : '0');
-  }, [enabled, enabledKey]);
+    if (!menuOpen) return;
+    const onPointer = (e: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onPointer);
+    return () => document.removeEventListener('pointerdown', onPointer);
+  }, [menuOpen]);
 
-  const requestPermission = async () => {
-    if (!('Notification' in window)) return;
-    const result = await Notification.requestPermission();
-    setHasPermission(result === 'granted');
+  const updatePref = (key: keyof NotifyPrefs, value: boolean) => {
+    setPrefs(prev => ({ ...prev, [key]: value }));
+    if (operatorId) {
+      const base = key === 'sound' ? SOUND_KEY : TOAST_KEY;
+      localStorage.setItem(`${base}:${operatorId}`, value ? '1' : '0');
+    }
   };
 
-  const playAlert = (count = 1) => {
-    if (!enabled) return;
-    // Un beep por cada pedido nuevo (máx. 6 para no saturar), espaciados 350 ms.
-    const beeps = Math.min(Math.max(count, 1), 6);
-    let played = 0;
-    const beepOnce = () => {
-      const a = audioRef.current;
-      if (a) {
-        try { a.currentTime = 0; } catch {}
-        a.play().catch(() => {});
-      }
-      played++;
-      if (played < beeps) setTimeout(beepOnce, 350);
-    };
-    beepOnce();
+  const toggleSound = () => updatePref('sound', !prefs.sound);
+
+  const toggleToast = async () => {
+    const next = !prefs.toast;
+    // Al activar avisos, pedir permiso de notificación nativa si hace falta.
+    if (next && 'Notification' in window && Notification.permission === 'default') {
+      try {
+        const result = await Notification.requestPermission();
+        setHasPermission(result === 'granted');
+      } catch { /* ignore */ }
+    }
+    updatePref('toast', next);
+  };
+
+  const playAlert = () => {
+    if (!prefs.sound) return;
+    if (audioRef.current) audioRef.current.play().catch(() => {});
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       navigator.vibrate?.([200, 100, 200]);
     }
@@ -109,10 +160,9 @@ export default function NewOrdersWatcher() {
   const showNativeNotification = (orders: NewOrder[]) => {
     if (!hasPermission || !('Notification' in window)) return;
     const main = orders[0];
-    // PRD-227: la notificación del sistema operativo persiste en el centro de
-    // notificaciones y se ve en pantalla bloqueada → solo número de pedido,
-    // sin nombre de cliente ni montos. El detalle vive en el toast in-app.
-    new Notification(`🛒 ${orders.length} pedido${orders.length !== 1 ? 's' : ''} nuevo${orders.length !== 1 ? 's' : ''}`, {
+    // PRD-227: la notificación del sistema operativo persiste y se ve en pantalla
+    // bloqueada → solo número de pedido, sin nombre de cliente ni montos.
+    new Notification(`${orders.length} pedido${orders.length !== 1 ? 's' : ''} nuevo${orders.length !== 1 ? 's' : ''}`, {
       body: `Pedido #${String(main.orderNumber).padStart(4, '0')}${orders.length > 1 ? ` y ${orders.length - 1} más` : ''} · abre el panel para ver el detalle`,
       tag: 'mt-new-order',
       icon: '/icon.svg',
@@ -135,11 +185,14 @@ export default function NewOrdersWatcher() {
 
         const trulyNew = data.latest.filter(o => !seenIdsRef.current.has(o.id));
         if (trulyNew.length > 0) {
+          // Se marcan como vistos SIEMPRE, para no acumular backlog si luego se reactiva.
           trulyNew.forEach(o => seenIdsRef.current.add(o.id));
-          setPendingOrders(prev => [...trulyNew, ...prev].slice(0, 30));
-          setShowToast(true);
-          playAlert(trulyNew.length);
-          showNativeNotification(trulyNew);
+          if (prefs.toast) {
+            setPendingOrders(prev => [...trulyNew, ...prev].slice(0, 5));
+            setShowToast(true);
+            showNativeNotification(trulyNew);
+          }
+          playAlert();
         }
       } catch (err) {
         // PRD-221: el polling de pedidos no puede fallar en silencio absoluto
@@ -149,7 +202,7 @@ export default function NewOrdersWatcher() {
 
     poll();
     const interval = setInterval(poll, POLL_INTERVAL_MS);
-    // PRD-230: al volver a la pestaña se consulta de inmediato (compensa los polls saltados)
+    // PRD-230: al volver a la pestaña se consulta de inmediato
     const onVisible = () => { if (document.visibilityState === 'visible') poll(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
@@ -158,7 +211,7 @@ export default function NewOrdersWatcher() {
       document.removeEventListener('visibilitychange', onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, hasPermission]);
+  }, [prefs.sound, prefs.toast, hasPermission]);
 
   const acknowledge = () => {
     setShowToast(false);
@@ -167,60 +220,72 @@ export default function NewOrdersWatcher() {
     if (sinceKey) localStorage.setItem(sinceKey, sinceRef.current);
   };
 
-  // Cierre suave (auto-cierre): oculta el aviso sin marcar el lote como "visto".
-  const dismissToast = () => {
-    setShowToast(false);
-    setPendingOrders([]);
-  };
-
-  // Auto-cierre a los 8 s. El conteo solo corre mientras la pestaña está visible
-  // y se reinicia cuando llega un pedido nuevo.
-  useEffect(() => {
-    if (!showToast) return;
-    let remaining = 8000;
-    let startedAt = Date.now();
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const start = () => {
-      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-      startedAt = Date.now();
-      timer = setTimeout(() => dismissToast(), remaining);
-    };
-    const pause = () => {
-      if (timer) { clearTimeout(timer); timer = null; remaining -= Date.now() - startedAt; }
-    };
-    const onVis = () => {
-      if (document.visibilityState === 'visible') start(); else pause();
-    };
-    start();
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      if (timer) clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onVis);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showToast, pendingOrders]);
+  const allMuted = !prefs.sound && !prefs.toast;
 
   return (
     <>
-      {/* Botón flotante de toggle (solo en admin, sobre el bottom-nav móvil) */}
+      {/* Campanita flotante + menú de configuración (sobre el bottom-nav móvil) */}
       <div
+        ref={menuRef}
         className="fixed right-3 z-30 md:bottom-4 bottom-[calc(4rem+env(safe-area-inset-bottom)+12px)]"
       >
+        {menuOpen && (
+          <div
+            role="menu"
+            className="absolute bottom-full right-0 mb-2 w-72 bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <p className="text-sm font-bold text-navy">Notificaciones de pedidos</p>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label="Cerrar"
+                className="w-7 h-7 inline-flex items-center justify-center text-gray-400 active:bg-black/10 rounded-full"
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <div className="px-4 py-3 space-y-4">
+              <p className="text-[11px] text-gray-500">Solo para este dispositivo y operador.</p>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <Volume2 size={17} className="text-navy mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Sonido</p>
+                    <p className="text-[11px] text-gray-500">Sonido y vibración al llegar un pedido.</p>
+                  </div>
+                </div>
+                <PrefToggle checked={prefs.sound} onChange={toggleSound} label="Sonido de pedidos nuevos" />
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <MonitorSmartphone size={17} className="text-navy mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Avisos en pantalla</p>
+                    <p className="text-[11px] text-gray-500">
+                      Aviso emergente y notificación del navegador. Desactívalo si no quieres que se apilen.
+                    </p>
+                  </div>
+                </div>
+                <PrefToggle checked={prefs.toast} onChange={toggleToast} label="Avisos en pantalla de pedidos nuevos" />
+              </div>
+            </div>
+          </div>
+        )}
         <button
           type="button"
-          onClick={() => {
-            if (!hasPermission && !enabled) requestPermission();
-            setEnabled(!enabled);
-          }}
-          aria-label={enabled ? 'Silenciar notificaciones' : 'Activar notificaciones'}
-          title={enabled ? 'Notificaciones activas' : 'Notificaciones silenciadas'}
+          onClick={() => setMenuOpen(o => !o)}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-label="Configurar notificaciones de pedidos"
+          title="Configurar notificaciones de pedidos"
           className={`min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-full shadow-lg border-2 transition ${
-            enabled
-              ? 'bg-brand-yellow border-yellow-400 text-navy active:scale-95'
-              : 'bg-white border-gray-200 text-gray-400 active:bg-gray-100'
+            allMuted
+              ? 'bg-white border-gray-200 text-gray-400 active:bg-gray-100'
+              : 'bg-brand-yellow border-yellow-400 text-navy active:scale-95'
           }`}
         >
-          {enabled ? <Bell size={18} /> : <BellOff size={18} />}
+          {allMuted ? <BellOff size={18} /> : <Bell size={18} />}
         </button>
       </div>
 
@@ -249,8 +314,8 @@ export default function NewOrdersWatcher() {
               <X size={16} />
             </button>
           </div>
-          <ul className="divide-y divide-gray-100">
-            {pendingOrders.slice(0, 4).map(o => (
+          <ul className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+            {pendingOrders.map(o => (
               <li key={o.id}>
                 <Link
                   href={`/admin/orders/${o.id}`}
@@ -270,13 +335,6 @@ export default function NewOrdersWatcher() {
               </li>
             ))}
           </ul>
-          <Link
-            href="/admin/orders"
-            onClick={acknowledge}
-            className="block px-3 py-2.5 text-center text-xs font-bold text-navy bg-gray-50 border-t border-gray-100 active:bg-gray-100"
-          >
-            {pendingOrders.length > 4 ? `+${pendingOrders.length - 4} más · ver todos los pedidos` : 'Ver más pedidos'}
-          </Link>
         </div>
       )}
 
