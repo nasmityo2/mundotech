@@ -51,20 +51,22 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4 lg:sticky lg:top-[96px]">
-      {/* Carrusel */}
-      <div className="relative w-full">
+      {/* Carrusel deslizable — borde a borde en móvil */}
+      <div className="relative w-screen ml-[calc(50%-50vw)] sm:w-auto sm:ml-0">
         <div
           ref={trackRef}
           className={cn(
-            'flex overflow-x-auto snap-x snap-mandatory scroll-smooth rounded-xl',
+            'flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth',
+            'touch-pan-x overscroll-x-contain',
             '[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
+            'sm:rounded-2xl sm:border sm:border-slate-200/90',
           )}
         >
           {safeItems.map((item, i) => (
             <div
               key={`slide-${i}-${item.url}`}
               ref={(el) => { slideRefs.current[i] = el; }}
-              className="relative w-full shrink-0 snap-center aspect-square bg-surface-muted rounded-xl"
+              className="relative w-full shrink-0 snap-center aspect-square bg-white"
             >
               {item.type === 'VIDEO' ? (
                 <CarouselVideo item={item} />
@@ -77,7 +79,8 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
                     priority={i === 0}
                     fetchPriority={i === 0 ? 'high' : 'auto'}
                     sizes="(max-width: 1024px) 100vw, 50vw"
-                    className="object-contain p-1.5 sm:p-4"
+                    draggable={false}
+                    className="object-contain p-1.5 sm:p-4 select-none pointer-events-none"
                   />
                   <button
                     type="button"
@@ -107,39 +110,9 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
         )}
 
         {safeItems.length > 1 && (
-          <>
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 bg-navy/75 text-white text-[12px] font-medium px-3 py-1 rounded-full backdrop-blur-sm tabular-nums pointer-events-none">
-              {active + 1} / {safeItems.length}
-            </div>
-            <div
-              className="mt-3 flex items-center justify-center gap-2"
-              role="tablist"
-              aria-label="Imágenes del producto"
-            >
-              {safeItems.map((_, i) => {
-                const selected = i === active;
-                return (
-                  <button
-                    key={`dot-${i}`}
-                    type="button"
-                    role="tab"
-                    aria-selected={selected}
-                    aria-label={`Imagen ${i + 1} de ${safeItems.length}`}
-                    onClick={() => goTo(i)}
-                    className="inline-flex min-w-[44px] min-h-[44px] items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2"
-                  >
-                    <span
-                      className={cn(
-                        'block rounded-full transition-all duration-300',
-                        selected ? 'h-2.5 w-6 bg-brand-yellow' : 'h-2.5 w-2.5 bg-border hover:bg-navy/30',
-                      )}
-                      aria-hidden
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          </>
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 bg-black/55 text-white text-[12px] font-medium px-3 py-1 rounded-full backdrop-blur-sm tabular-nums pointer-events-none">
+            {active + 1} / {safeItems.length}
+          </div>
         )}
 
         {isOut && (
@@ -164,8 +137,8 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
                 onClick={() => goTo(i)}
                 aria-current={selected}
                 className={cn(
-                  'relative shrink-0 w-[80px] aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 bg-surface-muted shadow-soft hover:shadow-card',
-                  selected ? 'border-navy ring-2 ring-brand-yellow/50 ring-offset-2 ring-offset-white' : 'border-border hover:border-navy/40',
+                  'relative shrink-0 w-[80px] aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 bg-white shadow-sm hover:shadow-md',
+                  selected ? 'border-navy ring-2 ring-brand-yellow/50 ring-offset-2 ring-offset-white' : 'border-slate-200/90 hover:border-slate-400',
                 )}
               >
                 <Image src={thumbSrc} alt={`${name} vista ${i + 1}`} fill sizes="80px" className="object-cover" />
@@ -187,7 +160,7 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
   );
 }
 
-/* ── Video del carrusel: fondo borroso + play grande + controles nativos ── */
+/* ── Video del carrusel: fondo negro + póster borroso + play grande + controles nativos ── */
 function CarouselVideo({ item }: { item: Extract<ProductGalleryItem, { type: 'VIDEO' }> }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [started, setStarted] = useState(false);
@@ -230,7 +203,7 @@ function CarouselVideo({ item }: { item: Extract<ProductGalleryItem, { type: 'VI
   );
 }
 
-/* ── Visor a pantalla completa con ZOOM (pellizcar + doble toque) ── */
+/* ── Visor pantalla completa: fondo blanco para imágenes, swipe que sigue el dedo + zoom ── */
 function Lightbox({
   items, startIndex, name, onClose,
 }: {
@@ -242,11 +215,15 @@ function Lightbox({
   const [index, setIndex] = useState(startIndex);
   const [zoomed, setZoomed] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const touchStartX = useRef<number | null>(null);
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startX = useRef<number | null>(null);
+  const startY = useRef<number | null>(null);
+  const axis = useRef<'h' | 'v' | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Bloquea el scroll del fondo
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -256,7 +233,6 @@ function Lightbox({
   // Al cambiar de slide se resetea el zoom
   useEffect(() => { setZoomed(false); }, [index]);
 
-  // Cerrar con Escape / flechas en escritorio
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -267,82 +243,124 @@ function Lightbox({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, items.length]);
 
-  const prev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
-  const next = useCallback(() => setIndex((i) => Math.min(items.length - 1, i + 1)), [items.length]);
+  const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
+  const goNext = useCallback(() => setIndex((i) => Math.min(items.length - 1, i + 1)), [items.length]);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (zoomed || e.touches.length !== 1) { startX.current = null; return; }
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    axis.current = null;
+    setDragging(true);
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (startX.current == null || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - startX.current;
+    const dy = e.touches[0].clientY - (startY.current ?? 0);
+    if (axis.current == null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+      axis.current = Math.abs(dx) >= Math.abs(dy) ? 'h' : 'v';
+    }
+    if (axis.current !== 'h') return;
+    let d = dx;
+    if ((index === 0 && dx > 0) || (index === items.length - 1 && dx < 0)) d = dx * 0.3;
+    setDragX(d);
+  };
+  const onTouchEnd = () => {
+    if (startX.current != null && axis.current === 'h') {
+      const w = viewportRef.current?.clientWidth ?? window.innerWidth;
+      const threshold = Math.min(90, w * 0.2);
+      if (dragX < -threshold && index < items.length - 1) setIndex((i) => i + 1);
+      else if (dragX > threshold && index > 0) setIndex((i) => i - 1);
+    }
+    startX.current = null;
+    startY.current = null;
+    axis.current = null;
+    setDragging(false);
+    setDragX(0);
+  };
 
   if (!mounted) return null;
-  const item = items[index];
+  const current = items[index];
+  const bgClass = current.type === 'VIDEO' ? 'bg-black' : 'bg-white';
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] bg-black flex flex-col select-none">
-      {/* Barra superior */}
-      <div className="flex items-center justify-end px-4 py-3 text-white/90">
+    <div className={cn('fixed inset-0 z-[120] flex flex-col select-none transition-colors duration-200', bgClass)}>
+      {/* Cerrar */}
+      <div className="absolute top-0 right-0 z-[4] p-3">
         <button
           type="button"
           onClick={onClose}
           aria-label="Cerrar"
-          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm hover:bg-black/65 transition"
         >
-          <X size={24} />
+          <X size={22} />
         </button>
       </div>
 
-      {/* Contenido (una pieza a la vez) — deslizar solo cuando NO hay zoom */}
+      {/* Carril deslizable (sigue el dedo) */}
       <div
-        className="relative flex-1 overflow-hidden"
-        onTouchStart={(e) => {
-          if (!zoomed && e.touches.length === 1) touchStartX.current = e.touches[0].clientX;
-          else touchStartX.current = null;
-        }}
-        onTouchEnd={(e) => {
-          if (zoomed || touchStartX.current == null) { touchStartX.current = null; return; }
-          const dx = e.changedTouches[0].clientX - touchStartX.current;
-          if (Math.abs(dx) > 50) { if (dx < 0) next(); else prev(); }
-          touchStartX.current = null;
-        }}
+        ref={viewportRef}
+        className="relative flex-1 overflow-hidden touch-pan-y"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
       >
-        {item.type === 'VIDEO' ? (
-          <div className="absolute inset-0 flex items-center justify-center p-2">
-            <video
-              key={`v-${index}`}
-              src={item.url}
-              poster={item.posterUrl ?? undefined}
-              controls
-              playsInline
-              preload="metadata"
-              className="max-h-full max-w-full object-contain"
-            />
-          </div>
-        ) : (
-          <TransformWrapper
-            key={`img-${index}`}
-            minScale={1}
-            maxScale={4}
-            doubleClick={{ mode: 'toggle', step: 2.5 }}
-            pinch={{ step: 5 }}
-            wheel={{ step: 0.15 }}
-            panning={{ disabled: !zoomed }}
-            onTransform={(_ref, state) => setZoomed(state.scale > 1.01)}
-          >
-            <TransformComponent
-              wrapperStyle={{ width: '100%', height: '100%' }}
-              contentStyle={{ width: '100%', height: '100%' }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={item.url}
-                alt={`${name} — imagen ${index + 1}`}
-                className="w-full h-full object-contain"
-                draggable={false}
-              />
-            </TransformComponent>
-          </TransformWrapper>
-        )}
+        <div
+          className={cn('flex h-full w-full', dragging ? '' : 'transition-transform duration-300 ease-out')}
+          style={{ transform: `translateX(calc(${-index * 100}% + ${dragX}px))` }}
+        >
+          {items.map((item, i) => (
+            <div key={`lb-${i}-${item.url}`} className="relative w-full h-full shrink-0 flex items-center justify-center">
+              {item.type === 'VIDEO' ? (
+                <video
+                  src={item.url}
+                  poster={item.posterUrl ?? undefined}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="max-h-full max-w-full object-contain"
+                />
+              ) : i === index ? (
+                <TransformWrapper
+                  key={`tw-${index}`}
+                  minScale={1}
+                  maxScale={4}
+                  centerOnInit
+                  doubleClick={{ mode: 'toggle', step: 2.5 }}
+                  wheel={{ disabled: true }}
+                  panning={{ disabled: !zoomed }}
+                  onTransform={(_ref, state) => setZoomed(state.scale > 1.01)}
+                >
+                  <TransformComponent
+                    wrapperStyle={{ width: '100%', height: '100%' }}
+                    contentStyle={{ width: '100%', height: '100%' }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={item.url}
+                      alt={`${name} — imagen ${i + 1}`}
+                      className="w-full h-full object-contain"
+                      draggable={false}
+                    />
+                  </TransformComponent>
+                </TransformWrapper>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.url}
+                  alt={`${name} — imagen ${i + 1}`}
+                  className="w-full h-full object-contain"
+                  draggable={false}
+                />
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Contador centrado abajo */}
       {items.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[2] bg-white/10 text-white text-[13px] font-medium px-3 py-1 rounded-full backdrop-blur-sm tabular-nums">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[3] bg-black/45 text-white text-[13px] font-medium px-3 py-1 rounded-full backdrop-blur-sm tabular-nums pointer-events-none">
           {index + 1} / {items.length}
         </div>
       )}
@@ -352,19 +370,19 @@ function Lightbox({
         <>
           <button
             type="button"
-            onClick={prev}
+            onClick={goPrev}
             disabled={index === 0}
             aria-label="Anterior"
-            className="hidden sm:flex absolute left-3 top-1/2 -translate-y-1/2 w-11 h-11 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-30"
+            className="hidden sm:flex absolute left-3 top-1/2 -translate-y-1/2 z-[3] w-11 h-11 items-center justify-center rounded-full bg-black/45 hover:bg-black/65 text-white transition disabled:opacity-30"
           >
             <ChevronLeft size={26} />
           </button>
           <button
             type="button"
-            onClick={next}
+            onClick={goNext}
             disabled={index === items.length - 1}
             aria-label="Siguiente"
-            className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition disabled:opacity-30"
+            className="hidden sm:flex absolute right-3 top-1/2 -translate-y-1/2 z-[3] w-11 h-11 items-center justify-center rounded-full bg-black/45 hover:bg-black/65 text-white transition disabled:opacity-30"
           >
             <ChevronRight size={26} />
           </button>
