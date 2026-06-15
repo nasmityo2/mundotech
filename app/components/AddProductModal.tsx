@@ -383,6 +383,11 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   }
   const salePct = computedSalePrice != null && normalPriceNum > 0
     ? Math.round((1 - computedSalePrice / normalPriceNum) * 100) : 0;
+  // % exacto que escribe el admin en modo porcentaje (puede tener decimales);
+  // en modo "precio fijo" usamos el % efectivo redondeado.
+  const exactPct =
+    discountMode === 'pct' && Number(discountPct) > 0 ? Number(discountPct) : salePct;
+  const exactPctLabel = Number.isInteger(exactPct) ? String(exactPct) : exactPct.toFixed(2);
 
   const onCostChange = (v: string) => {
     setCost(v);
@@ -726,8 +731,8 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                       </div>
 
                       {discountMode === 'pct' ? (
-                        <input type="number" min="1" max="99" step="1" value={discountPct}
-                          onChange={(e) => setDiscountPct(e.target.value)} placeholder="Ej: 20 (% de descuento)"
+                        <input type="number" min="0.01" max="99.99" step="0.01" value={discountPct}
+                          onChange={(e) => setDiscountPct(e.target.value)} placeholder="Ej: 7.21 (% de descuento)"
                           className={inputCls} />
                       ) : (
                         <input type="number" min="0" step="0.01" value={saleAmount}
@@ -739,7 +744,10 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                         <p className="text-sm text-gray-700">
                           Antes <s className="text-gray-400">${normalPriceNum.toFixed(2)}</s> →{' '}
                           <strong className="text-green-700">${computedSalePrice.toFixed(2)}</strong>{' '}
-                          <span className="font-bold text-red-600">(-{salePct}%)</span>
+                          <span className="font-bold text-red-600">(-{exactPctLabel}%)</span>
+                          {discountMode === 'pct' && Number(discountPct) > 0 && exactPct !== salePct && (
+                            <span className="ml-1 text-xs text-gray-400">· el cliente verá -{salePct}%</span>
+                          )}
                         </p>
                       ) : (
                         <p className="text-[11px] text-gray-500">
