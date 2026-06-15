@@ -218,10 +218,14 @@ export async function createProductAction(formData: FormData) {
       return { success: false, message: validated.error.issues.map(e => e.message).join(', ') };
     }
 
-    const { marginPct, factor } = await getPricingParams();
-    const effectiveMargin = validated.data.marginPct ?? marginPct;
+    const { factor } = await getPricingParams();
+    // El margen es SOLO el elegido para este producto. Nunca global.
+    const effectiveMargin = validated.data.marginPct ?? null;
+    if (validated.data.cost != null && !(typeof effectiveMargin === 'number' && effectiveMargin > 0)) {
+      return { success: false, message: 'Indica el margen de ganancia (%) para calcular el precio desde el costo.' };
+    }
     const normalPrice = validated.data.cost != null
-      ? calcSellingPriceUsd(validated.data.cost, effectiveMargin, factor)
+      ? calcSellingPriceUsd(validated.data.cost, effectiveMargin as number, factor)
       : roundUpToStep(validated.data.price);
 
     // Oferta: si llega un salePrice válido y MENOR al precio normal, ese pasa a ser
@@ -303,10 +307,14 @@ export async function updateProductAction(productId: string, formData: FormData)
       return { success: false, message: validated.error.issues.map(e => e.message).join(', ') };
     }
 
-    const { marginPct, factor } = await getPricingParams();
-    const effectiveMargin = validated.data.marginPct ?? marginPct;
+    const { factor } = await getPricingParams();
+    // El margen es SOLO el elegido para este producto. Nunca global.
+    const effectiveMargin = validated.data.marginPct ?? null;
+    if (validated.data.cost != null && !(typeof effectiveMargin === 'number' && effectiveMargin > 0)) {
+      return { success: false, message: 'Indica el margen de ganancia (%) para calcular el precio desde el costo.' };
+    }
     const normalPrice = validated.data.cost != null
-      ? calcSellingPriceUsd(validated.data.cost, effectiveMargin, factor)
+      ? calcSellingPriceUsd(validated.data.cost, effectiveMargin as number, factor)
       : roundUpToStep(validated.data.price);
 
     // Oferta: si llega un salePrice válido y MENOR al precio normal, ese pasa a ser

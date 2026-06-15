@@ -110,8 +110,9 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
 
   useEffect(() => {
     if (!isOpen) return;
-    setMarginPct(String(product?.profitMarginPct ?? pricing.marginPct));
-  }, [isOpen, product, pricing.marginPct]);
+    // Al AGREGAR: siempre en blanco. Al EDITAR: el margen guardado del producto.
+    setMarginPct(product?.profitMarginPct != null ? String(product.profitMarginPct) : '');
+  }, [isOpen, product]);
 
   useEffect(() => {
     if (!formRef.current) return;
@@ -377,8 +378,12 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
 
   if (!isOpen) return null;
 
-  const effectiveMargin = Number(marginPct) > 0 ? Number(marginPct) : pricing.marginPct;
-  const suggestedPrice = calcSellingPriceUsd(Number(cost), effectiveMargin, pricing.factor);
+  // Solo el margen escrito para ESTE producto. Sin global.
+  const effectiveMargin = Number(marginPct) > 0 ? Number(marginPct) : null;
+  const suggestedPrice =
+    effectiveMargin != null && Number(cost) > 0
+      ? calcSellingPriceUsd(Number(cost), effectiveMargin, pricing.factor)
+      : null;
 
   const normalPriceNum = Number(price) || 0;
   let computedSalePrice: number | null = null;
@@ -402,15 +407,16 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   const onCostChange = (v: string) => {
     setCost(v);
     const n = Number(v);
-    const m = Number(marginPct) > 0 ? Number(marginPct) : pricing.marginPct;
-    setPrice(n > 0 ? calcSellingPriceUsd(n, m, pricing.factor).toFixed(2) : '');
+    const m = Number(marginPct);
+    // Solo autocalcula con costo Y margen del producto. Sin global.
+    setPrice(n > 0 && m > 0 ? calcSellingPriceUsd(n, m, pricing.factor).toFixed(2) : '');
   };
 
   const onMarginChange = (v: string) => {
     setMarginPct(v);
     const n = Number(cost);
-    const m = Number(v) > 0 ? Number(v) : pricing.marginPct;
-    if (n > 0) setPrice(calcSellingPriceUsd(n, m, pricing.factor).toFixed(2));
+    const m = Number(v);
+    if (n > 0 && m > 0) setPrice(calcSellingPriceUsd(n, m, pricing.factor).toFixed(2));
   };
 
   return (
@@ -696,10 +702,16 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                   <input type="number" name="cost" id="cost" step="0.01" min="0" className={inputCls}
                     value={cost} onChange={(e) => onCostChange(e.target.value)} />
                   {Number(cost) > 0 && (
-                    <p className="text-xs text-green-600 mt-1">
-                      Precio sugerido: <strong>${suggestedPrice.toFixed(2)}</strong>
-                      {' '}· costo × {(1 + effectiveMargin / 100).toFixed(2)} × {pricing.factor}
-                    </p>
+                    effectiveMargin != null && suggestedPrice != null ? (
+                      <p className="text-xs text-green-600 mt-1">
+                        Precio sugerido: <strong>${suggestedPrice.toFixed(2)}</strong>
+                        {' '}· costo × {(1 + effectiveMargin / 100).toFixed(2)} × {pricing.factor}
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-amber-600 mt-1">
+                        Escribe el margen de ganancia (%) para calcular el precio.
+                      </p>
+                    )
                   )}
                 </div>
 
@@ -708,7 +720,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                   <label htmlFor="marginPct" className={labelCls}>Margen de ganancia (%) <span className="text-red-500">*</span></label>
                   <input type="number" name="marginPct" id="marginPct" step="1" min="0" className={inputCls}
                     value={marginPct} onChange={(e) => onMarginChange(e.target.value)} />
-                  <p className="text-[11px] text-gray-400 mt-1">Viene del global. Cámbialo solo para este producto.</p>
+                  <p className="text-[11px] text-gray-400 mt-1">Escribe el % de ganancia de este producto (o usa un atajo).</p>
                   {/* Atajos de margen configurables */}
                   <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                     {editingPresets ? (
