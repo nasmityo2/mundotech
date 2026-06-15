@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth/next';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
@@ -102,19 +103,30 @@ export async function POST(
     // sin compra siempre pasa por moderación — evita reseñas falsas públicas.
     const approved = autoApprove && verifiedPurchase;
 
-    const review = await prisma.review.create({
-      data: {
-        productId,
-        userId,
-        authorName,
-        rating: data.rating,
-        title: data.title?.trim() || null,
-        comment: data.comment.trim(),
-        photos: data.photos ?? [],
-        verifiedPurchase,
-        status: approved ? 'APPROVED' : 'PENDING',
-      },
-    });
+    let review;
+    try {
+      review = await prisma.review.create({
+        data: {
+          productId,
+          userId,
+          authorName,
+          rating: data.rating,
+          title: data.title?.trim() || null,
+          comment: data.comment.trim(),
+          photos: data.photos ?? [],
+          verifiedPurchase,
+          status: approved ? 'APPROVED' : 'PENDING',
+        },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        return NextResponse.json(
+          { error: 'Ya dejaste una reseña para este producto.' },
+          { status: 409 }
+        );
+      }
+      throw e;
+    }
 
     if (approved) {
       try {

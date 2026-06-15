@@ -544,7 +544,7 @@ export async function getProducts(searchTerm?: string, categoryFilter?: string) 
 
 // ── CSV Import ──────────────────────────────────────────────────────────────
 // PRD-153: round-trip completo con el export del panel — el SKU es la clave de
-//          upsert (el nombre solo es fallback para catálogos legados sin SKU).
+//          upsert (obligatorio en importación CSV; sin SKU la fila se rechaza).
 // PRD-154: en productos existentes se actualizan TODOS los campos del archivo
 //          (nombre, precio, stock, categoría, marca, descripción y SKU).
 // PRD-155: aplicación transaccional todo-o-nada — un error revierte el import
@@ -571,8 +571,10 @@ const emptyToUndef = (v: unknown) => (typeof v === 'string' && v.trim() === '' ?
 
 const csvProductSchema = z.object({
   sku: z.preprocess(
-    (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : null),
-    z.string().min(1).max(64).nullable(),
+    (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined),
+    z.string()
+      .min(1, 'sku es obligatorio (clave de upsert para importación CSV; exporta el inventario para obtener SKUs)')
+      .max(64),
   ),
   name:  z.string().trim().min(1, 'name es obligatorio'),
   price: z.coerce.number().positive('price debe ser mayor que 0'),
@@ -640,25 +642,17 @@ export async function importProductsFromCSV(csvData: string) {
     rows.push({ data: validation.data, lineNo });
   });
 
-  // Duplicados dentro del archivo → upsert ambiguo, se rechaza con detalle
+  // Duplicados de SKU dentro del archivo → upsert ambiguo, se rechaza con detalle
   const seenSkus = new Map<string, number>();
-  const seenNames = new Map<string, number>();
   for (const { data, lineNo } of rows) {
-    if (data.sku) {
-      const key = data.sku.toLowerCase();
-      const prev = seenSkus.get(key);
-      if (prev) errors.push(`Fila ${lineNo}: SKU «${data.sku}» duplicado en el archivo (ya aparece en la fila ${prev}).`);
-      else seenSkus.set(key, lineNo);
-    } else {
-      const key = data.name.toLowerCase();
-      const prev = seenNames.get(key);
-      if (prev) errors.push(`Fila ${lineNo}: nombre «${data.name}» duplicado sin SKU (ya aparece en la fila ${prev}).`);
-      else seenNames.set(key, lineNo);
-    }
+    const key = data.sku.toLowerCase();
+    const prev = seenSkus.get(key);
+    if (prev) errors.push(`Fila ${lineNo}: SKU «${data.sku}» duplicado en el archivo (ya aparece en la fila ${prev}).`);
+    else seenSkus.set(key, lineNo);
   }
 
   if (rows.length === 0) {
-    errors.push('El archivo no contiene filas válidas. Cabeceras esperadas: sku, name, brand, category, price, stock, description, imageUrl.');
+    errors.push('El archivo no contiene filas válidas. Cabeceras esperadas: sku (obligatorio), name, brand, category, price, stock, description, imageUrl.');
   }
 
   // PRD-155: con errores de validación no se toca la BD (todo-o-nada)
@@ -672,91 +666,64 @@ export async function importProductsFromCSV(csvData: string) {
     };
   }
 
-  // Resolución de coincidencias (solo lecturas, fuera de la transacción)
-  const skus = rows.map((r) => r.data.sku).filter((s): s is string => !!s);
-  const names = rows.map((r) => r.data.name);
-
-  const [bySkuList, byNameList] = await Promise.all([
-    skus.length
-      ? prisma.product.findMany({
-          where: { sku: { in: skus } },
-          select: { id: true, sku: true, slug: true, name: true, stock: true, images: true },
-        })
-      : Promise.resolve([]),
-    prisma.product.findMany({
-      where: { name: { in: names } },
-      select: { id: true, sku: true, slug: true, name: true, stock: true, images: true },
-    }),
-  ]);
-
-  const bySku = new Map(bySkuList.map((p) => [p.sku!.toLowerCase(), p]));
-  const byName = new Map<string, (typeof byNameList)[number]>();
-  for (const p of byNameList) {
-    const k = p.name.toLowerCase();
-    if (!byName.has(k)) byName.set(k, p);
-  }
-
-  type ImportPlan =
-    | { kind: 'update'; id: string; previousStock: number; previousImage: string | null; data: CsvProductRow; slug: string }
-    | { kind: 'create'; data: CsvProductRow; slug: string };
-
-  const usedSlugs = new Set<string>();
-  const plans: ImportPlan[] = [];
-
-  for (const { data } of rows) {
-    // SKU primero; nombre como fallback (incluye el caso «asignar SKU vía CSV»)
-    const existing =
-      (data.sku ? bySku.get(data.sku.toLowerCase()) : undefined) ??
-      byName.get(data.name.toLowerCase());
-
-    if (existing) {
-      // El slug existente se conserva (estabilidad de URL); solo se genera si faltaba
-      const slug = existing.slug || (await getUniqueSlugForImport(data.name, usedSlugs, existing.id));
-      plans.push({
-        kind: 'update',
-        id: existing.id,
-        previousStock: existing.stock,
-        previousImage: existing.images[0] ?? null,
-        data,
-        slug,
-      });
-    } else {
-      const slug = await getUniqueSlugForImport(data.name, usedSlugs);
-      plans.push({ kind: 'create', data, slug });
-    }
-  }
-
   let createdCount = 0;
   let updatedCount = 0;
+  const restockPlans: {
+    id: string;
+    name: string;
+    slug: string;
+    previousImage: string | null;
+    price: number;
+  }[] = [];
 
   try {
     await prisma.$transaction(
       async (tx) => {
-        for (const plan of plans) {
-          const { name, price, stock, category, brand, description, sku, imageUrl } = plan.data;
-          if (plan.kind === 'update') {
-            await tx.product.update({
-              where: { id: plan.id },
-              data: {
-                name, price, stock, category, brand, description,
-                slug: plan.slug,
-                ...(sku ? { sku } : {}),
-                // La galería (images/media) no se toca en updates: se gestiona en el modal
+        // Matching dentro de la tx: lecturas consistentes con los upserts (idempotente ante carreras)
+        const skus = rows.map((r) => r.data.sku);
+        const bySkuList = await tx.product.findMany({
+          where: { sku: { in: skus } },
+          select: { id: true, sku: true, slug: true, name: true, stock: true, images: true },
+        });
+        const bySku = new Map(bySkuList.map((p) => [p.sku!.toLowerCase(), p]));
+
+        const usedSlugs = new Set<string>();
+
+        for (const { data } of rows) {
+          const existing = bySku.get(data.sku.toLowerCase());
+          // El slug existente se conserva (estabilidad de URL); solo se genera si faltaba
+          const slug = existing?.slug
+            || (await getUniqueSlugForImport(data.name, usedSlugs, existing?.id));
+
+          const { name, price, stock, category, brand, description, sku, imageUrl } = data;
+
+          await tx.product.upsert({
+            where: { sku },
+            update: {
+              name, price, stock, category, brand, description, slug,
+              // La galería (images/media) no se toca en updates: se gestiona en el modal
+            },
+            create: {
+              name, price, stock, category, brand, description, sku, slug,
+              images: [imageUrl],
+              media: {
+                create: [{ type: ProductMediaType.IMAGE, url: imageUrl, sortOrder: 0 }],
               },
-            });
+            },
+          });
+
+          if (existing) {
             updatedCount++;
+            if (existing.stock === 0 && stock > 0) {
+              restockPlans.push({
+                id: existing.id,
+                name,
+                slug,
+                previousImage: existing.images[0] ?? null,
+                price,
+              });
+            }
           } else {
-            await tx.product.create({
-              data: {
-                name, price, stock, category, brand, description,
-                sku: sku ?? null,
-                slug: plan.slug,
-                images: [imageUrl],
-                media: {
-                  create: [{ type: ProductMediaType.IMAGE, url: imageUrl, sortOrder: 0 }],
-                },
-              },
-            });
             createdCount++;
           }
         }
@@ -775,16 +742,14 @@ export async function importProductsFromCSV(csvData: string) {
   }
 
   // Igual que quickUpdateStockAction: avisar a suscriptores si pasó de agotado a disponible
-  for (const plan of plans) {
-    if (plan.kind === 'update' && plan.previousStock === 0 && plan.data.stock > 0) {
-      void triggerRestockNotifications(
-        plan.id,
-        plan.data.name,
-        plan.slug,
-        plan.previousImage,
-        plan.data.price,
-      );
-    }
+  for (const plan of restockPlans) {
+    void triggerRestockNotifications(
+      plan.id,
+      plan.name,
+      plan.slug,
+      plan.previousImage,
+      plan.price,
+    );
   }
 
   revalidatePath('/admin/products');

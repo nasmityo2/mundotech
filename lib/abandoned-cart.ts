@@ -174,22 +174,37 @@ export async function getCartsFor72hEmail(): Promise<{
   return rows.map(r => ({ ...r, totalUsd: d(r.totalUsd) }));
 }
 
-/** Marca el carrito como emailado y rota su token de recuperación, ANTES de
- *  enviar el email (PRD-211: si el envío falla tras marcar, no se duplican
- *  emails; la oleada de 72h sigue cubriendo al cliente).
+export type MarkCartEmailedResult =
+  | { claimed: true; recoveryToken: string }
+  | { claimed: false };
+
+/** Reclama el carrito para email (updateMany con guard de estado), rota el token
+ *  y devuelve si esta ejecución lo reclamó — ANTES de enviar el email (PRD-211).
  *
- *  Devuelve el token EN CLARO que debe ir en el email (PRD-178: en BD solo
- *  queda el hash). Lanza si la BD falla — el llamador debe abortar el envío. */
+ *  - expectedStatus 'PENDING'     → nuevo estado EMAILED_24H (oleada 24h).
+ *  - expectedStatus 'EMAILED_24H' → nuevo estado EMAILED_72H (oleada 72h).
+ *
+ *  Si el carrito pasó a RECOVERED/OPTED_OUT o otra corrida ya lo reclamó,
+ *  count !== 1 y el llamador no debe enviar correo. */
 export async function markCartEmailedAndRotateToken(
   cartId: string,
-  status: 'EMAILED_24H' | 'EMAILED_72H',
-): Promise<string> {
+  expectedStatus: 'PENDING' | 'EMAILED_24H',
+): Promise<MarkCartEmailedResult> {
+  const newStatus: AbandonedCartStatus =
+    expectedStatus === 'PENDING' ? 'EMAILED_24H' : 'EMAILED_72H';
   const { token, hash } = generateRecoveryToken();
-  await prisma.abandonedCart.update({
-    where: { id: cartId },
-    data:  { status, emailSentAt: new Date(), recoveryTokenHash: hash },
+  const res = await prisma.abandonedCart.updateMany({
+    where: { id: cartId, status: expectedStatus },
+    data: {
+      status:            newStatus,
+      emailSentAt:       new Date(),
+      recoveryTokenHash: hash,
+    },
   });
-  return token;
+  if (res.count === 1) {
+    return { claimed: true, recoveryToken: token };
+  }
+  return { claimed: false };
 }
 
 /** Convierte items del JSON de Prisma al tipo tipado AbandonedCartItem[].

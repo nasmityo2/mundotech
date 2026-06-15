@@ -65,21 +65,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
       const firstName = cart.email.split('@')[0] ?? 'Cliente';
 
+      // PRD-211: reclamar ANTES de enviar — guard atómico de estado evita correo
+      // duplicado y no revierte RECOVERED/OPTED_OUT si cambió tras el findMany.
+      const claim24 = await markCartEmailedAndRotateToken(cart.id, 'PENDING');
+      if (!claim24.claimed) continue;
+
       try {
-        // PRD-211: marcar ANTES de enviar — si el envío falla tras marcar no se
-        // duplica el email (la oleada de 72h sigue cubriendo a este carrito).
-        // PRD-178: el token se genera aquí en claro y en BD solo queda su hash.
-        const recoveryToken = await markCartEmailedAndRotateToken(cart.id, 'EMAILED_24H');
         await sendAbandonedCartEmail({
           email:         cart.email,
           customerName:  firstName,
           items:         refreshed.items,
           totalUsd:      refreshed.totalUsd,
-          recoveryToken,
+          recoveryToken: claim24.recoveryToken,
         });
         sent24h++;
       } catch (err) {
-        console.error('[cron/abandoned-cart] Error enviando 24h a', cart.email, err);
+        console.error('[cron/abandoned-cart] envío 24h falló para', cart.id, err);
         errors24++;
       }
     }
@@ -94,19 +95,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
       const firstName = cart.email.split('@')[0] ?? 'Cliente';
 
+      const claim72 = await markCartEmailedAndRotateToken(cart.id, 'EMAILED_24H');
+      if (!claim72.claimed) continue;
+
       try {
-        // PRD-211 + PRD-178: marcar y rotar token antes de enviar (ver oleada 24h).
-        const recoveryToken = await markCartEmailedAndRotateToken(cart.id, 'EMAILED_72H');
         await sendAbandonedCartEmail({
           email:         cart.email,
           customerName:  firstName,
           items:         refreshed.items,
           totalUsd:      refreshed.totalUsd,
-          recoveryToken,
+          recoveryToken: claim72.recoveryToken,
         });
         sent72h++;
       } catch (err) {
-        console.error('[cron/abandoned-cart] Error enviando 72h a', cart.email, err);
+        console.error('[cron/abandoned-cart] envío 72h falló para', cart.id, err);
         errors72++;
       }
     }

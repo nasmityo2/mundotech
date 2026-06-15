@@ -166,8 +166,11 @@ export async function DELETE(
   try {
     if (isAdmin) {
       const target = await prisma.review.findUnique({ where: { id }, select: { productId: true } });
-      await prisma.review.delete({ where: { id } });
-      if (target) await revalidateProductReviews(target.productId);
+      if (!target) {
+        return NextResponse.json({ success: true });
+      }
+      await prisma.review.deleteMany({ where: { id } });
+      await revalidateProductReviews(target.productId);
       return NextResponse.json({ success: true });
     }
 
@@ -184,11 +187,14 @@ export async function DELETE(
       where: { id },
       select: { id: true, userId: true, productId: true },
     });
-    if (!existing || existing.userId !== userId) {
+    if (!existing) {
+      return NextResponse.json({ success: true });
+    }
+    if (existing.userId !== userId) {
       return NextResponse.json({ error: 'No autorizado.' }, { status: 403 });
     }
 
-    await prisma.review.delete({ where: { id } });
+    await prisma.review.deleteMany({ where: { id, userId } });
     await revalidateProductReviews(existing.productId);
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -16,16 +16,19 @@ const viewSchema = z.object({
 /** Ventana de deduplicación por (sessionId, productId). */
 const DEDUP_WINDOW_MS = 30 * 60_000;
 
+/** Índice de ventana temporal para dedup idempotente vía @@unique en BD. */
+function viewBucketFor(nowMs = Date.now()): string {
+  return String(Math.floor(nowMs / DEDUP_WINDOW_MS));
+}
+
 /**
  * POST /api/events/view
  * Body: { productId: string; sessionId?: string }
  * Registra una vista de producto en la tabla ProductView.
  * Fire-and-forget desde el cliente — no bloquea la navegación.
  *
- * PRD-182: además del rate limit, la deduplicación fuerte se hace contra la BD
- * por (sessionId, productId) — funciona entre instancias serverless — y solo se
- * registran vistas con sessionId válido. El ranking «más vistos» (PRD-184)
- * consume únicamente vistas con sesión.
+ * PRD-182: dedup en BD por (sessionId, productId, viewBucket) con índice único
+ * — idempotente bajo concurrencia — y solo se registran vistas con sessionId válido.
  */
 export async function POST(request: Request) {
   try {
@@ -68,21 +71,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false }, { status: 200 }); // silencioso
     }
 
-    // PRD-182: dedup en BD por (sessionId, productId) dentro de la ventana.
-    const recent = await prisma.productView.findFirst({
-      where: {
-        productId,
-        sessionId,
-        createdAt: { gte: new Date(Date.now() - DEDUP_WINDOW_MS) },
-      },
-      select: { id: true },
-    });
-    if (recent) {
-      return NextResponse.json({ ok: true });
-    }
-
-    await prisma.productView.create({
-      data: { productId, sessionId },
+    // Dedup fuerte: @@unique(sessionId, productId, viewBucket) + skipDuplicates
+    // resuelve carreras concurrentes en la misma ventana sin read-then-write.
+    await prisma.productView.createMany({
+      data: [{ productId, sessionId, viewBucket: viewBucketFor() }],
+      skipDuplicates: true,
     });
 
     return NextResponse.json({ ok: true });

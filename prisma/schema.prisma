@@ -270,12 +270,14 @@ model AppConfig {
 }
 
 model ProductView {
-  id        String   @id @default(cuid())
-  productId String
-  sessionId String?
-  createdAt DateTime @default(now())
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  productId  String
+  sessionId  String?
+  viewBucket String
+  createdAt  DateTime @default(now())
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  @@unique([sessionId, productId, viewBucket])
   @@index([productId])
   @@index([createdAt])
 }
@@ -301,6 +303,7 @@ model Review {
   /// (queda authorName) en vez de bloquear o perder el historial.
   user             User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@unique([productId, userId])
   @@index([productId, status])
   @@index([status])
   @@index([createdAt])

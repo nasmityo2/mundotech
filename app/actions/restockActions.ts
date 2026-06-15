@@ -70,8 +70,9 @@ export async function subscribeRestockAction(
 
 /**
  * Envía emails a todos los suscriptores pendientes de un producto que acaba de
- * tener restock. Marca `notifiedAt` para no reenviar. Best-effort: errores no
- * relanzan para no bloquear la actualización del admin.
+ * tener restock. Reclama `notifiedAt` antes de enviar (claim atómico); si el
+ * envío falla, revierte el claim. Best-effort: errores no relanzan para no
+ * bloquear la actualización del admin.
  *
  * Debe llamarse SOLO cuando el stock pasa de 0 a > 0.
  */
@@ -113,9 +114,17 @@ export async function triggerRestockNotifications(
       : undefined;
 
     const now = new Date();
+    let notifiedCount = 0;
 
-    await Promise.allSettled(
-      subscribers.map(async (sub) => {
+    for (const sub of subscribers) {
+      // Claim atómico: solo una ejecución gana este registro.
+      const claim = await prisma.restockSubscription.updateMany({
+        where: { id: sub.id, notifiedAt: null },
+        data:  { notifiedAt: now },
+      });
+      if (claim.count !== 1) continue;
+
+      try {
         await sendRestockNotificationEmail({
           email:           sub.email,
           productName,
@@ -123,15 +132,20 @@ export async function triggerRestockNotifications(
           productImageUrl: productImageUrl ?? undefined,
           productPrice:    priceStr,
         });
-
-        await prisma.restockSubscription.update({
+        notifiedCount++;
+      } catch (e) {
+        // El envío falló: revertir el claim para permitir reintento futuro.
+        await prisma.restockSubscription.updateMany({
           where: { id: sub.id },
-          data:  { notifiedAt: now },
+          data:  { notifiedAt: null },
         });
-      }),
-    );
+        console.error('[restock] envío falló, claim revertido para', sub.id, e);
+      }
+    }
 
-    console.info(`[restock] Notificados ${subscribers.length} suscriptores para producto ${productId}`);
+    if (notifiedCount > 0) {
+      console.info(`[restock] Notificados ${notifiedCount} suscriptores para producto ${productId}`);
+    }
   } catch (err) {
     console.error('[restock] Error al disparar notificaciones:', err);
   }
