@@ -147,7 +147,7 @@ export default function SettingsClient({
   };
 
   const handleRecalc = () => {
-    if (!window.confirm('Esto recalculará el precio de TODOS los productos con costo, usando el factor actual y el margen guardado de cada producto. Las ofertas conservan su % de descuento, y los productos con precio manual (sin costo) no se tocan. ¿Continuar?')) return;
+    if (!window.confirm('Esto recalculará el precio de TODOS los productos con costo, usando la tasa actual y el margen guardado de cada producto. Las ofertas conservan su % de descuento, y los productos con precio manual (sin costo) no se tocan. ¿Continuar?')) return;
     startRecalcTransition(async () => {
       const result = await recalculateAllProductPrices();
       setRecalcMsg({ ok: result.success, text: result.message });
@@ -227,12 +227,12 @@ export default function SettingsClient({
 
         <SectionCard title="Fórmula de precios (costo → venta)" icon={Calculator}>
           <p className="text-xs text-gray-500">
-            precio = costo × (1 + margen del producto/100) × factor, redondeado hacia arriba a $0.05.
+            precio = costo × (1 + margen del producto/100) × tasa actual.
             El margen de ganancia se define en cada producto (varía según el producto); aquí solo se
-            ajusta el factor BCV–Binance.
+            ajusta la tasa actual.
           </p>
           <Field
-            label="Factor BCV–Binance"
+            label="Tasa actual"
             value={factor}
             onChange={setFactor}
             type="number"
@@ -253,8 +253,8 @@ export default function SettingsClient({
           )}
           <div className="pt-3 mt-1 border-t border-gray-100">
             <p className="text-xs text-gray-500 mb-2">
-              ¿Subiste el factor BCV–Binance? Aplícalo arriba y luego recalcula los productos que ya tienes en venta.
-              Cada producto se recalcula con su propio margen guardado. Solo afecta productos con costo; las ofertas conservan su descuento.
+              ¿Subiste la tasa actual? Aplícala arriba y luego recalcula los productos que ya tienes en venta.
+              Cada producto se recalcula con su propio margen de ganancia guardado. Solo afecta productos con costo; las ofertas conservan su descuento.
             </p>
             <button
               onClick={handleRecalc}

@@ -54,7 +54,7 @@ export async function updateExchangeRate(rate: unknown) {
 
 const pricingParamsSchema = z.object({
   marginPct: z.coerce.number().min(0, 'El margen no puede ser negativo.').max(1000, 'Margen fuera de rango.'),
-  factor: z.coerce.number().positive('El factor debe ser mayor que cero.').max(100, 'Factor fuera de rango.'),
+  factor: z.coerce.number().positive('La tasa actual debe ser mayor que cero.').max(100, 'Tasa actual fuera de rango.'),
 });
 
 export async function getPricingParams(): Promise<{ marginPct: number; factor: number }> {
@@ -98,7 +98,7 @@ export async function updatePricingParams(input: { marginPct: unknown; factor: u
     }),
   ]);
 
-  return { success: true, message: `Fórmula actualizada: margen ${parsed.data.marginPct}% × factor ${parsed.data.factor}.` };
+  return { success: true, message: `Fórmula actualizada: margen ${parsed.data.marginPct}% × tasa actual ${parsed.data.factor}.` };
 }
 
 const MARGIN_PRESETS_APP_CONFIG_KEY = 'margin_presets';

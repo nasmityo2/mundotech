@@ -705,7 +705,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                     effectiveMargin != null && suggestedPrice != null ? (
                       <p className="text-xs text-green-600 mt-1">
                         Precio sugerido: <strong>${suggestedPrice.toFixed(2)}</strong>
-                        {' '}· costo × {(1 + effectiveMargin / 100).toFixed(2)} × {pricing.factor}
+                        {' '}· costo × {(1 + effectiveMargin / 100).toFixed(2)} × tasa actual {pricing.factor}
                       </p>
                     ) : (
                       <p className="text-[11px] text-amber-600 mt-1">

@@ -986,7 +986,7 @@ export async function recalculateAllProductPrices() {
       updated,
       skipped,
       total: products.length,
-      message: `Precios recalculados con factor ${factor}: ${updated} actualizado(s)${
+      message: `Precios recalculados con tasa actual ${factor}: ${updated} actualizado(s)${
         skipped > 0
           ? `, ${skipped} omitido(s) (sin margen propio guardado — ábrelos y guárdalos una vez para fijar su %)`
           : ''
