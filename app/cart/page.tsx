@@ -8,6 +8,7 @@ import CartClient from './CartClient';
 import RecentlyViewed from '@/components/RecentlyViewed';
 import { d, dn } from '@/lib/decimal';
 import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
+import { firstCardImage } from '@/lib/product-media';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,7 +86,7 @@ export default async function CartPage() {
                   stock: product.stock,
                   category: product.category,
                   brand: product.brand,
-                  image: product.images[0] || '/placeholder-product.png',
+                  image: firstCardImage(product.images),
                   images: product.images,
                   details: {},
                 })}

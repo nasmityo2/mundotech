@@ -13,6 +13,7 @@ import { useSession } from 'next-auth/react';
 import { Product } from './ProductContext';
 import type { CartItemAPI } from '@/lib/definitions';
 import { getProductSnapshots } from '@/app/actions/productSnapshotActions';
+import { firstCardImage } from '@/lib/product-media';
 
 interface CartItem extends Product {
   quantity: number;
@@ -235,7 +236,7 @@ export const CartProvider = ({ children }: CartProviderProps) => {
                   price: s.price,
                   originalPrice: s.originalPrice,
                   stock: s.stock,
-                  image: s.images[0] ?? i.image ?? '/placeholder-product.png',
+                  image: firstCardImage(s.images) ?? i.image,
                   images: s.images,
                   quantity: Math.max(1, Math.min(i.quantity, s.stock)),
                 };

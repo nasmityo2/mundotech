@@ -12,9 +12,13 @@ import {
 import { readSiteContent, type TrustIcon } from '@/lib/site-content';
 import ProductActions from './ProductActions';
 import ProductGallery from './ProductGallery';
-import { productToGalleryItems } from '@/lib/product-media';
+import { firstCardImage, productToGalleryItems } from '@/lib/product-media';
 import ProductTabs from './ProductTabs';
 import PaymentMethods from './PaymentMethods';
+import PaymentLogos from './PaymentLogos';
+import ProductShare from './ProductShare';
+import ProductViewers from './ProductViewers';
+import DeliveryInfo from './DeliveryInfo';
 import ProductAboutHighlights from './ProductAboutHighlights';
 import { formatCurrency, isGenericBrand } from '@/lib/utils';
 import ProductCard from '@/components/ProductCard';
@@ -331,8 +335,8 @@ export default async function ProductDetailPage({ params }: PageProps) {
       {/* ── Layout principal 2 cols ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 lg:gap-8 items-start mb-8 sm:mb-12">
 
-        {/* Galería — edge-to-edge en móvil; tarjeta solo desde md */}
-        <div className="-mx-4 sm:-mx-6 md:mx-0 md:card-elevated md:p-4 lg:p-5">
+        {/* Galería — edge-to-edge en móvil; marco único en ProductGallery */}
+        <div className="-mx-4 sm:-mx-6 md:mx-0">
           <ProductGallery
             items={productToGalleryItems(product)}
             name={product.name}
@@ -423,13 +427,19 @@ export default async function ProductDetailPage({ params }: PageProps) {
             )}
           </div>
 
-          {/* Acciones — padding inferior para no solapar FAB de WhatsApp en móvil */}
-          <div className="mt-6 pb-20 sm:pb-0">
+          {/* Acciones */}
+          <div className="mt-6">
             <ProductActions product={productForClient} />
           </div>
 
+          <ProductShare name={product.name} />
+          <ProductViewers productId={product.id} />
+
+          {/* Delivery / envíos — complementa (no reemplaza) la trust strip */}
+          <DeliveryInfo />
+
           {/* Trust strip — datos reales de la operación, editables en el admin */}
-          <div className={`mt-7 grid gap-3 ${siteContent.productTrust.length >= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div className={`mt-6 grid gap-3 ${siteContent.productTrust.length >= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
             {siteContent.productTrust.map(({ icon, title, sub }) => {
               const Icon = TRUST_ICONS[icon] ?? ShieldCheck;
               return (
@@ -443,6 +453,8 @@ export default async function ProductDetailPage({ params }: PageProps) {
               );
             })}
           </div>
+
+          <PaymentLogos />
         </div>
       </div>
 
@@ -494,7 +506,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
                 stock:         related.stock,
                 category:      related.category,
                 brand:         related.brand,
-                image:         related.images[0] || '/placeholder-product.png',
+                image:         firstCardImage(related.images),
                 images:        related.images,
                 details:       {},
                 rating:        s?.average,

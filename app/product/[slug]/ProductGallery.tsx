@@ -17,6 +17,10 @@ interface Props {
 
 const PLACEHOLDER = '/placeholder-product.png';
 
+function videoHasPoster(item: Extract<ProductGalleryItem, { type: 'VIDEO' }>): boolean {
+  return !!item.posterUrl?.trim();
+}
+
 export default function ProductGallery({ items, name, isOut, discountPct }: Props) {
   const safeItems = items.length > 0 ? items : [{ type: 'IMAGE' as const, url: PLACEHOLDER }];
   const [active, setActive] = useState(0);
@@ -70,14 +74,14 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
             'flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth',
             'touch-pan-x overscroll-x-contain',
             '[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
-            'md:rounded-2xl md:border md:border-slate-200/90',
+            'sm:rounded-2xl sm:border sm:border-slate-200/80 sm:bg-white sm:shadow-[0_2px_16px_rgba(11,18,32,0.06)]',
           )}
         >
           {safeItems.map((item, i) => (
             <div
               key={`slide-${i}-${item.url}`}
               ref={(el) => { slideRefs.current[i] = el; }}
-              className="relative w-full shrink-0 snap-center aspect-square bg-white"
+              className="relative w-full shrink-0 snap-center aspect-square bg-white group"
             >
               {item.type === 'VIDEO' ? (
                 <CarouselVideo
@@ -95,7 +99,7 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
                     fetchPriority={i === 0 ? 'high' : 'auto'}
                     sizes="(max-width: 1024px) 100vw, 50vw"
                     draggable={false}
-                    className="object-contain p-0 md:p-4 select-none pointer-events-none"
+                    className="object-contain p-0 sm:p-4 lg:p-6 select-none pointer-events-none lg:transition-transform lg:duration-500 lg:group-hover:scale-[1.02]"
                   />
                   <button
                     type="button"
@@ -150,7 +154,7 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
         <div className="hidden lg:flex gap-2.5 overflow-x-auto pb-1 pt-0.5 [scrollbar-gutter:stable]">
           {safeItems.map((item, i) => {
             const selected = i === active;
-            const thumbSrc = item.type === 'VIDEO' ? (item.posterUrl ?? PLACEHOLDER) : item.url;
+            const hasPoster = item.type === 'VIDEO' && videoHasPoster(item);
             return (
               <button
                 key={`thumb-${i}-${item.url}`}
@@ -158,12 +162,24 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
                 onClick={() => goTo(i)}
                 aria-current={selected}
                 className={cn(
-                  'relative shrink-0 w-[80px] aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 bg-white shadow-sm hover:shadow-md',
-                  selected ? 'border-navy ring-2 ring-brand-yellow/50 ring-offset-2 ring-offset-white' : 'border-slate-200/90 hover:border-slate-400',
+                  'relative shrink-0 w-[88px] aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 bg-white shadow-sm hover:shadow-md',
+                  selected ? 'border-navy ring-2 ring-brand-yellow/50 ring-offset-2 ring-offset-white' : 'border-slate-200/80 hover:border-slate-400',
                 )}
               >
-                <Image src={thumbSrc} alt={`${name} vista ${i + 1}`} fill sizes="80px" className="object-cover" />
-                {item.type === 'VIDEO' && (
+                {item.type === 'VIDEO' && !hasPoster ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-navy">
+                    <Play size={22} className="text-white fill-white/90" />
+                  </div>
+                ) : (
+                  <Image
+                    src={item.type === 'VIDEO' ? item.posterUrl! : item.url}
+                    alt={`${name} vista ${i + 1}`}
+                    fill
+                    sizes="88px"
+                    className="object-cover"
+                  />
+                )}
+                {item.type === 'VIDEO' && hasPoster && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-none">
                     <Play size={22} className="text-white fill-white/90" />
                   </div>
@@ -208,12 +224,14 @@ function CarouselVideo({
     }
   }, [isActive]);
 
+  const hasPoster = videoHasPoster(item);
+
   return (
     <div className="absolute inset-0 bg-black">
-      {item.posterUrl && (
+      {hasPoster && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={item.posterUrl}
+          src={item.posterUrl!}
           aria-hidden
           className="absolute inset-0 h-full w-full object-cover scale-125 blur-2xl opacity-50"
         />
@@ -221,7 +239,7 @@ function CarouselVideo({
       <video
         ref={assignRef}
         className="absolute inset-0 h-full w-full object-contain"
-        poster={item.posterUrl ?? undefined}
+        poster={hasPoster ? item.posterUrl! : undefined}
         controls={started}
         playsInline
         preload="metadata"
@@ -372,7 +390,7 @@ function Lightbox({
                 <video
                   ref={(el) => { lbVideoRefs.current[i] = el; }}
                   src={item.url}
-                  poster={item.posterUrl ?? undefined}
+                  poster={videoHasPoster(item) ? item.posterUrl! : undefined}
                   controls
                   playsInline
                   preload="metadata"

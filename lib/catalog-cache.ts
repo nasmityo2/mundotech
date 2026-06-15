@@ -28,6 +28,7 @@ import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { d, dn } from '@/lib/decimal';
 import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
+import { firstCardImage } from '@/lib/product-media';
 
 /** Products per page — must be a multiple of 4 (grid columns). */
 export const PAGE_SIZE = 24;
@@ -60,7 +61,7 @@ function mapProductRowsToCardModels(rows: ProductCardRow[]) {
     stock:         p.stock,
     category:      p.category,
     brand:         p.brand,
-    image:         p.images[0] ?? '/placeholder-product.png',
+    image:         firstCardImage(p.images),
     images:        p.images,
     details:       {} as Record<string, string>,
   }));

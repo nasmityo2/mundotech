@@ -7,16 +7,27 @@ export type ProductGalleryItem =
 
 const PLACEHOLDER = '/placeholder-product.png';
 
-/** Lista `images` para cards / carrito: solo URLs de imagen; video usa posterUrl como fallback. */
+const VIDEO_EXT = /\.(mp4|webm|mov|m4v|ogv|ogg)(\?|#|$)/i;
+
+/** Devuelve la mejor imagen para tarjetas/carrito: primera imagen real (no video). */
+export function firstCardImage(images: string[] | null | undefined): string {
+  const list = (images ?? []).map((u) => (u ?? '').trim()).filter(Boolean);
+  const realImage = list.find((u) => !VIDEO_EXT.test(u));
+  return realImage || list.find(Boolean) || PLACEHOLDER;
+}
+
+/** Lista `images` para cards / carrito: imágenes reales primero, pósters de video al final. */
 export function deriveLegacyImagesFromSlots(slots: ProductGalleryItem[]): string[] {
-  const out: string[] = [];
+  const images: string[] = [];
+  const posters: string[] = [];
   for (const s of slots) {
     if (s.type === 'IMAGE') {
-      out.push(s.url);
+      images.push(s.url);
     } else if (s.posterUrl) {
-      out.push(s.posterUrl);
+      posters.push(s.posterUrl);
     }
   }
+  const out = [...images, ...posters];
   if (out.length === 0) return [PLACEHOLDER];
   return out;
 }

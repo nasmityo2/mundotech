@@ -11,6 +11,7 @@ import {
   type FullProduct,
   type FullSearchResult,
 } from '@/lib/search-shared';
+import { firstCardImage } from '@/lib/product-media';
 
 const EMPTY_FULL_RESULT: FullSearchResult = {
   products: [],
@@ -233,7 +234,7 @@ export async function searchProductsFull({
     stock: p.stock,
     category: p.category,
     brand: p.brand,
-    image: p.images[0] ?? '/placeholder-product.png',
+    image: firstCardImage(p.images),
     images: p.images,
     details: {},
   }));

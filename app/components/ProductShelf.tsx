@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import ProductCard from '@/components/ProductCard';
+import { firstCardImage } from '@/lib/product-media';
 
 interface ShelfProduct {
   id:            string;
@@ -48,7 +49,7 @@ function toCardProduct(p: ShelfProduct) {
     price:         p.price,
     originalPrice: p.originalPrice ?? null,
     description:   '',
-    image:         p.images[0] || '/placeholder-product.png',
+    image:         firstCardImage(p.images),
     images:        p.images,
     category:      p.category,
     brand:         p.brand ?? null,

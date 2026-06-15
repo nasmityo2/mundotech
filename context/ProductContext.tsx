@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect, useRef } from 'react';
 import { getProducts } from '@/app/actions/productActions';
 import { d, dn } from '@/lib/decimal';
+import { firstCardImage } from '@/lib/product-media';
 
 // Definimos una interfaz de Producto que coincida con Prisma
 export interface Product {
@@ -41,7 +42,7 @@ function fetchedToProduct(p: FetchedProduct): Product {
     stock:         p.stock,
     category:      p.category,
     brand:         p.brand,
-    image:         p.images?.[0] || '/placeholder-product.png',
+    image:         firstCardImage(p.images),
     images:        p.images ?? [],
     details:       {},
   };
