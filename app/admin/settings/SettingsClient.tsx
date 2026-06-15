@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Settings, Store, Phone, Building2,
-  Save, Check, DollarSign, RefreshCw, TrendingUp, Share2, Wallet, Calculator,
+  Save, Check, DollarSign, RefreshCw, TrendingUp, Share2, Wallet, Calculator, Printer,
 } from 'lucide-react';
 import { updateSettings } from '@/app/actions/settingsActions';
 import { updateExchangeRate, updatePricingParams, getPricingParams } from '@/app/actions/configActions';
@@ -156,6 +156,15 @@ export default function SettingsClient({
     });
   };
 
+  const LABEL_PRESETS: { id: string; label: string; w: number; h: number }[] = [
+    { id: 'thermal', label: 'Térmica 100×150 mm (4×6")', w: 100, h: 150 },
+    { id: 'letter',  label: 'Hoja Carta 216×279 mm',     w: 216, h: 279 },
+    { id: 'a4',      label: 'Hoja A4 210×297 mm',         w: 210, h: 297 },
+  ];
+  const curLabelW = Number(settings.labelWidthMm) || 100;
+  const curLabelH = Number(settings.labelHeightMm) || 150;
+  const activeLabelPreset = LABEL_PRESETS.find(p => p.w === curLabelW && p.h === curLabelH)?.id ?? 'custom';
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -281,6 +290,31 @@ export default function SettingsClient({
             <Field label="Teléfono secundario" value={settings.phone2 ?? ''} onChange={v => set(['phone2'], v)} type="tel" placeholder="0414-5709470" />
           </div>
           <Field label="Correo electrónico" value={settings.email} onChange={v => set(['email'], v)} type="email" placeholder="ventas@mundotechve.com" />
+        </SectionCard>
+
+        <SectionCard title="Etiqueta de envío" icon={Printer}>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tamaño rápido</label>
+            <select
+              value={activeLabelPreset}
+              onChange={e => {
+                const p = LABEL_PRESETS.find(x => x.id === e.target.value);
+                if (p) { set(['labelWidthMm'], String(p.w)); set(['labelHeightMm'], String(p.h)); }
+              }}
+              className="w-full px-3 py-2 border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-1 focus:ring-navy/30 focus:border-navy"
+            >
+              {LABEL_PRESETS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+              <option value="custom">Personalizado</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Ancho (mm)" type="number" value={String(settings.labelWidthMm ?? '')} onChange={v => set(['labelWidthMm'], v)} placeholder="100" />
+            <Field label="Alto (mm)"  type="number" value={String(settings.labelHeightMm ?? '')} onChange={v => set(['labelHeightMm'], v)} placeholder="150" />
+          </div>
+          <p className="text-xs text-gray-500">
+            Térmica estándar = 100×150 mm. Cuando imprimas en hoja normal, elige Carta o A4.
+            La etiqueta se mantiene compacta arriba a la izquierda de la hoja.
+          </p>
         </SectionCard>
 
         <SectionCard title="Redes Sociales" icon={Share2}>

@@ -86,9 +86,21 @@ export default function NewOrdersWatcher() {
     setHasPermission(result === 'granted');
   };
 
-  const playAlert = () => {
+  const playAlert = (count = 1) => {
     if (!enabled) return;
-    if (audioRef.current) audioRef.current.play().catch(() => {});
+    // Un beep por cada pedido nuevo (máx. 6 para no saturar), espaciados 350 ms.
+    const beeps = Math.min(Math.max(count, 1), 6);
+    let played = 0;
+    const beepOnce = () => {
+      const a = audioRef.current;
+      if (a) {
+        try { a.currentTime = 0; } catch {}
+        a.play().catch(() => {});
+      }
+      played++;
+      if (played < beeps) setTimeout(beepOnce, 350);
+    };
+    beepOnce();
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       navigator.vibrate?.([200, 100, 200]);
     }
@@ -124,9 +136,9 @@ export default function NewOrdersWatcher() {
         const trulyNew = data.latest.filter(o => !seenIdsRef.current.has(o.id));
         if (trulyNew.length > 0) {
           trulyNew.forEach(o => seenIdsRef.current.add(o.id));
-          setPendingOrders(prev => [...trulyNew, ...prev].slice(0, 5));
+          setPendingOrders(prev => [...trulyNew, ...prev].slice(0, 30));
           setShowToast(true);
-          playAlert();
+          playAlert(trulyNew.length);
           showNativeNotification(trulyNew);
         }
       } catch (err) {
@@ -154,6 +166,39 @@ export default function NewOrdersWatcher() {
     sinceRef.current = new Date().toISOString();
     if (sinceKey) localStorage.setItem(sinceKey, sinceRef.current);
   };
+
+  // Cierre suave (auto-cierre): oculta el aviso sin marcar el lote como "visto".
+  const dismissToast = () => {
+    setShowToast(false);
+    setPendingOrders([]);
+  };
+
+  // Auto-cierre a los 8 s. El conteo solo corre mientras la pestaña está visible
+  // y se reinicia cuando llega un pedido nuevo.
+  useEffect(() => {
+    if (!showToast) return;
+    let remaining = 8000;
+    let startedAt = Date.now();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const start = () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      startedAt = Date.now();
+      timer = setTimeout(() => dismissToast(), remaining);
+    };
+    const pause = () => {
+      if (timer) { clearTimeout(timer); timer = null; remaining -= Date.now() - startedAt; }
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'visible') start(); else pause();
+    };
+    start();
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showToast, pendingOrders]);
 
   return (
     <>
@@ -204,8 +249,8 @@ export default function NewOrdersWatcher() {
               <X size={16} />
             </button>
           </div>
-          <ul className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
-            {pendingOrders.map(o => (
+          <ul className="divide-y divide-gray-100">
+            {pendingOrders.slice(0, 4).map(o => (
               <li key={o.id}>
                 <Link
                   href={`/admin/orders/${o.id}`}
@@ -225,6 +270,13 @@ export default function NewOrdersWatcher() {
               </li>
             ))}
           </ul>
+          <Link
+            href="/admin/orders"
+            onClick={acknowledge}
+            className="block px-3 py-2.5 text-center text-xs font-bold text-navy bg-gray-50 border-t border-gray-100 active:bg-gray-100"
+          >
+            {pendingOrders.length > 4 ? `+${pendingOrders.length - 4} más · ver todos los pedidos` : 'Ver más pedidos'}
+          </Link>
         </div>
       )}
 

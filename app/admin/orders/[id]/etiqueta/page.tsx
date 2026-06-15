@@ -37,25 +37,31 @@ export default async function OrderLabelPage({ params }: PageProps) {
     }, {})
   );
   const isMrw = /mrw/i.test(order.shippingAddress) || /mrw/i.test(order.trackingCarrier ?? '');
+  const pageW  = Number(settings.labelWidthMm) || 100;
+  const pageH  = Number(settings.labelHeightMm) || 150;
+  const labelW = Math.min(pageW, 100); // etiqueta compacta en hojas grandes
 
   return (
     <div className="min-h-screen bg-slate-100 py-6 px-4 print:bg-white print:p-0">
       {/* CSS de impresión: oculta el chrome del admin y fija el tamaño térmico */}
       <style>{`
         @media print {
-          @page { size: 100mm 150mm; margin: 0; }
-          html, body { background:#fff !important; margin:0 !important; padding:0 !important; width:auto !important; height:auto !important; overflow:visible !important; }
+          @page { size: ${pageW}mm ${pageH}mm; margin: 0; }
+          html, body {
+            background:#fff !important;
+            margin:0 !important; padding:0 !important;
+            width:${pageW}mm !important; height:${pageH}mm !important;
+            overflow:hidden !important;
+          }
           body * { visibility: hidden !important; }
           #thermal-label, #thermal-label * { visibility: visible !important; }
           #thermal-label {
             position: fixed !important;
             left:0 !important; top:0 !important;
-            width: 100mm !important;
-            box-shadow: none !important;
-            border: none !important;
-            margin: 0 !important;
+            width:${labelW}mm !important;
+            box-shadow:none !important; border:none !important; margin:0 !important;
           }
-          .no-print { display: none !important; }
+          .no-print { display:none !important; }
         }
       `}</style>
 
@@ -66,7 +72,7 @@ export default async function OrderLabelPage({ params }: PageProps) {
         <div
           id="thermal-label"
           className="bg-white text-black mx-auto border border-black/80"
-          style={{ width: '100mm', padding: '4mm', fontFamily: 'Arial, Helvetica, sans-serif' }}
+          style={{ width: `${labelW}mm`, padding: '4mm', fontFamily: 'Arial, Helvetica, sans-serif' }}
         >
           {/* Cabecera */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #000', paddingBottom: '2mm' }}>
@@ -122,10 +128,10 @@ export default async function OrderLabelPage({ params }: PageProps) {
           {/* Contenido del pedido — qué compró (cantidades agrupadas) */}
           <div style={{ marginTop: '3mm' }}>
             <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contenido</div>
-            <div style={{ fontSize: '11px', lineHeight: 1.35 }}>
+            <div style={{ fontSize: '11px', lineHeight: 1.35, marginTop: '2px' }}>
               {groupedItems.map((it, i) => (
                 <div key={i} style={{ display: 'flex', gap: '6px' }}>
-                  <span style={{ fontWeight: 700, minWidth: '22px' }}>{it.quantity}×</span>
+                  <span style={{ fontWeight: 700, minWidth: '24px' }}>{it.quantity}×</span>
                   <span>{it.name}</span>
                 </div>
               ))}

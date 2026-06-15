@@ -33,6 +33,9 @@ export const storeSettingsSchema = z.object({
    */
   binancePayId:  z.string().optional().default(''),
   binanceQrUrl:  z.string().optional().default(''),
+  // Etiqueta de envío: tamaño de la HOJA de impresión en mm. Default térmica 4×6".
+  labelWidthMm:  z.coerce.number().min(40).max(300).default(100),
+  labelHeightMm: z.coerce.number().min(40).max(400).default(150),
 });
 
 export type StoreSettings = z.infer<typeof storeSettingsSchema>;
@@ -66,6 +69,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   // PRD-027/130: Binance Pay — vacíos por defecto, editables desde Admin.
   binancePayId: '',
   binanceQrUrl: '',
+  labelWidthMm: 100,
+  labelHeightMm: 150,
 };
 
 /** ¿Hay datos de pago reales configurados? (false = BD vacía → DEFAULT_SETTINGS).
