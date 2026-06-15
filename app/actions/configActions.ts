@@ -100,3 +100,39 @@ export async function updatePricingParams(input: { marginPct: unknown; factor: u
 
   return { success: true, message: `Fórmula actualizada: margen ${parsed.data.marginPct}% × factor ${parsed.data.factor}.` };
 }
+
+const MARGIN_PRESETS_APP_CONFIG_KEY = 'margin_presets';
+const DEFAULT_MARGIN_PRESETS = [30, 50, 80, 100];
+
+const marginPresetsSchema = z
+  .array(z.coerce.number().min(0, 'El margen no puede ser negativo.').max(1000, 'Margen fuera de rango.'))
+  .length(4, 'Deben ser exactamente 4 valores.');
+
+export async function getMarginPresets(): Promise<number[]> {
+  try {
+    const record = await prisma.appConfig.findUnique({ where: { key: MARGIN_PRESETS_APP_CONFIG_KEY } });
+    if (!record?.value) return DEFAULT_MARGIN_PRESETS;
+    const parsed = marginPresetsSchema.safeParse(JSON.parse(record.value));
+    return parsed.success ? parsed.data : DEFAULT_MARGIN_PRESETS;
+  } catch {
+    return DEFAULT_MARGIN_PRESETS;
+  }
+}
+
+export async function updateMarginPresets(presets: unknown) {
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  if (!session || !isAdminRole(role)) {
+    return { success: false, message: 'No autorizado.' };
+  }
+  const parsed = marginPresetsSchema.safeParse(presets);
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0]?.message ?? 'Valores inválidos.' };
+  }
+  await prisma.appConfig.upsert({
+    where: { key: MARGIN_PRESETS_APP_CONFIG_KEY },
+    update: { value: JSON.stringify(parsed.data) },
+    create: { key: MARGIN_PRESETS_APP_CONFIG_KEY, value: JSON.stringify(parsed.data) },
+  });
+  return { success: true, message: 'Atajos de margen guardados.', presets: parsed.data };
+}

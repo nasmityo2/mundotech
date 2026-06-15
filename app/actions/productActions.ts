@@ -918,14 +918,15 @@ export async function getProductsAdmin(params: {
 
 /**
  * Recalcula el precio de TODOS los productos que tienen costo, usando el factor/margen
- * actuales. Cada producto usa su propio margen (profitMarginPct) o el global si es null.
+ * actuales. Cada producto usa SU PROPIO margen guardado (profitMarginPct). Los productos
+ * con costo pero SIN margen propio se OMITEN (no se les inventa un global).
  * Las ofertas conservan su % de descuento: se recalcula el precio normal y se reaplica el descuento.
  * Productos sin costo (precio manual) NO se tocan.
  */
 export async function recalculateAllProductPrices() {
   try {
     await verifyAdminSession();
-    const { marginPct: globalMargin, factor } = await getPricingParams();
+    const { factor } = await getPricingParams();
 
     const products = await prisma.product.findMany({
       where: { cost: { not: null } },
@@ -933,11 +934,15 @@ export async function recalculateAllProductPrices() {
     });
 
     let updated = 0;
+    let skipped = 0;
     for (const p of products) {
       const cost = Number(p.cost);
-      if (!Number.isFinite(cost) || cost <= 0) continue;
+      if (!Number.isFinite(cost) || cost <= 0) { skipped++; continue; }
 
-      const effMargin = p.profitMarginPct != null ? Number(p.profitMarginPct) : globalMargin;
+      // El margen SIEMPRE es el guardado en el producto. Si no tiene margen propio,
+      // se omite: no inventamos un global porque cada producto gana un % distinto.
+      if (p.profitMarginPct == null) { skipped++; continue; }
+      const effMargin = Number(p.profitMarginPct);
       const newNormal = calcSellingPriceUsd(cost, effMargin, factor);
 
       let newPrice = newNormal;
@@ -971,8 +976,13 @@ export async function recalculateAllProductPrices() {
     return {
       success: true,
       updated,
+      skipped,
       total: products.length,
-      message: `Precios recalculados: ${updated} producto(s) actualizados (factor ${factor}). Las ofertas conservaron su descuento.`,
+      message: `Precios recalculados con factor ${factor}: ${updated} actualizado(s)${
+        skipped > 0
+          ? `, ${skipped} omitido(s) (sin margen propio guardado — ábrelos y guárdalos una vez para fijar su %)`
+          : ''
+      }. Las ofertas conservaron su descuento.`,
     };
   } catch (error) {
     console.error('Error al recalcular precios:', error);

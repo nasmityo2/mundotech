@@ -2,7 +2,7 @@
 import { useTransition, useRef, useEffect, useState, useCallback } from 'react';
 import { createProductAction, updateProductAction } from '@/app/actions/productActions';
 import { calcSellingPriceUsd, roundUpToStep, DEFAULT_PROFIT_MARGIN_PCT, DEFAULT_BCV_BINANCE_FACTOR } from '@/lib/pricing-formula';
-import { getPricingParams } from '@/app/actions/configActions';
+import { getPricingParams, getMarginPresets, updateMarginPresets } from '@/app/actions/configActions';
 import { X, GripVertical, ImagePlus, Star, Camera, Plus, Trash2, Video, Play } from 'lucide-react';
 import { deriveLegacyImagesFromSlots, type ProductGalleryItem } from '@/lib/product-media';
 import { parseProductSpecs, type ProductSpec } from '@/lib/definitions';
@@ -80,6 +80,9 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   const [specs, setSpecs] = useState<ProductSpec[]>([]);
   const [cost, setCost] = useState('');
   const [marginPct, setMarginPct] = useState('');
+  const [presets, setPresets] = useState<number[]>([30, 50, 80, 100]);
+  const [presetDraft, setPresetDraft] = useState<string[]>(['30', '50', '80', '100']);
+  const [editingPresets, setEditingPresets] = useState(false);
   const [price, setPrice] = useState('');
   const [onSale, setOnSale] = useState(false);
   const [discountMode, setDiscountMode] = useState<'pct' | 'amount'>('pct');
@@ -96,6 +99,13 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   useEffect(() => {
     if (!isOpen) return;
     getPricingParams().then(setPricing).catch(() => {});
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    getMarginPresets()
+      .then((p) => { setPresets(p); setPresetDraft(p.map(String)); })
+      .catch(() => {});
   }, [isOpen]);
 
   useEffect(() => {
@@ -699,6 +709,66 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                   <input type="number" name="marginPct" id="marginPct" step="1" min="0" className={inputCls}
                     value={marginPct} onChange={(e) => onMarginChange(e.target.value)} />
                   <p className="text-[11px] text-gray-400 mt-1">Viene del global. Cámbialo solo para este producto.</p>
+                  {/* Atajos de margen configurables */}
+                  <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                    {editingPresets ? (
+                      <>
+                        {presetDraft.map((val, i) => (
+                          <input
+                            key={i}
+                            type="number"
+                            min="0"
+                            value={val}
+                            onChange={(e) =>
+                              setPresetDraft((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
+                            }
+                            className="w-12 px-1.5 py-1 text-xs text-center border border-gray-300 rounded-md"
+                          />
+                        ))}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const nums = presetDraft.map((v) => Number(v) || 0);
+                            const res = await updateMarginPresets(nums);
+                            if (res.success) { setPresets(nums); setEditingPresets(false); }
+                            else alert(res.message);
+                          }}
+                          className="px-2 py-1 text-xs font-semibold text-white bg-navy rounded-md"
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setPresetDraft(presets.map(String)); setEditingPresets(false); }}
+                          className="px-2 py-1 text-xs text-gray-500"
+                        >
+                          Cancelar
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {presets.map((preset, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => onMarginChange(String(preset))}
+                            className="px-2.5 py-1 text-xs font-semibold text-navy bg-gray-100 hover:bg-navy/10 rounded-md transition"
+                          >
+                            {preset}%
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => { setPresetDraft(presets.map(String)); setEditingPresets(true); }}
+                          aria-label="Configurar atajos de margen"
+                          title="Configurar atajos"
+                          className="px-1.5 py-1 text-gray-400 hover:text-navy"
+                        >
+                          ✎
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Precio normal */}
