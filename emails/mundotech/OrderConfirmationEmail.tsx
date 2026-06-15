@@ -54,10 +54,6 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
   }).format(payload.createdAt);
 
   const rate = payload.exchangeRateUsdBs;
-  const rateNote =
-    rate != null && rate > 0
-      ? `Tasa de este pedido: Bs.S ${rate.toFixed(2)} por USD.`
-      : 'Equivalente en bolívares no mostrado (pedido sin tasa registrada).';
 
   const shipMethod = payload.shippingMethod?.trim() || 'Por coordinar';
   const lineCount = payload.items.length;
@@ -261,9 +257,6 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
             </tr>
           </tbody>
         </table>
-        <Text style={{ margin: '10px 8px 0', fontSize: 11, lineHeight: 1.5, color: MT.textMuted }}>
-          {rateNote}
-        </Text>
       </Section>
 
       {/* ── Entrega y pago (compacto) ─────────────────────────────────── */}

@@ -1,5 +1,11 @@
 'use client'
-import { useTransition, useRef, useEffect, useState, useCallback } from 'react';
+import { useTransition, useRef, useEffect, useState, useCallback, type CSSProperties } from 'react';
+import {
+  DndContext, closestCenter, MouseSensor, TouchSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, rectSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { createProductAction, updateProductAction } from '@/app/actions/productActions';
 import { calcSellingPriceUsd, roundUpToStep, DEFAULT_PROFIT_MARGIN_PCT, DEFAULT_BCV_BINANCE_FACTOR } from '@/lib/pricing-formula';
 import { getPricingParams, getMarginPresets, updateMarginPresets } from '@/app/actions/configActions';
@@ -347,6 +353,31 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
     });
   };
 
+  const moveRight = (idx: number) => {
+    setSlots((prev) => {
+      if (idx >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+      return next;
+    });
+  };
+
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setSlots((prev) => {
+      const oldIndex = prev.findIndex((s) => s.url === active.id);
+      const newIndex = prev.findIndex((s) => s.url === over.id);
+      if (oldIndex < 0 || newIndex < 0) return prev;
+      return arrayMove(prev, oldIndex, newIndex);
+    });
+  };
+
   const hasProcessingVideo = slots.some(
     (s) => s.type === 'VIDEO' && s.status === 'processing',
   );
@@ -462,75 +493,23 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
               </div>
 
               {slots.length > 0 && (
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  {slots.map((slot, idx) => {
-                    const previewSrc =
-                      slot.type === 'VIDEO'
-                        ? slot.posterUrl ?? '/placeholder-product.png'
-                        : slot.url;
-
-                    return (
-                      <div
-                        key={`${slot.type}-${idx}-${slot.url.slice(0, 24)}`}
-                        className="relative group rounded-lg overflow-hidden border border-gray-200 bg-gray-50 aspect-square"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={previewSrc}
-                          alt={`Medio ${idx + 1}`}
-                          className="w-full h-full object-contain p-1"
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={slots.map((s) => s.url)} strategy={rectSortingStrategy}>
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      {slots.map((slot, idx) => (
+                        <SortableSlot
+                          key={slot.url}
+                          slot={slot}
+                          index={idx}
+                          total={slots.length}
+                          onMoveLeft={moveLeft}
+                          onMoveRight={moveRight}
+                          onRemove={removeSlot}
                         />
-
-                        {slot.type === 'VIDEO' && (
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="bg-black/40 rounded-full p-1.5">
-                              <Play size={14} className="text-white fill-white" />
-                            </div>
-                          </div>
-                        )}
-
-                        {slot.type === 'VIDEO' && slot.status === 'processing' && (
-                          <div className="absolute bottom-1 left-1 right-1 z-[1] bg-amber-500/95 text-white text-[9px] font-bold px-1.5 py-0.5 rounded text-center">
-                            Procesando…
-                          </div>
-                        )}
-
-                        {slot.type === 'VIDEO' && slot.status === 'failed' && (
-                          <div className="absolute bottom-1 left-1 right-1 z-[1] bg-red-500/95 text-white text-[9px] font-bold px-1.5 py-0.5 rounded text-center truncate">
-                            {slot.error ?? 'Error'}
-                          </div>
-                        )}
-
-                        {idx === 0 && (
-                          <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-brand-yellow/90 text-navy text-[9px] font-black px-1.5 py-0.5 rounded z-[1]">
-                            <Star size={8} className="fill-navy" /> Principal
-                          </div>
-                        )}
-
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 z-[2]">
-                          {idx > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => moveLeft(idx)}
-                              title="Mover a la izquierda"
-                              className="bg-white/90 hover:bg-white text-gray-700 rounded-full p-1.5 transition"
-                            >
-                              <GripVertical size={13} />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => removeSlot(idx)}
-                            title="Quitar"
-                            className="bg-red-500/90 hover:bg-red-600 text-white rounded-full p-1.5 transition"
-                          >
-                            <X size={13} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               )}
 
               {slots.length < MAX_SLOTS && (
@@ -964,6 +943,89 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                   : 'Crear producto'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SortableSlot({
+  slot, index, total, onMoveLeft, onMoveRight, onRemove,
+}: {
+  slot: GallerySlot;
+  index: number;
+  total: number;
+  onMoveLeft: (i: number) => void;
+  onMoveRight: (i: number) => void;
+  onRemove: (i: number) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: slot.url });
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 20 : undefined,
+    opacity: isDragging ? 0.85 : 1,
+  };
+  const previewSrc = slot.type === 'VIDEO' ? (slot.posterUrl ?? '/placeholder-product.png') : slot.url;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50 aspect-square"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={previewSrc} alt={`Medio ${index + 1}`} className="w-full h-full object-contain p-1" />
+
+      {slot.type === 'VIDEO' && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="bg-black/40 rounded-full p-1.5"><Play size={14} className="text-white fill-white" /></div>
+        </div>
+      )}
+      {slot.type === 'VIDEO' && slot.status === 'processing' && (
+        <div className="absolute bottom-1 left-1 right-1 z-[1] bg-amber-500/95 text-white text-[9px] font-bold px-1.5 py-0.5 rounded text-center">Procesando…</div>
+      )}
+      {slot.type === 'VIDEO' && slot.status === 'failed' && (
+        <div className="absolute bottom-1 left-1 right-1 z-[1] bg-red-500/95 text-white text-[9px] font-bold px-1.5 py-0.5 rounded text-center truncate">{slot.error ?? 'Error'}</div>
+      )}
+
+      {index === 0 && (
+        <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-brand-yellow/90 text-navy text-[9px] font-black px-1.5 py-0.5 rounded z-[2]">
+          <Star size={8} className="fill-navy" /> Principal
+        </div>
+      )}
+
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        title="Arrastrar para reordenar"
+        className="absolute top-1 right-1 z-[3] bg-white/90 hover:bg-white text-gray-600 rounded-full p-1.5 shadow-sm cursor-grab active:cursor-grabbing touch-none"
+      >
+        <GripVertical size={13} />
+      </button>
+
+      <div className="absolute bottom-1 left-1 right-1 z-[2] flex items-center justify-center gap-1">
+        <button
+          type="button"
+          onClick={() => onMoveLeft(index)}
+          disabled={index === 0}
+          title="Mover antes"
+          className="bg-white/90 hover:bg-white text-gray-700 rounded-full px-2 py-1 text-xs font-bold shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+        >◀</button>
+        <button
+          type="button"
+          onClick={() => onMoveRight(index)}
+          disabled={index === total - 1}
+          title="Mover después"
+          className="bg-white/90 hover:bg-white text-gray-700 rounded-full px-2 py-1 text-xs font-bold shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+        >▶</button>
+        <button
+          type="button"
+          onClick={() => onRemove(index)}
+          title="Quitar"
+          className="bg-white/90 hover:bg-white text-red-600 rounded-full p-1.5 shadow-sm"
+        ><Trash2 size={13} /></button>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import OrderDetailClient from '@/components/account/OrderDetailClient';
 
 export interface EnrichedOrderItem extends OrderItem {
   imageUrl?: string;
+  productSlug: string;
 }
 
 export interface EnrichedOrder extends Omit<Order, 'items'> {
@@ -16,14 +17,25 @@ export interface EnrichedOrder extends Omit<Order, 'items'> {
 async function getEnrichedOrder(ref: OrderRef): Promise<EnrichedOrder | null> {
   const row = await prisma.order.findUnique({
     where:   'orderNumber' in ref ? { orderNumber: ref.orderNumber } : { id: ref.id },
-    include: { items: true },
+    include: {
+      items: {
+        include: { product: { select: { slug: true } } },
+      },
+    },
   });
   if (!row) return null;
 
-  const order = prismaOrderToOrder(row);
-  const enrichedItems: EnrichedOrderItem[] = order.items.map(item => ({
+  const order = prismaOrderToOrder({
+    ...row,
+    items: row.items.map(({ product: _product, ...item }) => item),
+  });
+  const slugByProductId = new Map(
+    row.items.map((i) => [i.productId, i.product.slug?.trim() || i.productId]),
+  );
+  const enrichedItems: EnrichedOrderItem[] = order.items.map((item) => ({
     ...item,
     imageUrl: item.imageUrl || '/placeholder.png',
+    productSlug: slugByProductId.get(item.productId) ?? item.productId,
   }));
 
   return { ...order, items: enrichedItems };

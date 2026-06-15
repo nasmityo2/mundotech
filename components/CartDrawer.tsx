@@ -266,7 +266,7 @@ const CartDrawer = () => {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           }).format(getCartTotal() * rate)}
-                          {stale ? ' (tasa referencial)' : ''}
+                          {stale ? ' (referencial)' : ''}
                         </span>
                       </div>
                     </div>

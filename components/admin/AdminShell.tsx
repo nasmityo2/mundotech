@@ -32,17 +32,23 @@ export default function AdminShell({ children, userName, userEmail }: AdminShell
 
   return (
     <div className="flex min-h-[100dvh] bg-[#F1F5F9]">
-      <SidebarDesktop />
+      <div className="contents print:hidden">
+        <SidebarDesktop />
+      </div>
 
-      <SidebarDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        userName={userName}
-        userEmail={userEmail}
-      />
+      <div className="contents print:hidden">
+        <SidebarDrawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          userName={userName}
+          userEmail={userEmail}
+        />
+      </div>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <MobileTopBar onOpenDrawer={() => setDrawerOpen(true)} />
+        <div className="contents print:hidden">
+          <MobileTopBar onOpenDrawer={() => setDrawerOpen(true)} />
+        </div>
 
         <main
           className="flex-1 w-full min-w-0 px-3 sm:px-5 lg:px-8 py-4 sm:py-6 pb-[max(6rem,calc(4.25rem+env(safe-area-inset-bottom,0px)))] md:pb-10"
@@ -50,8 +56,12 @@ export default function AdminShell({ children, userName, userEmail }: AdminShell
           {children}
         </main>
 
-        <MobileBottomNav />
-        <NewOrdersWatcher />
+        <div className="contents print:hidden">
+          <MobileBottomNav />
+        </div>
+        <div className="contents print:hidden">
+          <NewOrdersWatcher />
+        </div>
       </div>
     </div>
   );

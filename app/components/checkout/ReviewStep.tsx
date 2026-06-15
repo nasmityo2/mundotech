@@ -411,8 +411,7 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
           </div>
         )}
         <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
-          El pago se realiza en bolívares. Tasa del día: Bs. {exchangeRate.toFixed(2)}/USD — el
-          monto definitivo en Bs. se fija al confirmar y te llega por correo.
+          El pago se realiza en bolívares. El monto definitivo se fija al confirmar y te llega por correo.
         </p>
       </div>
 

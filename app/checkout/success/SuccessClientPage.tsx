@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Check, ArrowRight, Package, Mail, Home } from 'lucide-react';
 import type { EnrichedOrder } from './page';
-import { DualOrderMoney, OrderFrozenRateBanner } from '@/components/order/DualOrderMoney';
+import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 
 interface Props {
   order: EnrichedOrder;
@@ -120,7 +120,6 @@ export default function SuccessClientPage({ order }: Props) {
               <DualOrderMoney amount={order.total} order={order} emphasis="total" />
             </div>
           </div>
-          <OrderFrozenRateBanner order={order} />
         </motion.div>
 
         {/* CTAs */}

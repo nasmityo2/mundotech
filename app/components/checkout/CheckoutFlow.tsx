@@ -214,8 +214,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
                     ≈ Bs. {new Intl.NumberFormat('es-VE', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
-                    }).format(total * exchangeRate)}{' '}
-                    <span className="text-slate-400">(tasa Bs. {exchangeRate.toFixed(2)}/USD)</span>
+                    }).format(total * exchangeRate)}
                   </p>
                 )}
               </div>

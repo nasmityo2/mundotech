@@ -14,7 +14,6 @@ import ProductActions from './ProductActions';
 import ProductGallery from './ProductGallery';
 import { productToGalleryItems } from '@/lib/product-media';
 import ProductTabs from './ProductTabs';
-import StickyAddToCart from './StickyAddToCart';
 import { formatCurrency } from '@/lib/utils';
 import ProductCard from '@/components/ProductCard';
 import RecentlyViewedTracker from '@/components/RecentlyViewedTracker';
@@ -262,7 +261,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const relatedSummaries = await getReviewSummariesMap(relatedProducts.map((r) => r.id));
 
   return (
-    <div className="pb-24 lg:pb-12 w-full max-w-full">
+    <div className="pb-12 w-full max-w-full">
 
       {/* ── Datos estructurados JSON-LD ── */}
       <ProductJsonLd
@@ -480,17 +479,6 @@ export default async function ProductDetailPage({ params }: PageProps) {
         image={mainImage}
         brand={product.brand}
         category={product.category}
-      />
-
-      {/* ── Sticky add-to-cart en mobile ── */}
-      <StickyAddToCart
-        product={{
-          id:    product.id,
-          name:  product.name,
-          price: product.price,
-          image: mainImage,
-          stock: product.stock,
-        }}
       />
     </div>
   );

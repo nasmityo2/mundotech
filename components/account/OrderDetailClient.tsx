@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import {
@@ -10,7 +11,7 @@ import {
 import { EnrichedOrder } from '@/app/account/orders/[id]/page';
 import { Badge } from '@/components/ui/Badge';
 import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
-import { DualOrderMoney, OrderFrozenRateBanner } from '@/components/order/DualOrderMoney';
+import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import type { OrderStatus } from '@/lib/definitions';
 
 interface OrderDetailClientProps {
@@ -235,7 +236,12 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                   />
                 </div>
                 <div className="flex-grow min-w-0">
-                  <p className="text-sm font-medium text-navy truncate">{item.productName}</p>
+                  <Link
+                    href={`/product/${item.productSlug}`}
+                    className="block text-sm font-medium text-navy hover:text-navy/80 transition-colors truncate"
+                  >
+                    {item.productName}
+                  </Link>
                   <p className="text-[11px] text-slate-500 nums mt-0.5 leading-snug">
                     {hasFrozenBsPricing(order) ? (
                       <>
@@ -270,7 +276,6 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
               <DualOrderMoney amount={order.total} order={order} emphasis="total" />
             </div>
           </div>
-          <OrderFrozenRateBanner order={order} />
         </div>
 
         {/* Sidebar info */}

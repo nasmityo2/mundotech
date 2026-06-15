@@ -51,7 +51,7 @@ export function DualOrderMoney({
 }
 
 export function OrderFrozenRateBanner({ order, variant = 'storefront' }: { order: OrderWithPricingMeta; variant?: 'storefront' | 'admin' }) {
-  if (!hasFrozenBsPricing(order)) return null;
+  if (variant !== 'admin' || !hasFrozenBsPricing(order)) return null;
   const wrap = variant === 'admin'
     ? 'text-[11px] text-gray-600 mt-1 px-1'
     : 'text-[11px] sm:text-xs text-slate-500 mt-2 px-5 sm:px-6 border-t border-slate-100/80 pt-2 bg-slate-50/80';

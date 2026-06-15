@@ -50,18 +50,21 @@ export default async function OrderLabelPage({ params }: PageProps) {
           html, body {
             background:#fff !important;
             margin:0 !important; padding:0 !important;
-            width:${pageW}mm !important; height:${pageH}mm !important;
-            overflow:hidden !important;
+            min-height:0 !important; height:auto !important;
           }
-          body * { visibility: hidden !important; }
-          #thermal-label, #thermal-label * { visibility: visible !important; }
+          /* Anula min-h-[100dvh] / min-h-screen que generan páginas extra */
+          body * { min-height: 0 !important; }
+          main { padding: 0 !important; }
+          /* Controles y avisos no se imprimen */
+          .no-print { display: none !important; }
+          /* La etiqueta fluye normal (SIN position:fixed → no se repite) */
           #thermal-label {
-            position: fixed !important;
-            left:0 !important; top:0 !important;
-            width:${labelW}mm !important;
-            box-shadow:none !important; border:none !important; margin:0 !important;
+            position: static !important;
+            width: ${labelW}mm !important;
+            margin: 0 auto !important;
+            border: none !important;
+            box-shadow: none !important;
           }
-          .no-print { display:none !important; }
         }
       `}</style>
 

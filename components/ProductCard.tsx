@@ -159,7 +159,7 @@ const ProductCard = ({ product, priority = false }: { product: Product; priority
             </div>
             <p
               className="text-[10px] sm:text-[11px] text-on-light mt-0.5 nums truncate"
-              title={stale ? 'Tasa USD/Bs referencial — se confirma al pagar' : undefined}
+              title={stale ? 'Referencia en bolívares — se confirma al pagar' : undefined}
             >
               {formatBs(product.price, rate)}
               {/* PRD-215: la tasa mostrada no se pudo refrescar — monto referencial */}
