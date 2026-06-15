@@ -152,7 +152,8 @@ const ADMIN_WRITE_API_PREFIXES = [
   '/api/categories',
   '/api/upload',
   '/api/config',
-  '/api/reviews',
+  /** Solo auto-approve es admin-only; upload-photo y PATCH/DELETE [id] son de clientes autenticados. */
+  '/api/reviews/auto-approve',
   '/api/coupons',
 ] as const;
 

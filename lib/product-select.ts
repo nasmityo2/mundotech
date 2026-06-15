@@ -47,6 +47,7 @@ export const PRODUCT_ADMIN_SELECT = {
   description:   true,
   price:         true,
   originalPrice: true,
+  cost:          true,
   stock:         true,
   category:      true,
   brand:         true,

@@ -8,6 +8,8 @@ import {
   validateCouponForCheckout,
   redeemCouponInTransaction,
   revertCouponRedemptionInTransaction,
+  COUPON_PER_USER_LIMIT_REASON,
+  COUPON_GENERIC_INVALID_REASON,
 } from '@/lib/coupons';
 import { isTrustedPaymentProofUrl } from '@/lib/payment-proof';
 
@@ -226,7 +228,11 @@ export async function executeCheckoutInTransaction(
   // atómico posterior re-verifica maxUses dentro de esta misma transacción).
   let appliedCouponCode: string | null = null;
   let couponDiscountCents = 0;
-  let couponToRedeem: { couponId: string; maxUses: number | null } | null = null;
+  let couponToRedeem: {
+    couponId: string;
+    maxUses: number | null;
+    perUserLimit: number | null;
+  } | null = null;
   if (couponCode && couponCode.trim()) {
     const result = await validateCouponForCheckout(
       tx,
@@ -236,11 +242,16 @@ export async function executeCheckoutInTransaction(
       resolvedCustomerEmail
     );
     if (!result.ok) {
-      throw new CheckoutError(`Cupón no válido: ${result.reason}`, 400);
+      const status = result.reason === COUPON_PER_USER_LIMIT_REASON ? 409 : 400;
+      throw new CheckoutError(`Cupón no válido: ${result.reason}`, status);
     }
     couponDiscountCents = Math.min(Math.round(roundMoney2(result.discountUsd * rate) * 100), totalCents);
     appliedCouponCode = result.coupon.code;
-    couponToRedeem = { couponId: result.coupon.id, maxUses: result.coupon.maxUses };
+    couponToRedeem = {
+      couponId: result.coupon.id,
+      maxUses: result.coupon.maxUses,
+      perUserLimit: result.coupon.perUserLimit,
+    };
   }
 
   const couponDiscountBs = couponDiscountCents / 100;
@@ -289,13 +300,25 @@ export async function executeCheckoutInTransaction(
   // Canje atómico del cupón (incrementa usedCount respetando maxUses) tras crear
   // el pedido, dentro de la misma transacción.
   if (couponToRedeem) {
-    await redeemCouponInTransaction(tx, {
-      couponId: couponToRedeem.couponId,
-      maxUses: couponToRedeem.maxUses,
-      orderId: newOrder.id,
-      userId: customerId ?? null,
-      discountBs: couponDiscountBs,
-    });
+    try {
+      await redeemCouponInTransaction(tx, {
+        couponId: couponToRedeem.couponId,
+        maxUses: couponToRedeem.maxUses,
+        perUserLimit: couponToRedeem.perUserLimit,
+        orderId: newOrder.id,
+        userId: customerId ?? null,
+        discountBs: couponDiscountBs,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      if (msg === COUPON_PER_USER_LIMIT_REASON) {
+        throw new CheckoutError(`Cupón no válido: ${msg}`, 409);
+      }
+      if (msg === COUPON_GENERIC_INVALID_REASON) {
+        throw new CheckoutError(`Cupón no válido: ${msg}`, 409);
+      }
+      throw err;
+    }
   }
 
   // Decremento atómico por producto usando la cantidad TOTAL agregada, una sola

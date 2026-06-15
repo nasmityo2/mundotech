@@ -6,11 +6,13 @@
 import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { isR2PublicUrl, keyFromR2PublicUrl } from '@/lib/r2';
 import type { OrderStatus, Review, ReviewStatus, ReviewSummary } from '@/lib/definitions';
 
 type DbClient = Prisma.TransactionClient;
 
 export const REVIEWS_AUTO_APPROVE_KEY = 'reviews_auto_approve';
+export const MAX_REVIEW_PHOTOS = 4;
 
 export const reviewInputSchema = z.object({
   rating: z.number().int().min(1, 'La valoración mínima es 1.').max(5, 'La valoración máxima es 5.'),
@@ -21,6 +23,19 @@ export const reviewInputSchema = z.object({
     .min(5, 'Cuéntanos un poco más (mínimo 5 caracteres).')
     .max(2000, 'La reseña es demasiado larga.'),
   authorName: z.string().trim().min(2).max(60).optional().nullable(),
+  photos: z
+    .array(z.string().url())
+    .max(MAX_REVIEW_PHOTOS, `Máximo ${MAX_REVIEW_PHOTOS} fotos.`)
+    .optional()
+    .default([])
+    .refine(
+      (urls) =>
+        urls.every((u) => {
+          const key = keyFromR2PublicUrl(u);
+          return isR2PublicUrl(u) && key !== null && key.startsWith('reviews/');
+        }),
+      'Una de las fotos no es válida.',
+    ),
 });
 
 export type ReviewInput = z.infer<typeof reviewInputSchema>;
@@ -37,6 +52,7 @@ export function reviewToClient(r: {
   status: string;
   verifiedPurchase: boolean;
   adminReply: string | null;
+  photos: string[];
   createdAt: Date;
   product?: { name: string } | null;
 }): Review {
@@ -52,6 +68,7 @@ export function reviewToClient(r: {
     status: r.status as ReviewStatus,
     verifiedPurchase: r.verifiedPurchase,
     adminReply: r.adminReply,
+    photos: r.photos ?? [],
     createdAt: r.createdAt.toISOString(),
   };
 }

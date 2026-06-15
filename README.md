@@ -1,6 +1,8 @@
 # MundoTech E-commerce
 
-Tienda online de MundoTech Barquisimeto — Next.js 16 (App Router) + Prisma 7 + PostgreSQL (Neon) + NextAuth 4 + Resend + Cloudflare R2, desplegada en Vercel.
+Tienda online de MundoTech Barquisimeto — Next.js 16 (App Router) + Prisma 7 + PostgreSQL + NextAuth 4 + Resend + Cloudflare R2.
+
+**Producción:** VPS propio (`mundotech.service`, nginx, PM2) en `https://mundotechve.com`. CI en GitHub Actions. `vercel.json` está vacío (`{}`); los crons ya no corren en Vercel.
 
 > README operativo (PRD-059): cómo levantar el proyecto, migrar la base de datos y desplegar sin sorpresas.
 
@@ -9,8 +11,9 @@ Tienda online de MundoTech Barquisimeto — Next.js 16 (App Router) + Prisma 7 +
 ## Requisitos
 
 - Node.js 20+ (CI usa 22)
-- PostgreSQL (Neon en producción; local o Neon branch para desarrollo)
-- Cuentas: Vercel, Neon, Resend, Cloudflare R2 (y Upstash Redis recomendado)
+- PostgreSQL (Neon u otro; producción usa conexión remota con pooling)
+- Cuentas/servicios: Resend, Cloudflare R2 (y Upstash Redis recomendado en multi-instancia)
+- **Producción VPS:** systemd, nginx (ver `deploy/nginx/`), crontab — detalle en [`docs/ENTREGABLE-CRON-BCV-VPS-V2.md`](docs/ENTREGABLE-CRON-BCV-VPS-V2.md)
 
 ## Arranque local
 
@@ -32,6 +35,7 @@ npm run dev
 | `npm test` | Tests unitarios (Vitest, sin BD) |
 | `npm run db:migrate` | `prisma migrate deploy` |
 | `npm run db:studio` | Prisma Studio |
+| `npm run deploy:vps` | Deploy en VPS: detiene systemd → `npm run build` → reinicia servicio |
 | `npm run db:seed:reviews` | Siembra reseñas demo (bloqueado en producción salvo `SEED_REVIEWS_FORCE=1`) |
 | `npm run db:migrate:images` | Migra URLs legacy del CDN anterior a R2 (`LEGACY_IMAGE_CDN_HOST` + `--dry-run`) |
 
@@ -43,7 +47,8 @@ Referencia completa con formato: `.env.example`.
 
 ```env
 # CRÍTICAS (runtime — la app falla rápido sin estas)
-DATABASE_URL=            # Neon con connection pooling
+DATABASE_URL=            # Postgres con connection pooling (Neon, etc.)
+DIRECT_URL=              # Conexión directa sin PgBouncer — obligatoria para `prisma migrate deploy`
 NEXTAUTH_SECRET=
 NEXTAUTH_URL=https://mundotechve.com
 
@@ -55,15 +60,15 @@ R2_BUCKET_NAME=mundotech-media
 R2_PUBLIC_BASE_URL=https://cdn.tu-dominio.com
 NEXT_PUBLIC_R2_PUBLIC_BASE_URL=   # mismo valor; validación de comprobantes en admin (client)
 
-# CRON
-CRON_SECRET=             # obligatoria en runtime de producción
+# CRON (obligatoria en producción — invocación vía crontab VPS con Bearer)
+CRON_SECRET=
 
 # EMAIL (recomendadas — sin ellas no se envían correos)
 RESEND_API_KEY=
 RESEND_FROM_ADDRESS=noreply@mundotechve.com
 
 # RECOMENDADAS EN PRODUCCIÓN
-DEPLOYMENT_ENV=vercel
+DEPLOYMENT_ENV=cloudflare   # VPS detrás de Cloudflare → IP real en rate limit (cf-connecting-ip)
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 NEXT_PUBLIC_SITE_URL=https://mundotechve.com
@@ -80,65 +85,66 @@ NEXT_PUBLIC_SENTRY_DSN=  # errores de navegador (instrumentation-client.ts)
 
 ## Base de datos y migraciones (PRD-004)
 
-Las migraciones viven **versionadas** en `prisma/migrations/` (ya no se usa `db push` ni SQL suelto en `scripts/`):
+Las migraciones viven **versionadas** en `prisma/migrations/` (nunca `db push` en ramas compartidas).
 
 | Migración | Contenido |
 |---|---|
-| `20260611000000_baseline_inicial` | Estado completo del schema previo (equivale a la BD creada con `db push`) |
-| `20260611000100_prd_infra_datos_cache` | `Product.isActive`, `slug` NOT NULL con backfill, enum `ReviewStatus`, CHECK de `Order.status`, FK `OrderItem.productId` (RESTRICT), `CartItem` Cascade→Restrict, `Review.userId` SET NULL, `recoveryToken` → `recoveryTokenHash` (SHA-256), índice `Order.customerEmail`, normalización de roles. *Nota:* el SQL incluye `categoryId` FK, pero el schema actual usa solo `Product.category` String (drift corregido Jun 2026). |
-| `20260612000000_add_category_seo_fields` | Campos SEO en categorías (`metaTitle`, `metaDescription`, etc.) |
-| `20260612000001_add_category_google_category_id` | `Category.googleCategoryId` para Google Merchant feed |
-| `20260612000002_add_user_security_fields` | `User.passwordChangedAt`, `pendingEmail`, `emailChangeToken`, `emailChangeTokenExpiry` (PRD-014/089, PRD-173/240) |
-| `20260612000003_float_to_decimal_monetary_fields` | Montos monetarios Float → `DECIMAL(12,2/4)` en Product, Order, OrderItem, Coupon, AbandonedCart (PRD-204) |
+| `20260613011929_init` | Schema completo consolidado (Product, Order, Category, Review, Cart, AppConfig, etc.) — reemplaza el historial previo de migraciones `20260611*` / `20260612*` |
+| `20260613120000_add_video_job` | Tabla `VideoJob` para procesamiento asíncrono de video de producto |
+| `20260613130000_add_search_trgm` | Índice trigram (`pg_trgm`) para búsqueda de productos |
 
-### BD existente (producción/desarrollo actual)
-
-La BD ya contiene el estado del baseline (fue creada con `db push`). Marca el baseline como aplicado **una sola vez** y despliega el resto:
+### BD nueva (CI, staging, máquina local)
 
 ```bash
-npx prisma migrate resolve --applied 20260611000000_baseline_inicial
-npx prisma migrate deploy
+npx prisma migrate deploy   # aplica las 3 migraciones desde cero
 ```
 
-### BD nueva (CI, staging, otra máquina)
+### BD existente (ya en producción antes del squash Jun 2026)
 
-```bash
-npx prisma migrate deploy   # aplica baseline + cambios desde cero
-```
+Si la BD ya tenía el schema del baseline anterior, el squash `init` puede requerir `migrate resolve` según el historial de `_prisma_migrations`. En un VPS ya operativo con las migraciones aplicadas, `npx prisma migrate deploy` solo aplica diffs pendientes (`add_video_job`, `add_search_trgm`).
 
 ### Reglas
 
-1. Cambios de schema **solo** con `npx prisma migrate dev --name <descripcion>` (nunca `db push` en ramas compartidas).
+1. Cambios de schema **solo** con `npx prisma migrate dev --name <descripcion>`.
 2. Si cambian los estados de pedido: primero `lib/definitions.ts`, luego una migración que actualice el CHECK `Order_status_valid`.
-3. La migración `prd_infra_datos_cache` aborta con mensaje claro si existen `OrderItem` huérfanos (productos borrados con historial). Diagnóstico:
+3. Tras cambios monetarios o de seguridad en User, aplicar con `migrate deploy` antes del build en prod.
 
-```sql
-SELECT oi."id", oi."productId", oi."productName"
-FROM "OrderItem" oi LEFT JOIN "Product" p ON p."id" = oi."productId"
-WHERE p."id" IS NULL;
-```
+### Efectos operativos relevantes
 
-Resolución típica: re-crear el producto con ese id (despublicado, `isActive=false`) o decidir caso a caso. **No** borrar ítems de pedidos (auditoría financiera).
-
-4. Tras el bloque Seguridad/Datos (12 jun 2026), aplicar también `20260612000002_*` y `20260612000003_*` con `migrate deploy` antes del build en prod.
-
-### Efectos operativos de la migración
-
-- **Borrar productos:** con historial de pedidos o presentes en carritos ya **no** se pueden hard-delete (FK RESTRICT — PRD-123/232). Flujo correcto: despublicar con `isActive=false`. El panel admin debe adoptar ese flujo (dependencia segmento 05).
-- **Enlaces de recuperación de carrito ya enviados** dejan de funcionar (los tokens ahora se guardan hasheados y rotan en cada email — PRD-178).
-- **Montos monetarios:** Prisma devuelve `Decimal`; la app convierte a `number` en la frontera con `lib/decimal.ts` (`d()` / `dn()`) — PRD-204. No usar `.toNumber()` disperso; reutilizar esos helpers.
+- **Borrar productos:** con historial de pedidos o presentes en carritos ya **no** se pueden hard-delete (FK RESTRICT). Flujo correcto: despublicar con `isActive=false`.
+- **Enlaces de recuperación de carrito ya enviados** dejan de funcionar si rotan tokens (hasheados en BD — PRD-178).
+- **Montos monetarios:** Prisma devuelve `Decimal`; la app convierte a `number` en la frontera con `lib/decimal.ts` (`d()` / `dn()`).
 
 ---
 
-## Despliegue en Vercel
+## Despliegue en VPS (producción)
 
-1. **Build command:** `npx prisma migrate deploy && npm run build` (o ejecuta `migrate deploy` en un paso previo del pipeline). Install command por defecto (`npm install` ejecuta `prisma generate` vía postinstall).
-2. Variables de entorno: sección anterior. Sin `CRON_SECRET` el runtime de producción **lanza error a propósito** (PRD-150).
-3. `vercel.json` define los crons:
-   - `/api/cron/abandoned-cart` cada 2 horas (PRD-149 — el email de 24 h sale con ≤ 2 h de retraso).
-   - `/api/cron/purge-product-views` semanal (PRD-126 — purga `ProductView` > 90 días).
-   - ⚠ El plan **Hobby** de Vercel solo permite crons diarios; estos schedules requieren plan Pro. En Hobby, Vercel los degrada/rechaza — alternativa: invocarlos externamente con `Authorization: Bearer $CRON_SECRET` (UptimeRobot, GitHub Actions schedule, etc.).
-4. Checklist completo de lanzamiento: `docs/ANALISIS-PRODUCCION-00-INDICE.md` §11 (settings reales en Admin → Configuración: sin ellos el checkout **no muestra** datos bancarios — PRD-101).
+1. **Servicio:** `mundotech.service` (systemd) ejecuta `npm start` → `next start` en `:3000`. Config PM2 alternativa: `ecosystem.config.js`.
+2. **Proxy:** nginx en `deploy/nginx/sites-available/mundotech` (SSL Cloudflare, `client_max_body_size 100m` para videos).
+3. **Variables:** `/etc/mundotech/mundotech.env` (systemd + crontab) y `.env` en el repo deben estar sincronizados (`CRON_SECRET`, BD, R2, etc.).
+4. **Build seguro:** `npm run deploy:vps` detiene el servicio durante el build para evitar servir chunks a medio compilar.
+5. **Migraciones:** `npx prisma migrate deploy` antes o dentro de `npm run build` (el script `build` ya lo incluye).
+
+### Crons (VPS — no Vercel)
+
+Los tres jobs se invocan con `Authorization: Bearer $CRON_SECRET` desde el crontab de root. Horarios en **America/Caracas**. Documentación operativa completa: [`docs/ENTREGABLE-CRON-BCV-VPS-V2.md`](docs/ENTREGABLE-CRON-BCV-VPS-V2.md).
+
+| Endpoint | Schedule (Caracas) | Propósito |
+|---|---|---|
+| `/api/cron/update-bcv-rate` | Lun–vie 16:00 y 18:00 | Tasa BCV desde API externa → `AppConfig` |
+| `/api/cron/abandoned-cart` | Cada 2 horas | Emails carrito abandonado (24h / 72h) |
+| `/api/cron/purge-product-views` | Dom 01:30 | Purga `ProductView` > 90 días |
+
+`vercel.json` no define crons (`{}`). Backups del schedule legacy Vercel: `vercel.json.bak.*` en el servidor.
+
+### Tasa BCV automática
+
+- **Fetch:** `lib/bcv-rate.ts` (dolarapi oficial, fallback pydolarve).
+- **Persistencia:** `lib/persist-exchange-rate.ts` escribe `exchange_rate_usd_bs` y `exchange_rate_bcv_date` en `AppConfig`.
+- **Guardia:** salto >15 % respecto a la tasa actual → `needsReview: true` (ajuste manual en Admin → Configuración).
+- **Skip:** si la fecha BCV en BD coincide con la de la API, responde `{ ok: true, sinCambios: true }`.
+
+6. Checklist completo de lanzamiento: `docs/ANALISIS-PRODUCCION-00-INDICE.md` §11 (settings reales en Admin → Configuración: sin ellos el checkout **no muestra** datos bancarios — PRD-101).
 
 ## CI (PRD-031/032)
 
@@ -192,9 +198,16 @@ Equivalente con BFG: `bfg --delete-files db.json` (mismo flujo de clon fresco + 
 | `lib/definitions.ts` | Tipos y estados canónicos (`OrderStatus`, `ReviewStatus`) |
 | `lib/data-store.ts` | Settings de tienda (`readSettings()` — única fuente de datos bancarios) |
 | `lib/r2.ts` | Cliente Cloudflare R2 (upload/delete, keys UUID) |
+| `lib/bcv-rate.ts` | Fetch tasa BCV (dolarapi + fallback) |
+| `lib/persist-exchange-rate.ts` | Escritura tasa + fecha BCV en `AppConfig` |
+| `lib/home-cache.ts` / `lib/catalog-cache.ts` | Caché ISR home y catálogo |
+| `app/api/upload-video/*` | Subida y estado de video de producto (`VideoJob`) |
+| `app/ofertas/` | Página pública de ofertas |
 | `scripts/migrate-legacy-images-to-r2.ts` | Migración idempotente de URLs legacy del CDN anterior → R2 |
+| `scripts/deploy-vps.sh` | Deploy seguro en VPS (stop → build → start) |
 | `lib/abandoned-cart.ts` | Carrito abandonado (tokens de recuperación **hasheados**) |
 | `prisma/schema.prisma` | Schema (dueño: segmento 03 — ver docs/ANALISIS-PRODUCCION-00-INDICE.md) |
 | `app/api/cron/*` | Crons autenticados con `CRON_SECRET` |
 | `instrumentation.ts` / `instrumentation-client.ts` | Sentry server/cliente (opt-in por DSN) |
+| `docs/ENTREGABLE-CRON-BCV-VPS-V2.md` | Runbook crons + tasa BCV en VPS |
 | `docs/ANALISIS-PRODUCCION-*.md` | Auditoría de producción segmentada (PRD-001–290) |

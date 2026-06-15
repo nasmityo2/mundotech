@@ -479,7 +479,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | R-06 | Historial de cambios tasa USD/Bs | Auditoría financiera |
 | R-07 | Dashboard funnel: carrito → checkout → pago validado | Optimización conversión |
 | R-08 | Healthcheck `/api/health` + UptimeRobot | Monitoreo externo gratis |
-| R-09 | Staging Vercel con BD separada | Probar deploys sin tocar prod |
+| R-09 | Staging con BD separada | Probar deploys sin tocar prod |
 | R-10 | Backups Neon verificados mensualmente | Un DELETE accidental es catastrófico |
 
 ### 💡 Experiencia del cliente

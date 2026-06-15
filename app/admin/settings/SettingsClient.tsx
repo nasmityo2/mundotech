@@ -4,10 +4,10 @@ import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Settings, Store, Phone, Building2,
-  Save, Check, DollarSign, RefreshCw, TrendingUp, Share2, Wallet,
+  Save, Check, DollarSign, RefreshCw, TrendingUp, Share2, Wallet, Calculator,
 } from 'lucide-react';
 import { updateSettings } from '@/app/actions/settingsActions';
-import { updateExchangeRate } from '@/app/actions/configActions';
+import { updateExchangeRate, updatePricingParams, getPricingParams } from '@/app/actions/configActions';
 import type { StoreSettings } from '@/lib/data-store';
 
 function SectionCard({ title, icon: Icon, children, accent }: {
@@ -70,10 +70,21 @@ export default function SettingsClient({
   const [rateMsg, setRateMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [isUpdatingRate, startRateTransition] = useTransition();
 
+  const [marginPct, setMarginPct] = useState('');
+  const [factor, setFactor] = useState('');
+  const [pricingMsg, setPricingMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [isSavingPricing, startPricingTransition] = useTransition();
+
   useEffect(() => {
     fetch('/api/config/exchange-rate')
       .then(r => r.json())
       .then(data => { setCurrentRate(data.rate); setNewRate(data.rate.toString()); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    getPricingParams()
+      .then(({ marginPct, factor }) => { setMarginPct(String(marginPct)); setFactor(String(factor)); })
       .catch(() => {});
   }, []);
 
@@ -120,6 +131,15 @@ export default function SettingsClient({
         router.refresh();
       }
       setTimeout(() => setRateMsg(null), 4000);
+    });
+  };
+
+  const handlePricingUpdate = () => {
+    startPricingTransition(async () => {
+      const result = await updatePricingParams({ marginPct, factor });
+      setPricingMsg({ ok: result.success, text: result.message });
+      if (result.success) router.refresh();
+      setTimeout(() => setPricingMsg(null), 4000);
     });
   };
 
@@ -188,6 +208,39 @@ export default function SettingsClient({
           {rateMsg && (
             <p className={`text-sm font-medium ${rateMsg.ok ? 'text-green-600' : 'text-red-600'}`}>
               {rateMsg.text}
+            </p>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Fórmula de precios (costo → venta)" icon={Calculator}>
+          <p className="text-xs text-gray-500">
+            precio = costo × (1 + margen/100) × factor, redondeado hacia arriba a $0.05
+          </p>
+          <Field
+            label="Margen de ganancia (%)"
+            value={marginPct}
+            onChange={setMarginPct}
+            type="number"
+            placeholder="80"
+          />
+          <Field
+            label="Factor BCV–Binance"
+            value={factor}
+            onChange={setFactor}
+            type="number"
+            placeholder="1.5"
+          />
+          <button
+            onClick={handlePricingUpdate}
+            disabled={isSavingPricing}
+            className="flex items-center gap-2 px-4 py-2 bg-navy text-white text-sm font-semibold rounded-lg hover:bg-navy/90 disabled:opacity-60 transition"
+          >
+            <RefreshCw size={15} className={isSavingPricing ? 'animate-spin' : ''} />
+            {isSavingPricing ? 'Actualizando...' : 'Aplicar'}
+          </button>
+          {pricingMsg && (
+            <p className={`text-sm font-medium ${pricingMsg.ok ? 'text-green-600' : 'text-red-600'}`}>
+              {pricingMsg.text}
             </p>
           )}
         </SectionCard>

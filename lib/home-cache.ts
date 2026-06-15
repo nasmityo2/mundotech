@@ -74,6 +74,18 @@ export const getCachedHomeDiscoverBanners = unstable_cache(
   { tags: ['banners'], revalidate: REVALIDATE },
 );
 
+export const getCachedHomeFeaturedCategories = unstable_cache(
+  () =>
+    prisma.category.findMany({
+      where:   { isFeatured: true },
+      orderBy: [{ order: 'asc' }, { name: 'asc' }],
+      select:  { name: true, slug: true, imageUrl: true },
+      take:    12,
+    }),
+  ['home-featured-categories'],
+  { tags: ['categories'], revalidate: REVALIDATE },
+);
+
 export const getCachedCtaBanner = unstable_cache(
   () =>
     prisma.banner.findFirst({

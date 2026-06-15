@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Star, Check, X, Trash2, AlertCircle, ShieldCheck, MessageSquare, Loader2,
+  Star, Check, X, Trash2, AlertCircle, ShieldCheck, MessageSquare, Loader2, Eye,
 } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
 import { TouchIconButton } from '@/components/admin/TouchIconButton';
@@ -32,6 +32,7 @@ export default function AdminReviewsPage() {
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [replyFor, setReplyFor] = useState<Review | null>(null);
+  const [detailFor, setDetailFor] = useState<Review | null>(null);
 
   const flash = (type: 'success' | 'error', msg: string) => {
     setFeedback({ type, msg });
@@ -110,9 +111,13 @@ export default function AdminReviewsPage() {
     {
       key: 'comment', header: 'Comentario', secondary: true, mobileLabel: 'Comentario',
       cell: r => (
-        <span className="block max-w-[28ch] truncate text-gray-600 text-[13px]">
+        <button
+          type="button"
+          onClick={() => setDetailFor(r)}
+          className="block max-w-[28ch] truncate text-left text-gray-600 text-[13px] hover:text-navy hover:underline"
+        >
           {r.title ? <strong className="text-navy">{r.title}: </strong> : null}{r.comment}
-        </span>
+        </button>
       ),
     },
     {
@@ -193,6 +198,12 @@ export default function AdminReviewsPage() {
         emptyState="No hay reseñas en esta categoría."
         actions={r => (
           <>
+            <TouchIconButton
+              variant="default"
+              label="Ver"
+              icon={<Eye size={18} />}
+              onClick={() => setDetailFor(r)}
+            />
             {r.status !== 'APPROVED' && (
               <TouchIconButton
                 variant="primary"
@@ -233,6 +244,76 @@ export default function AdminReviewsPage() {
           onError={() => flash('error', 'No se pudo guardar la respuesta.')}
         />
       )}
+
+      {detailFor && (
+        <ReviewDetailDialog
+          review={detailFor}
+          onClose={() => setDetailFor(null)}
+          onApprove={() => { moderate(detailFor, 'APPROVED'); setDetailFor(null); }}
+          onReject={() => { moderate(detailFor, 'REJECTED'); setDetailFor(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ReviewDetailDialog({
+  review, onClose, onApprove, onReject,
+}: {
+  review: Review;
+  onClose: () => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div className="relative z-10 w-full sm:w-[520px] sm:max-w-[92vw] bg-white sm:rounded-2xl shadow-2xl flex flex-col max-h-[100dvh] sm:max-h-[88vh]">
+        <header className="border-b border-gray-100 px-4 py-3.5 flex items-center justify-between gap-3">
+          <h2 className="text-base font-black text-navy truncate">Reseña completa</h2>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100">
+            <X size={20} className="text-gray-500" />
+          </button>
+        </header>
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          <p className="text-xs text-gray-500">{review.productName ?? '—'} · {formatDate(review.createdAt)}</p>
+          <div className="flex items-center gap-2">
+            <Stars rating={review.rating} size={14} />
+            {review.authorName}
+            {review.verifiedPurchase && <ShieldCheck size={14} className="text-emerald-500" />}
+          </div>
+          {review.title && <p className="text-sm font-bold text-navy">{review.title}</p>}
+          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{review.comment}</p>
+          {review.photos && review.photos.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {review.photos.map((src) => (
+                <a key={src} href={src} target="_blank" rel="noopener noreferrer">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt="Foto de la reseña" className="w-24 h-24 rounded-lg object-cover border border-gray-200" />
+                </a>
+              ))}
+            </div>
+          )}
+          {review.adminReply && (
+            <div className="mt-2 pl-3 border-l-2 border-amber-200">
+              <p className="text-[11px] font-semibold text-amber-700">Tu respuesta</p>
+              <p className="text-sm text-gray-600">{review.adminReply}</p>
+            </div>
+          )}
+        </div>
+        <footer className="border-t border-gray-100 px-4 py-3 flex gap-2">
+          {review.status !== 'APPROVED' && (
+            <button onClick={onApprove} className="flex-1 min-h-[48px] inline-flex items-center justify-center gap-2 bg-green-50 border border-green-300 text-green-800 text-sm font-bold rounded-xl active:bg-green-100">
+              <Check size={16} /> Aprobar
+            </button>
+          )}
+          {review.status !== 'REJECTED' && (
+            <button onClick={onReject} className="flex-1 min-h-[48px] inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 text-sm font-bold rounded-xl active:bg-gray-100">
+              <X size={16} /> Rechazar
+            </button>
+          )}
+        </footer>
+      </div>
     </div>
   );
 }

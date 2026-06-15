@@ -16,7 +16,7 @@ Lo que encontré, más allá del brief:
 4. **Los emails son dark-mode** (`#0f1117`) — el usuario los quiere claros. Además tienen un voseo argentino ("si aplicás un cupón") que delata generación sin contexto venezolano.
 5. **Datos de contacto inconsistentes en 4 lugares**: `DEFAULT_SETTINGS` decía `0414-5051662` / `ventas@mundotech.com`; el Navbar hardcodea `0414-505-1662` / `ventas@mundotechve.com`; el material físico real dice `0414-5709470`. El footer lista "Efectivo" que el checkout no acepta.
 6. **No hay WhatsApp FAB** — en Venezuela es el canal de ventas #1.
-7. **No existe `/nosotros` ni `/devoluciones`**, ni cookie consent, ni GA4.
+7. **No existe `/nosotros` ni `/devoluciones`**, ni cookie consent, ni GA4. *(Resuelto en Dominio 1 — páginas y consent existen; GA4 opt-in por env.)*
 8. **Auth con split-layout cyber** — el patrón #1 de generadores. El contenido es bueno; el contenedor lo delata.
 9. **Admin sólido pero genérico** y con la personalización fragmentada en 5 lugares (settings, home-manager, banners, announcement, seo-local) sin textos de marca editables (hero fallback, badges, WhatsApp, popup no existen como contenido editable).
 10. **Seguridad**: `getProductsAdmin()` sin auth (crítico), tokens de reset en texto plano, `saveCartSnapshotAction` sin rate limit, cron débil, sin validación de env, sin HSTS, sin chequeo de Origin en POSTs públicos.
@@ -179,7 +179,7 @@ falsos, previews sociales rotas, código muerto duplicado).
 | Crítica | `getProductsAdmin()` invocable sin auth → `requireAdminAction()` |
 | Alta | Tokens de reset en texto plano → SHA-256 en BD |
 | Alta | `saveCartSnapshotAction` sin protección → Zod + rate limit por IP |
-| Alta | Cron confiaba en `x-vercel-cron` falsificable → exige `CRON_SECRET` o entorno Vercel real |
+| Alta | Cron confiaba en `x-vercel-cron` falsificable → exige `Authorization: Bearer $CRON_SECRET` (crontab VPS) |
 | Media | Sin chequeo de Origin en POSTs públicos → `verifySameOrigin()` en orders, cupones, reviews, eventos y upload |
 | Media | Sin validación de env al boot → `lib/env-validation.ts` importado desde `lib/prisma.ts` |
 | Media | Sin HSTS → header en `next.config.mjs` |
@@ -190,9 +190,7 @@ falsos, previews sociales rotas, código muerto duplicado).
 
 ### Deuda técnica identificada (fuera de scope)
 
-- **Rate limit en memoria**: en multi-instancia (Vercel) los límites no son
-  globales. Migrar a Upstash Redis (`@upstash/ratelimit`, ya documentado en
-  `lib/rate-limit.ts`).
+- **Rate limit en memoria**: en multi-instancia los límites no son globales sin Upstash. Migrar/configurar Upstash Redis (`lib/rate-limit.ts`).
 - **`middleware.ts` está deprecado en Next 16** a favor de la convención
   `proxy`. Funciona, pero conviene migrar en la próxima actualización.
 - **Verificación de email no existe**: el registro activa la cuenta de
@@ -209,8 +207,8 @@ falsos, previews sociales rotas, código muerto duplicado).
 
 1. **Sube 2–3 fotos reales** (fachada, mostrador, equipo) desde
    Admin → Personalizar sitio y Admin → Banners. Nada humaniza más.
-2. **Configura en `.env` de producción**: `CRON_SECRET`, `NEXT_PUBLIC_GA4_ID`
-   (cuando crees la propiedad GA4), `DEPLOYMENT_ENV=vercel` y verifica
+2. **Configura en producción (VPS):** `CRON_SECRET` + crontab (ver [`docs/ENTREGABLE-CRON-BCV-VPS-V2.md`](./ENTREGABLE-CRON-BCV-VPS-V2.md)), `NEXT_PUBLIC_GA4_ID`
+   (cuando crees la propiedad GA4), `DEPLOYMENT_ENV=cloudflare` y verifica
    `RESEND_FROM_ADDRESS` con tu dominio.
 3. **Reclama tu ficha de Google Business Profile** con la dirección
    Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001 y enlázala en
@@ -220,3 +218,17 @@ falsos, previews sociales rotas, código muerto duplicado).
    modera en Admin → Reseñas). Las seeded son de arranque; las reales valen oro.
 5. **Activa el popup promocional solo cuando tengas una oferta real** con
    fecha de fin — un popup permanente quema la confianza.
+
+---
+
+## 7. Cambios post-plan (Jun 2026 — no cubiertos en §1–6)
+
+| Cambio | Dónde |
+|--------|-------|
+| **Deploy en VPS** (systemd + nginx) | `scripts/deploy-vps.sh`, `deploy/nginx/`, `npm run deploy:vps` |
+| **Crons migrados desde Vercel** | Crontab VPS — [`docs/ENTREGABLE-CRON-BCV-VPS-V2.md`](./ENTREGABLE-CRON-BCV-VPS-V2.md) |
+| **Tasa BCV automática** | `lib/bcv-rate.ts`, `/api/cron/update-bcv-rate` |
+| **Página `/ofertas`** | `app/ofertas/page.tsx` |
+| **Video de producto** | `app/api/upload-video/*`, modelo `VideoJob` |
+| **Squash migraciones Prisma** | `20260613011929_init` + diffs `20260613*` — ver [`README.md`](../README.md) |
+| **Caché home/catálogo** | `lib/home-cache.ts`, `lib/catalog-cache.ts` |

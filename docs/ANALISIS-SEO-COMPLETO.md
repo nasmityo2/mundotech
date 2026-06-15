@@ -155,7 +155,7 @@ Esta sección explica **cómo está armada la web** para que cualquier IA (o des
 | Imágenes | **Cloudflare R2** (`R2_PUBLIC_BASE_URL`, `next/image`) |
 | Email | React Email (`emails/mundotech/`) |
 | Analytics | GA4 opcional con consentimiento (`CookieConsent.tsx`) |
-| Deploy típico | Compatible Vercel/Node (`next build` / `next start`) |
+| Deploy típico | VPS Node (`next build` / `next start` vía systemd) |
 
 ### CTX.3 Arquitectura de renderizado (crítico para SEO)
 
@@ -355,15 +355,15 @@ Un hallazgo entra en este documento **solo si** afecta al menos una de estas pal
 |------|-------------------|
 | Seguridad de APIs REST (`/api/*` sin auth) | [PRD-278–282](ANALISIS-PRODUCCION-01-SEGURIDAD.md) |
 | Tokens en URL (`/reset-password?token=`) | [PRD-172, PRD-224](ANALISIS-PRODUCCION-01-SEGURIDAD.md) (ya documentado) |
-| WhatsAppFab / enlaces `wa.me` | [PRD-276–277](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md) |
-| Emails de pedido con slug roto | [PRD-288](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md) |
-| GA4, cookies, Consent Mode | [PRD-286–287](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md) |
+| WhatsAppFab / enlaces `wa.me` | [PRD-276–277](ANALISIS-PRODUCCION-04-UX-CLIENTE.md) |
+| Emails de pedido con slug roto | [PRD-288](ANALISIS-PRODUCCION-04-UX-CLIENTE.md) |
+| GA4, cookies, Consent Mode | [PRD-286–287](ANALISIS-PRODUCCION-04-UX-CLIENTE.md) |
 | CSP / nonce en JSON-LD hijos | [PRD-284](ANALISIS-PRODUCCION-01-SEGURIDAD.md) — ✅ CSP dual jun 2026 |
 | AnnouncementBar link sin validar | [PRD-283](ANALISIS-PRODUCCION-01-SEGURIDAD.md) |
 | OpenSearch / `llms.txt` | ✅ Implementado — `public/opensearch.xml`, `public/llms.txt`, `<link rel="search">` en `layout.tsx` (origen PRD-289–290) |
 | Stripe en package.json, PWA offline, auth JWT | [`00-INDICE`](ANALISIS-PRODUCCION-00-INDICE.md) (infra general) |
 
-**Índice completo:** [matriz de propiedad PRD](ANALISIS-PRODUCCION-00-INDICE.md#matriz-de-propiedad-única-por-prd) · [segmento UX PRD-276–290](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md).
+**Índice completo:** [matriz de propiedad PRD](ANALISIS-PRODUCCION-00-INDICE.md#matriz-de-propiedad-única-por-prd) · [segmento UX PRD-276–290](ANALISIS-PRODUCCION-04-UX-CLIENTE.md).
 
 **Retirados de pasadas SEO 5–6:** ~~P93/H59 (WhatsAppFab)~~ → PRD-276; ~~P98/H60 (APIs JSON)~~ → PRD-278–282.
 
@@ -380,7 +380,7 @@ Un hallazgo entra en este documento **solo si** afecta al menos una de estas pal
 ### 🔁 Rutas / piezas mencionadas pero secundarias para SEO producto
 
 - `app/register/page.tsx` (posible legacy; registro principal en `/registro`)
-- Emails transaccionales → [`04-UX-ADMIN`](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md) PRD-288 (no SEO)
+- Emails transaccionales → [`04-UX-CLIENTE`](./ANALISIS-PRODUCCION-04-UX-CLIENTE.md) PRD-288 (no SEO)
 - API REST bajo `/api/*` (disallow robots; no generan páginas indexables)
 - Stripe en `package.json` (dependencia presente; checkout principal es manual/Venezuela)
 
@@ -457,7 +457,7 @@ Cada fila es una práctica que **reducía** posibilidad de ranking o rich snippe
 | P03 | ✅ | ~~Renombrar slug sin redirect~~ — `saveSlugRedirect` + 308 | `productActions.ts` | Cerrado sesiones 5+13 (DEP-05) |
 | P04 | ✅ | ~~Delete sin revalidar ficha~~ — `revalidatePath` + `revalidateTag` | `deleteProductAction` | Cerrado PRD-233 |
 | P05 | ✅ | ~~Slug opcional~~ — `slug String @unique` obligatorio (PRD-065) | `schema.prisma` | Cerrado sesión 3 |
-| ~~P06~~ | — | *(Movido a producción [PRD-288](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md))* | — | Emails no son crawler Google |
+| ~~P06~~ | — | *(Movido a producción [PRD-288](ANALISIS-PRODUCCION-04-UX-CLIENTE.md))* | — | Emails no son crawler Google |
 | P07 | 🟡 | `RecentlyViewed` enlaza `slug ?? id` desde localStorage (cliente) | `RecentlyViewed.tsx` | Enlaces internos inconsistentes si slug null |
 
 ### P-B. Metadata de ficha (title, description, canonical)
@@ -2459,7 +2459,7 @@ Lista numerada de **todos** los hallazgos documentados. Columna **Estado** conso
 | H28 | 🟠 | Producto 404 con title en generateMetadata | `product/[slug]/page.tsx` | ✅ Sesión 7 |
 | H29 | 🟠 | LocalBusiness duplicado en /tienda-barquisimeto | layout + page | ✅ Mismo `@id` — Google consolida (sesión 7+) |
 | H30 | 🟠 | Sin rel prev/next en paginación /buscar | `SearchPagination.tsx` | ⏳ `PaginationBar` en catálogo/categoría sí lo tiene |
-| ~~H31~~ | — | *(Movido a producción [PRD-288](ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md))* | — | PRD ses.4 |
+| ~~H31~~ | — | *(Movido a producción [PRD-288](ANALISIS-PRODUCCION-04-UX-CLIENTE.md))* | — | PRD ses.4 |
 | H32 | 🟡 | meta keywords obsoleto | layout + pages | ⏳ |
 | H33 | 🟡 | GPTBot completamente bloqueado | `robots.ts` | ⏳ |
 | H34 | 🟡 | Sin blog / contenido editorial | — | ⏳ |
@@ -2958,6 +2958,7 @@ Rutas que existen en `app/` con impacto en SEO o descubrimiento de productos.
 |------|---------|--------|------------|-------------------|
 | `/` | `app/page.tsx` | RSC + ISR 300 | Sí | index |
 | `/productos` | `app/productos/page.tsx` | RSC + ISR 300 + catalog-cache | Sí | index |
+| `/ofertas` | `app/ofertas/page.tsx` | RSC + ISR 300 + `getCachedOfferProducts` | **No** (pendiente añadir a `sitemap.ts`) | index |
 | `/product/[slug]` | `app/product/[slug]/page.tsx` | RSC + ISR 300 + `generateMetadata` | Sí (dinámico) | index |
 | `/categoria/[slug]` | `app/categoria/[slug]/page.tsx` | RSC + ISR 300 + `generateStaticParams` + catalog-cache | Sí (dinámico) | index |
 | `/buscar` | `app/buscar/page.tsx` | RSC + `generateMetadata` | No | **noindex** |

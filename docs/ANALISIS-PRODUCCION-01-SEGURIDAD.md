@@ -44,7 +44,7 @@ Correcciones puntuales realizadas (bugs de call sites — consecuencia directa d
 | PRD | Estado | Notas |
 |-----|--------|-------|
 | [x] PRD-001 | Código ✅ | `checkout/success/page.tsx` — sesión autenticada: `customerId === session.user.id` + anti-enumeración; admin con `isAdminRole`. Guest read-only vía `?orderId={cuid}` (PRD-207/249/250, 12 jun 2026) — no acepta `orderNumber`. |
-| [x] PRD-005 / PRD-102 | Código ✅ | `lib/rate-limit.ts` — Upstash Redis REST con fallback Map. **Manual:** configurar `UPSTASH_REDIS_REST_URL/TOKEN` en Vercel. |
+| [x] PRD-005 / PRD-102 | Código ✅ | `lib/rate-limit.ts` — Upstash Redis REST con fallback Map. **Manual:** configurar `UPSTASH_REDIS_REST_URL/TOKEN` en producción. |
 | [x] PRD-006 | Código ✅ | `triggerRestockNotifications` blindado con `requireAdminAction()`. |
 | [x] PRD-007 | Código ✅ | **Fuente + sink:** `isTrustedPaymentProofUrl()` → `isR2PublicHttpsUrl()` (`lib/r2-public-url.ts`). Schema en `lib/checkout-order.ts` L44–53; admin en `PaymentVerificationPanel.tsx`. Dominio desde `R2_PUBLIC_BASE_URL` / `NEXT_PUBLIC_R2_PUBLIC_BASE_URL`. |
 
@@ -201,13 +201,13 @@ return <SuccessClientPage order={order} />;
 
 ### PRD-005 / PRD-102 🔴 Rate limiting en memoria
 
-> **Estado sesión 01:** ✅ Cerrado en código — Upstash Redis REST + fallback Map. **Manual:** configurar env en Vercel.
+> **Estado sesión 01:** ✅ Cerrado en código — Upstash Redis REST + fallback Map. **Manual:** configurar env en producción.
 
 | Campo | Detalle |
 |-------|---------|
 | **Archivo** | `lib/rate-limit.ts` |
 | **Qué falla** | `const store = new Map<string, Entry>()`. TODO explícito para Upstash Redis. |
-| **Impacto** | Límites evadibles en Vercel multi-instancia. Brute-force, spam checkout, cupones, restock. |
+| **Impacto** | Límites evadibles en producción multi-instancia. Brute-force, spam checkout, cupones, restock. |
 | **Fix** | `@upstash/ratelimit` + `UPSTASH_REDIS_REST_URL/TOKEN`. |
 
 ---
@@ -345,7 +345,7 @@ return <SuccessClientPage order={order} />;
 
 Hallazgos encontrados al verificar manualmente los del agente y ampliar áreas residuales.
 
-| PRD-224 | 🟡 | SSR `verifyPasswordResetToken` con token en URL | `reset-password/page.tsx` L16-18 | Token en logs de servidor Vercel | Validar solo en cliente o POST |
+| PRD-224 | 🟡 | SSR `verifyPasswordResetToken` con token en URL | `reset-password/page.tsx` L16-18 | Token en logs del servidor | Validar solo en cliente o POST |
 | PRD-228 | 🟡 | `welcomeEmail` tras registro sin verificar entregabilidad | `authActions.ts` L75-76 | Usuario creado pero no sabe si email llegó | UI «revisa tu bandeja» + reenvío |
 
 ---
@@ -417,7 +417,7 @@ Hallazgos encontrados al verificar manualmente los del agente y ampliar áreas r
 ## Checklist día D (solo PRDs críticos de este segmento)
 
 - [x] PRD-001 — IDOR success cerrado en código
-- [x] PRD-005 — rate limit Upstash en código; **manual:** vars Upstash en Vercel
+- [x] PRD-005 — rate limit Upstash en código; **manual:** vars Upstash en producción
 - [x] PRD-102 — (duplicado PRD-005)
 - [x] PRD-006 — `triggerRestockNotifications` con auth admin
 - [x] PRD-007 — fuente + sink: `isTrustedPaymentProofUrl` en `checkoutSchema` y panel admin; tests Vitest

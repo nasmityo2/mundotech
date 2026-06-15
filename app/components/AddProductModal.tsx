@@ -1,6 +1,8 @@
 'use client'
 import { useTransition, useRef, useEffect, useState, useCallback } from 'react';
 import { createProductAction, updateProductAction } from '@/app/actions/productActions';
+import { calcSellingPriceUsd, DEFAULT_PROFIT_MARGIN_PCT, DEFAULT_BCV_BINANCE_FACTOR } from '@/lib/pricing-formula';
+import { getPricingParams } from '@/app/actions/configActions';
 import { X, GripVertical, ImagePlus, Star, Camera, Plus, Trash2, Video, Play } from 'lucide-react';
 import { deriveLegacyImagesFromSlots, type ProductGalleryItem } from '@/lib/product-media';
 import { parseProductSpecs, type ProductSpec } from '@/lib/definitions';
@@ -11,6 +13,7 @@ interface Product {
   category:    string;
   price:       number;
   originalPrice?: number | null;
+  cost?:        number | null;
   stock:       number;
   images:      string[];
   brand:       string;
@@ -74,11 +77,18 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   const sessionUploadedVideosRef = useRef<SessionVideo[]>([]);
   const [serverUploading, setServerUploading] = useState(false);
   const [specs, setSpecs] = useState<ProductSpec[]>([]);
+  const [cost, setCost] = useState('');
+  const [pricing, setPricing] = useState({ marginPct: DEFAULT_PROFIT_MARGIN_PCT, factor: DEFAULT_BCV_BINANCE_FACTOR });
   // Bloquear scroll del body con modal abierto
   useEffect(() => {
     if (!isOpen) return;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    getPricingParams().then(setPricing).catch(() => {});
   }, [isOpen]);
 
   useEffect(() => {
@@ -88,6 +98,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
       el.name.value        = product.name;
       el.description.value = product.description;
       el.price.value       = product.price.toString();
+      setCost(product.cost != null ? String(product.cost) : '');
       (el.originalPrice as HTMLInputElement).value =
         product.originalPrice != null ? product.originalPrice.toString() : '';
       el.stock.value       = product.stock.toString();
@@ -122,6 +133,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
       }
     } else {
       formRef.current.reset();
+      setCost('');
       setSlots([]);
       setSpecs([]);
       originalProductVideoUrlsRef.current = new Set();
@@ -338,6 +350,16 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   }, [hasProcessingVideo, hasFailedVideo]);
 
   if (!isOpen) return null;
+
+  const suggestedPrice = calcSellingPriceUsd(Number(cost), pricing.marginPct, pricing.factor);
+  const onCostChange = (v: string) => {
+    setCost(v);
+    const priceEl = formRef.current?.elements.namedItem('price') as HTMLInputElement | null;
+    if (priceEl) {
+      const n = Number(v);
+      priceEl.value = n > 0 ? calcSellingPriceUsd(n, pricing.marginPct, pricing.factor).toFixed(2) : '';
+    }
+  };
 
   return (
     <div
@@ -613,6 +635,19 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                 <div className="sm:col-span-2">
                   <label htmlFor="description" className={labelCls}>Descripción <span className="text-red-500">*</span></label>
                   <textarea name="description" id="description" required rows={3} className={inputCls} />
+                </div>
+
+                {/* Costo */}
+                <div>
+                  <label htmlFor="cost" className={labelCls}>Costo (USD) *</label>
+                  <input type="number" name="cost" id="cost" step="0.01" min="0" className={inputCls}
+                    value={cost} onChange={(e) => onCostChange(e.target.value)} />
+                  {Number(cost) > 0 && (
+                    <p className="text-xs text-green-600 mt-1">
+                      Precio sugerido: <strong>${suggestedPrice.toFixed(2)}</strong>
+                      {' '}· costo × {(1 + pricing.marginPct / 100).toFixed(2)} × {pricing.factor}
+                    </p>
+                  )}
                 </div>
 
                 {/* Precio */}

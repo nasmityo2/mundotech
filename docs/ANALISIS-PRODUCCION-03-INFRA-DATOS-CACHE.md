@@ -10,7 +10,7 @@
 
 ## Registro de cierre — sesión agente 03 (INFRA-DATOS-CACHé)
 
-**Fecha:** 11 jun 2026 · **Estado:** implementación en repo completada salvo dependencias cross-segmento y pasos manuales de deploy.
+**Fecha:** 11 jun 2026 · **Estado:** implementación en repo completada salvo dependencias cross-segmento y pasos manuales de deploy. **Jun 2026:** producción en VPS; crons y tasa BCV — ver [`ENTREGABLE-CRON-BCV-VPS-V2.md`](./ENTREGABLE-CRON-BCV-VPS-V2.md).
 
 ### Bloqueadores 🔴
 
@@ -34,7 +34,7 @@
 | PRD-036 | [x] | `@types/react@19`, `@types/react-dom@19` |
 | PRD-040 | [x] | `@stripe/*` eliminado de `package.json` |
 | PRD-146 | [x] | Guard `NODE_ENV=production` en `scripts/seed-reviews.ts` |
-| PRD-149 | [x] | `vercel.json` — cron abandono `0 */2 * * *` |
+| PRD-149 | [x] | Crontab VPS — cron abandono `0 */2 * * *` (Caracas); ver [`ENTREGABLE-CRON-BCV-VPS-V2.md`](./ENTREGABLE-CRON-BCV-VPS-V2.md) |
 
 ### Schema, datos, caché (🟡/⚪)
 
@@ -52,7 +52,7 @@
 | PRD-123 | [x] | FK `OrderItem.productId` → `Product` ON DELETE RESTRICT |
 | PRD-124 | [x] | Categoría por `Product.category` String (FK `categoryId` revertida del schema — drift Neon Jun 2026) |
 | PRD-125 | [x] | Índice `Order_customerEmail_idx` |
-| PRD-126 | [x] | `app/api/cron/purge-product-views/route.ts` + cron semanal en `vercel.json` |
+| PRD-126 | [x] | `app/api/cron/purge-product-views/route.ts` + cron semanal en crontab VPS (`30 1 * * 0` Caracas) |
 | PRD-127 | [x] | Default `CLIENT` + OAuth create con `role: 'CLIENT'` — `auth/[...nextauth]/route.ts` |
 | PRD-141 | [x] | `Cache-Control: no-store` en GET reviews API |
 | PRD-145 | [x] | Resuelto con eliminación `lib/db.json` |
@@ -75,12 +75,13 @@
 
 ### Migraciones Prisma (aplicar manualmente en prod)
 
-| Carpeta | Cuándo |
-|---------|--------|
-| `20260611000000_baseline_inicial` | BD existente: `npx prisma migrate resolve --applied 20260611000000_baseline_inicial` |
-| `20260611000100_prd_infra_datos_cache` | Luego: `npx prisma migrate deploy` |
-| `20260612000002_add_user_security_fields` | Bloque Seguridad/Datos — campos User (email change + huella contraseña) |
-| `20260612000003_float_to_decimal_monetary_fields` | Bloque Seguridad/Datos — montos monetarios Float→Decimal |
+| Carpeta | Contenido |
+|---------|-----------|
+| `20260613011929_init` | Schema consolidado (reemplaza historial `20260611*` / `20260612*`) |
+| `20260613120000_add_video_job` | Tabla `VideoJob` (upload de video de producto) |
+| `20260613130000_add_search_trgm` | Índice trigram para búsqueda |
+
+BD nueva o CI: `npx prisma migrate deploy` aplica las tres desde cero.
 
 Procedimiento completo: [`README.md`](../README.md) § Base de datos y migraciones.
 
@@ -88,9 +89,9 @@ Procedimiento completo: [`README.md`](../README.md) § Base de datos y migracion
 
 | Acción | Ruta | PRD(s) |
 |--------|------|--------|
-| + | `.github/workflows/ci.yml`, `README.md`, `eslint.config.mjs`, `vitest.config.ts`, `tests/*.test.ts`, `app/global-error.tsx`, `instrumentation-client.ts`, `app/api/cron/purge-product-views/route.ts`, `prisma/migrations/*` | sesión 03 |
-| + | `lib/decimal.ts` | PRD-204 |
-| + | `prisma/migrations/20260612000002_*`, `20260612000003_*` | PRD-014/089/173/240, PRD-204 |
+| + | `prisma/migrations/20260613*` (squash init + video + search) | Jun 2026 |
+| + | `app/api/cron/update-bcv-rate/route.ts`, `lib/bcv-rate.ts`, `lib/persist-exchange-rate.ts` | Cron BCV VPS |
+| + | `scripts/deploy-vps.sh`, `deploy/nginx/` | Deploy VPS |
 | − | `lib/db.json`, `data/products.ts`, `scripts/add-order-*.sql`, `scripts/playwright-*.png` | sesión 03 |
 
 ---
@@ -158,7 +159,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | PRD-146 | 🟠 | `seed-reviews.ts` ejecutable en prod por error | `scripts/seed-reviews.ts` |
 | PRD-147 | 🟡 | Migraciones SQL sueltas (duplicado PRD-057) | `scripts/` |
 | PRD-148 | ⚪ | PNGs Playwright versionados en scripts/ | `scripts/playwright-*.png` |
-| PRD-149 | 🟠 | Cron abandono 1×/día — email 24h puede tardar ~48h | `vercel.json` |
+| PRD-149 | [x] | Cron abandono cada 2 h en crontab VPS — ver [`ENTREGABLE-CRON-BCV-VPS-V2.md`](./ENTREGABLE-CRON-BCV-VPS-V2.md) |
 | PRD-150 | 🟡 | Sin `CRON_SECRET` solo warning en prod | `env-validation.ts` |
 | PRD-151 | 🟡 ✅ | `images.remotePatterns` — dominio público R2 | `next.config.mjs` |
 | PRD-152 | ⚪ | `instrumentation.ts` solo normaliza DATABASE_URL | `instrumentation.ts` |
@@ -218,7 +219,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | Campo | Detalle |
 |-------|---------|
 | **Archivo** | `.gitignore`, `prisma/migrations/` |
-| **Fix aplicado** | `prisma/migrations/` versionado; baseline `20260611000000_baseline_inicial`; diff `20260611000100_prd_infra_datos_cache`; CI valida `migrate deploy`. |
+| **Fix aplicado** | `prisma/migrations/` versionado; squash `20260613011929_init` + diffs `20260613120000_*`, `20260613130000_*`; CI valida `migrate deploy`. |
 | **Pendiente manual** | En prod: `migrate resolve` (baseline) + `migrate deploy` — ver README. |
 
 ---
@@ -246,7 +247,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | PRD-033 | Sin Sentry | Errores 500 invisibles | `@sentry/nextjs` |
 | PRD-034 | Sin global-error | Fallos layout sin UI | `app/global-error.tsx` |
 | PRD-035/036 | eslint/types desalineados | Lint/types incorrectos | Alinear versiones |
-| PRD-149 | Cron 1×/día | Email abandono tardío | Cada 1–4 horas |
+| PRD-149 | [x] | Cron cada 2 h en VPS | Migrado Jun 2026 — `ENTREGABLE-CRON-BCV-VPS-V2` |
 
 ---
 
@@ -426,15 +427,14 @@ Referencia completa: `.env.example`
 
 
 
-### Infra Vercel
+### Infra VPS (producción)
 
-
-
-- [ ] `DATABASE_URL` con connection pooling (Neon)
-- [ ] `CRON_SECRET` configurado
-- [ ] `DEPLOYMENT_ENV=vercel`
+- [ ] `DATABASE_URL` + `DIRECT_URL` configurados
+- [ ] `CRON_SECRET` en `/etc/mundotech/mundotech.env` y `.env` (sincronizados)
+- [ ] Crontab root con los 3 jobs — ver [`ENTREGABLE-CRON-BCV-VPS-V2.md`](./ENTREGABLE-CRON-BCV-VPS-V2.md)
+- [ ] `DEPLOYMENT_ENV=cloudflare` (nginx + Cloudflare delante)
 - [ ] `NEXT_PUBLIC_SITE_URL=https://mundotechve.com`
-- [ ] Build exitoso (`npm run build`)
+- [ ] Build exitoso (`npm run deploy:vps` o `npm run build`)
 - [ ] `prisma migrate deploy` ejecutado en prod
 
 ---

@@ -11,6 +11,12 @@ import {
   parseExchangeRateFromConfigValue,
 } from '@/lib/exchange-rate';
 import { persistExchangeRate } from '@/lib/persist-exchange-rate';
+import {
+  PROFIT_MARGIN_APP_CONFIG_KEY,
+  BCV_BINANCE_FACTOR_APP_CONFIG_KEY,
+  DEFAULT_PROFIT_MARGIN_PCT,
+  DEFAULT_BCV_BINANCE_FACTOR,
+} from '@/lib/pricing-formula';
 
 const exchangeRateSchema = z
   .number({ error: 'La tasa debe ser un número.' })
@@ -44,4 +50,53 @@ export async function updateExchangeRate(rate: unknown) {
   await persistExchangeRate(parsed.data);
 
   return { success: true, message: `Tasa actualizada a Bs. ${parsed.data.toFixed(2)}/USD.` };
+}
+
+const pricingParamsSchema = z.object({
+  marginPct: z.coerce.number().min(0, 'El margen no puede ser negativo.').max(1000, 'Margen fuera de rango.'),
+  factor: z.coerce.number().positive('El factor debe ser mayor que cero.').max(100, 'Factor fuera de rango.'),
+});
+
+export async function getPricingParams(): Promise<{ marginPct: number; factor: number }> {
+  try {
+    const rows = await prisma.appConfig.findMany({
+      where: { key: { in: [PROFIT_MARGIN_APP_CONFIG_KEY, BCV_BINANCE_FACTOR_APP_CONFIG_KEY] } },
+    });
+    const map = new Map(rows.map((r) => [r.key, r.value]));
+    const rawMargin = map.get(PROFIT_MARGIN_APP_CONFIG_KEY);
+    const rawFactor = map.get(BCV_BINANCE_FACTOR_APP_CONFIG_KEY);
+    const marginPct = rawMargin != null && Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : DEFAULT_PROFIT_MARGIN_PCT;
+    const factor = rawFactor != null && Number.isFinite(Number(rawFactor)) && Number(rawFactor) > 0 ? Number(rawFactor) : DEFAULT_BCV_BINANCE_FACTOR;
+    return { marginPct, factor };
+  } catch {
+    return { marginPct: DEFAULT_PROFIT_MARGIN_PCT, factor: DEFAULT_BCV_BINANCE_FACTOR };
+  }
+}
+
+export async function updatePricingParams(input: { marginPct: unknown; factor: unknown }) {
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  if (!session || !isAdminRole(role)) {
+    return { success: false, message: 'No autorizado.' };
+  }
+
+  const parsed = pricingParamsSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0]?.message ?? 'Parámetros inválidos.' };
+  }
+
+  await prisma.$transaction([
+    prisma.appConfig.upsert({
+      where: { key: PROFIT_MARGIN_APP_CONFIG_KEY },
+      update: { value: parsed.data.marginPct.toString() },
+      create: { key: PROFIT_MARGIN_APP_CONFIG_KEY, value: parsed.data.marginPct.toString() },
+    }),
+    prisma.appConfig.upsert({
+      where: { key: BCV_BINANCE_FACTOR_APP_CONFIG_KEY },
+      update: { value: parsed.data.factor.toString() },
+      create: { key: BCV_BINANCE_FACTOR_APP_CONFIG_KEY, value: parsed.data.factor.toString() },
+    }),
+  ]);
+
+  return { success: true, message: `Fórmula actualizada: margen ${parsed.data.marginPct}% × factor ${parsed.data.factor}.` };
 }

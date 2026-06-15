@@ -2,6 +2,7 @@ import dynamic from 'next/dynamic';
 import HomeHeroCyber from '@/app/components/HomeHeroCyber';
 import PromoBanners from '@/app/components/PromoBanners';
 import DiscoverMosaic from '@/app/components/DiscoverMosaic';
+import CategoryRow from '@/app/components/CategoryRow';
 import ProductShelf from '@/app/components/ProductShelf';
 import Benefits, { type BenefitItem } from '@/app/components/Benefits';
 import { DEFAULT_SITE_CONTENT } from '@/lib/site-content';
@@ -13,6 +14,7 @@ import {
   getCachedHeroBanners,
   getCachedHomePromoBanners,
   getCachedHomeDiscoverBanners,
+  getCachedHomeFeaturedCategories,
   getCachedCtaBanner,
   getCachedHomePromotions,
   getCachedHomepageConfig,
@@ -108,6 +110,7 @@ async function getData() {
       heroBanners,
       promoBanners,
       discoverBanners,
+      featuredCategories,
       ctaBannerRow,
       activePromotions,
       { flashConfig, shelvesConfig, benefitsConfig },
@@ -119,6 +122,7 @@ async function getData() {
       getCachedHeroBanners(),
       getCachedHomePromoBanners(),
       getCachedHomeDiscoverBanners(),
+      getCachedHomeFeaturedCategories(),
       getCachedCtaBanner(),
       getCachedHomePromotions(),
       getCachedHomepageConfig(),
@@ -132,6 +136,7 @@ async function getData() {
       heroBanners,
       promoBanners,
       discoverBanners,
+      featuredCategories,
       ctaBannerRow,
       activePromotions,
       flashConfig,
@@ -148,6 +153,7 @@ async function getData() {
       heroBanners: [],
       promoBanners: [],
       discoverBanners: [],
+      featuredCategories: [],
       ctaBannerRow: null,
       activePromotions: [],
       flashConfig: null,
@@ -233,6 +239,7 @@ const HomePage = async () => {
     heroBanners,
     promoBanners,
     discoverBanners,
+    featuredCategories,
     ctaBannerRow,
     activePromotions,
     shelvesConfig,
@@ -307,6 +314,8 @@ const HomePage = async () => {
           />
 
           <DiscoverMosaic banners={discoverBanners} />
+
+          <CategoryRow categories={featuredCategories} />
 
           <ProductShelf
             badge={novedadesBadge}

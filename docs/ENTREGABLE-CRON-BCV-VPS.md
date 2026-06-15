@@ -1,5 +1,7 @@
 # Entregable: Cron BCV en VPS (systemd + crontab)
 
+> **⚠ OBSOLETO (2026-06-14):** Este documento describe un estado intermedio (solo cron BCV migrado; `abandoned-cart` y `purge-product-views` aún en `vercel.json`). **No usar para operaciones.** La fuente de verdad actual es [`ENTREGABLE-CRON-BCV-VPS-V2.md`](./ENTREGABLE-CRON-BCV-VPS-V2.md) (los tres crons en VPS, `vercel.json` vacío, CRON_SECRET sincronizado, tasa inicial aplicada).
+
 Fecha: 2026-06-14  
 Servidor: mundotech-prod (`86.48.20.239`)
 

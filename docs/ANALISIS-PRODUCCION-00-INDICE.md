@@ -4,6 +4,7 @@
 > **Proyecto:** mundotech-ecommerce (Next.js 16 App Router + Prisma + PostgreSQL)  
 > **Dominio:** `https://mundotechve.com`  
 > **Fecha del análisis:** 11 de junio de 2026  
+> **Última sincronización doc↔código:** 14 jun 2026 (deploy VPS, crons, squash migraciones, tasa BCV)  
 > **Última ampliación:** sexta pasada — PRD-276–290 (temas excluidos del análisis SEO)  
 > **Última implementación:** bloque **Seguridad/Datos** — 12 jun 2026 ([§Seguridad/Datos](#progreso-bloque-seguridaddatos--12-jun-2026)) · sesiones **01–07** previas — 11 jun 2026 ([§01](#progreso-sesión-01--seguridad) · [§02](#progreso-sesión-02--checkout-y-finanzas) · [§03](#progreso-sesión-03--infra-datos-caché) · [§04](#progreso-sesión-04--ux-cliente) · [§05](#progreso-sesión-05--admin-operaciones) · [§07](#progreso-sesión-07--seo))  
 > **HUB de referencia.** Los fixes accionables viven en UN solo documento por hallazgo (matriz PRD abajo + sesiones SEO/móvil).  
@@ -31,9 +32,7 @@ Abre **un chat de Cursor por fila**. Cada sesión lee **un solo documento** y ar
 | **7** | [`SEO`](./ANALISIS-SEO-COMPLETO.md) | P01–P96, H01–H64 | Google: títulos, sitemap, productos en buscador — **implementado (core)** |
 | **8** | [`MOVIL`](./ANALISIS-MOVIL-COMPLETO.md) | P0, P1, P2… (ver §7 del doc) | iPhone/Android: botones, scroll, teclado, touch |
 
-**Documentos que NO son sesiones de trabajo:** [`04-UX-ADMIN-OPERACIONES`](./ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES.md) (obsoleto), [`COMPLETO`](./ANALISIS-PRODUCCION-COMPLETO.md) (atajo), [`SOURCE`](./ANALISIS-PRODUCCION-SOURCE.md) (copia — no editar).
-
-**8 chats en paralelo:** prompts listos → [`PROMPTS-8-SESIONES-PARALELO.md`](./PROMPTS-8-SESIONES-PARALELO.md)
+**Documentos auxiliares (no versionados / obsoletos):** `ANALISIS-PRODUCCION-04-UX-ADMIN-OPERACIONES` (contenido absorbido por sesión 04), `ANALISIS-PRODUCCION-COMPLETO` y `ANALISIS-PRODUCCION-SOURCE` (nunca commiteados), `PROMPTS-8-SESIONES-PARALELO.md` (no presente en repo).
 
 ### Reglas entre sesiones
 
@@ -116,7 +115,7 @@ Sesión 7: **cierra P03/P58/P59/P05/P18/P41/P04 como «hecho vía PRD-X en sesi�
 
 ### Las 8 al mismo tiempo (modo recomendado si usas prompts)
 
-Usa **[`PROMPTS-8-SESIONES-PARALELO.md`](./PROMPTS-8-SESIONES-PARALELO.md)** — un prompt por chat, ya con reglas anti-colisión.
+Usa los prompts de cada sesión en su documento propietario (§ tablas arriba). El archivo `PROMPTS-8-SESIONES-PARALELO.md` no está en el repositorio.
 
 Condiciones para 8 en paralelo:
 
@@ -143,7 +142,7 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | PRD | Estado | Notas |
 |-----|--------|-------|
 | [x] PRD-001 | Código ✅ | IDOR `/checkout/success` — sesión: `customerId` + anti-enumeración; guest: `?orderId={cuid}` read-only (12 jun 2026). |
-| [x] PRD-005 / PRD-102 | Código ✅ | Rate limit Upstash Redis REST + fallback Map. **Manual:** `UPSTASH_REDIS_REST_URL/TOKEN` en Vercel. |
+| [x] PRD-005 / PRD-102 | Código ✅ | Rate limit Upstash Redis REST + fallback Map. **Manual:** `UPSTASH_REDIS_REST_URL/TOKEN` en producción. |
 | [x] PRD-006 | Código ✅ | `triggerRestockNotifications` con `requireAdminAction()`. |
 | [x] PRD-007 | Código ✅ | Fuente + sink: `isTrustedPaymentProofUrl()` (`lib/payment-proof.ts` → `lib/r2-public-url.ts`). Schema en `checkout-order.ts` (`.refine` antes de transacción); admin en `PaymentVerificationPanel.tsx`. Tests: `tests/payment-proof.test.ts`, `tests/checkout-order.test.ts` (12 jun 2026). |
 
@@ -248,16 +247,15 @@ Al mergear, revisa conflictos en: `layout.tsx`, `CheckoutFlow.tsx`, `CartClient.
 | [x] | PRD-188 — `requireAdmin()` en `GET /api/config/homepage` (`app/api/config/homepage/route.ts` L51-53) |
 | [x] | PRD-233 — `revalidatePath` al borrar producto (`deleteProductAction`, sesión 05) |
 
-### Migraciones Prisma generadas (sesión 03 + bloque Seguridad/Datos)
+### Migraciones Prisma (historial)
 
 | Migración | Propósito |
 |-----------|-----------|
-| `20260611000000_baseline_inicial` | Baseline del schema previo (`db push` histórico) |
-| `20260611000100_prd_infra_datos_cache` | `isActive`, `slug` NOT NULL, enum `ReviewStatus`, CHECK `Order.status`, FKs RESTRICT, `recoveryTokenHash`, índices, roles |
-| `20260612000000_add_category_seo_fields` | Campos SEO en categorías (sesión SEO) |
-| `20260612000001_add_category_google_category_id` | `googleCategoryId` en categorías (Merchant feed) |
-| `20260612000002_add_user_security_fields` | `passwordChangedAt`, `pendingEmail`, `emailChangeToken`, `emailChangeTokenExpiry` |
-| `20260612000003_float_to_decimal_monetary_fields` | Montos monetarios Float → DECIMAL(12,2/4) |
+| `20260613011929_init` | Schema consolidado (squash Jun 2026 — incluye baseline, seguridad, Decimal, categorías SEO, etc.) |
+| `20260613120000_add_video_job` | `VideoJob` para upload/procesamiento de video |
+| `20260613130000_add_search_trgm` | Índice trigram búsqueda productos |
+
+> El historial previo (`20260611000000_baseline_inicial` … `20260612000003_*`) fue consolidado en `init`. Ver [`README.md`](../README.md) § Migraciones.
 
 ### Archivos nuevos (sesión 03 + bloque Seguridad/Datos)
 
@@ -487,7 +485,7 @@ Excluidas: admin, api, cron, checkout, account, cart, wishlist, buscar, auth.
 
 MundoTech **no es un prototipo**. El núcleo de negocio está bien construido: checkout transaccional con precios desde BD, stock atómico, tasa USD/Bs congelada en el pedido, emails transaccionales, panel admin completo, páginas legales, CSP dual (pública cacheada + nonce en rutas sensibles), auth admin con `isAdminRole`. Eso coloca la tienda **por encima del promedio** de e-commerces Next.js caseros.
 
-Tras las sesiones **01**, **02**, **03**, **04** y **07-SEO** (11 jun 2026), **no quedan bloqueadores 🔴 abiertos en repo** (PRD-007 fuente checkout cerrado 12 jun 2026). Acciones manuales pre-launch: settings reales en admin, vars Upstash en Vercel, `filter-repo` si hubo PII en git. Seguridad (PRD-001, PRD-005, PRD-006, PRD-007), checkout/inventario/funnel (PRD-002, PRD-175, PRD-190), infra (PRD-003, PRD-004, PRD-101, PRD-140) y UX cliente (PRD-008 + 42 PRDs de sesión 04 — ver [§04](#progreso-sesión-04--ux-cliente)) están **cerrados en código**. Persiste **deuda operativa** (CI/tests parciales, observabilidad limitada) que no tumba el sitio el día 1 pero deja al equipo ciego ante incidentes.
+Tras las sesiones **01**, **02**, **03**, **04** y **07-SEO** (11 jun 2026), **no quedan bloqueadores 🔴 abiertos en repo** (PRD-007 fuente checkout cerrado 12 jun 2026). Acciones manuales pre-launch: settings reales en admin, vars Upstash en producción, `filter-repo` si hubo PII en git. **Jun 2026:** deploy en VPS propio; crons migrados — ver [`ENTREGABLE-CRON-BCV-VPS-V2.md`](./ENTREGABLE-CRON-BCV-VPS-V2.md).
 
 **Registro total:** **290 hallazgos** documentados (PRD-001–290) en seis pasadas de auditoría.
 
@@ -515,7 +513,7 @@ Tras las sesiones **01**, **02**, **03**, **04** y **07-SEO** (11 jun 2026), **n
 | 2 | PRD-002 | Cancelar pedido "Enviado" restaura inventario | [x] sesión 02 |
 | 3 | PRD-003 | `lib/db.json` con PII real trackeado en git | [x] sesión 03 — manual `filter-repo` si ya pusheado |
 | 4 | PRD-004 | Migraciones Prisma ignoradas en `.gitignore` | [x] sesión 03 |
-| 5 | PRD-005 | Rate limit en memoria (no global en serverless) | [x] sesión 01 — manual Upstash en Vercel |
+| 5 | PRD-005 | Rate limit en memoria (no global en serverless) | [x] sesión 01 — manual Upstash en prod |
 | 6 | PRD-006 | `triggerRestockNotifications` invocable sin auth | [x] sesión 01 |
 | 7 | PRD-007 | `paymentProofUrl` sin validar dominio R2 | [x] sesión 01 sink + sesión 02 fuente (`checkoutSchema` + tests) |
 | 8 | PRD-008 | Imágenes placeholder inexistentes en `public/` | [x] sesión 04 |
@@ -689,7 +687,7 @@ flowchart TD
 | PRD-146 | 🟠 | `seed-reviews.ts` ejecutable en prod por error | `scripts/seed-reviews.ts` |
 | PRD-147 | 🟡 | Migraciones SQL sueltas (duplicado PRD-057) | `scripts/` |
 | PRD-148 | ⚪ | PNGs Playwright versionados en scripts/ | `scripts/playwright-*.png` |
-| PRD-149 | 🟠 | Cron abandono 1×/día — email 24h puede tardar ~48h | `vercel.json` |
+| PRD-149 | [x] | Cron abandono cada 2 h en crontab VPS | [`ENTREGABLE-CRON-BCV-VPS-V2.md`](./ENTREGABLE-CRON-BCV-VPS-V2.md) |
 | PRD-150 | 🟡 | Sin `CRON_SECRET` solo warning en prod | `env-validation.ts` |
 | PRD-151 | 🟡 ✅ | `images.remotePatterns` — dominio público R2 | `next.config.mjs` |
 | PRD-152 | ⚪ | `instrumentation.ts` solo normaliza DATABASE_URL | `instrumentation.ts` |
@@ -1285,7 +1283,7 @@ El detalle expandido **no se duplica aquí**. Cada segmento contiene solo sus PR
 | R-06 | Historial de cambios tasa USD/Bs | Auditoría financiera |
 | R-07 | Dashboard funnel: carrito → checkout → pago validado | Optimización conversión |
 | R-08 | Healthcheck `/api/health` + UptimeRobot | Monitoreo externo gratis |
-| R-09 | Staging Vercel con BD separada | Probar deploys sin tocar prod |
+| R-09 | Staging con BD separada | Probar deploys sin tocar prod |
 | R-10 | Backups Neon verificados mensualmente | Un DELETE accidental es catastrófico |
 
 ### 💡 Experiencia del cliente
@@ -1337,7 +1335,7 @@ El detalle expandido **no se duplica aquí**. Cada segmento contiene solo sus PR
 | **Páginas legales** | Privacidad, términos, envíos, devoluciones + redirects |
 | **Cookie consent + GA4** | `CookieConsent.tsx` — sin dark patterns |
 | **Emails ciclo de vida** | Confirmación, pago validado/rechazado, envío, entrega, restock, abandono |
-| **Cron abandono** | `vercel.json` + auth Bearer / `x-vercel-cron` |
+| **Cron abandono / BCV / purge** | Crontab VPS + `Authorization: Bearer $CRON_SECRET` — [`ENTREGABLE-CRON-BCV-VPS-V2.md`](./ENTREGABLE-CRON-BCV-VPS-V2.md) |
 | **PaymentForm desde readSettings** | Cumple regla R1 — sin `STORE_PAYMENT` hardcodeado |
 | **Admin móvil** | Drawer, bottom nav, touch 44px+ |
 | **Accesibilidad checkout** | Stepper `aria-current`, carrito `role="dialog"` |
@@ -1367,7 +1365,7 @@ El detalle expandido **no se duplica aquí**. Cada segmento contiene solo sus PR
 - [x] Corregir PRD-190 (revertir cupón al cancelar) — sesión 02
 - [x] Eliminar `lib/db.json` del repo (PRD-003) — código ✅; historial git → `filter-repo` manual si ya se pusheó
 - [x] Versionar migraciones Prisma (PRD-004) — ver [`README.md`](../README.md) § Migraciones
-- [x] Rate limit Upstash en código (PRD-005) — **manual:** vars `UPSTASH_REDIS_REST_*` en Vercel
+- [x] Rate limit Upstash en código (PRD-005) — **manual:** vars `UPSTASH_REDIS_REST_*` en producción
 - [x] Blindar `triggerRestockNotifications` (PRD-006) — sesión 01
 - [x] Validar `paymentProofUrl` dominio R2 (PRD-007) — fuente `checkoutSchema` + sink admin; tests Vitest
 - [x] Añadir placeholders en `public/` (PRD-008) — sesión 04
@@ -1388,13 +1386,13 @@ El detalle expandido **no se duplica aquí**. Cada segmento contiene solo sus PR
 - [ ] **Dominio Resend verificado** (`RESEND_FROM_ADDRESS` propio)
 - [ ] **Binance Pay ID y QR** configurados si aplica
 
-### Infra Vercel
+### Infra VPS (producción)
 
-- [ ] `DATABASE_URL` con connection pooling (Neon)
-- [ ] `CRON_SECRET` configurado
-- [ ] `DEPLOYMENT_ENV=vercel`
+- [ ] `DATABASE_URL` + `DIRECT_URL`
+- [ ] `CRON_SECRET` + crontab (3 jobs) — ver [`ENTREGABLE-CRON-BCV-VPS-V2.md`](./ENTREGABLE-CRON-BCV-VPS-V2.md)
+- [ ] `DEPLOYMENT_ENV=cloudflare`
 - [ ] `NEXT_PUBLIC_SITE_URL=https://mundotechve.com`
-- [ ] Build exitoso (`npm run build`)
+- [ ] Build exitoso (`npm run deploy:vps`)
 - [ ] `prisma migrate deploy` ejecutado en prod
 
 ---
@@ -1419,7 +1417,7 @@ RESEND_FROM_ADDRESS=noreply@mundotechve.com
 CRON_SECRET=
 
 # RECOMENDADAS PRODUCCIÓN
-DEPLOYMENT_ENV=vercel
+DEPLOYMENT_ENV=cloudflare
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 NEXT_PUBLIC_SITE_URL=https://mundotechve.com
@@ -1576,7 +1574,7 @@ Referencia completa: `.env.example`
 | Admin productos | `app/actions/productActions.ts` |
 | Prisma schema | `prisma/schema.prisma` |
 | Cron abandono | `app/api/cron/abandoned-cart/route.ts` |
-| Deploy cron | `vercel.json` |
+| Deploy cron | Crontab VPS — [`ENTREGABLE-CRON-BCV-VPS-V2.md`](./ENTREGABLE-CRON-BCV-VPS-V2.md) |
 | Seguridad headers | `next.config.mjs` |
 | Instrumentation | `instrumentation.ts` |
 | Legacy PII | ~~`lib/db.json`~~ ✅ eliminado — filter-repo manual si remoto |
@@ -1627,10 +1625,10 @@ Copia este prompt íntegro en una nueva sesión de Cursor/Agent cuando quieras u
 
 ## Contexto
 Proyecto: mundotech-ecommerce en e:\Users\windows\Documents\web
-Stack: Next.js 16 App Router, Prisma 7, PostgreSQL, NextAuth 4, Resend, Cloudflare R2, Vercel
+Stack: Next.js 16 App Router, Prisma 7, PostgreSQL, NextAuth 4, Resend, Cloudflare R2, VPS (nginx + systemd)
 
 ## Documentos de referencia (NO repetir hallazgos ya listados)
-1. docs/ANALISIS-PRODUCCION-COMPLETO.md — registro PRD-001–230
+1. docs/ANALISIS-PRODUCCION-00-INDICE.md — matriz PRD-001–290 (este índice)
 2. docs/ANALISIS-SEO-COMPLETO.md — EXCLUIR TOTALMENTE (metadata, sitemap, robots, JSON-LD, slugs SEO, CWV para ranking, hreflang, OG para SERP, etc.)
 
 ## Objetivo
@@ -1697,7 +1695,7 @@ Encontrar bugs, errores de lógica, race conditions, gaps de seguridad, inconsis
 - [ ] .gitignore — migrations, db.json, secrets
 - [ ] CI/tests/Sentry — ausentes
 - [ ] env-validation — fail-fast prod
-- [ ] vercel.json cron — frecuencia abandono
+- [x] Crons en crontab VPS (abandono cada 2 h, BCV, purge) — Jun 2026
 - [ ] catch {} vacíos — errores tragados
 
 ### I. UX runtime (no SEO)
@@ -1730,7 +1728,7 @@ Encontrar bugs, errores de lógica, race conditions, gaps de seguridad, inconsis
 - Tabla registro PRD-231+
 - Sección bloqueadores nuevos (si hay)
 - Top 10 prioridad de la pasada
-- Actualizar docs/ANALISIS-PRODUCCION-COMPLETO.md con hallazgos nuevos
+- Actualizar docs/ANALISIS-PRODUCCION-00-INDICE.md con hallazgos nuevos (matriz PRD-231+)
 - NO tocar ANALISIS-SEO-COMPLETO.md
 - NO re-listar PRD-001–230 salvo para marcar "verificado/cerrado en código"
 
@@ -1745,7 +1743,7 @@ Encontrar bugs, errores de lógica, race conditions, gaps de seguridad, inconsis
 
 1. Abre nueva conversación Agent en el repo.
 2. Pega el bloque completo de la sección 19.
-3. Indica: «Ejecuta pasada N+1 y actualiza `docs/ANALISIS-PRODUCCION-COMPLETO.md`».
+3. Indica: «Ejecuta pasada N+1 y actualiza la matriz en `docs/ANALISIS-PRODUCCION-00-INDICE.md`».
 4. El agente debe **leer** PRD-001–230 primero para no duplicar.
 5. Tras la pasada, incrementa el rango en el encabezado del documento (ej. PRD-001–290).
 6. Elige un sub-prompt K–P (sección 19) según el ángulo que quieras profundizar.
@@ -1753,7 +1751,7 @@ Encontrar bugs, errores de lógica, race conditions, gaps de seguridad, inconsis
 ### Checklist rápido pre-pasada (para el agente)
 
 ```
-□ Leí docs/ANALISIS-PRODUCCION-COMPLETO.md (último ID documentado)
+□ Leí docs/ANALISIS-PRODUCCION-00-INDICE.md (último ID documentado)
 □ Leí índice de docs/ANALISIS-SEO-COMPLETO.md solo para NO duplicar
 □ Listé app/api/**/*.ts y marqué cuáles no están en el registro
 □ Listé app/actions/**/*.ts idem

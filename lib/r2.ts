@@ -6,7 +6,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { slugify } from '@/lib/slugify';
 
-const R2_FOLDERS = ['products', 'banners', 'proofs', 'assets'] as const;
+const R2_FOLDERS = ['products', 'banners', 'proofs', 'assets', 'reviews'] as const;
 export type R2Folder = (typeof R2_FOLDERS)[number];
 
 const REQUIRED_ENV = [

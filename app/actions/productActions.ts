@@ -14,6 +14,8 @@ import { saveSlugRedirect } from '@/lib/slug-redirects';
 import { d, dn } from '@/lib/decimal';
 import { PRODUCT_CARD_SELECT, PRODUCT_ADMIN_SELECT } from '@/lib/product-select';
 import { deleteFromR2, isR2PublicUrl, keyFromR2PublicUrl } from '@/lib/r2';
+import { calcSellingPriceUsd, roundUpToStep } from '@/lib/pricing-formula';
+import { getPricingParams } from '@/app/actions/configActions';
 
 const absoluteUrl = z.string().refine(
   (s) => {
@@ -68,6 +70,10 @@ const productSchema = z.object({
   name:        z.string().min(1, 'El nombre es obligatorio'),
   description: z.string().min(1, 'La descripción es obligatoria'),
   price:       z.coerce.number().positive('El precio debe ser un número positivo'),
+  cost: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z.coerce.number().positive('El costo debe ser un número positivo').optional(),
+  ),
   originalPrice: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
     z.coerce.number().positive('El precio anterior debe ser un número positivo').nullable().optional(),
@@ -188,6 +194,7 @@ export async function createProductAction(formData: FormData) {
       name:        formData.get('name'),
       description: formData.get('description'),
       price:       formData.get('price'),
+      cost:        formData.get('cost'),
       originalPrice: formData.get('originalPrice'),
       stock:       formData.get('stock'),
       category:    formData.get('category'),
@@ -201,7 +208,12 @@ export async function createProductAction(formData: FormData) {
       return { success: false, message: validated.error.issues.map(e => e.message).join(', ') };
     }
 
-    if (validated.data.originalPrice != null && validated.data.originalPrice <= validated.data.price) {
+    const { marginPct, factor } = await getPricingParams();
+    const finalPrice = validated.data.cost != null
+      ? calcSellingPriceUsd(validated.data.cost, marginPct, factor)
+      : roundUpToStep(validated.data.price);
+
+    if (validated.data.originalPrice != null && validated.data.originalPrice <= finalPrice) {
       return { success: false, message: 'El precio anterior debe ser mayor que el precio actual para marcar la oferta.' };
     }
 
@@ -216,6 +228,8 @@ export async function createProductAction(formData: FormData) {
     await prisma.product.create({
       data: {
         ...rest,
+        price: finalPrice,
+        cost: validated.data.cost ?? null,
         slug,
         originalPrice: originalPrice ?? null,
         sku:   finalSku,
@@ -256,6 +270,7 @@ export async function updateProductAction(productId: string, formData: FormData)
       name:        formData.get('name'),
       description: formData.get('description'),
       price:       formData.get('price'),
+      cost:        formData.get('cost'),
       originalPrice: formData.get('originalPrice'),
       stock:       formData.get('stock'),
       category:    formData.get('category'),
@@ -269,7 +284,12 @@ export async function updateProductAction(productId: string, formData: FormData)
       return { success: false, message: validated.error.issues.map(e => e.message).join(', ') };
     }
 
-    if (validated.data.originalPrice != null && validated.data.originalPrice <= validated.data.price) {
+    const { marginPct, factor } = await getPricingParams();
+    const finalPrice = validated.data.cost != null
+      ? calcSellingPriceUsd(validated.data.cost, marginPct, factor)
+      : roundUpToStep(validated.data.price);
+
+    if (validated.data.originalPrice != null && validated.data.originalPrice <= finalPrice) {
       return { success: false, message: 'El precio anterior debe ser mayor que el precio actual para marcar la oferta.' };
     }
 
@@ -306,6 +326,8 @@ export async function updateProductAction(productId: string, formData: FormData)
         where: { id: productId },
         data: {
           ...rest,
+          price: finalPrice,
+          cost: validated.data.cost ?? null,
           slug,
           originalPrice: originalPrice ?? null,
           sku:   finalSku,
@@ -333,7 +355,7 @@ export async function updateProductAction(productId: string, formData: FormData)
         validated.data.name,
         slug,
         images[0] ?? null,
-        validated.data.price,
+        finalPrice,
       );
     }
 
@@ -793,9 +815,10 @@ export async function quickUpdatePriceAction(productId: string, price: number) {
     if (typeof price !== 'number' || isNaN(price) || price < 0) {
       return { success: false, message: 'Precio inválido.' };
     }
+    const safePrice = roundUpToStep(price);
     const updated = await prisma.product.update({
       where: { id: productId },
-      data: { price },
+      data: { price: safePrice },
       select: { slug: true },
     });
     revalidatePath('/admin/products');

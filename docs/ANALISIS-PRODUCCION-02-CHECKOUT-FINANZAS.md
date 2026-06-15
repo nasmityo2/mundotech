@@ -155,7 +155,7 @@ Cada hallazgo incluye: **ID**, **Severidad**, **Área**, **Archivo(s)**, **Qué 
 | `app/api/orders/route.ts` (`GET`) | 05-ADMIN | Listado admin con paginación por cursor (PRD-195 ✅) |
 | `app/actions/productActions.ts` (`getProducts`, CSV, delete, slug) | 01 / 05 | Solo `quickUpdatePrice`/`quickUpdateStock` aquí (PRD-024) |
 
-> **Nota `schema.prisma`:** PRD-178 y PRD-204 implementados en `03-INFRA` (migraciones `20260611000100_*` y `20260612000003_*`). Consumidores checkout/stats/emails usan `lib/decimal.ts` (`d`/`dn`).  
+> **Nota `schema.prisma`:** PRD-178 y PRD-204 están incluidos en la migración squash `20260613011929_init`. Consumidores checkout/stats/emails usan `lib/decimal.ts` (`d`/`dn`).  
 > **Nota `app/api/orders/*`:** Solo modificar endpoints de creación (`POST /api/orders`) y cancelación cliente (`DELETE /api/orders/[id]`). Los endpoints de administración de estados (`PUT …/status`, `POST …/bulk-status-update`, `GET …/new-count`, `PATCH …/[id]`) pertenecen a **05-ADMIN** — aunque este segmento documente PRD-191–194, la implementación va en sesión 5.
 
 ---

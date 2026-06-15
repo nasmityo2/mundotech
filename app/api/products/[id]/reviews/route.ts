@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
@@ -109,10 +110,20 @@ export async function POST(
         rating: data.rating,
         title: data.title?.trim() || null,
         comment: data.comment.trim(),
+        photos: data.photos ?? [],
         verifiedPurchase,
         status: approved ? 'APPROVED' : 'PENDING',
       },
     });
+
+    if (approved) {
+      try {
+        const prod = await prisma.product.findUnique({ where: { id: productId }, select: { slug: true } });
+        revalidatePath(`/product/${prod?.slug ?? productId}`);
+      } catch (e) {
+        console.error('[reviews POST] revalidate falló:', e);
+      }
+    }
 
     return NextResponse.json(
       {

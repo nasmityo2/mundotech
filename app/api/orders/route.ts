@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { getServerSession } from 'next-auth/next';
 import { absoluteEmailUrl } from '@/emails/mundotech/site';
 import type { OrderConfirmationPayload } from '@/emails/mundotech/types';
@@ -19,6 +20,33 @@ import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { verifySameOrigin } from '@/lib/security';
 import { d, dn } from '@/lib/decimal';
+
+const CHECKOUT_TX_MAX_RETRIES = 3;
+
+/** Reintenta transacciones ante conflictos de serialización de Postgres (P2034 / 40001). */
+function isSerializationFailure(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'code' in error) {
+    if ((error as { code: string }).code === 'P2034') return true;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('40001') || message.includes('could not serialize');
+}
+
+async function runCheckoutTransaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < CHECKOUT_TX_MAX_RETRIES; attempt++) {
+    try {
+      return await prisma.$transaction(fn, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (error) {
+      if (isSerializationFailure(error) && attempt < CHECKOUT_TX_MAX_RETRIES - 1) {
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error('Checkout transaction retries exhausted');
+}
 
 /**
  * PRD-195: GET /api/orders con paginación por cursor (opt-in).
@@ -149,7 +177,7 @@ export async function POST(request: Request) {
 
     // PRD-131: reintentos (doble clic, recarga, retry de red) con la misma
     // referencia de pago devuelven el pedido ya creado en vez de duplicarlo.
-    const { order, reused } = await prisma.$transaction(async (tx) => {
+    const { order, reused } = await runCheckoutTransaction(async (tx) => {
       const duplicate = await findRecentDuplicateOrderInTransaction(tx, {
         customerId: userId,
         paymentReference: safeData.paymentReference,

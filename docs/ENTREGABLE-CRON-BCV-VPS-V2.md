@@ -1,5 +1,7 @@
 # Entregable V2: Crons migrados al VPS + tasa BCV inicial
 
+> **Documento vigente.** La versión anterior [`ENTREGABLE-CRON-BCV-VPS.md`](./ENTREGABLE-CRON-BCV-VPS.md) quedó **obsoleta** (estado intermedio pre-migración completa).
+
 Fecha: 2026-06-14  
 Servidor: mundotech-prod (`86.48.20.239`)  
 TZ del sistema: `America/Caracas` (UTC-4)

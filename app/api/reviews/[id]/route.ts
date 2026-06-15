@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getServerSession } from 'next-auth/next';
 import { prisma } from '@/lib/prisma';
@@ -8,6 +9,20 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { verifySameOrigin } from '@/lib/security';
 import { reviewToClient, reviewInputSchema, readReviewsAutoApprove } from '@/lib/reviews';
 import { VALID_REVIEW_STATUSES } from '@/lib/definitions';
+
+/** Invalida la ficha pública del producto tras moderar/editar/borrar una reseña. */
+async function revalidateProductReviews(productId: string) {
+  try {
+    const prod = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { slug: true },
+    });
+    // PRD-107: hay que pasar el slug REAL, no la ruta literal '/product/[slug]'.
+    revalidatePath(`/product/${prod?.slug ?? productId}`);
+  } catch (e) {
+    console.error('[reviews] revalidateProductReviews falló:', e);
+  }
+}
 
 const adminPatchSchema = z.object({
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
@@ -19,6 +34,7 @@ const authorPatchSchema = reviewInputSchema.pick({
   rating: true,
   title: true,
   comment: true,
+  photos: true,
 });
 
 /**
@@ -64,6 +80,7 @@ export async function PATCH(
           ...(adminReply !== undefined ? { adminReply: adminReply?.trim() || null } : {}),
         },
       });
+      await revalidateProductReviews(review.productId);
       return NextResponse.json(reviewToClient(review));
     } catch (error) {
       console.error('[PATCH /api/reviews/[id]] Error inesperado:', error);
@@ -107,10 +124,13 @@ export async function PATCH(
         rating: parsed.data.rating,
         title: parsed.data.title?.trim() || null,
         comment: parsed.data.comment.trim(),
+        photos: parsed.data.photos ?? [],
         // La edición re-modera con la misma regla que la creación (PRD-161).
         status: approved ? 'APPROVED' : 'PENDING',
       },
     });
+
+    await revalidateProductReviews(review.productId);
 
     return NextResponse.json({
       review: reviewToClient(review),
@@ -145,7 +165,9 @@ export async function DELETE(
 
   try {
     if (isAdmin) {
+      const target = await prisma.review.findUnique({ where: { id }, select: { productId: true } });
       await prisma.review.delete({ where: { id } });
+      if (target) await revalidateProductReviews(target.productId);
       return NextResponse.json({ success: true });
     }
 
@@ -160,13 +182,14 @@ export async function DELETE(
 
     const existing = await prisma.review.findUnique({
       where: { id },
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, productId: true },
     });
     if (!existing || existing.userId !== userId) {
       return NextResponse.json({ error: 'No autorizado.' }, { status: 403 });
     }
 
     await prisma.review.delete({ where: { id } });
+    await revalidateProductReviews(existing.productId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[DELETE /api/reviews/[id]] Error inesperado:', error);

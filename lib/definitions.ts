@@ -80,6 +80,7 @@ export interface Review {
   status:           ReviewStatus;
   verifiedPurchase: boolean;
   adminReply?:      string | null;
+  photos:           string[];
   createdAt:        string;
 }
 
