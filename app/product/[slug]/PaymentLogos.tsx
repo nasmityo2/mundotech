@@ -23,7 +23,7 @@ function PaymentLogoItem({ alt, src }: { alt: string; src: string }) {
       alt={alt}
       width={80}
       height={28}
-      className="h-6 w-auto opacity-90 transition-opacity hover:opacity-100 sm:h-7"
+      className="h-[22px] w-auto opacity-90 transition-opacity hover:opacity-100 sm:h-[26px]"
       onError={() => setHidden(true)}
     />
   );
@@ -31,8 +31,8 @@ function PaymentLogoItem({ alt, src }: { alt: string; src: string }) {
 
 export default function PaymentLogos() {
   return (
-    <div className="mt-6 border-t border-border/60 pt-5 pb-20 sm:pb-0">
-      <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-wide text-on-light">
+    <div className="mt-5 border-t border-border/60 pt-4">
+      <p className="mb-2.5 text-center text-[11px] font-semibold uppercase tracking-wide text-on-light">
         Métodos de pago
       </p>
       <div className="flex flex-wrap items-center justify-center gap-3">

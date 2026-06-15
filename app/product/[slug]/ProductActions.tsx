@@ -75,7 +75,7 @@ export default function ProductActions({ product }: { product: Product }) {
 
   return (
     <>
-      <div className="flex flex-col gap-3 sm:gap-4">
+      <div className="flex flex-col gap-2.5 sm:gap-3">
         {/* Selector de cantidad */}
         {!isOut && (
           <div className="flex items-center justify-between gap-3">

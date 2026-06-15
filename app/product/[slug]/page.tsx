@@ -17,8 +17,6 @@ import ProductTabs from './ProductTabs';
 import PaymentMethods from './PaymentMethods';
 import PaymentLogos from './PaymentLogos';
 import ProductShare from './ProductShare';
-import ProductViewers from './ProductViewers';
-import DeliveryInfo from './DeliveryInfo';
 import ProductAboutHighlights from './ProductAboutHighlights';
 import { formatCurrency, isGenericBrand } from '@/lib/utils';
 import ProductCard from '@/components/ProductCard';
@@ -346,7 +344,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
         </div>
 
         {/* Información — tarjeta flotante */}
-        <div className="card-elevated p-5 sm:p-6 lg:p-8 flex flex-col">
+        <div className="card-elevated p-5 sm:p-6 lg:p-6 pb-20 sm:pb-6 flex flex-col">
 
           {/* Marca / categoría — oculta placeholders genéricos de marca */}
           {brandChipLabel && (
@@ -381,7 +379,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
           )}
 
           {/* Precio */}
-          <div className="mt-5 sm:mt-6 pb-5 sm:pb-6 border-b border-border">
+          <div className="mt-4 sm:mt-5 pb-4 sm:pb-5 border-b border-border">
             <div className="flex items-baseline gap-2 sm:gap-3 flex-wrap">
               <span className="text-[2.1rem] sm:text-[2.5rem] md:text-[3rem] font-bold text-navy nums tracking-tight leading-none">
                 US {formatCurrency(product.price)}
@@ -405,7 +403,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
           <PaymentMethods />
 
           {/* Stock */}
-          <div className="flex items-center gap-2 mt-5 flex-wrap">
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
             {isOut ? (
               <span className="inline-flex items-center gap-1.5 text-rose-600 text-sm font-semibold">
                 <XCircle size={15} /> Sin existencias
@@ -428,27 +426,23 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </div>
 
           {/* Acciones */}
-          <div className="mt-6">
+          <div className="mt-5">
             <ProductActions product={productForClient} />
           </div>
 
           <ProductShare name={product.name} />
-          <ProductViewers productId={product.id} />
-
-          {/* Delivery / envíos — complementa (no reemplaza) la trust strip */}
-          <DeliveryInfo />
 
           {/* Trust strip — datos reales de la operación, editables en el admin */}
-          <div className={`mt-6 grid gap-3 ${siteContent.productTrust.length >= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div className={`mt-5 grid gap-2 sm:gap-3 ${siteContent.productTrust.length >= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
             {siteContent.productTrust.map(({ icon, title, sub }) => {
               const Icon = TRUST_ICONS[icon] ?? ShieldCheck;
               return (
-                <div key={title} className="bg-surface-muted rounded-2xl p-3.5 text-center border border-border/60">
-                  <div className="w-9 h-9 mx-auto bg-white border border-border rounded-xl flex items-center justify-center text-navy mb-2 shadow-soft">
-                    <Icon size={16} />
+                <div key={title} className="bg-surface-muted rounded-2xl p-3 text-center border border-border/60">
+                  <div className="w-8 h-8 mx-auto bg-white border border-border rounded-xl flex items-center justify-center text-navy mb-1.5 shadow-soft">
+                    <Icon size={15} />
                   </div>
                   <p className="text-[12px] font-semibold text-navy leading-tight">{title}</p>
-                  {sub ? <p className="text-[11px] text-on-light mt-0.5 leading-snug">{sub}</p> : null}
+                  {sub ? <p className="text-[11px] text-on-light mt-0.5 leading-snug line-clamp-2">{sub}</p> : null}
                 </div>
               );
             })}

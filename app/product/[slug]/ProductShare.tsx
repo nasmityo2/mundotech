@@ -71,7 +71,7 @@ export default function ProductShare({ name }: ProductShareProps) {
     'flex h-10 w-10 min-h-[40px] min-w-[40px] items-center justify-center rounded-full transition-opacity hover:opacity-90 active:scale-95';
 
   return (
-    <div className="mt-6 flex items-center justify-between gap-3 border-t border-border/60 pt-5">
+    <div className="mt-4 flex items-center justify-between gap-3 border-t border-border/60 pt-4">
       <p className="text-[12px] font-semibold uppercase tracking-wide text-on-light shrink-0">
         Compartir:
       </p>
