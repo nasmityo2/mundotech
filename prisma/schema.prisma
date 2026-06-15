@@ -342,7 +342,8 @@ model CouponRedemption {
   coupon      Coupon    @relation(fields: [couponId], references: [id], onDelete: Cascade)
   order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  @@unique([couponId, userId, perUserSlot])
+  // Índice único parcial (couponId, userId, perUserSlot) WHERE revertedAt IS NULL:
+  // ver migración 20260614170000_coupon_redemption_partial_unique_index.
   @@index([couponId])
   @@index([userId])
 }

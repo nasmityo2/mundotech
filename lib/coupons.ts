@@ -4,7 +4,7 @@
  * canje atómico. Regla financiera (R-checkout): el descuento SIEMPRE se calcula en
  * el servidor a partir de precios de BD; el cliente nunca fija el monto.
  */
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import type { Coupon as CouponClient, CouponDiscountType } from '@/lib/definitions';
 import { roundMoney2 } from '@/lib/exchange-rate';
@@ -286,15 +286,22 @@ export async function redeemCouponInTransaction(
     throw new Error(COUPON_GENERIC_INVALID_REASON);
   }
 
-  await tx.couponRedemption.create({
-    data: {
-      couponId,
-      orderId,
-      userId: normalizedUserId,
-      perUserSlot,
-      discount: roundMoney2(discountBs),
-    },
-  });
+  try {
+    await tx.couponRedemption.create({
+      data: {
+        couponId,
+        orderId,
+        userId: normalizedUserId,
+        perUserSlot,
+        discount: roundMoney2(discountBs),
+      },
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw new Error(COUPON_PER_USER_LIMIT_REASON);
+    }
+    throw err;
+  }
 
   // Reverificación dentro de la misma tx: cierra carrera concurrente en perUserLimit.
   if (perUserLimit != null && normalizedUserId) {

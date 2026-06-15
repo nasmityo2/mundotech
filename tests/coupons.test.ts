@@ -220,4 +220,175 @@ describe('redeemCouponInTransaction perUserLimit (FIX 1c)', () => {
 
     expect(createMock).toHaveBeenCalled();
   });
+
+  it('traduce P2002 del índice parcial a COUPON_PER_USER_LIMIT_REASON (409)', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const { redeemCouponInTransaction } = await import('@/lib/coupons');
+
+    const p2002 = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+      code: 'P2002',
+      clientVersion: 'test',
+    });
+
+    const tx = {
+      couponRedemption: {
+        count: vi.fn().mockResolvedValue(0),
+        create: vi.fn().mockRejectedValue(p2002),
+      },
+      coupon: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+
+    await expect(
+      redeemCouponInTransaction(tx as never, {
+        couponId: 'c1',
+        maxUses: null,
+        perUserLimit: 1,
+        orderId: 'o2',
+        userId: 'user-1',
+        discountBs: 10,
+      }),
+    ).rejects.toThrow(COUPON_PER_USER_LIMIT_REASON);
+  });
+
+  type MockRedemption = {
+    id: string;
+    couponId: string;
+    userId: string | null;
+    orderId: string;
+    perUserSlot: number | null;
+    revertedAt: Date | null;
+  };
+
+  function createPerUserLimitTx() {
+    const redemptions: MockRedemption[] = [];
+    let nextId = 1;
+
+    return {
+      redemptions,
+      tx: {
+        couponRedemption: {
+          count: vi.fn(async ({ where }: { where: { couponId: string; userId: string; revertedAt: null } }) =>
+            redemptions.filter(
+              (r) =>
+                r.couponId === where.couponId &&
+                r.userId === where.userId &&
+                r.revertedAt === where.revertedAt,
+            ).length,
+          ),
+          create: vi.fn(async ({ data }: { data: Omit<MockRedemption, 'id' | 'revertedAt'> }) => {
+            const slotTaken = redemptions.some(
+              (r) =>
+                r.couponId === data.couponId &&
+                r.userId === data.userId &&
+                r.perUserSlot === data.perUserSlot &&
+                r.revertedAt === null,
+            );
+            if (slotTaken) {
+              const { Prisma } = await import('@prisma/client');
+              throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+                code: 'P2002',
+                clientVersion: 'test',
+              });
+            }
+            redemptions.push({ ...data, id: `r-${nextId++}`, revertedAt: null });
+          }),
+          update: vi.fn(async ({ where, data }: { where: { id: string }; data: { revertedAt: Date } }) => {
+            const row = redemptions.find((r) => r.id === where.id);
+            if (row) row.revertedAt = data.revertedAt;
+          }),
+          findUnique: vi.fn(async ({ where }: { where: { orderId: string } }) => {
+            const row = redemptions.find((r) => r.orderId === where.orderId);
+            return row
+              ? { id: row.id, couponId: row.couponId, revertedAt: row.revertedAt }
+              : null;
+          }),
+        },
+        coupon: {
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+      },
+    };
+  }
+
+  it('perUserLimit=1: canjear → revertir → volver a canjear reutiliza el slot', async () => {
+    const { redeemCouponInTransaction, revertCouponRedemptionInTransaction } =
+      await import('@/lib/coupons');
+    const { tx } = createPerUserLimitTx();
+
+    await redeemCouponInTransaction(tx as never, {
+      couponId: 'c1',
+      maxUses: null,
+      perUserLimit: 1,
+      orderId: 'o-first',
+      userId: 'user-1',
+      discountBs: 10,
+    });
+
+    await revertCouponRedemptionInTransaction(tx as never, 'o-first');
+
+    await expect(
+      redeemCouponInTransaction(tx as never, {
+        couponId: 'c1',
+        maxUses: null,
+        perUserLimit: 1,
+        orderId: 'o-second',
+        userId: 'user-1',
+        discountBs: 10,
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('10 canjes concurrentes: exactamente 1 ok y 9 con límite por usuario', async () => {
+    const { Prisma } = await import('@prisma/client');
+    const { redeemCouponInTransaction } = await import('@/lib/coupons');
+
+    let activeRedemptions = 0;
+
+    const tx = {
+      couponRedemption: {
+        count: vi.fn(async () => activeRedemptions),
+        create: vi.fn(async ({ data }: { data: { orderId: string } }) => {
+          await new Promise((r) => setTimeout(r, 5));
+          if (activeRedemptions >= 1) {
+            throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+              code: 'P2002',
+              clientVersion: 'test',
+            });
+          }
+          activeRedemptions += 1;
+          return data;
+        }),
+      },
+      coupon: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+
+    const attempts = Array.from({ length: 10 }, (_, i) =>
+      redeemCouponInTransaction(tx as never, {
+        couponId: 'c1',
+        maxUses: null,
+        perUserLimit: 1,
+        orderId: `o-${i}`,
+        userId: 'user-1',
+        discountBs: 10,
+      }),
+    );
+
+    const results = await Promise.allSettled(attempts);
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected');
+
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(9);
+    for (const r of rejected) {
+      expect(r.status).toBe('rejected');
+      if (r.status === 'rejected') {
+        expect(r.reason).toBeInstanceOf(Error);
+        expect((r.reason as Error).message).toBe(COUPON_PER_USER_LIMIT_REASON);
+      }
+    }
+  });
 });
