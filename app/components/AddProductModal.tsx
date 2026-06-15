@@ -14,6 +14,7 @@ interface Product {
   price:       number;
   originalPrice?: number | null;
   cost?:        number | null;
+  profitMarginPct?: number | null;
   stock:       number;
   images:      string[];
   brand:       string;
@@ -78,6 +79,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   const [serverUploading, setServerUploading] = useState(false);
   const [specs, setSpecs] = useState<ProductSpec[]>([]);
   const [cost, setCost] = useState('');
+  const [marginPct, setMarginPct] = useState('');
   const [price, setPrice] = useState('');
   const [onSale, setOnSale] = useState(false);
   const [discountMode, setDiscountMode] = useState<'pct' | 'amount'>('pct');
@@ -95,6 +97,11 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
     if (!isOpen) return;
     getPricingParams().then(setPricing).catch(() => {});
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setMarginPct(String(product?.profitMarginPct ?? pricing.marginPct));
+  }, [isOpen, product, pricing.marginPct]);
 
   useEffect(() => {
     if (!formRef.current) return;
@@ -360,7 +367,8 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
 
   if (!isOpen) return null;
 
-  const suggestedPrice = calcSellingPriceUsd(Number(cost), pricing.marginPct, pricing.factor);
+  const effectiveMargin = Number(marginPct) > 0 ? Number(marginPct) : pricing.marginPct;
+  const suggestedPrice = calcSellingPriceUsd(Number(cost), effectiveMargin, pricing.factor);
 
   const normalPriceNum = Number(price) || 0;
   let computedSalePrice: number | null = null;
@@ -379,7 +387,15 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   const onCostChange = (v: string) => {
     setCost(v);
     const n = Number(v);
-    setPrice(n > 0 ? calcSellingPriceUsd(n, pricing.marginPct, pricing.factor).toFixed(2) : '');
+    const m = Number(marginPct) > 0 ? Number(marginPct) : pricing.marginPct;
+    setPrice(n > 0 ? calcSellingPriceUsd(n, m, pricing.factor).toFixed(2) : '');
+  };
+
+  const onMarginChange = (v: string) => {
+    setMarginPct(v);
+    const n = Number(cost);
+    const m = Number(v) > 0 ? Number(v) : pricing.marginPct;
+    if (n > 0) setPrice(calcSellingPriceUsd(n, m, pricing.factor).toFixed(2));
   };
 
   return (
@@ -661,19 +677,27 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
 
                 {/* Costo */}
                 <div>
-                  <label htmlFor="cost" className={labelCls}>Costo (USD) *</label>
+                  <label htmlFor="cost" className={labelCls}>Costo (USD) <span className="text-red-500">*</span></label>
                   <input type="number" name="cost" id="cost" step="0.01" min="0" className={inputCls}
                     value={cost} onChange={(e) => onCostChange(e.target.value)} />
                   {Number(cost) > 0 && (
                     <p className="text-xs text-green-600 mt-1">
                       Precio sugerido: <strong>${suggestedPrice.toFixed(2)}</strong>
-                      {' '}· costo × {(1 + pricing.marginPct / 100).toFixed(2)} × {pricing.factor}
+                      {' '}· costo × {(1 + effectiveMargin / 100).toFixed(2)} × {pricing.factor}
                     </p>
                   )}
                 </div>
 
-                {/* Precio normal */}
+                {/* Margen por producto */}
                 <div>
+                  <label htmlFor="marginPct" className={labelCls}>Margen de ganancia (%) <span className="text-red-500">*</span></label>
+                  <input type="number" name="marginPct" id="marginPct" step="1" min="0" className={inputCls}
+                    value={marginPct} onChange={(e) => onMarginChange(e.target.value)} />
+                  <p className="text-[11px] text-gray-400 mt-1">Viene del global. Cámbialo solo para este producto.</p>
+                </div>
+
+                {/* Precio normal */}
+                <div className="sm:col-span-2">
                   <label htmlFor="price" className={labelCls}>Precio normal (USD) <span className="text-red-500">*</span></label>
                   <input type="number" name="price" id="price" required step="0.01" min="0" className={inputCls}
                     value={price} onChange={(e) => setPrice(e.target.value)} />

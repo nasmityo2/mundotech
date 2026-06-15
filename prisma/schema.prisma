@@ -19,6 +19,9 @@ model Product {
   /// SENSIBLE: nunca exponer en catálogo/API pública. Solo selects admin.
   cost          Decimal?       @db.Decimal(12, 2)
   originalPrice Decimal?       @db.Decimal(12, 2)
+  /// Margen de ganancia % específico de este producto. Null = usar el margen global.
+  /// Se usa para recalcular `price` desde `cost` al cambiar el factor BCV–Binance globalmente.
+  profitMarginPct Decimal?       @db.Decimal(6, 2)
   stock         Int            @default(0)
   /// PRD-124: categoría por nombre (string); enlazada a Category por slug/nombre en la app.
   category      String

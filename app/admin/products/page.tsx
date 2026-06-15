@@ -26,6 +26,7 @@ interface Product {
   price:       number;
   originalPrice?: number | null;
   cost?:        number | null;
+  profitMarginPct?: number | null;
   stock:       number;
   images:      string[];
   brand:       string;
@@ -105,7 +106,13 @@ function AdminProductsContent() {
         lowThreshold: LOW_STOCK_THRESHOLD,
       });
       // PRD-204: normalizar Decimal → number
-      setProducts(data.map(p => ({ ...p, price: d(p.price), originalPrice: dn(p.originalPrice), cost: dn(p.cost) })) as Product[]);
+      setProducts(data.map(p => ({
+        ...p,
+        price: d(p.price),
+        originalPrice: dn(p.originalPrice),
+        cost: dn(p.cost),
+        profitMarginPct: p.profitMarginPct != null ? Number(p.profitMarginPct) : null,
+      })) as Product[]);
       setCategories(cats);
     } finally {
       setLoading(false);

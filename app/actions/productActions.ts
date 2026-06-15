@@ -82,6 +82,10 @@ const productSchema = z.object({
     (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
     z.coerce.number().positive('El precio de oferta debe ser positivo').optional(),
   ),
+  marginPct: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z.coerce.number().min(0, 'El margen no puede ser negativo').max(1000, 'Margen fuera de rango').optional(),
+  ),
   stock:       z.coerce.number().int().nonnegative('El stock debe ser un entero no negativo'),
   category:    z.string().min(1, 'La categoría es obligatoria'),
   brand: z.preprocess(
@@ -201,6 +205,7 @@ export async function createProductAction(formData: FormData) {
       cost:        formData.get('cost'),
       originalPrice: formData.get('originalPrice'),
       salePrice:   formData.get('salePrice'),
+      marginPct:   formData.get('marginPct'),
       stock:       formData.get('stock'),
       category:    formData.get('category'),
       brand:       formData.get('brand'),
@@ -214,8 +219,9 @@ export async function createProductAction(formData: FormData) {
     }
 
     const { marginPct, factor } = await getPricingParams();
+    const effectiveMargin = validated.data.marginPct ?? marginPct;
     const normalPrice = validated.data.cost != null
-      ? calcSellingPriceUsd(validated.data.cost, marginPct, factor)
+      ? calcSellingPriceUsd(validated.data.cost, effectiveMargin, factor)
       : roundUpToStep(validated.data.price);
 
     // Oferta: si llega un salePrice válido y MENOR al precio normal, ese pasa a ser
@@ -231,7 +237,7 @@ export async function createProductAction(formData: FormData) {
     const images = deriveLegacyImagesFromSlots(slots);
     const specs  = parseSpecsFromFormData(formData);
 
-    const { imagesJson: _, sku, originalPrice: _op, salePrice: _sp, ...rest } = validated.data;
+    const { imagesJson: _, sku, originalPrice: _op, salePrice: _sp, marginPct: _mp, ...rest } = validated.data;
     const slug = await getUniqueSlug(validated.data.name);
     const finalSku = sku ?? await getUniqueSku();
 
@@ -240,6 +246,7 @@ export async function createProductAction(formData: FormData) {
         ...rest,
         price: finalPrice,
         cost: validated.data.cost ?? null,
+        profitMarginPct: validated.data.cost != null ? effectiveMargin : null,
         slug,
         originalPrice: finalOriginalPrice,
         sku:   finalSku,
@@ -283,6 +290,7 @@ export async function updateProductAction(productId: string, formData: FormData)
       cost:        formData.get('cost'),
       originalPrice: formData.get('originalPrice'),
       salePrice:   formData.get('salePrice'),
+      marginPct:   formData.get('marginPct'),
       stock:       formData.get('stock'),
       category:    formData.get('category'),
       brand:       formData.get('brand'),
@@ -296,8 +304,9 @@ export async function updateProductAction(productId: string, formData: FormData)
     }
 
     const { marginPct, factor } = await getPricingParams();
+    const effectiveMargin = validated.data.marginPct ?? marginPct;
     const normalPrice = validated.data.cost != null
-      ? calcSellingPriceUsd(validated.data.cost, marginPct, factor)
+      ? calcSellingPriceUsd(validated.data.cost, effectiveMargin, factor)
       : roundUpToStep(validated.data.price);
 
     // Oferta: si llega un salePrice válido y MENOR al precio normal, ese pasa a ser
@@ -313,7 +322,7 @@ export async function updateProductAction(productId: string, formData: FormData)
     const images = deriveLegacyImagesFromSlots(slots);
     const specs  = parseSpecsFromFormData(formData);
 
-    const { imagesJson: _, sku, originalPrice: _op, salePrice: _sp, ...rest } = validated.data;
+    const { imagesJson: _, sku, originalPrice: _op, salePrice: _sp, marginPct: _mp, ...rest } = validated.data;
 
     const current = await prisma.product.findUnique({
       where:  { id: productId },
@@ -344,6 +353,7 @@ export async function updateProductAction(productId: string, formData: FormData)
           ...rest,
           price: finalPrice,
           cost: validated.data.cost ?? null,
+          profitMarginPct: validated.data.cost != null ? effectiveMargin : null,
           slug,
           originalPrice: finalOriginalPrice,
           sku:   finalSku,
@@ -904,4 +914,71 @@ export async function getProductsAdmin(params: {
   }));
 
   return { products: normalizedProducts, categories: allCategories };
+}
+
+/**
+ * Recalcula el precio de TODOS los productos que tienen costo, usando el factor/margen
+ * actuales. Cada producto usa su propio margen (profitMarginPct) o el global si es null.
+ * Las ofertas conservan su % de descuento: se recalcula el precio normal y se reaplica el descuento.
+ * Productos sin costo (precio manual) NO se tocan.
+ */
+export async function recalculateAllProductPrices() {
+  try {
+    await verifyAdminSession();
+    const { marginPct: globalMargin, factor } = await getPricingParams();
+
+    const products = await prisma.product.findMany({
+      where: { cost: { not: null } },
+      select: { id: true, price: true, originalPrice: true, cost: true, profitMarginPct: true },
+    });
+
+    let updated = 0;
+    for (const p of products) {
+      const cost = Number(p.cost);
+      if (!Number.isFinite(cost) || cost <= 0) continue;
+
+      const effMargin = p.profitMarginPct != null ? Number(p.profitMarginPct) : globalMargin;
+      const newNormal = calcSellingPriceUsd(cost, effMargin, factor);
+
+      let newPrice = newNormal;
+      let newOriginalPrice: number | null = null;
+
+      const curPrice = Number(p.price);
+      const curOriginal = p.originalPrice != null ? Number(p.originalPrice) : null;
+      // ¿Estaba en oferta? (precio anterior > precio actual) → conservar el % de descuento
+      if (curOriginal != null && curOriginal > curPrice && curPrice > 0) {
+        const discountFrac = 1 - curPrice / curOriginal;
+        const discounted = roundUpToStep(newNormal * (1 - discountFrac));
+        if (discounted < newNormal) {
+          newPrice = discounted;
+          newOriginalPrice = newNormal;
+        }
+      }
+
+      await prisma.product.update({
+        where: { id: p.id },
+        data: { price: newPrice, originalPrice: newOriginalPrice },
+      });
+      updated++;
+    }
+
+    revalidatePath('/admin/products');
+    revalidatePath('/');
+    revalidatePath('/productos');
+    revalidateTag('catalog', 'default');
+    revalidateTag('categories', 'default');
+
+    return {
+      success: true,
+      updated,
+      total: products.length,
+      message: `Precios recalculados: ${updated} producto(s) actualizados (factor ${factor}). Las ofertas conservaron su descuento.`,
+    };
+  } catch (error) {
+    console.error('Error al recalcular precios:', error);
+    if (error instanceof Error && error.message.startsWith('No autorizado')) {
+      return { success: false, message: 'No tienes permiso para realizar esta acción.' };
+    }
+    return { success: false, message: 'No se pudieron recalcular los precios.' };
+  }
 }

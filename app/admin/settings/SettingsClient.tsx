@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { updateSettings } from '@/app/actions/settingsActions';
 import { updateExchangeRate, updatePricingParams, getPricingParams } from '@/app/actions/configActions';
+import { recalculateAllProductPrices } from '@/app/actions/productActions';
 import type { StoreSettings } from '@/lib/data-store';
 
 function SectionCard({ title, icon: Icon, children, accent }: {
@@ -74,6 +75,8 @@ export default function SettingsClient({
   const [factor, setFactor] = useState('');
   const [pricingMsg, setPricingMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [isSavingPricing, startPricingTransition] = useTransition();
+  const [isRecalculating, startRecalcTransition] = useTransition();
+  const [recalcMsg, setRecalcMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     fetch('/api/config/exchange-rate')
@@ -140,6 +143,16 @@ export default function SettingsClient({
       setPricingMsg({ ok: result.success, text: result.message });
       if (result.success) router.refresh();
       setTimeout(() => setPricingMsg(null), 4000);
+    });
+  };
+
+  const handleRecalc = () => {
+    if (!window.confirm('Esto recalculará el precio de TODOS los productos con costo, usando el factor y margen actuales. Las ofertas conservan su % de descuento, y los productos con precio manual (sin costo) no se tocan. ¿Continuar?')) return;
+    startRecalcTransition(async () => {
+      const result = await recalculateAllProductPrices();
+      setRecalcMsg({ ok: result.success, text: result.message });
+      if (result.success) router.refresh();
+      setTimeout(() => setRecalcMsg(null), 6000);
     });
   };
 
@@ -243,6 +256,25 @@ export default function SettingsClient({
               {pricingMsg.text}
             </p>
           )}
+          <div className="pt-3 mt-1 border-t border-gray-100">
+            <p className="text-xs text-gray-500 mb-2">
+              ¿Subiste el factor o el margen? Aplícalo arriba y luego recalcula los productos que ya tienes en venta.
+              Solo afecta productos con costo; las ofertas conservan su descuento.
+            </p>
+            <button
+              onClick={handleRecalc}
+              disabled={isRecalculating}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-navy/30 text-navy text-sm font-semibold rounded-lg hover:bg-navy/5 disabled:opacity-60 transition"
+            >
+              <RefreshCw size={15} className={isRecalculating ? 'animate-spin' : ''} />
+              {isRecalculating ? 'Recalculando…' : 'Recalcular precios de todos los productos'}
+            </button>
+            {recalcMsg && (
+              <p className={`text-sm font-medium mt-2 ${recalcMsg.ok ? 'text-green-600' : 'text-red-600'}`}>
+                {recalcMsg.text}
+              </p>
+            )}
+          </div>
         </SectionCard>
 
         <SectionCard title="Información de la Tienda" icon={Store}>
