@@ -17,7 +17,9 @@ export const PRICE_ROUNDING_STEP = 0.05;
 export function roundUpToStep(value: number, step: number = PRICE_ROUNDING_STEP): number {
   if (!Number.isFinite(value) || value <= 0) return 0;
   const stepCents = Math.round(step * 100);
-  const valueCents = Math.round(value * 100);
+  // Redondea a milésimas de céntimo: mata el ruido de coma flotante
+  // SIN perder el medio-céntimo real (580.5 no debe caer a 580).
+  const valueCents = Math.round(value * 100 * 1000) / 1000;
   const roundedCents = Math.ceil(valueCents / stepCents) * stepCents;
   return roundedCents / 100;
 }

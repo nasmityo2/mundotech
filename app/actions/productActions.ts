@@ -78,6 +78,10 @@ const productSchema = z.object({
     (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
     z.coerce.number().positive('El precio anterior debe ser un número positivo').nullable().optional(),
   ),
+  salePrice: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    z.coerce.number().positive('El precio de oferta debe ser positivo').optional(),
+  ),
   stock:       z.coerce.number().int().nonnegative('El stock debe ser un entero no negativo'),
   category:    z.string().min(1, 'La categoría es obligatoria'),
   brand: z.preprocess(
@@ -196,6 +200,7 @@ export async function createProductAction(formData: FormData) {
       price:       formData.get('price'),
       cost:        formData.get('cost'),
       originalPrice: formData.get('originalPrice'),
+      salePrice:   formData.get('salePrice'),
       stock:       formData.get('stock'),
       category:    formData.get('category'),
       brand:       formData.get('brand'),
@@ -209,19 +214,24 @@ export async function createProductAction(formData: FormData) {
     }
 
     const { marginPct, factor } = await getPricingParams();
-    const finalPrice = validated.data.cost != null
+    const normalPrice = validated.data.cost != null
       ? calcSellingPriceUsd(validated.data.cost, marginPct, factor)
       : roundUpToStep(validated.data.price);
 
-    if (validated.data.originalPrice != null && validated.data.originalPrice <= finalPrice) {
-      return { success: false, message: 'El precio anterior debe ser mayor que el precio actual para marcar la oferta.' };
+    // Oferta: si llega un salePrice válido y MENOR al precio normal, ese pasa a ser
+    // el precio actual y el normal queda como "precio anterior" tachado.
+    let finalPrice = normalPrice;
+    let finalOriginalPrice: number | null = null;
+    if (validated.data.salePrice != null && validated.data.salePrice < normalPrice) {
+      finalPrice = roundUpToStep(validated.data.salePrice);
+      finalOriginalPrice = normalPrice;
     }
 
     const slots  = parseGallerySlots(formData, validated.data.imagesJson);
     const images = deriveLegacyImagesFromSlots(slots);
     const specs  = parseSpecsFromFormData(formData);
 
-    const { imagesJson: _, sku, originalPrice, ...rest } = validated.data;
+    const { imagesJson: _, sku, originalPrice: _op, salePrice: _sp, ...rest } = validated.data;
     const slug = await getUniqueSlug(validated.data.name);
     const finalSku = sku ?? await getUniqueSku();
 
@@ -231,7 +241,7 @@ export async function createProductAction(formData: FormData) {
         price: finalPrice,
         cost: validated.data.cost ?? null,
         slug,
-        originalPrice: originalPrice ?? null,
+        originalPrice: finalOriginalPrice,
         sku:   finalSku,
         images,
         // Cast requerido: los interfaces TS no satisfacen InputJsonValue de Prisma
@@ -272,6 +282,7 @@ export async function updateProductAction(productId: string, formData: FormData)
       price:       formData.get('price'),
       cost:        formData.get('cost'),
       originalPrice: formData.get('originalPrice'),
+      salePrice:   formData.get('salePrice'),
       stock:       formData.get('stock'),
       category:    formData.get('category'),
       brand:       formData.get('brand'),
@@ -285,19 +296,24 @@ export async function updateProductAction(productId: string, formData: FormData)
     }
 
     const { marginPct, factor } = await getPricingParams();
-    const finalPrice = validated.data.cost != null
+    const normalPrice = validated.data.cost != null
       ? calcSellingPriceUsd(validated.data.cost, marginPct, factor)
       : roundUpToStep(validated.data.price);
 
-    if (validated.data.originalPrice != null && validated.data.originalPrice <= finalPrice) {
-      return { success: false, message: 'El precio anterior debe ser mayor que el precio actual para marcar la oferta.' };
+    // Oferta: si llega un salePrice válido y MENOR al precio normal, ese pasa a ser
+    // el precio actual y el normal queda como "precio anterior" tachado.
+    let finalPrice = normalPrice;
+    let finalOriginalPrice: number | null = null;
+    if (validated.data.salePrice != null && validated.data.salePrice < normalPrice) {
+      finalPrice = roundUpToStep(validated.data.salePrice);
+      finalOriginalPrice = normalPrice;
     }
 
     const slots  = parseGallerySlots(formData, validated.data.imagesJson);
     const images = deriveLegacyImagesFromSlots(slots);
     const specs  = parseSpecsFromFormData(formData);
 
-    const { imagesJson: _, sku, originalPrice, ...rest } = validated.data;
+    const { imagesJson: _, sku, originalPrice: _op, salePrice: _sp, ...rest } = validated.data;
 
     const current = await prisma.product.findUnique({
       where:  { id: productId },
@@ -329,7 +345,7 @@ export async function updateProductAction(productId: string, formData: FormData)
           price: finalPrice,
           cost: validated.data.cost ?? null,
           slug,
-          originalPrice: originalPrice ?? null,
+          originalPrice: finalOriginalPrice,
           sku:   finalSku,
           images,
           specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,

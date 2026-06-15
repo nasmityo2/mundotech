@@ -1,7 +1,7 @@
 'use client'
 import { useTransition, useRef, useEffect, useState, useCallback } from 'react';
 import { createProductAction, updateProductAction } from '@/app/actions/productActions';
-import { calcSellingPriceUsd, DEFAULT_PROFIT_MARGIN_PCT, DEFAULT_BCV_BINANCE_FACTOR } from '@/lib/pricing-formula';
+import { calcSellingPriceUsd, roundUpToStep, DEFAULT_PROFIT_MARGIN_PCT, DEFAULT_BCV_BINANCE_FACTOR } from '@/lib/pricing-formula';
 import { getPricingParams } from '@/app/actions/configActions';
 import { X, GripVertical, ImagePlus, Star, Camera, Plus, Trash2, Video, Play } from 'lucide-react';
 import { deriveLegacyImagesFromSlots, type ProductGalleryItem } from '@/lib/product-media';
@@ -78,6 +78,11 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   const [serverUploading, setServerUploading] = useState(false);
   const [specs, setSpecs] = useState<ProductSpec[]>([]);
   const [cost, setCost] = useState('');
+  const [price, setPrice] = useState('');
+  const [onSale, setOnSale] = useState(false);
+  const [discountMode, setDiscountMode] = useState<'pct' | 'amount'>('pct');
+  const [discountPct, setDiscountPct] = useState('');
+  const [saleAmount, setSaleAmount] = useState('');
   const [pricing, setPricing] = useState({ marginPct: DEFAULT_PROFIT_MARGIN_PCT, factor: DEFAULT_BCV_BINANCE_FACTOR });
   // Bloquear scroll del body con modal abierto
   useEffect(() => {
@@ -97,10 +102,13 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
     if (product) {
       el.name.value        = product.name;
       el.description.value = product.description;
-      el.price.value       = product.price.toString();
       setCost(product.cost != null ? String(product.cost) : '');
-      (el.originalPrice as HTMLInputElement).value =
-        product.originalPrice != null ? product.originalPrice.toString() : '';
+      const onOffer = product.originalPrice != null && product.originalPrice > product.price;
+      setOnSale(onOffer);
+      setDiscountMode('amount');
+      setDiscountPct('');
+      setPrice(onOffer ? String(product.originalPrice) : String(product.price));
+      setSaleAmount(onOffer ? String(product.price) : '');
       el.stock.value       = product.stock.toString();
       el.category.value    = product.category;
       el.brand.value       = product.brand;
@@ -134,6 +142,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
     } else {
       formRef.current.reset();
       setCost('');
+      setPrice(''); setOnSale(false); setDiscountMode('pct'); setDiscountPct(''); setSaleAmount('');
       setSlots([]);
       setSpecs([]);
       originalProductVideoUrlsRef.current = new Set();
@@ -352,13 +361,25 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   if (!isOpen) return null;
 
   const suggestedPrice = calcSellingPriceUsd(Number(cost), pricing.marginPct, pricing.factor);
+
+  const normalPriceNum = Number(price) || 0;
+  let computedSalePrice: number | null = null;
+  if (onSale && normalPriceNum > 0) {
+    if (discountMode === 'pct') {
+      const p = Number(discountPct);
+      if (p > 0 && p < 100) computedSalePrice = roundUpToStep(normalPriceNum * (1 - p / 100));
+    } else {
+      const a = Number(saleAmount);
+      if (a > 0 && a < normalPriceNum) computedSalePrice = roundUpToStep(a);
+    }
+  }
+  const salePct = computedSalePrice != null && normalPriceNum > 0
+    ? Math.round((1 - computedSalePrice / normalPriceNum) * 100) : 0;
+
   const onCostChange = (v: string) => {
     setCost(v);
-    const priceEl = formRef.current?.elements.namedItem('price') as HTMLInputElement | null;
-    if (priceEl) {
-      const n = Number(v);
-      priceEl.value = n > 0 ? calcSellingPriceUsd(n, pricing.marginPct, pricing.factor).toFixed(2) : '';
-    }
+    const n = Number(v);
+    setPrice(n > 0 ? calcSellingPriceUsd(n, pricing.marginPct, pricing.factor).toFixed(2) : '');
   };
 
   return (
@@ -609,6 +630,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                 formData.set('imagesJson', JSON.stringify(legacyImages));
                 formData.set('mediaJson', JSON.stringify(mediaForSave));
                 formData.set('specsJson',  JSON.stringify(specs));
+                formData.set('salePrice', computedSalePrice != null ? String(computedSalePrice) : '');
                 startTransition(async () => {
                   const action = product
                     ? updateProductAction.bind(null, product.id)
@@ -624,7 +646,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                 });
               }}
             >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
                 {/* Nombre */}
                 <div className="sm:col-span-2">
                   <label htmlFor="name" className={labelCls}>Nombre <span className="text-red-500">*</span></label>
@@ -650,20 +672,58 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                   )}
                 </div>
 
-                {/* Precio */}
+                {/* Precio normal */}
                 <div>
-                  <label htmlFor="price" className={labelCls}>Precio (USD) <span className="text-red-500">*</span></label>
-                  <input type="number" name="price" id="price" required step="0.01" min="0" className={inputCls} />
+                  <label htmlFor="price" className={labelCls}>Precio normal (USD) <span className="text-red-500">*</span></label>
+                  <input type="number" name="price" id="price" required step="0.01" min="0" className={inputCls}
+                    value={price} onChange={(e) => setPrice(e.target.value)} />
+                  <p className="text-[11px] text-gray-400 mt-1">Se calcula solo desde el costo. Puedes ajustarlo.</p>
                 </div>
 
-                <div>
-                  <label htmlFor="originalPrice" className={labelCls}>
-                    Precio anterior (USD)
-                    <span className="ml-1.5 text-xs font-normal text-gray-400">(opcional · actívalo para poner en oferta)</span>
+                {/* Oferta */}
+                <div className="sm:col-span-2">
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input type="checkbox" checked={onSale} onChange={(e) => setOnSale(e.target.checked)}
+                      className="w-4 h-4 accent-yellow-400" />
+                    <span className="text-sm font-bold text-gray-700">Poner en oferta</span>
                   </label>
-                  <input type="number" step="0.01" min="0" name="originalPrice" id="originalPrice"
-                    placeholder="Ej: 50.00" className={inputCls} />
-                  <p className="mt-1 text-xs text-gray-400">Si es mayor al precio actual, el producto aparece en “Ofertas” con su descuento.</p>
+
+                  {onSale && (
+                    <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2.5">
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setDiscountMode('pct')}
+                          className={`flex-1 min-h-[40px] rounded-lg text-sm font-semibold border transition ${discountMode === 'pct' ? 'bg-navy text-white border-navy' : 'bg-white text-gray-600 border-gray-200'}`}>
+                          % descuento
+                        </button>
+                        <button type="button" onClick={() => setDiscountMode('amount')}
+                          className={`flex-1 min-h-[40px] rounded-lg text-sm font-semibold border transition ${discountMode === 'amount' ? 'bg-navy text-white border-navy' : 'bg-white text-gray-600 border-gray-200'}`}>
+                          Precio fijo
+                        </button>
+                      </div>
+
+                      {discountMode === 'pct' ? (
+                        <input type="number" min="1" max="99" step="1" value={discountPct}
+                          onChange={(e) => setDiscountPct(e.target.value)} placeholder="Ej: 20 (% de descuento)"
+                          className={inputCls} />
+                      ) : (
+                        <input type="number" min="0" step="0.01" value={saleAmount}
+                          onChange={(e) => setSaleAmount(e.target.value)} placeholder="Precio en oferta (USD)"
+                          className={inputCls} />
+                      )}
+
+                      {computedSalePrice != null ? (
+                        <p className="text-sm text-gray-700">
+                          Antes <s className="text-gray-400">${normalPriceNum.toFixed(2)}</s> →{' '}
+                          <strong className="text-green-700">${computedSalePrice.toFixed(2)}</strong>{' '}
+                          <span className="font-bold text-red-600">(-{salePct}%)</span>
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-gray-500">
+                          {normalPriceNum > 0 ? 'Ingresa un descuento menor al precio normal.' : 'Primero define el costo o el precio normal.'}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Stock */}
