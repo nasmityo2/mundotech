@@ -22,6 +22,9 @@ model Product {
   /// Margen de ganancia % específico de este producto. Null = usar el margen global.
   /// Se usa para recalcular `price` desde `cost` al cambiar el factor BCV–Binance globalmente.
   profitMarginPct Decimal?       @db.Decimal(6, 2)
+  /// Tasa BCV–Binance vigente cuando se fijó el precio. Usada para reescalar
+  /// productos de precio manual al recalcular. Null = aún sin calibrar.
+  priceBaseFactor  Decimal? @db.Decimal(6,2)
   stock         Int            @default(0)
   /// PRD-124: categoría por nombre (string); enlazada a Category por slug/nombre en la app.
   category      String

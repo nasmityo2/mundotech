@@ -251,6 +251,7 @@ export async function createProductAction(formData: FormData) {
         price: finalPrice,
         cost: validated.data.cost ?? null,
         profitMarginPct: validated.data.cost != null ? effectiveMargin : null,
+        priceBaseFactor: factor,
         slug,
         originalPrice: finalOriginalPrice,
         sku:   finalSku,
@@ -362,6 +363,7 @@ export async function updateProductAction(productId: string, formData: FormData)
           price: finalPrice,
           cost: validated.data.cost ?? null,
           profitMarginPct: validated.data.cost != null ? effectiveMargin : null,
+          priceBaseFactor: factor,
           slug,
           originalPrice: finalOriginalPrice,
           sku:   finalSku,
@@ -925,11 +927,9 @@ export async function getProductsAdmin(params: {
 }
 
 /**
- * Recalcula el precio de TODOS los productos que tienen costo, usando el factor/margen
- * actuales. Cada producto usa SU PROPIO margen guardado (profitMarginPct). Los productos
- * con costo pero SIN margen propio se OMITEN (no se les inventa un global).
- * Las ofertas conservan su % de descuento: se recalcula el precio normal y se reaplica el descuento.
- * Productos sin costo (precio manual) NO se tocan.
+ * Recalcula el precio de TODOS los productos usando el factor actual.
+ * Con costo: costo × (1 + margenGuardado/100) × factor. Sin costo (precio manual):
+ * escala por razón de tasas (factor / priceBaseFactor). Ofertas conservan su % de descuento.
  */
 export async function recalculateAllProductPrices() {
   try {
@@ -937,40 +937,59 @@ export async function recalculateAllProductPrices() {
     const { factor } = await getPricingParams();
 
     const products = await prisma.product.findMany({
-      where: { cost: { not: null } },
-      select: { id: true, price: true, originalPrice: true, cost: true, profitMarginPct: true },
+      select: {
+        id: true,
+        price: true,
+        originalPrice: true,
+        cost: true,
+        profitMarginPct: true,
+        priceBaseFactor: true,
+      },
     });
 
     let updated = 0;
     let skipped = 0;
+
     for (const p of products) {
-      const cost = Number(p.cost);
-      if (!Number.isFinite(cost) || cost <= 0) { skipped++; continue; }
-
-      // El margen SIEMPRE es el guardado en el producto. Si no tiene margen propio,
-      // se omite: no inventamos un global porque cada producto gana un % distinto.
-      if (p.profitMarginPct == null) { skipped++; continue; }
-      const effMargin = Number(p.profitMarginPct);
-      const newNormal = calcSellingPriceUsd(cost, effMargin, factor);
-
-      let newPrice = newNormal;
-      let newOriginalPrice: number | null = null;
-
       const curPrice = Number(p.price);
       const curOriginal = p.originalPrice != null ? Number(p.originalPrice) : null;
-      // ¿Estaba en oferta? (precio anterior > precio actual) → conservar el % de descuento
-      if (curOriginal != null && curOriginal > curPrice && curPrice > 0) {
-        const discountFrac = 1 - curPrice / curOriginal;
-        const discounted = roundUpToStep(newNormal * (1 - discountFrac));
-        if (discounted < newNormal) {
-          newPrice = discounted;
-          newOriginalPrice = newNormal;
+      const onOffer = curOriginal != null && curOriginal > curPrice && curPrice > 0;
+      const curNormal = onOffer ? (curOriginal as number) : curPrice;
+
+      let newNormal: number | null = null;
+
+      if (p.cost != null && Number(p.cost) > 0 && p.profitMarginPct != null) {
+        newNormal = calcSellingPriceUsd(Number(p.cost), Number(p.profitMarginPct), factor);
+      } else if (p.cost == null && curNormal > 0) {
+        const base = p.priceBaseFactor != null ? Number(p.priceBaseFactor) : null;
+        if (base != null && base > 0) {
+          newNormal = roundUpToStep(curNormal * (factor / base));
+        } else {
+          await prisma.product.update({
+            where: { id: p.id },
+            data: { priceBaseFactor: factor },
+          });
+          skipped++;
+          continue;
         }
+      } else {
+        skipped++;
+        continue;
+      }
+
+      if (newNormal == null || newNormal <= 0) { skipped++; continue; }
+
+      let newPrice = newNormal;
+      let newOriginal: number | null = null;
+      if (onOffer) {
+        const discountFrac = 1 - curPrice / (curOriginal as number);
+        newPrice = roundUpToStep(newNormal * (1 - discountFrac));
+        newOriginal = newNormal;
       }
 
       await prisma.product.update({
         where: { id: p.id },
-        data: { price: newPrice, originalPrice: newOriginalPrice },
+        data: { price: newPrice, originalPrice: newOriginal, priceBaseFactor: factor },
       });
       updated++;
     }
@@ -986,11 +1005,7 @@ export async function recalculateAllProductPrices() {
       updated,
       skipped,
       total: products.length,
-      message: `Precios recalculados con tasa actual ${factor}: ${updated} actualizado(s)${
-        skipped > 0
-          ? `, ${skipped} omitido(s) (sin margen propio guardado — ábrelos y guárdalos una vez para fijar su %)`
-          : ''
-      }. Las ofertas conservaron su descuento.`,
+      message: `Listo: ${updated} producto(s) actualizado(s)${skipped ? `, ${skipped} omitido(s)/calibrado(s)` : ''}.`,
     };
   } catch (error) {
     console.error('Error al recalcular precios:', error);
