@@ -29,6 +29,13 @@ export default async function OrderLabelPage({ params }: PageProps) {
   const barcodeValue = `${orderRef}-${order.id.slice(-4).toUpperCase()}`;
   const barcode = code128(barcodeValue, { moduleWidth: 2, height: 56, quietZone: 8 });
   const itemCount = order.items.reduce((acc, i) => acc + i.quantity, 0);
+  const groupedItems = Object.values(
+    order.items.reduce<Record<string, { name: string; quantity: number }>>((acc, it) => {
+      const key = it.productId || it.productName;
+      (acc[key] ??= { name: it.productName, quantity: 0 }).quantity += it.quantity;
+      return acc;
+    }, {})
+  );
   const isMrw = /mrw/i.test(order.shippingAddress) || /mrw/i.test(order.trackingCarrier ?? '');
 
   return (
@@ -37,12 +44,12 @@ export default async function OrderLabelPage({ params }: PageProps) {
       <style>{`
         @media print {
           @page { size: 100mm 150mm; margin: 0; }
-          html, body { background: #fff !important; }
+          html, body { background:#fff !important; margin:0 !important; padding:0 !important; width:auto !important; height:auto !important; overflow:visible !important; }
           body * { visibility: hidden !important; }
           #thermal-label, #thermal-label * { visibility: visible !important; }
           #thermal-label {
-            position: absolute !important;
-            left: 0; top: 0;
+            position: fixed !important;
+            left:0 !important; top:0 !important;
             width: 100mm !important;
             box-shadow: none !important;
             border: none !important;
@@ -111,6 +118,19 @@ export default async function OrderLabelPage({ params }: PageProps) {
               <span style={{ fontFamily: 'monospace' }}>{order.trackingNumber}</span>
             </div>
           )}
+
+          {/* Contenido del pedido — qué compró (cantidades agrupadas) */}
+          <div style={{ marginTop: '3mm' }}>
+            <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contenido</div>
+            <div style={{ fontSize: '11px', lineHeight: 1.35 }}>
+              {groupedItems.map((it, i) => (
+                <div key={i} style={{ display: 'flex', gap: '6px' }}>
+                  <span style={{ fontWeight: 700, minWidth: '22px' }}>{it.quantity}×</span>
+                  <span>{it.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* Código de barras */}
           <div style={{ marginTop: '3mm', textAlign: 'center' }}>
