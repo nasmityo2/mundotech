@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { Star, Loader2, CheckCircle2, ShieldCheck, MessageSquarePlus, X, Pencil, Trash2, Camera, ChevronRight } from 'lucide-react';
+import { Star, Loader2, CheckCircle2, ShieldCheck, MessageSquarePlus, X, Pencil, Trash2, Camera, ChevronRight, ChevronDown } from 'lucide-react';
 import { Stars } from '@/components/reviews/Stars';
 import type { Review, ReviewSummary } from '@/lib/definitions';
 
@@ -55,6 +55,7 @@ export default function ProductReviews({ productId, productName, initialSummary,
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [filterStar, setFilterStar] = useState<number | null>(null);
+  const [sortBy, setSortBy] = useState<'recent' | 'highest' | 'lowest'>('recent');
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const isAuthed = status === 'authenticated' && !!session?.user;
@@ -182,6 +183,17 @@ export default function ProductReviews({ productId, productName, initialSummary,
 
   const total = summary.count;
   const filteredReviews = filterStar ? reviews.filter((r) => r.rating === filterStar) : reviews;
+  const sortedReviews = useMemo(() => {
+    const arr = [...filteredReviews];
+    const byDateDesc = (a: typeof arr[number], b: typeof arr[number]) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    arr.sort((a, b) => {
+      if (sortBy === 'highest') return b.rating - a.rating || byDateDesc(a, b);
+      if (sortBy === 'lowest') return a.rating - b.rating || byDateDesc(a, b);
+      return byDateDesc(a, b); // recent
+    });
+    return arr;
+  }, [filteredReviews, sortBy]);
   const maxBar = Math.max(1, ...summary.breakdown);
   // Con pocas reseñas la gráfica 5★→1★ se ve vacía; mostrarla solo a partir de 4.
   const SHOW_BREAKDOWN_MIN = 4;
@@ -265,32 +277,48 @@ export default function ProductReviews({ productId, productName, initialSummary,
 
       {/* Filtros */}
       {reviews.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-6">
-          <button
-            type="button"
-            onClick={() => setFilterStar(null)}
-            className={`text-xs font-semibold px-3.5 py-2 rounded-full border transition-colors ${
-              filterStar === null ? 'bg-navy text-white border-navy' : 'border-slate-200 text-slate-600 hover:border-navy'
-            }`}
-          >
-            Todas ({summary.count})
-          </button>
-          {[5, 4, 3, 2, 1].map((s) => {
-            const n = summary.breakdown[s - 1];
-            return (
-              <button
-                key={s}
-                type="button"
-                disabled={n === 0}
-                onClick={() => setFilterStar(s)}
-                className={`inline-flex items-center gap-1 text-xs font-semibold px-3.5 py-2 rounded-full border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                  filterStar === s ? 'bg-navy text-white border-navy' : 'border-slate-200 text-slate-600 hover:border-navy'
-                }`}
-              >
-                {s} <Star size={11} className="fill-current" /> ({n})
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setFilterStar(null)}
+              className={`text-xs font-semibold px-3.5 py-2 rounded-full border transition-colors ${
+                filterStar === null ? 'bg-navy text-white border-navy' : 'border-slate-200 text-slate-600 hover:border-navy'
+              }`}
+            >
+              Todas ({summary.count})
+            </button>
+            {[5, 4, 3, 2, 1].map((s) => {
+              const n = summary.breakdown[s - 1];
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={n === 0}
+                  onClick={() => setFilterStar(s)}
+                  className={`inline-flex items-center gap-1 text-xs font-semibold px-3.5 py-2 rounded-full border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                    filterStar === s ? 'bg-navy text-white border-navy' : 'border-slate-200 text-slate-600 hover:border-navy'
+                  }`}
+                >
+                  {s} <Star size={11} className="fill-current" /> ({n})
+                </button>
+              );
+            })}
+          </div>
+          <div className="relative shrink-0">
+            <label htmlFor="review-sort" className="sr-only">Ordenar reseñas</label>
+            <select
+              id="review-sort"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'recent' | 'highest' | 'lowest')}
+              className="appearance-none rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-600 pl-3.5 pr-8 py-2 hover:border-navy focus:border-navy focus:ring-2 focus:ring-navy/10 outline-none cursor-pointer"
+            >
+              <option value="recent">Más recientes</option>
+              <option value="highest">Mejor valoradas</option>
+              <option value="lowest">Peor valoradas</option>
+            </select>
+            <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          </div>
         </div>
       )}
 
@@ -385,7 +413,7 @@ export default function ProductReviews({ productId, productName, initialSummary,
         </p>
       ) : (
         <ul className="space-y-4 sm:space-y-5">
-          {filteredReviews.map((r) => (
+          {sortedReviews.map((r) => (
             <li key={r.id} className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 hover:shadow-sm transition-shadow">
               <div className="flex items-start gap-3.5">
                 <div className={`shrink-0 w-11 h-11 rounded-full font-bold flex items-center justify-center text-sm uppercase ${avatarColor(r.authorName || '?')}`}>
