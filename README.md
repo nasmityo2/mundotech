@@ -131,7 +131,7 @@ Los tres jobs se invocan con `Authorization: Bearer $CRON_SECRET` desde el cront
 
 | Endpoint | Schedule (Caracas) | Propósito |
 |---|---|---|
-| `/api/cron/update-bcv-rate` | Lun–vie 16:00 y 18:00 | Tasa BCV desde API externa → `AppConfig` |
+| `/api/cron/update-bcv-rate` | Todos los días 00:15, 01:15, 05:15 (Caracas) | Tasa BCV desde API externa → `AppConfig` |
 | `/api/cron/abandoned-cart` | Cada 2 horas | Emails carrito abandonado (24h / 72h) |
 | `/api/cron/purge-product-views` | Dom 01:30 | Purga `ProductView` > 90 días |
 

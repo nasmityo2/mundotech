@@ -14,14 +14,14 @@ Las tres tareas programadas viven en el crontab de root. El servidor interpreta 
 
 | Job | Expresión cron | Frecuencia | Justificación |
 |-----|----------------|------------|---------------|
-| **update-bcv-rate** | `0 16,18 * * 1-5` | Lun–vie 16:00 y 18:00 Caracas | Tras cierre BCV (~16:00) y margen de respaldo a las 18:00. |
+| **update-bcv-rate** | `15 0,1,5 * * *` | Todos los días 00:15, 01:15, 05:15 Caracas | 00:15 caza la publicación de medianoche de la API; 01:15 y 05:15 reintentos por retraso de la fuente. Idempotente por fecha (sinCambios si no hay cambio). |
 | **abandoned-cart** | `0 */2 * * *` | Cada 2 horas | PRD-149: diseño original pedía más frecuencia que el cron diario de Vercel (`0 3 * * *` UTC). |
 | **purge-product-views** | `30 1 * * 0` | Domingos 01:30 Caracas | Equivalente a `30 5 * * 0` UTC del backup de vercel.json. |
 
 **Líneas exactas instaladas:**
 
 ```
-0 16,18 * * 1-5 . /etc/mundotech/mundotech.env; curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3000/api/cron/update-bcv-rate >> /var/log/bcv-cron.log 2>&1
+15 0,1,5 * * * . /etc/mundotech/mundotech.env; curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3000/api/cron/update-bcv-rate >> /var/log/bcv-cron.log 2>&1
 0 */2 * * * . /etc/mundotech/mundotech.env; curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3000/api/cron/abandoned-cart >> /var/log/mundotech-cron.log 2>&1
 30 1 * * 0 . /etc/mundotech/mundotech.env; curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3000/api/cron/purge-product-views >> /var/log/mundotech-cron.log 2>&1
 ```
