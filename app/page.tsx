@@ -178,7 +178,7 @@ function CtaBanner({ data }: { data: CtaBannerData | null }) {
   const img = data?.imageUrl ?? '';
 
   return (
-    <div className="relative mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-card">
+    <div className="relative mt-6 sm:mt-8 overflow-hidden card-elevated-lg">
       {img ? (
         <Image
           src={img}
@@ -293,7 +293,7 @@ const HomePage = async () => {
 
       {/* Barra de beneficios — editable desde Admin → Gestor Home */}
       <div className="-mx-4 w-[calc(100%+2rem)] sm:mx-0 sm:w-full mt-4 sm:mt-6">
-        <div className="overflow-hidden rounded-none border-y border-slate-100 sm:rounded-2xl sm:border">
+        <div className="overflow-hidden rounded-none border-y border-border bg-surface-muted sm:rounded-2xl sm:border sm:shadow-soft">
           <Benefits items={benefitsItems} />
         </div>
       </div>

@@ -17,7 +17,7 @@ const Benefits = ({ items }: { items: BenefitItem[] }) => {
   if (!items || items.length === 0) return null;
 
   return (
-    <div className="bg-white border-b border-slate-100">
+    <div className="bg-surface-muted border-b border-border">
       <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0 divide-slate-100">
         {items.map((item, i) => {
           const Icon = ICON_LIST[i % ICON_LIST.length];

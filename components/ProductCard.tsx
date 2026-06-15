@@ -63,10 +63,8 @@ const ProductCard = ({ product, priority = false }: { product: Product; priority
   };
 
   return (
-    <div className="group block h-full rounded-2xl">
-      <div className="relative flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-soft
-                      transition-all duration-300 active:scale-[0.99] hover:-translate-y-0.5 hover:border-slate-300/90 hover:shadow-card
-                      focus-within:ring-2 focus-within:ring-navy">
+    <div className="group block h-full">
+      <div className="card-interactive relative flex h-full flex-col overflow-hidden focus-within:ring-2 focus-within:ring-navy active:scale-[0.99] motion-reduce:active:scale-100">
 
         {/* Imagen */}
         <div className="relative aspect-[4/5] overflow-hidden bg-white">
@@ -124,11 +122,13 @@ const ProductCard = ({ product, priority = false }: { product: Product; priority
 
         {/* Info */}
         <div className="p-3 sm:p-4 flex flex-col flex-grow gap-1.5">
-          <p className="text-[10px] sm:text-[11px] font-medium text-on-light uppercase tracking-wider truncate">
-            {brandLabel}
-          </p>
+          {brandLabel ? (
+            <span className="chip-brand w-fit max-w-full truncate">
+              {brandLabel}
+            </span>
+          ) : null}
 
-          <h3 className="text-[13px] sm:text-sm font-medium text-[#0f172a] leading-snug line-clamp-2 transition-colors min-h-[2.4rem]">
+          <h3 className="text-[13px] sm:text-sm font-semibold text-navy leading-snug line-clamp-2 transition-colors min-h-[2.4rem]">
             <Link
               href={`/product/${product.slug ?? product.id}`}
               className="focus:outline-none after:absolute after:inset-0 after:content-[''] after:rounded-2xl"
@@ -148,7 +148,7 @@ const ProductCard = ({ product, priority = false }: { product: Product; priority
           {/* Precio */}
           <div className="mt-auto pt-2 sm:pt-3">
             <div className="flex items-baseline gap-1.5 flex-wrap">
-              <span className="text-[1.15rem] sm:text-[1.3rem] font-bold text-navy tracking-tight nums leading-none">
+              <span className="text-[1.25rem] sm:text-[1.45rem] font-bold text-navy tracking-tight nums leading-none">
                 {formatUSD(product.price)}
               </span>
               {product.originalPrice && product.originalPrice > product.price && (
@@ -170,13 +170,13 @@ const ProductCard = ({ product, priority = false }: { product: Product; priority
               type="button"
               onClick={handleCart}
               disabled={isOut}
-              className={`relative z-10 mt-2.5 sm:mt-3 w-full inline-flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl
+              className={`relative z-10 mt-2.5 sm:mt-3 w-full inline-flex items-center justify-center gap-1.5 min-h-[44px] rounded-full
                           text-[12px] sm:text-[13px] font-bold transition-all duration-200 border
-                          active:scale-[0.97]
+                          active:scale-[0.97] motion-reduce:active:scale-100
                           disabled:opacity-50 disabled:cursor-not-allowed
                           ${justAdded
                             ? 'bg-navy text-white border-navy'
-                            : 'bg-[#FFD700] text-[#0B0B0B] border-[#E6C200] hover:bg-[#FFE03A] active:bg-[#FFD024] shadow-sm'}`}
+                            : 'bg-brand-yellow text-navy border-brand-yellowDk hover:bg-[#FFE03A] active:bg-[#FFD024] shadow-soft hover:shadow-card'}`}
             >
               {justAdded ? (
                 <>

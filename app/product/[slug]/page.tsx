@@ -272,6 +272,19 @@ export default async function ProductDetailPage({ params }: PageProps) {
         reviews={productReviews}
       />
 
+      {/* ── Banda navy — cabecera de ficha ── */}
+      <div className="-mx-4 sm:-mx-6 lg:-mx-8 w-[calc(100%+2rem)] sm:w-[calc(100%+3rem)] lg:w-[calc(100%+4rem)] section-band-navy mb-5 sm:mb-6 rounded-none sm:rounded-2xl overflow-hidden">
+        <div className="circuit-bg" aria-hidden />
+        <div className="relative px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+          <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+            Detalle del <span className="text-brand-yellow">Producto</span>
+          </p>
+          <h2 className="mt-1 text-lg sm:text-xl font-bold text-white tracking-tight line-clamp-2 sm:line-clamp-1">
+            {product.name}
+          </h2>
+        </div>
+      </div>
+
       {/* ── Breadcrumb ── */}
       <nav className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6 overflow-hidden whitespace-nowrap" aria-label="Breadcrumb">
         <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
@@ -289,37 +302,32 @@ export default async function ProductDetailPage({ params }: PageProps) {
       </nav>
 
       {/* ── Layout principal 2 cols ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12 items-start mb-8 sm:mb-12">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6 lg:gap-8 items-start mb-8 sm:mb-12">
 
-        {/* Galería */}
-        <ProductGallery
-          items={productToGalleryItems(product)}
-          name={product.name}
-          isOut={isOut}
-          discountPct={discount}
-        />
+        {/* Galería — tarjeta flotante */}
+        <div className="card-elevated p-3 sm:p-4 lg:p-5">
+          <ProductGallery
+            items={productToGalleryItems(product)}
+            name={product.name}
+            isOut={isOut}
+            discountPct={discount}
+          />
+        </div>
 
-        {/* Información */}
-        <div className="flex flex-col">
+        {/* Información — tarjeta flotante */}
+        <div className="card-elevated p-5 sm:p-6 lg:p-8 flex flex-col">
 
           {/* Marca + categoría */}
-          <div className="flex items-center gap-2 flex-wrap mb-2 sm:mb-3">
-            {product.brand && (
-              <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-600">
-                {product.brand}
+          <div className="flex items-center gap-2 flex-wrap mb-3">
+            {(product.brand || product.category) && (
+              <span className="chip-brand">
+                {[product.brand, product.category].filter(Boolean).join(' · ')}
               </span>
             )}
-            <span className="text-slate-300">·</span>
-            <Link
-              href={categoryPath}
-              className="text-[11px] sm:text-[12px] text-slate-500 hover:text-navy capitalize transition-colors"
-            >
-              {product.category}
-            </Link>
           </div>
 
           {/* Título */}
-          <h1 className="text-[1.4rem] xs:text-[1.55rem] sm:text-[1.75rem] md:text-[2.25rem] font-bold text-navy leading-[1.15] tracking-tight text-balance">
+          <h1 className="text-[1.35rem] xs:text-[1.5rem] sm:text-[1.65rem] md:text-[1.85rem] font-bold text-navy leading-[1.15] tracking-tight text-balance">
             {product.name}
           </h1>
 
@@ -344,9 +352,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
           )}
 
           {/* Precio */}
-          <div className="mt-5 sm:mt-6 pb-5 sm:pb-6 border-b border-slate-100">
+          <div className="mt-5 sm:mt-6 pb-5 sm:pb-6 border-b border-border">
             <div className="flex items-baseline gap-2 sm:gap-3 flex-wrap">
-              <span className="text-[2rem] sm:text-4xl md:text-5xl font-bold text-navy nums tracking-tight leading-none">
+              <span className="text-[2.1rem] sm:text-[2.5rem] md:text-[3rem] font-bold text-navy nums tracking-tight leading-none">
                 US {formatCurrency(product.price)}
               </span>
               {product.originalPrice && product.originalPrice > product.price && (
@@ -360,8 +368,8 @@ export default async function ProductDetailPage({ params }: PageProps) {
                 </span>
               )}
             </div>
-            <p className="mt-2 text-[12px] sm:text-sm text-slate-500 nums break-words">
-              <span className="font-semibold text-navy">Bs. {new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(bsPrice)}</span>
+            <p className="mt-2 text-[13px] sm:text-sm text-on-light nums break-words">
+              <span className="font-semibold text-price-on-light">Bs. {new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(bsPrice)}</span>
             </p>
           </div>
 
@@ -374,18 +382,18 @@ export default async function ProductDetailPage({ params }: PageProps) {
             ) : (
               <>
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-green opacity-75 motion-reduce:animate-none" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-green" />
                 </span>
-                <span className="inline-flex items-center gap-1.5 text-emerald-600 text-sm font-semibold">
+                <span className="inline-flex items-center gap-1.5 text-brand-green text-sm font-semibold">
                   <CheckCircle2 size={15} /> En stock — {product.stock} disponibles
                 </span>
               </>
             )}
           </div>
 
-          {/* Acciones */}
-          <div className="mt-6">
+          {/* Acciones — padding inferior para no solapar FAB de WhatsApp en móvil */}
+          <div className="mt-6 pb-20 sm:pb-0">
             <ProductActions product={productForClient} />
           </div>
 
@@ -394,12 +402,12 @@ export default async function ProductDetailPage({ params }: PageProps) {
             {siteContent.productTrust.map(({ icon, title, sub }) => {
               const Icon = TRUST_ICONS[icon] ?? ShieldCheck;
               return (
-                <div key={title} className="bg-slate-50 rounded-2xl p-3.5 text-center">
-                  <div className="w-9 h-9 mx-auto bg-white border border-slate-200 rounded-xl flex items-center justify-center text-navy mb-2">
+                <div key={title} className="bg-surface-muted rounded-2xl p-3.5 text-center border border-border/60">
+                  <div className="w-9 h-9 mx-auto bg-white border border-border rounded-xl flex items-center justify-center text-navy mb-2 shadow-soft">
                     <Icon size={16} />
                   </div>
                   <p className="text-[12px] font-semibold text-navy leading-tight">{title}</p>
-                  {sub ? <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{sub}</p> : null}
+                  {sub ? <p className="text-[11px] text-on-light mt-0.5 leading-snug">{sub}</p> : null}
                 </div>
               );
             })}

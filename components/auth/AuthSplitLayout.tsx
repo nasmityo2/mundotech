@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { MapPin, ShieldCheck } from 'lucide-react';
 import { whatsappHref } from '@/lib/mundotech-social';
+import Logo from '@/components/Logo';
 
 export type AuthSplitVariant = 'login' | 'register' | 'recovery';
 
@@ -73,16 +74,14 @@ export default function AuthSplitLayout({
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-card"
+          className="overflow-hidden rounded-3xl border border-border bg-white shadow-card"
         >
           {/* Banda-letrero: la fachada de la tienda */}
-          <div className="relative bg-navy px-6 py-6 sm:px-8 sm:py-7 border-b-[3px] border-brand-yellow">
+          <div className="relative bg-navy px-6 py-6 sm:px-8 sm:py-7 border-b-[3px] border-brand-yellow" data-logo-surface="dark">
             <div className="absolute inset-0 circuit-bg opacity-40" aria-hidden />
             <div className="relative">
-              <Link href="/" className="inline-flex items-baseline text-[1.45rem] font-bold tracking-tight text-white">
-                Mundo<span className="text-brand-yellow">Tech</span>
-              </Link>
-              <p className="mt-0.5 text-[10.5px] font-bold uppercase tracking-[0.24em] text-brand-yellow">
+              <Logo variant="dark" size="lg" href="/" />
+              <p className="mt-1 text-[10.5px] font-bold uppercase tracking-[0.24em] text-brand-yellow">
                 Conectados Contigo
               </p>
               <p className="mt-2.5 max-w-sm text-[12.5px] leading-relaxed text-white/70">
@@ -95,7 +94,7 @@ export default function AuthSplitLayout({
           <div className="p-6 sm:p-8">{children}</div>
 
           {/* Pie verificable: esta cuenta pertenece a una tienda real */}
-          <div className="border-t border-slate-100 bg-slate-50/80 px-6 py-4 sm:px-8">
+          <div className="border-t border-border bg-surface-muted px-6 py-4 sm:px-8">
             <div className="flex flex-col gap-2 text-[12px] text-slate-500">
               <span className="inline-flex items-start gap-2">
                 <MapPin size={13} className="mt-0.5 flex-shrink-0 text-brand-yellowDk" aria-hidden />

@@ -49,8 +49,7 @@ const CartClient = () => {
     <>
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-5 sm:mb-6">
         <div>
-          <h1 className="text-[1.6rem] sm:text-3xl md:text-4xl font-bold text-navy tracking-tight">Tu carrito</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-on-light">
             {cartItems.length === 0
               ? 'Aún no tienes productos.'
               : `${cartItems.length} producto${cartItems.length === 1 ? '' : 's'} · ${totalUnits} unidad${totalUnits === 1 ? '' : 'es'}`}
@@ -59,7 +58,7 @@ const CartClient = () => {
       </div>
 
       {cartItems.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-soft px-6 py-16 text-center">
+        <div className="card-elevated-lg px-6 py-16 text-center">
           <div className="w-20 h-20 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-300 mb-4">
             <ShoppingBag size={36} />
           </div>
@@ -102,7 +101,7 @@ const CartClient = () => {
             {cartItems.map((product) => (
               <article
                 key={product.id}
-                className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-3 sm:p-5 flex gap-3 sm:gap-5"
+                className="card-elevated p-3 sm:p-5 flex gap-3 sm:gap-5"
               >
                 <Link
                   href={`/product/${product.slug ?? product.id}`}
@@ -180,7 +179,7 @@ const CartClient = () => {
           {/* Resumen sticky */}
           <aside className="lg:col-span-1">
             <div className="lg:sticky lg:top-[96px] space-y-4">
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-6">
+              <div className="card-elevated p-6">
                 <h2 className="text-base font-semibold text-navy mb-5">Resumen del pedido</h2>
 
                 {/* PRD-EXTRA-CHK-1: aquí había un input de cupón decorativo (el
@@ -228,7 +227,7 @@ const CartClient = () => {
               </div>
 
               {/* Trust strip */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-5 space-y-3">
+              <div className="card-elevated p-5 space-y-3">
                 {[
                   { icon: ShieldCheck, label: 'Pago Móvil · Transferencia · Binance', sub: 'Verificamos tu pago y te confirmamos por correo' },
                   { icon: Truck,       label: 'Delivery gratis en Barquisimeto',      sub: 'Centro y Este. Envíos por MRW, Zoom y Tealca' },

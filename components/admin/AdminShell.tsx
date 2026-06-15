@@ -31,7 +31,7 @@ export default function AdminShell({ children, userName, userEmail }: AdminShell
   }, [pathname]);
 
   return (
-    <div className="flex min-h-[100dvh] bg-[#F1F5F9]">
+    <div className="flex min-h-[100dvh] bg-white">
       <div className="contents print:hidden">
         <SidebarDesktop />
       </div>

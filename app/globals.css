@@ -10,7 +10,8 @@
     --yellow:  #FFD700;
     --green:   #48BB78;
     --border:  #E2E8F0;
-    --surface: #F1F5F9;
+    --surface: #FFFFFF;
+    --surface-muted: #F8FAFC;
   }
 
   html {
@@ -25,7 +26,7 @@
     font-family: var(--font-jost), 'Jost', sans-serif;
     font-size: 15px;
     line-height: 1.65;
-    background-color: #F1F5F9;
+    background-color: #FFFFFF;
     color: #0B1220;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -238,5 +239,47 @@
   .safe-x {
     max-width: 100%;
     overflow-x: hidden;
+  }
+
+  /* Logo auto: light por defecto; dark dentro de superficies navy */
+  [data-logo-surface='dark'] .logo-auto-light {
+    display: none;
+  }
+  [data-logo-surface='dark'] .logo-auto-dark {
+    display: inline-flex !important;
+  }
+}
+
+/* ── Tarjetas elevadas (retail: Amazon / Target) ─────────────────────────── */
+@layer components {
+  .card-elevated {
+    @apply bg-white border border-border rounded-2xl shadow-card;
+  }
+
+  .card-elevated-lg {
+    @apply bg-white border border-border rounded-3xl shadow-card;
+  }
+
+  .card-interactive {
+    @apply card-elevated transition-all duration-300;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .card-interactive:hover {
+      @apply -translate-y-0.5 shadow-card-hover;
+    }
+  }
+
+  /* Chip marca/categoría — navy + dorado */
+  .chip-brand {
+    @apply inline-flex items-center rounded-full bg-navy px-2.5 py-1 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-brand-yellow;
+  }
+
+  /* Banda de sección navy con textura de circuito */
+  .section-band-navy {
+    @apply relative bg-navy text-white overflow-hidden;
+  }
+  .section-band-navy .circuit-bg {
+    @apply absolute inset-0 opacity-40 pointer-events-none;
   }
 }

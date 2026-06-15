@@ -82,11 +82,11 @@ export default function ProductActions({ product }: { product: Product }) {
             <span className="text-[11px] sm:text-[12px] font-semibold text-slate-500 uppercase tracking-wider">
               Cantidad
             </span>
-            <div className="flex items-center bg-slate-50 border border-slate-200 rounded-full overflow-hidden">
+            <div className="flex items-center bg-white border border-border rounded-full overflow-hidden shadow-soft">
               <button
                 type="button"
                 onClick={() => setQty((q) => Math.max(1, q - 1))}
-                className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-navy transition-colors disabled:opacity-30"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-surface-muted active:bg-surface-muted text-on-light hover:text-navy transition-colors disabled:opacity-30"
                 disabled={qty <= 1}
                 aria-label="Reducir cantidad"
               >
@@ -96,7 +96,7 @@ export default function ProductActions({ product }: { product: Product }) {
               <button
                 type="button"
                 onClick={() => setQty((q) => Math.min(max, q + 1))}
-                className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 active:bg-slate-200 text-slate-500 hover:text-navy transition-colors disabled:opacity-30"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-surface-muted active:bg-surface-muted text-on-light hover:text-navy transition-colors disabled:opacity-30"
                 disabled={qty >= max}
                 aria-label="Aumentar cantidad"
               >
@@ -112,7 +112,7 @@ export default function ProductActions({ product }: { product: Product }) {
             type="button"
             onClick={handleBuyNow}
             disabled={isOut}
-            className="inline-flex items-center justify-center gap-2 bg-brand-yellow text-navy font-bold text-sm min-h-[52px] px-6 rounded-2xl shadow-soft hover:shadow-card hover:bg-[#FFE03A] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+            className="inline-flex items-center justify-center gap-2 bg-brand-yellow text-navy font-bold text-sm min-h-[52px] px-6 rounded-full shadow-soft hover:shadow-card hover:bg-[#FFE03A] active:scale-[0.98] motion-reduce:active:scale-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Zap size={16} />
             Comprar ahora
@@ -138,10 +138,10 @@ export default function ProductActions({ product }: { product: Product }) {
           <button
             type="button"
             onClick={handleAdd}
-            className={`w-full inline-flex items-center justify-center gap-2 min-h-[48px] rounded-2xl text-sm font-semibold transition-all border active:scale-[0.98] ${
+            className={`w-full inline-flex items-center justify-center gap-2 min-h-[48px] rounded-full text-sm font-semibold transition-all border active:scale-[0.98] motion-reduce:active:scale-100 ${
               justAdded
-                ? 'bg-emerald-500 text-white border-emerald-500'
-                : 'bg-white text-navy border-navy/15 hover:border-navy hover:bg-slate-50'
+                ? 'bg-brand-green text-white border-brand-green'
+                : 'bg-white text-navy border-border hover:border-navy hover:bg-surface-muted'
             }`}
           >
             {justAdded ? (
@@ -167,7 +167,7 @@ export default function ProductActions({ product }: { product: Product }) {
 
       {/* ── Formulario "Avísame cuando haya stock" ── */}
       {isOut && (
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="mt-4 rounded-2xl border border-border bg-surface-muted p-4">
           {restockStatus === 'success' ? (
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">

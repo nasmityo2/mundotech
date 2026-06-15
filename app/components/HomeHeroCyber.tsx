@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import Logo from '@/components/Logo';
 import { ArrowRight, Tag, MapPin } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -163,6 +164,12 @@ export default function HomeHeroCyber({
             <div className="absolute inset-0 circuit-bg" />
             <div className="absolute -top-24 -right-16 h-[340px] w-[340px] rounded-full bg-[#FFD700]/10 blur-3xl" />
             <div className="absolute bottom-0 left-0 h-px w-full bg-gradient-to-r from-transparent via-[#FFD700]/40 to-transparent" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6" data-logo-surface="dark">
+              <Logo variant="dark" size="lg" href="/" priority />
+              <p className="text-[11px] sm:text-[12px] font-black uppercase tracking-[0.22em] text-brand-yellow">
+                Conectados Contigo
+              </p>
+            </div>
           </div>
         )}
 

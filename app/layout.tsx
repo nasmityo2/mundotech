@@ -185,7 +185,7 @@ export default async function RootLayout({
 
   return (
     <html lang="es" data-scroll-behavior="smooth" className={jost.variable}>
-      <body className="bg-surface-sunken text-navy antialiased nums" suppressHydrationWarning>
+      <body className="bg-white text-navy antialiased nums" suppressHydrationWarning>
         <ChunkErrorReloader />
         {/* PRD-289: descriptor OpenSearch (React hoistea este link al <head>). */}
         <link

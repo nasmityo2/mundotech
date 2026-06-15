@@ -13,7 +13,7 @@ import ProductCardSkeleton from '@/components/ProductCardSkeleton';
 import PaginationBar from '@/app/components/PaginationBar';
 import JsonLd from '@/app/components/JsonLd';
 import RecentlyViewed from '@/components/RecentlyViewed';
-import { ChevronRight, Sparkles } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import type { Product } from '@/context/ProductContext';
 
 // PRD-140 — ISR: 5 min máximo de obsolescencia para precio/stock del catálogo
@@ -123,7 +123,7 @@ export default async function ProductosPage({ searchParams }: PageProps) {
       <JsonLd data={catalogBreadcrumbSchema} />
 
       {/* Hero + breadcrumb */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-4 sm:p-6 lg:p-8 mb-5 sm:mb-8">
+      <div className="card-elevated p-4 sm:p-6 lg:p-8 mb-5 sm:mb-8">
         <nav
           className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 mb-3 truncate"
           aria-label="Breadcrumb"
@@ -136,8 +136,7 @@ export default async function ProductosPage({ searchParams }: PageProps) {
         </nav>
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div className="min-w-0">
-            <p className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-600 mb-2">
-              <Sparkles size={11} className="text-brand-yellow" />
+            <p className="chip-brand mb-2">
               Catálogo completo · Barquisimeto
             </p>
             <h1 className="text-[1.6rem] sm:text-3xl md:text-[2.25rem] font-bold text-navy tracking-tight leading-[1.05]">

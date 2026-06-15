@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 72" role="img" aria-label="MundoTech">
+  <defs>
+    <pattern id="circuit" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M0 14h28M14 0v28" stroke="#FFD700" stroke-opacity="0.12" stroke-width="0.75"/>
+      <circle cx="14" cy="14" r="1.5" fill="#FFD700" fill-opacity="0.18"/>
+    </pattern>
+  </defs>
+  <rect width="280" height="72" rx="8" fill="#0B1220"/>
+  <rect width="280" height="72" fill="url(#circuit)"/>
+  <text x="20" y="46" font-family="Jost, Arial, sans-serif" font-size="32" font-weight="700" fill="#FFFFFF" letter-spacing="-0.02em">MUNDO</text>
+  <text x="158" y="46" font-family="Jost, Arial, sans-serif" font-size="32" font-weight="700" fill="#FFD700" letter-spacing="-0.02em">Tech</text>
+  <path d="M20 56h240" stroke="#FFD700" stroke-opacity="0.35" stroke-width="1"/>
+  <circle cx="248" cy="20" r="3" fill="#FFD700" fill-opacity="0.5"/>
+  <path d="M248 20h16v8h-8" stroke="#FFD700" stroke-opacity="0.4" stroke-width="1" fill="none"/>
+</svg>

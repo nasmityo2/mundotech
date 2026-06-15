@@ -110,6 +110,16 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
 
   return (
     <div className="pb-10 sm:pb-12 w-full max-w-full">
+      <div className="-mx-4 sm:-mx-6 lg:-mx-8 w-[calc(100%+2rem)] sm:w-[calc(100%+3rem)] lg:w-[calc(100%+4rem)] section-band-navy mb-5 sm:mb-6 rounded-none sm:rounded-2xl overflow-hidden">
+        <div className="circuit-bg" aria-hidden />
+        <div className="relative px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+          <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+            Finalizar <span className="text-brand-yellow">compra</span>
+          </p>
+          <h1 className="mt-1 text-xl sm:text-2xl font-bold text-white tracking-tight">Checkout seguro</h1>
+        </div>
+      </div>
+
       <nav className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6" aria-label="Breadcrumb">
         <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
         <ChevronRight size={12} />
@@ -124,12 +134,12 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
         <div className="lg:col-span-2 space-y-5 sm:space-y-6 order-2 lg:order-1">
 
           {/* Stepper */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-4 sm:p-6 lg:p-8">
+          <div className="card-elevated p-4 sm:p-6 lg:p-8">
             <CheckoutStepper currentStep={currentStep} />
           </div>
 
           {/* Step content */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-4 sm:p-6 lg:p-8 overflow-hidden relative min-h-[300px]">
+          <div className="card-elevated p-4 sm:p-6 lg:p-8 overflow-hidden relative min-h-[300px]">
             <AnimatePresence mode="wait" custom={direction}>
               <motion.div
                 key={currentStep}
@@ -160,7 +170,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
         {/* ── Resumen: primero en móvil para contexto del pedido ── */}
         <aside className="lg:col-span-1 order-1 lg:order-2">
           <div className="lg:sticky lg:top-[96px] space-y-4">
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft overflow-hidden">
+            <div className="card-elevated overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100">
                 <h2 className="text-base font-semibold text-navy">Tu pedido</h2>
               </div>
@@ -197,7 +207,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
                 )}
               </ul>
 
-              <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 space-y-2 text-sm">
+              <div className="px-5 py-4 bg-surface-muted border-t border-border space-y-2 text-sm">
                 <div className="flex justify-between text-slate-500">
                   <span>Subtotal</span>
                   <span className="text-navy font-medium nums">{formatCurrency(subtotal)}</span>
@@ -221,7 +231,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
             </div>
 
             {/* Trust */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-4 flex items-center gap-3">
+            <div className="card-elevated p-4 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
                 <Lock size={16} />
               </div>

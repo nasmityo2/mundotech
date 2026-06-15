@@ -16,6 +16,7 @@ import SearchBar          from './SearchBar';
 import SearchMobileOverlay from './SearchMobileOverlay';
 import CategoryDrawer     from './layout/CategoryDrawer';
 import { isAdminRole } from '@/lib/is-admin-role';
+import Logo from '@/components/Logo';
 
 export interface NavbarContact {
   phone: string;
@@ -92,8 +93,8 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
         <div
           className={`transition-all duration-200 ${
             scrolled
-              ? 'bg-white/90 backdrop-blur-md shadow-soft'
-              : 'bg-white border-b border-slate-200/70'
+              ? 'bg-white/95 backdrop-blur-md shadow-soft border-b border-border/60'
+              : 'bg-white border-b border-border'
           }`}
         >
           <div className="container mx-auto px-3 sm:px-6 lg:px-8 max-w-[1400px]">
@@ -110,13 +111,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                   <Menu size={22} aria-hidden="true" />
                 </button>
 
-                <Link
-                  href="/"
-                  className="text-[1.15rem] sm:text-2xl font-bold tracking-tight text-navy flex items-center gap-0.5 px-1"
-                >
-                  <span>Mundo</span>
-                  <span className="text-navy">Tech</span>
-                </Link>
+                <Logo variant="light" size="md" priority className="sm:h-10" />
 
                 <button
                   type="button"

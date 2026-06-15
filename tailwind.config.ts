@@ -39,7 +39,7 @@ const config: Config = {
         surface: {
           DEFAULT: '#FFFFFF',
           muted:   '#F8FAFC',
-          sunken:  '#F1F5F9',
+          sunken:  '#F8FAFC',
         },
         'brand-yellow': '#FFD700',
         'brand-green':  '#48BB78',

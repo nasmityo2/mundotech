@@ -51,21 +51,20 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
 
   return (
     <div className="flex flex-col gap-3 sm:gap-4 lg:sticky lg:top-[96px]">
-      {/* Carrusel deslizable — borde a borde en móvil */}
-      <div className="relative w-screen ml-[calc(50%-50vw)] sm:w-auto sm:ml-0">
+      {/* Carrusel */}
+      <div className="relative w-full">
         <div
           ref={trackRef}
           className={cn(
-            'flex overflow-x-auto snap-x snap-mandatory scroll-smooth',
+            'flex overflow-x-auto snap-x snap-mandatory scroll-smooth rounded-xl',
             '[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
-            'sm:rounded-2xl sm:border sm:border-slate-200/90',
           )}
         >
           {safeItems.map((item, i) => (
             <div
               key={`slide-${i}-${item.url}`}
               ref={(el) => { slideRefs.current[i] = el; }}
-              className="relative w-full shrink-0 snap-center aspect-square bg-slate-50"
+              className="relative w-full shrink-0 snap-center aspect-square bg-surface-muted rounded-xl"
             >
               {item.type === 'VIDEO' ? (
                 <CarouselVideo item={item} />
@@ -108,9 +107,39 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
         )}
 
         {safeItems.length > 1 && (
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 bg-black/55 text-white text-[12px] font-medium px-3 py-1 rounded-full backdrop-blur-sm tabular-nums pointer-events-none">
-            {active + 1} / {safeItems.length}
-          </div>
+          <>
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10 bg-navy/75 text-white text-[12px] font-medium px-3 py-1 rounded-full backdrop-blur-sm tabular-nums pointer-events-none">
+              {active + 1} / {safeItems.length}
+            </div>
+            <div
+              className="mt-3 flex items-center justify-center gap-2"
+              role="tablist"
+              aria-label="Imágenes del producto"
+            >
+              {safeItems.map((_, i) => {
+                const selected = i === active;
+                return (
+                  <button
+                    key={`dot-${i}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={selected}
+                    aria-label={`Imagen ${i + 1} de ${safeItems.length}`}
+                    onClick={() => goTo(i)}
+                    className="inline-flex min-w-[44px] min-h-[44px] items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2"
+                  >
+                    <span
+                      className={cn(
+                        'block rounded-full transition-all duration-300',
+                        selected ? 'h-2.5 w-6 bg-brand-yellow' : 'h-2.5 w-2.5 bg-border hover:bg-navy/30',
+                      )}
+                      aria-hidden
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )}
 
         {isOut && (
@@ -135,8 +164,8 @@ export default function ProductGallery({ items, name, isOut, discountPct }: Prop
                 onClick={() => goTo(i)}
                 aria-current={selected}
                 className={cn(
-                  'relative shrink-0 w-[80px] aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 bg-slate-50 shadow-sm hover:shadow-md',
-                  selected ? 'border-navy ring-2 ring-brand-yellow/50 ring-offset-2 ring-offset-white' : 'border-slate-200/90 hover:border-slate-400',
+                  'relative shrink-0 w-[80px] aspect-square rounded-xl overflow-hidden border-2 transition-all duration-200 bg-surface-muted shadow-soft hover:shadow-card',
+                  selected ? 'border-navy ring-2 ring-brand-yellow/50 ring-offset-2 ring-offset-white' : 'border-border hover:border-navy/40',
                 )}
               >
                 <Image src={thumbSrc} alt={`${name} vista ${i + 1}`} fill sizes="80px" className="object-cover" />

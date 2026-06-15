@@ -14,6 +14,7 @@ import { readSeoLocal, describeOpeningHours } from '@/lib/seo-local';
 import { readSiteContent } from '@/lib/site-content';
 import { whatsappHref } from '@/lib/mundotech-social';
 import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
+import Logo from '@/components/Logo';
 
 /**
  * Footer de la tienda. Todos los datos viven en el admin (settings, SEO local
@@ -38,22 +39,16 @@ const Footer = async () => {
   );
 
   return (
-    <footer className="bg-navy text-white mt-12 border-t-2 border-brand-yellow/60">
-      <div className="max-w-[1400px] mx-auto px-4 py-10">
+    <footer className="relative bg-navy text-white mt-12 border-t-2 border-brand-yellow/60 overflow-hidden" data-logo-surface="dark">
+      <div className="absolute inset-0 circuit-bg opacity-30 pointer-events-none" aria-hidden />
+      <div className="absolute inset-0 dot-pattern pointer-events-none" aria-hidden />
+      <div className="relative max-w-[1400px] mx-auto px-4 py-10">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
 
           {/* Marca + datos verificables */}
           <div className="md:col-span-5">
-            <h3 className="text-xl font-black tracking-tight">
-              {settings.storeName.includes('Tech') ? (
-                <>
-                  {settings.storeName.replace('Tech', '')}<span className="text-brand-yellow">Tech</span>
-                </>
-              ) : (
-                <span>{settings.storeName}</span>
-              )}
-            </h3>
-            <p className="mt-0.5 text-[10.5px] font-bold uppercase tracking-[0.24em] text-brand-yellow/90">
+            <Logo variant="dark" size="lg" href="/" />
+            <p className="mt-1 text-[10.5px] font-bold uppercase tracking-[0.24em] text-brand-yellow">
               Conectados Contigo
             </p>
             {settings.tagline && (

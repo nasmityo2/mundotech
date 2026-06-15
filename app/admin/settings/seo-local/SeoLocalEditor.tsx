@@ -340,7 +340,7 @@ export default function SeoLocalEditor({ initial }: SeoLocalEditorProps) {
       </Section>
 
       {/* Submit sticky */}
-      <div className="sticky bottom-20 md:bottom-4 z-20 -mx-3 sm:-mx-5 lg:-mx-8 px-3 sm:px-5 lg:px-8 py-3 bg-gradient-to-t from-[#F1F5F9] via-[#F1F5F9] to-transparent">
+      <div className="sticky bottom-20 md:bottom-4 z-20 -mx-3 sm:-mx-5 lg:-mx-8 px-3 sm:px-5 lg:px-8 py-3 bg-gradient-to-t from-white via-white to-transparent">
         <button
           type="button"
           onClick={handleSave}

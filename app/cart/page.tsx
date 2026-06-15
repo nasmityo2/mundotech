@@ -41,6 +41,16 @@ export default async function CartPage() {
   return (
     <div className="pb-10 sm:pb-12 w-full max-w-full">
 
+      <div className="-mx-4 sm:-mx-6 lg:-mx-8 w-[calc(100%+2rem)] sm:w-[calc(100%+3rem)] lg:w-[calc(100%+4rem)] section-band-navy mb-5 sm:mb-6 rounded-none sm:rounded-2xl overflow-hidden">
+        <div className="circuit-bg" aria-hidden />
+        <div className="relative px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+          <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+            Tu <span className="text-brand-yellow">carrito</span>
+          </p>
+          <h1 className="mt-1 text-xl sm:text-2xl font-bold text-white tracking-tight">Revisa antes de pagar</h1>
+        </div>
+      </div>
+
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6" aria-label="Breadcrumb">
         <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
