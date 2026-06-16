@@ -152,7 +152,7 @@ export default function HomeHeroCyber({
 
   return (
     <section className="relative w-full max-w-full overflow-hidden rounded-none bg-[#0B1220] antialiased shadow-[0_18px_45px_-16px_rgba(11,18,32,0.28)] ring-0 sm:rounded-2xl sm:ring-1 sm:ring-black/10">
-      <div className="relative w-full aspect-[16/10] xs:aspect-[16/9] sm:aspect-[21/9] lg:aspect-[24/9] max-h-[480px]">
+      <div className="relative w-full aspect-[1024/360] sm:aspect-[21/9] lg:aspect-[24/9] max-h-[480px]">
         {slide.img ? (
           <div className="absolute inset-0">
             {slides.map((s, i) => {
@@ -170,7 +170,7 @@ export default function HomeHeroCyber({
                   fetchPriority={i === 0 ? 'high' : 'auto'}
                   quality={75}
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1400px"
-                  className={`absolute inset-0 object-cover transition-opacity duration-700 ease-out motion-reduce:transition-none ${
+                  className={`absolute inset-0 object-contain sm:object-cover transition-opacity duration-700 ease-out motion-reduce:transition-none ${
                     isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
                   }`}
                   style={{ objectPosition: mapFocal(s.focal) }}
@@ -197,18 +197,18 @@ export default function HomeHeroCyber({
         {showCopy && slide.img && (
           <>
             <div
-              className="pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(to_top,rgba(11,18,32,0.90)_0%,rgba(11,18,32,0.58)_30%,rgba(11,18,32,0.18)_58%,rgba(11,18,32,0)_82%)] sm:bg-[linear-gradient(100deg,rgba(11,18,32,0.78)_0%,rgba(11,18,32,0.46)_36%,rgba(11,18,32,0.10)_64%,rgba(11,18,32,0)_86%)]"
+              className="hidden sm:block pointer-events-none absolute inset-0 z-[1] bg-[linear-gradient(to_top,rgba(11,18,32,0.90)_0%,rgba(11,18,32,0.58)_30%,rgba(11,18,32,0.18)_58%,rgba(11,18,32,0)_82%)] sm:bg-[linear-gradient(100deg,rgba(11,18,32,0.78)_0%,rgba(11,18,32,0.46)_36%,rgba(11,18,32,0.10)_64%,rgba(11,18,32,0)_86%)]"
               aria-hidden
             />
             <div
-              className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(130%_115%_at_50%_0%,transparent_52%,rgba(11,18,32,0.28)_100%)] sm:bg-[radial-gradient(130%_115%_at_50%_0%,transparent_58%,rgba(11,18,32,0.20)_100%)]"
+              className="hidden sm:block pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(130%_115%_at_50%_0%,transparent_52%,rgba(11,18,32,0.28)_100%)] sm:bg-[radial-gradient(130%_115%_at_50%_0%,transparent_58%,rgba(11,18,32,0.20)_100%)]"
               aria-hidden
             />
           </>
         )}
 
         {slide.tag?.trim() ? (
-          <span className="absolute right-3 top-3 sm:right-5 sm:top-5 z-[2] rounded-md border border-[#E6C200] bg-[#FFD700] px-2 py-1 text-[10px] sm:text-[11px] font-bold text-[#0B1220] shadow-lg">
+          <span className="hidden sm:inline-flex absolute right-3 top-3 sm:right-5 sm:top-5 z-[2] rounded-md border border-[#E6C200] bg-[#FFD700] px-2 py-1 text-[10px] sm:text-[11px] font-bold text-[#0B1220] shadow-lg">
             {slide.tag}
           </span>
         ) : null}
@@ -221,7 +221,7 @@ export default function HomeHeroCyber({
         )}
 
         {showCopy ? (
-          <div className="relative z-10 flex h-full w-full items-end sm:items-center px-4 pb-6 pt-3 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
+          <div className="relative z-10 hidden sm:flex h-full w-full items-end sm:items-center px-4 pb-6 pt-3 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
             <div
               key={active}
               className="w-full max-w-full sm:max-w-2xl lg:max-w-[min(36rem,52%)] xl:max-w-2xl text-left animate-fade-up pb-1 sm:pb-0"

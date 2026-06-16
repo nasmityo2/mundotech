@@ -8,6 +8,7 @@ import Papa from 'papaparse';
 import { slugify } from '@/lib/slugify';
 import { Prisma, ProductMediaType } from '@prisma/client';
 import { deriveLegacyImagesFromSlots } from '@/lib/product-media';
+import { sortMediaImagesFirst } from '@/lib/media';
 import { triggerRestockNotifications } from '@/app/actions/restockActions';
 import { parseProductSpecs } from '@/lib/definitions';
 import { saveSlugRedirect } from '@/lib/slug-redirects';
@@ -57,7 +58,9 @@ function parseGallerySlots(
   if (typeof raw === 'string' && raw.trim()) {
     try {
       const parsed = z.array(gallerySlotSchema).max(6).safeParse(JSON.parse(raw));
-      if (parsed.success && parsed.data.length > 0) return parsed.data;
+      if (parsed.success && parsed.data.length > 0) {
+        return sortMediaImagesFirst(parsed.data);
+      }
     } catch {
       /* ignore */
     }

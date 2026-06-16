@@ -1,4 +1,5 @@
 import type { ProductMedia } from '@prisma/client';
+import { sortMediaImagesFirst } from '@/lib/media';
 
 /** Item normalizado para la galería PDP (serializable al cliente). */
 export type ProductGalleryItem =
@@ -37,18 +38,15 @@ export function productToGalleryItems(product: {
   media?: Pick<ProductMedia, 'type' | 'url' | 'posterUrl' | 'sortOrder'>[];
 }): ProductGalleryItem[] {
   if (product.media && product.media.length > 0) {
-    return [...product.media]
+    const mapped = [...product.media]
       .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map((m) => {
+      .map((m): ProductGalleryItem => {
         if (m.type === 'VIDEO') {
-          return {
-            type: 'VIDEO' as const,
-            url: m.url,
-            posterUrl: m.posterUrl ?? undefined,
-          };
+          return { type: 'VIDEO', url: m.url, posterUrl: m.posterUrl ?? undefined };
         }
-        return { type: 'IMAGE' as const, url: m.url };
+        return { type: 'IMAGE', url: m.url };
       });
+    return sortMediaImagesFirst(mapped);
   }
   const imgs = product.images.filter(Boolean);
   const list = imgs.length > 0 ? imgs : [PLACEHOLDER];

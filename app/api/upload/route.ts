@@ -92,6 +92,7 @@ export async function POST(request: Request) {
       publicId: key,
       width,
       height,
+      mimeType: contentType,
     });
   } catch (err) {
     console.error('[upload] R2 error:', err);
