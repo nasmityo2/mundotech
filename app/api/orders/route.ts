@@ -77,11 +77,16 @@ export async function GET(request: Request) {
       const where = await buildOrderListWhere(tab, q);
 
       const cursorRaw = cursor ?? undefined;
-      const decodedCursor = cursorRaw ? decodeOrderCursor(cursorRaw) : null;
-      const pageWhere =
-        decodedCursor != null
-          ? { AND: [where, orderCursorWhere(decodedCursor)] }
-          : where;
+      let pageWhere: Awaited<ReturnType<typeof buildOrderListWhere>>;
+      if (cursorRaw) {
+        const decodedCursor = decodeOrderCursor(cursorRaw);
+        if (decodedCursor == null) {
+          return NextResponse.json({ message: 'Cursor inválido.' }, { status: 400 });
+        }
+        pageWhere = { AND: [where, orderCursorWhere(decodedCursor)] };
+      } else {
+        pageWhere = where;
+      }
 
       const countsWhere = q.trim() ? await buildOrderSearchWhere(q) : {};
 

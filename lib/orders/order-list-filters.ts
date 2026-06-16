@@ -2,12 +2,16 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { tabToStatusWhere, type OrderTabKey } from '@/lib/orders/order-tabs';
 
-/** IDs cuyo orderNumber (cast a texto) coincide por prefijo o exacto. */
+/** IDs cuyo orderNumber (cast a texto) coincide por prefijo o exacto (solo q numérico). */
 async function orderIdsMatchingNumberQuery(q: string): Promise<string[]> {
+  const clean = q.trim().replace(/^#/, '');
+  if (!/^\d+$/.test(clean)) return [];
+
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     SELECT id FROM "Order"
-    WHERE CAST("orderNumber" AS TEXT) LIKE ${q + '%'}
-       OR CAST("orderNumber" AS TEXT) = ${q}
+    WHERE CAST("orderNumber" AS TEXT) LIKE ${clean + '%'}
+       OR CAST("orderNumber" AS TEXT) = ${clean}
+    LIMIT 500
   `;
   return rows.map(r => r.id);
 }

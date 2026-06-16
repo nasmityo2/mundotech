@@ -101,9 +101,7 @@ function AdminProductsContent() {
   const debouncedSearch = useDebouncedValue(searchInput, 300);
   const debouncedMinPrice = useDebouncedValue(minPrice, 300);
   const debouncedMaxPrice = useDebouncedValue(maxPrice, 300);
-  const skipDebouncedSearchSync = useRef(true);
-  const skipDebouncedMinPriceSync = useRef(true);
-  const skipDebouncedMaxPriceSync = useRef(true);
+  const skipDebouncedUrlSync = useRef(true);
 
   useEffect(() => {
     setSearchInput(searchTerm);
@@ -118,46 +116,42 @@ function AdminProductsContent() {
   }, [maxPriceFromUrl]);
 
   useEffect(() => {
-    if (skipDebouncedSearchSync.current) {
-      skipDebouncedSearchSync.current = false;
+    if (skipDebouncedUrlSync.current) {
+      skipDebouncedUrlSync.current = false;
       return;
     }
-    const trimmed = debouncedSearch.trim();
-    const current = searchTerm.trim();
-    if (trimmed === current) return;
+    const searchTrimmed = debouncedSearch.trim();
+    const minTrimmed = debouncedMinPrice.trim();
+    const maxTrimmed = debouncedMaxPrice.trim();
+    const searchCurrent = searchTerm.trim();
+    const minCurrent = minPriceFromUrl.trim();
+    const maxCurrent = maxPriceFromUrl.trim();
+    if (
+      searchTrimmed === searchCurrent &&
+      minTrimmed === minCurrent &&
+      maxTrimmed === maxCurrent
+    ) {
+      return;
+    }
     const params = new URLSearchParams(searchParams);
-    if (trimmed) params.set('search', trimmed);
+    if (searchTrimmed) params.set('search', searchTrimmed);
     else params.delete('search');
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [debouncedSearch, searchTerm, searchParams, router, pathname]);
-
-  useEffect(() => {
-    if (skipDebouncedMinPriceSync.current) {
-      skipDebouncedMinPriceSync.current = false;
-      return;
-    }
-    const trimmed = debouncedMinPrice.trim();
-    const current = minPriceFromUrl.trim();
-    if (trimmed === current) return;
-    const params = new URLSearchParams(searchParams);
-    if (trimmed) params.set('minPrice', trimmed);
+    if (minTrimmed) params.set('minPrice', minTrimmed);
     else params.delete('minPrice');
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [debouncedMinPrice, minPriceFromUrl, searchParams, router, pathname]);
-
-  useEffect(() => {
-    if (skipDebouncedMaxPriceSync.current) {
-      skipDebouncedMaxPriceSync.current = false;
-      return;
-    }
-    const trimmed = debouncedMaxPrice.trim();
-    const current = maxPriceFromUrl.trim();
-    if (trimmed === current) return;
-    const params = new URLSearchParams(searchParams);
-    if (trimmed) params.set('maxPrice', trimmed);
+    if (maxTrimmed) params.set('maxPrice', maxTrimmed);
     else params.delete('maxPrice');
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [debouncedMaxPrice, maxPriceFromUrl, searchParams, router, pathname]);
+  }, [
+    debouncedSearch,
+    debouncedMinPrice,
+    debouncedMaxPrice,
+    searchTerm,
+    minPriceFromUrl,
+    maxPriceFromUrl,
+    searchParams,
+    router,
+    pathname,
+  ]);
 
   const loadProducts = useCallback(async () => {
     setLoading(true);

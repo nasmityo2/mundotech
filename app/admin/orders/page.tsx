@@ -92,6 +92,7 @@ function OrdersPageContent() {
 
   const debouncedSearch = useDebouncedValue(searchInput, 300);
   const skipDebouncedUrlSync = useRef(true);
+  const requestIdRef = useRef(0);
 
   const PAGE_SIZE = 50;
 
@@ -118,6 +119,7 @@ function OrdersPageContent() {
   }, [debouncedSearch, qFromUrl, router, searchParams, pathname]);
 
   const fetchFirstPage = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
     setSelectedOrders([]);
@@ -129,14 +131,18 @@ function OrdersPageContent() {
         throw new Error((err as { message?: string }).message ?? 'No se pudieron cargar los pedidos.');
       }
       const data = (await res.json()) as OrdersPageResponse;
+      if (requestId !== requestIdRef.current) return;
       setOrders(data.orders);
       setNextCursor(data.nextCursor);
       setTotalFiltered(data.total);
       setTabCounts(data.counts);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'No se pudieron cargar los pedidos.');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [tab, qFromUrl]);
 
@@ -146,6 +152,7 @@ function OrdersPageContent() {
 
   const loadMoreOrders = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
+    const requestId = requestIdRef.current;
     setLoadingMore(true);
     setError(null);
     try {
@@ -156,12 +163,16 @@ function OrdersPageContent() {
         throw new Error((err as { message?: string }).message ?? 'No se pudieron cargar más pedidos.');
       }
       const data = (await res.json()) as OrdersPageResponse;
+      if (requestId !== requestIdRef.current) return;
       setOrders(curr => [...curr, ...data.orders]);
       setNextCursor(data.nextCursor);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'No se pudieron cargar más pedidos.');
     } finally {
-      setLoadingMore(false);
+      if (requestId === requestIdRef.current) {
+        setLoadingMore(false);
+      }
     }
   }, [nextCursor, loadingMore, tab, qFromUrl]);
 

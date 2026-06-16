@@ -170,24 +170,40 @@ export async function PUT(
   }
 
   if (shouldSendShippingEmail) {
-    await sendShippingEmail(
-      recipientEmail,
-      firstName,
-      newTracking,
-      {
-        carrier: updated.trackingCarrier,
-        trackingUrl: updated.trackingUrl,
-        orderId: orderPathSegment(updated.orderNumber),
-      }
-    );
+    try {
+      await sendShippingEmail(
+        recipientEmail,
+        firstName,
+        newTracking,
+        {
+          carrier: updated.trackingCarrier,
+          trackingUrl: updated.trackingUrl,
+          orderId: orderPathSegment(updated.orderNumber),
+        }
+      );
+    } catch (emailErr) {
+      console.error(
+        '[shipping-email] Fallo no crítico — pedido marcado Enviado en BD.',
+        `orderId=${orderId} email=${recipientEmail}`,
+        emailErr,
+      );
+    }
   }
 
   if (shouldSendDeliveredEmail) {
-    await sendOrderDeliveredEmail(
-      recipientEmail,
-      firstName,
-      orderPathSegment(updated.orderNumber)
-    );
+    try {
+      await sendOrderDeliveredEmail(
+        recipientEmail,
+        firstName,
+        orderPathSegment(updated.orderNumber)
+      );
+    } catch (emailErr) {
+      console.error(
+        '[order-delivered-email] Fallo no crítico — pedido marcado Entregado en BD.',
+        `orderId=${orderId} email=${recipientEmail}`,
+        emailErr,
+      );
+    }
   }
 
   if (status === 'Entregado' && !recipientEmail) {
