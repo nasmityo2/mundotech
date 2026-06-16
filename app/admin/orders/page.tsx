@@ -1,8 +1,16 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useCallback, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useCallback, useState, useRef } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Order, OrderStatus } from '@/lib/definitions';
+import {
+  TAB_LABELS,
+  TAB_ORDER,
+  parseOrderTab,
+  type OrderTabCounts,
+  type OrderTabKey,
+} from '@/lib/orders/order-tabs';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import { StatusUpdateMenu } from '@/app/components/admin/StatusUpdateMenu';
 import ShipOrderDialog from '@/app/components/admin/ShipOrderDialog';
@@ -27,62 +35,37 @@ const formatDate = (iso: string) =>
     hour12: true,
   });
 
-type OrderTabKey = 'all' | 'pending' | 'paid' | 'processing' | 'shipped' | 'completed';
-
-const TAB_ORDER: OrderTabKey[] = ['all', 'pending', 'paid', 'processing', 'shipped', 'completed'];
-
-const TAB_LABELS: Record<OrderTabKey, string> = {
-  all: 'Todos',
-  pending: 'Pendientes',
-  paid: 'Pagados',
-  processing: 'En Proceso',
-  shipped: 'Enviados',
-  completed: 'Completados',
+const EMPTY_TAB_COUNTS: OrderTabCounts = {
+  all: 0,
+  pending: 0,
+  paid: 0,
+  processing: 0,
+  shipped: 0,
+  completed: 0,
 };
 
-function parseTabFromSearchParams(params: URLSearchParams): OrderTabKey {
-  const raw = params.get('tab');
-  if (raw && TAB_ORDER.includes(raw as OrderTabKey)) return raw as OrderTabKey;
-  const legacyStatus = params.get('status');
-  if (
-    legacyStatus === 'Pendiente' ||
-    legacyStatus === 'Pendiente verificación Binance'
-  ) {
-    return 'pending';
-  }
-  return 'all';
-}
+type OrdersPageResponse = {
+  orders: Order[];
+  nextCursor: string | null;
+  total: number;
+  counts: OrderTabCounts;
+};
 
-function orderMatchesTab(order: Order, tab: OrderTabKey): boolean {
-  switch (tab) {
-    case 'all':
-      return true;
-    case 'pending':
-      return (
-        order.status === 'Pendiente' ||
-        order.status === 'Pendiente verificación Binance'
-      );
-    case 'paid':
-      return (
-        order.status === 'En Proceso' ||
-        order.status === 'Enviado' ||
-        order.status === 'Entregado'
-      );
-    case 'processing':
-      return order.status === 'En Proceso';
-    case 'shipped':
-      return order.status === 'Enviado';
-    case 'completed':
-      return order.status === 'Entregado';
-    default:
-      return true;
-  }
+function buildOrdersQuery(limit: number, tab: OrderTabKey, q: string, cursor?: string): string {
+  const params = new URLSearchParams();
+  params.set('limit', String(limit));
+  if (tab !== 'all') params.set('tab', tab);
+  if (q.trim()) params.set('q', q.trim());
+  if (cursor) params.set('cursor', cursor);
+  return params.toString();
 }
 
 function OrdersPageContent() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const tab = parseTabFromSearchParams(searchParams);
+  const tab = parseOrderTab(searchParams.get('tab'), searchParams.get('status'));
+  const qFromUrl = searchParams.get('q') ?? '';
 
   const setTab = useCallback(
     (next: OrderTabKey) => {
@@ -90,34 +73,63 @@ function OrdersPageContent() {
       p.delete('status');
       if (next === 'all') p.delete('tab');
       else p.set('tab', next);
-      const q = p.toString();
-      router.replace(q ? `/admin/orders?${q}` : '/admin/orders', { scroll: false });
+      const qs = p.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
-    [router, searchParams]
+    [router, searchParams, pathname],
   );
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [totalFiltered, setTotalFiltered] = useState(0);
+  const [tabCounts, setTabCounts] = useState<OrderTabCounts>(EMPTY_TAB_COUNTS);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState(qFromUrl);
   const [shipDialogOrder, setShipDialogOrder] = useState<Order | null>(null);
+
+  const debouncedSearch = useDebouncedValue(searchInput, 300);
+  const skipDebouncedUrlSync = useRef(true);
 
   const PAGE_SIZE = 50;
 
-  // PRD-195: carga inicial con paginación por cursor; evita traer todo a memoria.
+  // Sincronizar input al navegar atrás/adelante.
+  useEffect(() => {
+    setSearchInput(qFromUrl);
+  }, [qFromUrl]);
+
+  // Debounce → URL (?q=) → refetch servidor (resetea paginación).
+  useEffect(() => {
+    if (skipDebouncedUrlSync.current) {
+      skipDebouncedUrlSync.current = false;
+      return;
+    }
+    const trimmed = debouncedSearch.trim();
+    const current = qFromUrl.trim();
+    if (trimmed === current) return;
+
+    const p = new URLSearchParams(searchParams.toString());
+    if (trimmed) p.set('q', trimmed);
+    else p.delete('q');
+    const qs = p.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [debouncedSearch, qFromUrl, router, searchParams, pathname]);
+
   const fetchFirstPage = useCallback(() => {
     setLoading(true);
-    fetch(`/api/orders?limit=${PAGE_SIZE}`)
+    const qs = buildOrdersQuery(PAGE_SIZE, tab, qFromUrl);
+    fetch(`/api/orders?${qs}`)
       .then(res => res.json())
-      .then((data: { orders: Order[]; nextCursor: string | null }) => {
+      .then((data: OrdersPageResponse) => {
         setOrders(data.orders);
         setNextCursor(data.nextCursor);
+        setTotalFiltered(data.total);
+        setTabCounts(data.counts);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  }, [tab, qFromUrl]);
 
   useEffect(() => {
     fetchFirstPage();
@@ -126,46 +138,16 @@ function OrdersPageContent() {
   const loadMoreOrders = useCallback(() => {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
-    fetch(`/api/orders?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(nextCursor)}`)
+    const qs = buildOrdersQuery(PAGE_SIZE, tab, qFromUrl, nextCursor);
+    fetch(`/api/orders?${qs}`)
       .then(res => res.json())
-      .then((data: { orders: Order[]; nextCursor: string | null }) => {
+      .then((data: OrdersPageResponse) => {
         setOrders(curr => [...curr, ...data.orders]);
         setNextCursor(data.nextCursor);
         setLoadingMore(false);
       })
       .catch(() => setLoadingMore(false));
-  }, [nextCursor, loadingMore]);
-
-  const tabCounts = useMemo(() => {
-    const counts: Record<OrderTabKey, number> = {
-      all: orders.length,
-      pending: 0,
-      paid: 0,
-      processing: 0,
-      shipped: 0,
-      completed: 0,
-    };
-    for (const o of orders) {
-      if (orderMatchesTab(o, 'pending')) counts.pending += 1;
-      if (orderMatchesTab(o, 'paid')) counts.paid += 1;
-      if (orderMatchesTab(o, 'processing')) counts.processing += 1;
-      if (orderMatchesTab(o, 'shipped')) counts.shipped += 1;
-      if (orderMatchesTab(o, 'completed')) counts.completed += 1;
-    }
-    return counts;
-  }, [orders]);
-
-  const filteredOrders = useMemo(
-    () =>
-      orders.filter(order => {
-        const matchesSearch =
-          !searchTerm ||
-          String(order.orderNumber).includes(searchTerm) ||
-          order.customerName.toLowerCase().includes(searchTerm.toLowerCase());
-        return matchesSearch && orderMatchesTab(order, tab);
-      }),
-    [orders, searchTerm, tab]
-  );
+  }, [nextCursor, loadingMore, tab, qFromUrl]);
 
   const updateOrderInList = (updated: Order) =>
     setOrders(curr => curr.map(o => (o.id === updated.id ? updated : o)));
@@ -194,11 +176,8 @@ function OrdersPageContent() {
         const updated = await response.json();
         updateOrderInList(updated);
       } else {
-        // PRD-193: no actualizar la UI de forma optimista; usar el updatedCount real del
-        // response para refrescar solo los pedidos efectivamente modificados.
         const result = await response.json() as { updatedCount: number };
         if (result.updatedCount > 0) {
-          // Refetch la primera página para que la lista refleje el estado real de BD.
           fetchFirstPage();
         }
         setSelectedOrders([]);
@@ -282,15 +261,13 @@ function OrdersPageContent() {
     },
   ];
 
-  const hasFilters = Boolean(searchTerm) || tab !== 'all';
+  const hasFilters = Boolean(qFromUrl.trim()) || tab !== 'all';
 
-  // PRD-084/156/213: el CSV se genera en el servidor (audit log de PII incluido)
-  // y el operador confirma explícitamente el alcance de la vista filtrada.
   const handleExportCsv = useCallback(() => {
     const scope =
-      tab !== 'all' || searchTerm
-        ? `Se exportará SOLO la vista filtrada actual (${filteredOrders.length} pedido${filteredOrders.length !== 1 ? 's' : ''} · filtro: ${TAB_LABELS[tab]}${searchTerm ? ` · búsqueda «${searchTerm}»` : ''}).`
-        : `Se exportarán TODOS los pedidos (${filteredOrders.length}).`;
+      tab !== 'all' || qFromUrl.trim()
+        ? `Se exportará SOLO la vista filtrada actual (${totalFiltered} pedido${totalFiltered !== 1 ? 's' : ''} · filtro: ${TAB_LABELS[tab]}${qFromUrl.trim() ? ` · búsqueda «${qFromUrl.trim()}»` : ''}).`
+        : `Se exportarán TODOS los pedidos (${totalFiltered}).`;
     const ok = window.confirm(
       `${scope}\n\nEl archivo incluye datos personales de clientes y la exportación queda registrada. ¿Continuar?`,
     );
@@ -298,10 +275,10 @@ function OrdersPageContent() {
 
     const params = new URLSearchParams();
     if (tab !== 'all') params.set('tab', tab);
-    if (searchTerm) params.set('q', searchTerm);
+    if (qFromUrl.trim()) params.set('q', qFromUrl.trim());
     const qs = params.toString();
     window.location.href = `/api/orders/export.csv${qs ? `?${qs}` : ''}`;
-  }, [filteredOrders.length, tab, searchTerm]);
+  }, [totalFiltered, tab, qFromUrl]);
 
   return (
     <div className="space-y-5">
@@ -315,7 +292,7 @@ function OrdersPageContent() {
         <button
           type="button"
           onClick={handleExportCsv}
-          disabled={filteredOrders.length === 0}
+          disabled={totalFiltered === 0}
           className="touch-manipulation select-none min-h-[44px] inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold text-navy shadow-soft hover:border-slate-300 hover:shadow-card active:bg-slate-50 transition-all disabled:opacity-40 disabled:pointer-events-none"
           title="Exportar la vista filtrada actual a CSV (incluye datos personales; queda registrado)"
         >
@@ -370,8 +347,8 @@ function OrdersPageContent() {
               autoCorrect="off"
               autoCapitalize="none"
               placeholder="Buscar por # o nombre…"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
               className="w-full pl-10 pr-4 min-h-[48px] py-2.5 rounded-xl border border-slate-600/50 bg-slate-900/60 text-slate-100 placeholder:text-slate-500 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow/40 focus:border-brand-yellow/50"
             />
           </div>
@@ -404,7 +381,7 @@ function OrdersPageContent() {
       )}
 
       <DataTable<Order>
-        data={filteredOrders}
+        data={orders}
         columns={columns}
         rowKey={o => o.id}
         loading={loading}
@@ -421,7 +398,7 @@ function OrdersPageContent() {
 
       <div className="flex items-center justify-between mt-2">
         <p className="text-[11px] text-slate-400">
-          Mostrando {filteredOrders.length} de {orders.length} pedidos{nextCursor ? ' (hay más)' : ''}
+          Mostrando {orders.length} de {totalFiltered} pedidos{nextCursor ? ' (hay más)' : ''}
         </p>
         {nextCursor && (
           <button

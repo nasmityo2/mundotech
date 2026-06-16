@@ -17,6 +17,7 @@ import AddProductModal from '@/app/components/AddProductModal';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
 import { TouchIconButton } from '@/components/admin/TouchIconButton';
 import { downloadCsv, csvDateStamp } from '@/lib/csv-export';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 interface Product {
   id:          string;
@@ -94,14 +95,38 @@ function AdminProductsContent() {
   const searchTerm     = searchParams.get('search')   ?? '';
   const categoryFilter = searchParams.get('category') ?? '';
 
+  const [searchInput, setSearchInput] = useState(searchTerm);
+  const debouncedSearch = useDebouncedValue(searchInput, 300);
+  const debouncedMinPrice = useDebouncedValue(minPrice, 300);
+  const debouncedMaxPrice = useDebouncedValue(maxPrice, 300);
+  const skipDebouncedSearchSync = useRef(true);
+
+  useEffect(() => {
+    setSearchInput(searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (skipDebouncedSearchSync.current) {
+      skipDebouncedSearchSync.current = false;
+      return;
+    }
+    const trimmed = debouncedSearch.trim();
+    const current = searchTerm.trim();
+    if (trimmed === current) return;
+    const params = new URLSearchParams(searchParams);
+    if (trimmed) params.set('search', trimmed);
+    else params.delete('search');
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [debouncedSearch, searchTerm, searchParams, router, pathname]);
+
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
       const { products: data, categories: cats } = await getProductsAdmin({
         search:      searchTerm     || undefined,
         category:    categoryFilter || undefined,
-        minPrice:    minPrice ? parseFloat(minPrice) : undefined,
-        maxPrice:    maxPrice ? parseFloat(maxPrice) : undefined,
+        minPrice:    debouncedMinPrice ? parseFloat(debouncedMinPrice) : undefined,
+        maxPrice:    debouncedMaxPrice ? parseFloat(debouncedMaxPrice) : undefined,
         stockFilter,
         lowThreshold: LOW_STOCK_THRESHOLD,
       });
@@ -117,7 +142,7 @@ function AdminProductsContent() {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, categoryFilter, minPrice, maxPrice, stockFilter]);
+  }, [searchTerm, categoryFilter, debouncedMinPrice, debouncedMaxPrice, stockFilter]);
 
   useEffect(() => { loadProducts(); }, [loadProducts]);
 
@@ -399,9 +424,9 @@ function AdminProductsContent() {
           <input
             type="search"
             placeholder="Buscar nombre, SKU o marca…"
-            defaultValue={searchTerm}
-            onChange={e => setParam('search', e.target.value)}
-            className="flex-1 text-sm bg-transparent outline-none placeholder:text-gray-400"
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            className="flex-1 text-base sm:text-sm bg-transparent outline-none placeholder:text-gray-400"
           />
           <button
             type="button"
@@ -449,13 +474,13 @@ function AdminProductsContent() {
                 <input
                   type="number" min="0" placeholder="Min" inputMode="numeric"
                   value={minPrice} onChange={e => setMinPrice(e.target.value)}
-                  className="w-16 px-1.5 py-1.5 border-0 outline-none text-xs"
+                  className="w-16 px-1.5 py-1.5 border-0 outline-none text-base sm:text-sm"
                 />
                 <span>–</span>
                 <input
                   type="number" min="0" placeholder="Max" inputMode="numeric"
                   value={maxPrice} onChange={e => setMaxPrice(e.target.value)}
-                  className="w-16 px-1.5 py-1.5 border-0 outline-none text-xs"
+                  className="w-16 px-1.5 py-1.5 border-0 outline-none text-base sm:text-sm"
                 />
                 <span className="text-gray-400">USD</span>
                 {(minPrice || maxPrice) && (

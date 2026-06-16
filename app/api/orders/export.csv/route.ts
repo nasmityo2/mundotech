@@ -1,7 +1,8 @@
 import Papa from 'papaparse';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
-import type { OrderStatus } from '@/lib/definitions';
+import { buildOrderListWhere } from '@/lib/orders/order-list-filters';
+import { parseOrderTab } from '@/lib/orders/order-tabs';
 
 /**
  * GET /api/orders/export.csv?tab=<all|pending|paid|processing|shipped|completed>&q=<texto>
@@ -14,36 +15,20 @@ import type { OrderStatus } from '@/lib/definitions';
  *   exactamente la vista confirmada por el operador.
  */
 
-const TAB_STATUSES: Record<string, OrderStatus[]> = {
-  pending:    ['Pendiente', 'Pendiente verificación Binance'],
-  paid:       ['En Proceso', 'Enviado', 'Entregado'],
-  processing: ['En Proceso'],
-  shipped:    ['Enviado'],
-  completed:  ['Entregado'],
-};
-
 export async function GET(request: Request) {
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
   const { searchParams } = new URL(request.url);
-  const tab = searchParams.get('tab') ?? 'all';
-  const q = (searchParams.get('q') ?? '').trim().toLowerCase();
+  const tab = parseOrderTab(searchParams.get('tab'), searchParams.get('status'));
+  const q = searchParams.get('q') ?? '';
+  const where = await buildOrderListWhere(tab, q);
 
-  const statuses = TAB_STATUSES[tab];
-  const orders = await prisma.order.findMany({
-    where:   statuses ? { status: { in: statuses } } : undefined,
+  const filtered = await prisma.order.findMany({
+    where,
     include: { items: true },
     orderBy: { createdAt: 'desc' },
   });
-
-  const filtered = q
-    ? orders.filter(
-        o =>
-          String(o.orderNumber).includes(q) ||
-          o.customerName.toLowerCase().includes(q),
-      )
-    : orders;
 
   // PRD-156: auditoría del acceso a PII
   console.info(

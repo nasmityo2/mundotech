@@ -20,6 +20,8 @@ import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { verifySameOrigin } from '@/lib/security';
 import { d, dn } from '@/lib/decimal';
+import { buildOrderListWhere } from '@/lib/orders/order-list-filters';
+import { computeTabCounts, parseOrderTab } from '@/lib/orders/order-tabs';
 
 const CHECKOUT_TX_MAX_RETRIES = 3;
 
@@ -65,13 +67,24 @@ export async function GET(request: Request) {
 
     if (limitParam !== null) {
       const limit = Math.min(Math.max(parseInt(limitParam, 10) || 50, 1), 200);
+      const tab = parseOrderTab(searchParams.get('tab'), searchParams.get('status'));
+      const q = searchParams.get('q') ?? '';
+      const where = await buildOrderListWhere(tab, q);
 
-      const orders = await prisma.order.findMany({
-        take: limit + 1,
-        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-        include: { items: true },
-        orderBy: { createdAt: 'desc' },
-      });
+      const [orders, total, statusGroups] = await Promise.all([
+        prisma.order.findMany({
+          where,
+          take: limit + 1,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+          include: { items: true },
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.order.count({ where }),
+        prisma.order.groupBy({
+          by: ['status'],
+          _count: { _all: true },
+        }),
+      ]);
 
       const hasNextPage = orders.length > limit;
       const page = hasNextPage ? orders.slice(0, limit) : orders;
@@ -80,6 +93,8 @@ export async function GET(request: Request) {
       return NextResponse.json({
         orders: page.map(prismaOrderToOrder),
         nextCursor,
+        total,
+        counts: computeTabCounts(statusGroups),
       });
     }
 
