@@ -16,8 +16,8 @@
  *   with per-category product counts.
  * • REVALIDATE (600 s) is a TTL safety net only; tags fire immediately on
  *   mutation so stale data is never served beyond the write latency.
- * • Search (?q=) is filtered client-side in ProductGridAndFilters — it never
- *   reaches these server queries, so no per-query cache key is needed.
+ * • Filtros/búsqueda en /productos usan lib/products/query-products.ts (pg_trgm).
+ *   El catálogo sin filtros sigue en caché vía unstable_cache.
  * • Admin reads (getProductsAdmin, getProductsAdmin) bypass this cache entirely
  *   and query Prisma directly to always see fresh inventory data.
  *

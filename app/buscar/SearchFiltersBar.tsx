@@ -11,11 +11,14 @@ import {
   X,
   PackageCheck,
   PackageX,
+  DollarSign,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { buildCatalogHref, type ProductSort } from '@/lib/products/filter';
 
 const SORT_OPTIONS = [
   { value: 'default',    label: 'Relevancia'   },
+  { value: 'newest',     label: 'Más recientes' },
   { value: 'price-asc',  label: 'Menor precio' },
   { value: 'price-desc', label: 'Mayor precio' },
   { value: 'name-asc',   label: 'Nombre A-Z'   },
@@ -29,12 +32,13 @@ interface Props {
   currentCat:   string;
   currentBrand: string;
   currentSort:  string;
+  minPrice:     string;
+  maxPrice:     string;
   /** PRD-167: true = la URL lleva disp=all (incluye productos agotados). */
   includeOutOfStock: boolean;
   categories:   string[];
   brands:       string[];
   totalCount:   number;
-  /** sidebar = panel fijo desktop | toolbar = barra superior + drawer móvil */
   variant:      'sidebar' | 'toolbar';
   filteredCount?: number;
   activePage?:  number;
@@ -46,17 +50,20 @@ function buildHref(
   brand: string,
   sort: string,
   includeOutOfStock: boolean,
+  minPrice: string,
+  maxPrice: string,
   page?: number,
 ): string {
-  const params = new URLSearchParams();
-  if (q)                      params.set('q',     q);
-  if (cat)                    params.set('cat',   cat);
-  if (brand)                  params.set('brand', brand);
-  if (includeOutOfStock)      params.set('disp',  'all');
-  if (sort && sort !== 'default') params.set('sort', sort);
-  if (page && page > 1)       params.set('page',  String(page));
-  const qs = params.toString();
-  return `/buscar${qs ? `?${qs}` : ''}`;
+  return buildCatalogHref('/buscar', {
+    q: q || undefined,
+    cat: cat || undefined,
+    brand: brand || undefined,
+    minPrice: minPrice ? parseFloat(minPrice) : undefined,
+    maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
+    sort: sort as ProductSort,
+    disp: includeOutOfStock ? 'all' : undefined,
+    page,
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -66,7 +73,9 @@ interface FilterPanelProps {
   q:                 string;
   currentCat:        string;
   currentBrand:      string;
-  currentSort:         string;
+  currentSort:       string;
+  minPrice:          string;
+  maxPrice:          string;
   includeOutOfStock: boolean;
   categories:        string[];
   brands:            string[];
@@ -79,6 +88,8 @@ function FilterPanel({
   currentCat,
   currentBrand,
   currentSort,
+  minPrice,
+  maxPrice,
   includeOutOfStock,
   categories,
   brands,
@@ -86,12 +97,15 @@ function FilterPanel({
   onApply,
 }: FilterPanelProps) {
   const router = useRouter();
-  const [catOpen,   setCatOpen]   = useState(true);
+  const [catOpen, setCatOpen] = useState(true);
   const [brandOpen, setBrandOpen] = useState(true);
-  const [sortOpen,  setSortOpen]  = useState(false);
+  const [priceOpen, setPriceOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const [localMin, setLocalMin] = useState(minPrice);
+  const [localMax, setLocalMax] = useState(maxPrice);
 
-  const navigate = (cat: string, brand: string, sort: string) => {
-    router.push(buildHref(q, cat, brand, sort, includeOutOfStock));
+  const navigate = (cat: string, brand: string, sort: string, min = minPrice, max = maxPrice) => {
+    router.push(buildHref(q, cat, brand, sort, includeOutOfStock, min, max));
     onApply?.();
   };
 
@@ -215,6 +229,56 @@ function FilterPanel({
         </div>
       )}
 
+      {/* Precio */}
+      <div className="border-b border-slate-100">
+        <button
+          type="button"
+          onClick={() => setPriceOpen((v) => !v)}
+          className="flex items-center justify-between w-full px-5 h-12 text-left text-navy"
+          aria-expanded={priceOpen}
+        >
+          <span className="flex items-center gap-2.5 text-[13px] font-semibold tracking-tight">
+            <DollarSign size={14} className="text-slate-400" />
+            Precio (USD)
+          </span>
+          <ChevronDown size={15} className={`text-slate-400 transition-transform duration-200 ${priceOpen ? 'rotate-180' : ''}`} />
+        </button>
+        <div className={`grid transition-all duration-300 ease-out ${priceOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+          <div className="overflow-hidden px-4 pb-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="Mín"
+                value={localMin}
+                onChange={(e) => setLocalMin(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl bg-slate-100 text-sm text-navy border border-transparent focus:outline-none focus:bg-white focus:border-navy/20"
+                aria-label="Precio mínimo"
+              />
+              <span className="text-slate-400 text-sm">—</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="Máx"
+                value={localMax}
+                onChange={(e) => setLocalMax(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl bg-slate-100 text-sm text-navy border border-transparent focus:outline-none focus:bg-white focus:border-navy/20"
+                aria-label="Precio máximo"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate(currentCat, currentBrand, currentSort, localMin, localMax)}
+              className="w-full h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-navy text-xs font-semibold transition-colors"
+            >
+              Aplicar precio
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Ordenar */}
       <div className="border-b border-slate-100 last:border-b-0">
         <button
@@ -266,7 +330,7 @@ function FilterPanel({
           type="button"
           onClick={() =>
             router.push(
-              buildHref(q, currentCat, currentBrand, currentSort, !includeOutOfStock),
+              buildHref(q, currentCat, currentBrand, currentSort, !includeOutOfStock, minPrice, maxPrice),
             )
           }
           aria-pressed={includeOutOfStock}
@@ -309,7 +373,7 @@ function FilterPanel({
 // Componente principal exportado
 // ─────────────────────────────────────────────────────────────
 export default function SearchFiltersBar(props: Props) {
-  const { variant, q, currentCat, currentBrand, currentSort, includeOutOfStock, filteredCount } = props;
+  const { variant, q, currentCat, currentBrand, currentSort, minPrice, maxPrice, includeOutOfStock, filteredCount } = props;
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -347,9 +411,9 @@ export default function SearchFiltersBar(props: Props) {
         >
           <SlidersHorizontal size={14} />
           <span className="hidden xs:inline">Filtros</span>
-          {(currentCat || currentBrand) && (
+          {(currentCat || currentBrand || minPrice || maxPrice) && (
             <span className="w-5 h-5 rounded-full bg-navy text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-              {(currentCat ? 1 : 0) + (currentBrand ? 1 : 0)}
+              {(currentCat ? 1 : 0) + (currentBrand ? 1 : 0) + (minPrice || maxPrice ? 1 : 0)}
             </span>
           )}
         </button>
@@ -359,7 +423,7 @@ export default function SearchFiltersBar(props: Props) {
           <select
             value={currentSort}
             onChange={(e) =>
-              router.push(buildHref(q, currentCat, currentBrand, e.target.value, includeOutOfStock))
+              router.push(buildHref(q, currentCat, currentBrand, e.target.value, includeOutOfStock, minPrice, maxPrice))
             }
             aria-label="Ordenar resultados"
             className="appearance-none bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-navy text-base font-semibold pl-3 pr-8 min-h-[44px] rounded-xl cursor-pointer transition-colors focus:outline-none focus:bg-white focus:shadow-ring-navy max-w-[160px] xs:max-w-none truncate"

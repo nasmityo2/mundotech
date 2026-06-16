@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { buildCatalogHref, type CatalogUrlParams } from '@/lib/products/filter';
 
 interface Props {
   /** Página actual (base 1). */
@@ -11,10 +12,15 @@ interface Props {
    * page=1 → basePath (sin ?page=), page>=2 → basePath?page=N.
    */
   basePath: string;
+  /** Filtros activos a preservar al paginar (opcional). */
+  catalogQuery?: Omit<CatalogUrlParams, 'page'>;
 }
 
 /** Genera el href canónico para una página dada. */
-function pageHref(basePath: string, n: number): string {
+function pageHref(basePath: string, n: number, catalogQuery?: Omit<CatalogUrlParams, 'page'>): string {
+  if (catalogQuery) {
+    return buildCatalogHref(basePath, { ...catalogQuery, page: n === 1 ? undefined : n });
+  }
   return n === 1 ? basePath : `${basePath}?page=${n}`;
 }
 
@@ -48,7 +54,7 @@ function pageRange(current: number, total: number): (number | null)[] {
  * Renderiza enlaces `<a>` reales (Next Link) para que Google los rastree sin JS.
  * Se muestra solo cuando hay más de una página.
  */
-export default function PaginationBar({ page, totalPages, basePath }: Props) {
+export default function PaginationBar({ page, totalPages, basePath, catalogQuery }: Props) {
   if (totalPages <= 1) return null;
 
   const hasPrev = page > 1;
@@ -69,7 +75,7 @@ export default function PaginationBar({ page, totalPages, basePath }: Props) {
       {/* Anterior */}
       {hasPrev ? (
         <Link
-          href={pageHref(basePath, page - 1)}
+          href={pageHref(basePath, page - 1, catalogQuery)}
           rel="prev"
           aria-label="Página anterior"
           className={normalBtn}
@@ -95,7 +101,7 @@ export default function PaginationBar({ page, totalPages, basePath }: Props) {
         ) : (
           <Link
             key={p}
-            href={pageHref(basePath, p)}
+            href={pageHref(basePath, p, catalogQuery)}
             aria-label={`Página ${p}`}
             aria-current={p === page ? 'page' : undefined}
             className={p === page ? activeBtn : normalBtn}
@@ -108,7 +114,7 @@ export default function PaginationBar({ page, totalPages, basePath }: Props) {
       {/* Siguiente */}
       {hasNext ? (
         <Link
-          href={pageHref(basePath, page + 1)}
+          href={pageHref(basePath, page + 1, catalogQuery)}
           rel="next"
           aria-label="Página siguiente"
           className={normalBtn}

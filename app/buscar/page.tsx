@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ChevronRight, Search, SearchX } from 'lucide-react';
 import { searchProductsFull } from '@/app/actions/search';
 import { SEARCH_PAGE_SIZE, fullProductToCardModel } from '@/lib/search-shared';
+import { parseProductQuery } from '@/lib/products/filter';
 import ProductCard from '@/components/ProductCard';
 import ProductCardSkeleton from '@/components/ProductCardSkeleton';
 import SearchFiltersBar from './SearchFiltersBar';
@@ -18,6 +19,8 @@ interface PageProps {
     brand?: string;
     sort?:  string;
     page?:  string;
+    minPrice?: string;
+    maxPrice?: string;
     /** PRD-167: disp=all incluye productos agotados (por defecto solo con stock). */
     disp?:  string;
   }>;
@@ -61,6 +64,7 @@ export default async function BuscarPage({ searchParams }: PageProps) {
   const brand = (params.brand ?? '').trim();
   const sort  = (params.sort  ?? 'default').trim();
   const disp  = (params.disp  ?? '').trim();
+  const parsed = parseProductQuery(params);
   const pageParsed = parseInt(params.page ?? '1', 10);
   const page  = Math.max(1, Number.isFinite(pageParsed) ? pageParsed : 1);
   const includeOutOfStock = disp === 'all';
@@ -77,12 +81,15 @@ export default async function BuscarPage({ searchParams }: PageProps) {
         sort,
         page,
         includeOutOfStock,
+        minPrice: parsed.minPrice,
+        maxPrice: parsed.maxPrice,
       });
 
   const totalPages   = Math.ceil(totalCount / SEARCH_PAGE_SIZE);
-  const hasFilters   = !!cat || !!brand;
+  const hasFilters   = !!cat || !!brand || parsed.minPrice != null || parsed.maxPrice != null;
   const showEmpty    = (!q && !hasFilters) || queryTooShort;
-  const activeCount  = (cat ? 1 : 0) + (brand ? 1 : 0) + (includeOutOfStock ? 1 : 0);
+  const activeCount  = (cat ? 1 : 0) + (brand ? 1 : 0) + (includeOutOfStock ? 1 : 0)
+    + ((parsed.minPrice != null || parsed.maxPrice != null) ? 1 : 0);
 
   return (
     <div className="pb-10 sm:pb-12 w-full max-w-full">
@@ -148,6 +155,8 @@ export default async function BuscarPage({ searchParams }: PageProps) {
                 currentCat={cat}
                 currentBrand={brand}
                 currentSort={sort}
+                minPrice={parsed.minPrice != null ? String(parsed.minPrice) : ''}
+                maxPrice={parsed.maxPrice != null ? String(parsed.maxPrice) : ''}
                 includeOutOfStock={includeOutOfStock}
                 categories={categories}
                 brands={brands}
@@ -166,6 +175,8 @@ export default async function BuscarPage({ searchParams }: PageProps) {
               currentCat={cat}
               currentBrand={brand}
               currentSort={sort}
+              minPrice={parsed.minPrice != null ? String(parsed.minPrice) : ''}
+              maxPrice={parsed.maxPrice != null ? String(parsed.maxPrice) : ''}
               includeOutOfStock={includeOutOfStock}
               categories={categories}
               brands={brands}
@@ -182,6 +193,8 @@ export default async function BuscarPage({ searchParams }: PageProps) {
                 cat={cat}
                 brand={brand}
                 sort={sort}
+                minPrice={parsed.minPrice != null ? String(parsed.minPrice) : ''}
+                maxPrice={parsed.maxPrice != null ? String(parsed.maxPrice) : ''}
                 includeOutOfStock={includeOutOfStock}
               />
             )}
@@ -215,6 +228,8 @@ export default async function BuscarPage({ searchParams }: PageProps) {
                   cat={cat}
                   brand={brand}
                   sort={sort}
+                  minPrice={parsed.minPrice != null ? String(parsed.minPrice) : ''}
+                  maxPrice={parsed.maxPrice != null ? String(parsed.maxPrice) : ''}
                   disp={disp}
                   currentPage={page}
                   totalPages={totalPages}
@@ -295,20 +310,26 @@ function ActiveFilterChips({
   cat,
   brand,
   sort,
+  minPrice,
+  maxPrice,
   includeOutOfStock,
 }: {
   q: string;
   cat: string;
   brand: string;
   sort: string;
+  minPrice: string;
+  maxPrice: string;
   includeOutOfStock: boolean;
 }) {
-  const base = (without: 'cat' | 'brand' | 'disp') => {
+  const base = (without: 'cat' | 'brand' | 'disp' | 'price') => {
     const params = new URLSearchParams();
     if (q)                    params.set('q',     q);
     if (without !== 'cat'   && cat)   params.set('cat',   cat);
     if (without !== 'brand' && brand) params.set('brand', brand);
     if (without !== 'disp'  && includeOutOfStock) params.set('disp', 'all');
+    if (without !== 'price' && minPrice) params.set('minPrice', minPrice);
+    if (without !== 'price' && maxPrice) params.set('maxPrice', maxPrice);
     if (sort && sort !== 'default')   params.set('sort',  sort);
     const qs = params.toString();
     return `/buscar${qs ? `?${qs}` : ''}`;
@@ -341,6 +362,15 @@ function ActiveFilterChips({
           className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors"
         >
           Incluye agotados
+          <span aria-hidden>×</span>
+        </Link>
+      )}
+      {(minPrice || maxPrice) && (
+        <Link
+          href={base('price')}
+          className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors"
+        >
+          ${minPrice || '0'} — ${maxPrice || '∞'}
           <span aria-hidden>×</span>
         </Link>
       )}
