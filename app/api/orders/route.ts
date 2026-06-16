@@ -20,8 +20,13 @@ import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { verifySameOrigin } from '@/lib/security';
 import { d, dn } from '@/lib/decimal';
-import { buildOrderListWhere } from '@/lib/orders/order-list-filters';
+import { buildOrderListWhere, buildOrderSearchWhere } from '@/lib/orders/order-list-filters';
 import { computeTabCounts, parseOrderTab } from '@/lib/orders/order-tabs';
+import {
+  decodeOrderCursor,
+  encodeOrderCursor,
+  orderCursorWhere,
+} from '@/lib/orders/order-cursor';
 
 const CHECKOUT_TX_MAX_RETRIES = 3;
 
@@ -71,24 +76,37 @@ export async function GET(request: Request) {
       const q = searchParams.get('q') ?? '';
       const where = await buildOrderListWhere(tab, q);
 
+      const cursorRaw = cursor ?? undefined;
+      const decodedCursor = cursorRaw ? decodeOrderCursor(cursorRaw) : null;
+      const pageWhere =
+        decodedCursor != null
+          ? { AND: [where, orderCursorWhere(decodedCursor)] }
+          : where;
+
+      const countsWhere = q.trim() ? await buildOrderSearchWhere(q) : {};
+
       const [orders, total, statusGroups] = await Promise.all([
         prisma.order.findMany({
-          where,
+          where: pageWhere,
           take: limit + 1,
-          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
           include: { items: true },
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         }),
         prisma.order.count({ where }),
         prisma.order.groupBy({
           by: ['status'],
+          where: countsWhere,
           _count: { _all: true },
         }),
       ]);
 
       const hasNextPage = orders.length > limit;
       const page = hasNextPage ? orders.slice(0, limit) : orders;
-      const nextCursor = hasNextPage ? (page[page.length - 1]?.id ?? null) : null;
+      const lastRow = page[page.length - 1];
+      const nextCursor =
+        hasNextPage && lastRow != null
+          ? encodeOrderCursor({ createdAt: lastRow.createdAt, id: lastRow.id })
+          : null;
 
       return NextResponse.json({
         orders: page.map(prismaOrderToOrder),
@@ -101,7 +119,7 @@ export async function GET(request: Request) {
     // Fallback sin paginación (mantiene compatibilidad con /admin/stats y exportación CSV).
     const orders = await prisma.order.findMany({
       include: { items: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     });
     return NextResponse.json(orders.map(prismaOrderToOrder));
   } catch (error) {

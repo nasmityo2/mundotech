@@ -85,8 +85,6 @@ function AdminProductsContent() {
   const inlineInputRef                    = useRef<HTMLInputElement>(null);
 
   const [stockFilter, setStockFilter]     = useState<StockFilter>('all');
-  const [minPrice, setMinPrice]           = useState('');
-  const [maxPrice, setMaxPrice]           = useState('');
   const [showFilters, setShowFilters]     = useState(false);
 
   const searchParams   = useSearchParams();
@@ -94,16 +92,30 @@ function AdminProductsContent() {
   const pathname       = usePathname();
   const searchTerm     = searchParams.get('search')   ?? '';
   const categoryFilter = searchParams.get('category') ?? '';
+  const minPriceFromUrl = searchParams.get('minPrice') ?? '';
+  const maxPriceFromUrl = searchParams.get('maxPrice') ?? '';
 
   const [searchInput, setSearchInput] = useState(searchTerm);
+  const [minPrice, setMinPrice] = useState(minPriceFromUrl);
+  const [maxPrice, setMaxPrice] = useState(maxPriceFromUrl);
   const debouncedSearch = useDebouncedValue(searchInput, 300);
   const debouncedMinPrice = useDebouncedValue(minPrice, 300);
   const debouncedMaxPrice = useDebouncedValue(maxPrice, 300);
   const skipDebouncedSearchSync = useRef(true);
+  const skipDebouncedMinPriceSync = useRef(true);
+  const skipDebouncedMaxPriceSync = useRef(true);
 
   useEffect(() => {
     setSearchInput(searchTerm);
   }, [searchTerm]);
+
+  useEffect(() => {
+    setMinPrice(minPriceFromUrl);
+  }, [minPriceFromUrl]);
+
+  useEffect(() => {
+    setMaxPrice(maxPriceFromUrl);
+  }, [maxPriceFromUrl]);
 
   useEffect(() => {
     if (skipDebouncedSearchSync.current) {
@@ -119,14 +131,44 @@ function AdminProductsContent() {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }, [debouncedSearch, searchTerm, searchParams, router, pathname]);
 
+  useEffect(() => {
+    if (skipDebouncedMinPriceSync.current) {
+      skipDebouncedMinPriceSync.current = false;
+      return;
+    }
+    const trimmed = debouncedMinPrice.trim();
+    const current = minPriceFromUrl.trim();
+    if (trimmed === current) return;
+    const params = new URLSearchParams(searchParams);
+    if (trimmed) params.set('minPrice', trimmed);
+    else params.delete('minPrice');
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [debouncedMinPrice, minPriceFromUrl, searchParams, router, pathname]);
+
+  useEffect(() => {
+    if (skipDebouncedMaxPriceSync.current) {
+      skipDebouncedMaxPriceSync.current = false;
+      return;
+    }
+    const trimmed = debouncedMaxPrice.trim();
+    const current = maxPriceFromUrl.trim();
+    if (trimmed === current) return;
+    const params = new URLSearchParams(searchParams);
+    if (trimmed) params.set('maxPrice', trimmed);
+    else params.delete('maxPrice');
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [debouncedMaxPrice, maxPriceFromUrl, searchParams, router, pathname]);
+
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
+      const parsedMin = minPriceFromUrl ? parseFloat(minPriceFromUrl) : undefined;
+      const parsedMax = maxPriceFromUrl ? parseFloat(maxPriceFromUrl) : undefined;
       const { products: data, categories: cats } = await getProductsAdmin({
         search:      searchTerm     || undefined,
         category:    categoryFilter || undefined,
-        minPrice:    debouncedMinPrice ? parseFloat(debouncedMinPrice) : undefined,
-        maxPrice:    debouncedMaxPrice ? parseFloat(debouncedMaxPrice) : undefined,
+        minPrice:    parsedMin != null && !Number.isNaN(parsedMin) ? parsedMin : undefined,
+        maxPrice:    parsedMax != null && !Number.isNaN(parsedMax) ? parsedMax : undefined,
         stockFilter,
         lowThreshold: LOW_STOCK_THRESHOLD,
       });
@@ -142,7 +184,7 @@ function AdminProductsContent() {
     } finally {
       setLoading(false);
     }
-  }, [searchTerm, categoryFilter, debouncedMinPrice, debouncedMaxPrice, stockFilter]);
+  }, [searchTerm, categoryFilter, minPriceFromUrl, maxPriceFromUrl, stockFilter]);
 
   useEffect(() => { loadProducts(); }, [loadProducts]);
 
@@ -463,7 +505,7 @@ function AdminProductsContent() {
               <select
                 value={categoryFilter}
                 onChange={e => setParam('category', e.target.value)}
-                className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none min-h-[40px]"
+                className="text-base sm:text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none min-h-[40px]"
               >
                 <option value="">Todas las categorías</option>
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -484,7 +526,17 @@ function AdminProductsContent() {
                 />
                 <span className="text-gray-400">USD</span>
                 {(minPrice || maxPrice) && (
-                  <button onClick={() => { setMinPrice(''); setMaxPrice(''); }} className="text-gray-400 px-1">
+                  <button
+                    onClick={() => {
+                      setMinPrice('');
+                      setMaxPrice('');
+                      const params = new URLSearchParams(searchParams);
+                      params.delete('minPrice');
+                      params.delete('maxPrice');
+                      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+                    }}
+                    className="text-gray-400 px-1"
+                  >
                     <X size={12} />
                   </button>
                 )}

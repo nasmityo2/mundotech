@@ -88,6 +88,7 @@ function OrdersPageContent() {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [searchInput, setSearchInput] = useState(qFromUrl);
   const [shipDialogOrder, setShipDialogOrder] = useState<Order | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const debouncedSearch = useDebouncedValue(searchInput, 300);
   const skipDebouncedUrlSync = useRef(true);
@@ -116,41 +117,53 @@ function OrdersPageContent() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [debouncedSearch, qFromUrl, router, searchParams, pathname]);
 
-  const fetchFirstPage = useCallback(() => {
+  const fetchFirstPage = useCallback(async () => {
     setLoading(true);
-    const qs = buildOrdersQuery(PAGE_SIZE, tab, qFromUrl);
-    fetch(`/api/orders?${qs}`)
-      .then(res => res.json())
-      .then((data: OrdersPageResponse) => {
-        setOrders(data.orders);
-        setNextCursor(data.nextCursor);
-        setTotalFiltered(data.total);
-        setTabCounts(data.counts);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    setError(null);
+    setSelectedOrders([]);
+    try {
+      const qs = buildOrdersQuery(PAGE_SIZE, tab, qFromUrl);
+      const res = await fetch(`/api/orders?${qs}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { message?: string }).message ?? 'No se pudieron cargar los pedidos.');
+      }
+      const data = (await res.json()) as OrdersPageResponse;
+      setOrders(data.orders);
+      setNextCursor(data.nextCursor);
+      setTotalFiltered(data.total);
+      setTabCounts(data.counts);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar los pedidos.');
+    } finally {
+      setLoading(false);
+    }
   }, [tab, qFromUrl]);
 
   useEffect(() => {
-    fetchFirstPage();
+    void fetchFirstPage();
   }, [fetchFirstPage]);
 
-  const loadMoreOrders = useCallback(() => {
+  const loadMoreOrders = useCallback(async () => {
     if (!nextCursor || loadingMore) return;
     setLoadingMore(true);
-    const qs = buildOrdersQuery(PAGE_SIZE, tab, qFromUrl, nextCursor);
-    fetch(`/api/orders?${qs}`)
-      .then(res => res.json())
-      .then((data: OrdersPageResponse) => {
-        setOrders(curr => [...curr, ...data.orders]);
-        setNextCursor(data.nextCursor);
-        setLoadingMore(false);
-      })
-      .catch(() => setLoadingMore(false));
+    setError(null);
+    try {
+      const qs = buildOrdersQuery(PAGE_SIZE, tab, qFromUrl, nextCursor);
+      const res = await fetch(`/api/orders?${qs}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { message?: string }).message ?? 'No se pudieron cargar más pedidos.');
+      }
+      const data = (await res.json()) as OrdersPageResponse;
+      setOrders(curr => [...curr, ...data.orders]);
+      setNextCursor(data.nextCursor);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar más pedidos.');
+    } finally {
+      setLoadingMore(false);
+    }
   }, [nextCursor, loadingMore, tab, qFromUrl]);
-
-  const updateOrderInList = (updated: Order) =>
-    setOrders(curr => curr.map(o => (o.id === updated.id ? updated : o)));
 
   const handleUpdateStatus = async (status: OrderStatus, orderIds: string[]) => {
     if (status === 'Enviado' && orderIds.length === 1) {
@@ -173,8 +186,8 @@ function OrdersPageContent() {
         throw new Error((err as { message?: string }).message ?? 'Error al actualizar el estado');
       }
       if (!isBulk) {
-        const updated = await response.json();
-        updateOrderInList(updated);
+        await response.json();
+        await fetchFirstPage();
       } else {
         const result = await response.json() as { updatedCount: number };
         if (result.updatedCount > 0) {
@@ -203,7 +216,9 @@ function OrdersPageContent() {
       const errorData = await r.json().catch(() => ({}));
       throw new Error(errorData.message ?? 'No se pudo guardar el tracking.');
     }
-    updateOrderInList(await r.json());
+    await r.json();
+    setShipDialogOrder(null);
+    await fetchFirstPage();
   };
 
   const columns: DataTableColumn<Order>[] = [
@@ -354,6 +369,12 @@ function OrdersPageContent() {
           </div>
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {error}
+        </div>
+      )}
 
       {selectedOrders.length > 0 && (
         <div className="flex flex-col gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">

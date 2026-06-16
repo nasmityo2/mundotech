@@ -4,6 +4,8 @@ import { requireAdmin } from '@/lib/api-auth';
 import { buildOrderListWhere } from '@/lib/orders/order-list-filters';
 import { parseOrderTab } from '@/lib/orders/order-tabs';
 
+const MAX_EXPORT_ROWS = 5000;
+
 /**
  * GET /api/orders/export.csv?tab=<all|pending|paid|processing|shipped|completed>&q=<texto>
  *
@@ -24,10 +26,40 @@ export async function GET(request: Request) {
   const q = searchParams.get('q') ?? '';
   const where = await buildOrderListWhere(tab, q);
 
+  const totalMatching = await prisma.order.count({ where });
+
+  if (totalMatching > MAX_EXPORT_ROWS) {
+    const accept = request.headers.get('accept') ?? '';
+    const wantsJson = accept.includes('application/json');
+    console.warn(
+      '[orders-export] límite excedido admin=%s total=%d max=%d tab=%s',
+      auth.session.user?.email ?? 'desconocido',
+      totalMatching,
+      MAX_EXPORT_ROWS,
+      tab,
+    );
+    if (wantsJson) {
+      return Response.json(
+        {
+          message: `Hay ${totalMatching} pedidos que coinciden; el máximo de exportación es ${MAX_EXPORT_ROWS}. Refina los filtros e intenta de nuevo.`,
+        },
+        { status: 413 },
+      );
+    }
+    return new Response(
+      `Exportación cancelada: ${totalMatching} pedidos coinciden con el filtro, pero el límite es ${MAX_EXPORT_ROWS}. Refina los filtros (pestaña o búsqueda) e intenta de nuevo.`,
+      {
+        status: 413,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      },
+    );
+  }
+
   const filtered = await prisma.order.findMany({
     where,
     include: { items: true },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: MAX_EXPORT_ROWS,
   });
 
   // PRD-156: auditoría del acceso a PII
