@@ -65,13 +65,13 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
     ? `Catálogo — "${query.q}"`
     : query.category
       ? `Catálogo — ${query.category}`
-      : 'Catálogo de tecnología y gadgets';
+      : 'Catálogo de tecnología, hogar y variedades';
   const title = page >= 2 ? `${titleBase} — Página ${page}` : titleBase;
 
   return {
     title,
     description:
-      'Catálogo de MundoTech Barquisimeto: gadgets, consolas, audio, computación y accesorios. Pagas en USD o Bs y recibes en toda Venezuela.',
+      'Catálogo de MundoTech Barquisimeto: tecnología, gadgets, hogar, cocina, fitness, salud y más. Paga en USD o Bs y recibe en toda Venezuela.',
     alternates: { canonical: canonicalUrl },
     robots: { index: true, follow: true },
     openGraph: {

@@ -18,22 +18,23 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   // H26: marca unificada "MundoTech" (sin espacio) + título absoluto para que
   // el template del layout no duplique la marca (H02/P08).
-  title: { absolute: 'Tienda de tecnología en Barquisimeto | MundoTech' },
+  title: { absolute: 'Tienda de variedades y tecnología en Barquisimeto | MundoTech' },
   description:
-    'MundoTech en el centro de Barquisimeto: tecnología, gadgets y accesorios. Precios en USD y Bs, retiro en tienda y envíos a toda Venezuela.',
+    'MundoTech en el centro de Barquisimeto: tecnología, hogar, cocina, fitness, salud y más. Precios en USD y Bs, retiro en tienda y envíos a toda Venezuela.',
   keywords: [
+    'tienda de variedades Barquisimeto',
     'tienda tecnología Barquisimeto',
-    'gadgets tecnología Barquisimeto',
+    'productos para el hogar Barquisimeto',
+    'artículos de cocina Barquisimeto',
     'MundoTech Barquisimeto',
-    'tecnología Lara Venezuela',
-    'consolas Barquisimeto',
+    'variedades Lara Venezuela',
   ],
   alternates: { canonical: PAGE_URL },
   // og:image heredada de app/opengraph-image.tsx (imagen de marca generada)
   openGraph: {
     title: 'MundoTech Barquisimeto — Conectados Contigo',
     description:
-      'Tu tienda en el Centro de Barquisimeto: tecnología, gadgets y accesorios. USD/Bs., retiro en tienda y envíos nacionales.',
+      'Tu tienda en el Centro de Barquisimeto: tecnología, hogar, cocina, fitness y más. USD/Bs., retiro en tienda y envíos nacionales.',
     url: PAGE_URL,
     siteName: 'MundoTech',
     locale: 'es_VE',
@@ -43,7 +44,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'MundoTech Barquisimeto — Conectados Contigo',
     description:
-      'Tecnología y gadgets en Barquisimeto. USD/Bs., retiro en tienda y envíos nacionales.',
+      'Variedades en Barquisimeto: tecnología, hogar, cocina y más. USD/Bs., retiro en tienda y envíos nacionales.',
   },
 };
 

@@ -37,7 +37,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   return {
     title,
     description:
-      'Ofertas y rebajas reales en MundoTech Barquisimeto: gadgets, audio, consolas y más con descuento. Pagas en USD o Bs y recibes en toda Venezuela.',
+      'Ofertas y rebajas reales en MundoTech Barquisimeto: tecnología, hogar, cocina, fitness y más con descuento. Paga en USD o Bs y recibe en toda Venezuela.',
     alternates: { canonical: canonicalUrl },
     robots: { index: true, follow: true },
     openGraph: {

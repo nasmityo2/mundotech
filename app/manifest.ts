@@ -10,11 +10,11 @@ export const dynamic = 'force-dynamic';
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const settings = await readSettings();
   return {
-    name: `${settings.storeName} — Tecnología en Barquisimeto, Venezuela`,
+    name: `${settings.storeName} — Tecnología, hogar y variedades en Barquisimeto`,
     short_name: settings.storeName,
     description:
       settings.tagline ||
-      'Tecnología y gadgets en Barquisimeto. Precios USD/Bs., retiro en tienda y envíos por MRW, Zoom y Tealca.',
+      'Variedades en Barquisimeto: tecnología, hogar, cocina, fitness y más. Precios USD/Bs., retiro en tienda y envíos por MRW, Zoom y Tealca.',
     start_url: '/',
     scope: '/',
     display: 'standalone',
@@ -22,7 +22,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     background_color: '#ffffff',
     theme_color: '#0B1220',
     lang: 'es-VE',
-    categories: ['shopping', 'electronics'],
+    categories: ['shopping', 'electronics', 'lifestyle'],
     icons: [
       { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
       { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },

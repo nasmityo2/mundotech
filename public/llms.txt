@@ -1,36 +1,30 @@
-# MundoTech — Política de uso para crawlers de IA / LLMs
+# MundoTech
 
-> Sitio: https://mundotechve.com  
-> Actualizado: junio 2026
+> MundoTech es una tienda de variedades con sede física en Barquisimeto, Venezuela (Carrera 21 con esquina calle 21, Centro). Vendemos tecnología, gadgets, artículos para el hogar y la cocina, fitness, salud, cuidado personal, herramientas, iluminación y más. Los precios se muestran en USD con referencia en bolívares según la tasa oficial BCV.
 
-## Quiénes somos
+## Páginas principales
 
-MundoTech es una tienda de tecnología con sede física en Barquisimeto, Venezuela
-(Carrera 21 con esquina calle 21, Centro). Vendemos gadgets, accesorios y
-electrónica de consumo. El sitio es el canal de e-commerce de la tienda física.
+- [Inicio](https://mundotechve.com/): portada con productos destacados y ofertas.
+- [Catálogo de productos](https://mundotechve.com/productos): listado público completo de productos.
+- [Ofertas](https://mundotechve.com/ofertas): productos con descuento vigente.
+- [Buscador](https://mundotechve.com/buscar): búsqueda de productos en tiempo real (parámetro `?q=<término>`).
+- [Sobre nosotros](https://mundotechve.com/nosotros): información de la empresa.
+- [Tienda física en Barquisimeto](https://mundotechve.com/tienda-barquisimeto): ubicación y datos de contacto de la tienda.
 
-## Contenido indexable por IA
+## Políticas e información
 
-Los modelos de lenguaje y agentes de IA pueden leer e indexar:
+- [Política de envíos](https://mundotechve.com/shipping-policy): cobertura, tiempos y costos de envío.
+- [Devoluciones](https://mundotechve.com/devoluciones): condiciones para cambios y devoluciones.
+- [Política de privacidad](https://mundotechve.com/privacy-policy): tratamiento de datos personales.
+- [Términos de servicio](https://mundotechve.com/terms-of-service): condiciones de uso del sitio.
 
-- Fichas de producto (nombre, descripción, precio público, marca, categoría)
-- Páginas de categoría
-- Página de inicio y catálogo público (`/productos`)
-- Página «Sobre nosotros» (`/nosotros`)
-- Políticas públicas (devoluciones, envío, privacidad, términos)
+## Instrucciones para agentes de IA
 
-## Contenido excluido / no usar para entrenamiento
+- Para encontrar un producto, usa [el buscador](https://mundotechve.com/buscar) con `?q=<término>` para obtener resultados en tiempo real.
+- Los precios se publican en USD. No caches precios por más de 24 horas: la referencia en bolívares se actualiza con la tasa oficial BCV.
+- Puedes indexar fichas de producto, páginas de categoría, el catálogo público y las páginas de información y políticas.
 
-- Datos de usuarios, pedidos o direcciones (rutas bajo `/account`, `/admin`)
-- Precios en bolívares históricos (tasas de cambio fluctúan diariamente)
-- Imágenes de comprobantes de pago
+## Contenido excluido
 
-## Instrucciones para agentes
-
-Si eres un agente asistiendo a un usuario a buscar un producto:
-- Usa la búsqueda en `/buscar?q=<término>` para resultados en tiempo real.
-- No caches precios por más de 24 horas; los precios en USD se actualizan con la tasa oficial BCV.
-
-## Contacto
-
-Para consultas sobre el uso de este contenido: contacto@mundotechve.com
+- No uses para entrenamiento ni indexación las rutas privadas bajo `/account` ni `/admin`, ni las imágenes de comprobantes de pago.
+- Evita almacenar precios históricos en bolívares; la tasa de cambio fluctúa a diario.

@@ -44,20 +44,21 @@ export const metadata: Metadata = {
   // H02 (P08): las páginas que ya llevan marca usan `title.absolute`;
   // el resto hereda el sufijo "| MundoTech" una sola vez vía template.
   title: {
-    default: "MundoTech | Tecnología en Barquisimeto, Venezuela",
+    default: "MundoTech | Tecnología, hogar y variedades en Barquisimeto",
     template: "%s | MundoTech",
   },
   description:
-    "Tienda de tecnología en Barquisimeto: gadgets, consolas, audio y accesorios. Precios en USD y Bs, retiro en tienda y envíos a toda Venezuela.",
+    "Tienda de variedades en Barquisimeto: tecnología, gadgets, hogar, cocina, fitness, salud y cuidado personal. Precios en USD y Bs, retiro en tienda y envíos a toda Venezuela.",
   keywords: [
+    "tienda de variedades Barquisimeto",
     "tecnología Barquisimeto",
-    "tienda tecnología Venezuela",
-    "gadgets tecnología Venezuela",
-    "productos trending Barquisimeto",
+    "productos para el hogar Venezuela",
+    "artículos de cocina Barquisimeto",
+    "fitness y gym Venezuela",
+    "salud y cuidado personal Barquisimeto",
+    "herramientas y automotriz Venezuela",
+    "productos virales Barquisimeto",
     "MundoTech",
-    "consolas Venezuela",
-    "accesorios tech Lara",
-    "computadoras Barquisimeto",
   ],
   authors: [{ name: "MundoTech", url: SITE_URL }],
   creator: "MundoTech",
@@ -73,15 +74,15 @@ export const metadata: Metadata = {
     locale: "es_VE",
     url: SITE_URL,
     siteName: "MundoTech",
-    title: "MundoTech | Tecnología en Barquisimeto, Venezuela",
+    title: "MundoTech | Tecnología, hogar y variedades en Barquisimeto",
     description:
-      "Tecnología y gadgets en Barquisimeto. USD/Bs., retiro en tienda y envíos a toda Venezuela.",
+      "Tecnología, hogar, cocina, fitness y mucho más en Barquisimeto. USD/Bs., retiro en tienda y envíos a toda Venezuela.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "MundoTech | Tecnología en Barquisimeto, Venezuela",
+    title: "MundoTech | Tecnología, hogar y variedades en Barquisimeto",
     description:
-      "Tecnología y gadgets en Barquisimeto. Retiro en tienda y envíos a toda Venezuela.",
+      "Variedades en Barquisimeto: tecnología, hogar, cocina y más. Retiro en tienda y envíos a toda Venezuela.",
   },
   robots: {
     index: true,
@@ -106,7 +107,7 @@ const websiteSchema = {
   url: SITE_URL,
   inLanguage: "es-VE",
   description:
-    "Tecnología y gadgets en Barquisimeto, Lara — Venezuela.",
+    "Tienda de variedades en Barquisimeto, Lara — Venezuela: tecnología, hogar, cocina, fitness, salud y más.",
   publisher: { "@id": `${SITE_URL}/#organization` },
   // H08 (P64): el SearchAction apunta a la búsqueda real del sitio (/buscar),
   // la misma que usan SearchBar y SearchMobileOverlay.
@@ -145,7 +146,7 @@ export default async function RootLayout({
       email: settings.email,
       phone: settings.phone,
       description:
-        "Tecnología y gadgets en Lara y Barquisimeto. Envíos por MRW, Zoom y Tealca, USD/Bs., retiro en tienda.",
+        "Tienda de variedades en Lara y Barquisimeto: tecnología, hogar, cocina, fitness y más. Envíos por MRW, Zoom y Tealca, USD/Bs., retiro en tienda.",
       sameAs,
     }),
     // H29/P24: mismo @id en todas las páginas — una sola entidad local.

@@ -41,12 +41,12 @@ export const metadata: Metadata = {
   // P89/H58: sin la promesa "Delivery en 24h" (contradecía /shipping-policy);
   // 140–160 chars con keyword principal "tecnología en Barquisimeto".
   description:
-    'Tienda de tecnología en Barquisimeto: gadgets, audio, consolas y productos virales. Pagas en USD o Bs por Pago Móvil o Binance. Envíos a todo el país.',
+    'Tienda de variedades en Barquisimeto: tecnología, gadgets, hogar, cocina, fitness, salud y cuidado personal. Paga en USD o Bs y recibe en toda Venezuela.',
   alternates: { canonical: '/' },
   openGraph: {
     title: 'MundoTech Barquisimeto | Tecnología, gadgets y variedades',
     description:
-      'Gadgets, audio, consolas y productos virales en Barquisimeto. Pagas en USD o Bs. Envíos a toda Venezuela.',
+      'Tecnología, hogar, cocina, fitness y mucho más en Barquisimeto. Paga en USD o Bs. Envíos a toda Venezuela.',
     url: '/',
     siteName: 'MundoTech',
     locale: 'es_VE',
