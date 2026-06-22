@@ -77,7 +77,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
     openGraph: {
       title: `${title} | MundoTech`,
       description:
-        'Gadgets, consolas, audio y accesorios en Barquisimeto. USD/Bs., retiro en tienda y envíos nacionales.',
+        'Tecnología, hogar, cocina, fitness y más en Barquisimeto. USD/Bs., retiro en tienda y envíos nacionales.',
       url: canonicalUrl,
       siteName: 'MundoTech',
       locale: 'es_VE',

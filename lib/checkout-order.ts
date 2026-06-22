@@ -38,7 +38,7 @@ export const checkoutSchema = z
       zipCode: z.string().optional().default('N/A'),
       country: z.string().optional().default('Venezuela'),
     }),
-    paymentMethod: z.enum(['Pago Móvil', 'Transferencia Bancaria', 'Binance Pay']),
+    paymentMethod: z.enum(['Pago Móvil', 'Transferencia Bancaria', 'Binance Pay', 'Cashea']),
     paymentBank: z.string().optional().nullable(),
     paymentHolderIdNumber: z.string().optional().nullable(),
     paymentHolderPhone: z.string().optional().nullable(),
@@ -60,7 +60,10 @@ export const checkoutSchema = z
       .max(50, 'El pedido supera el número máximo de líneas permitidas.'),
   })
   .superRefine((data, ctx) => {
-    // Los tres métodos son de confirmación manual: el cliente paga por su cuenta
+    // Cashea se coordina por WhatsApp: no exige referencia ni comprobante aquí.
+    if (data.paymentMethod === 'Cashea') return;
+
+    // Los demás métodos son de confirmación manual: el cliente paga por su cuenta
     // y debe aportar referencia + comprobante. La validación vive también en el
     // servidor para que un POST directo a /api/orders no pueda omitirlos.
     const isBinance = data.paymentMethod === 'Binance Pay';

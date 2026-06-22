@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input';
 import type { StoreSettings } from '@/lib/data-store';
 import { VENEZUELAN_BANKS } from '@/lib/venezuela-banks';
 
-export type PaymentMethod = 'pagomovil' | 'transferencia' | 'binancepay';
+export type PaymentMethod = 'pagomovil' | 'transferencia' | 'binancepay' | 'cashea';
 
 export type PaymentFormData = {
   paymentMethod:      PaymentMethod;
@@ -95,6 +95,10 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
   const validate = (): boolean => {
     const e: typeof errors = {};
     if (!selected) e.paymentMethod = 'Selecciona un método de pago.';
+    if (selected === 'cashea') {
+      setErrors(e);
+      return Object.keys(e).length === 0;
+    }
     if (selected === 'binancepay') {
       if (!referenceNumber.trim()) {
         e.referenceNumber = 'Ingresa el Order ID o referencia que muestra Binance.';
@@ -115,6 +119,18 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate() || !selected) return;
+    if (selected === 'cashea') {
+      onPaymentSubmit({
+        paymentMethod: 'cashea',
+        bank: '',
+        holderIdNumber: '',
+        holderPhone: '',
+        referenceNumber: '',
+        proofFile: null,
+        proofPreviewUrl: '',
+      });
+      return;
+    }
     if (selected === 'binancepay') {
       onPaymentSubmit({
         paymentMethod: 'binancepay',
@@ -138,8 +154,10 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
     });
   };
 
+  const isBankManual = selected === 'pagomovil' || selected === 'transferencia';
+
   const storeDataRows: { label: string; value: string }[] | null = (() => {
-    if (!selected || selected === 'binancepay') return null;
+    if (!selected || selected === 'binancepay' || selected === 'cashea') return null;
     if (selected === 'pagomovil') {
       return [
         { label: 'Banco',    value: pagoMovil.bank },
@@ -177,6 +195,7 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
                   sub: 'Paga a nuestra cuenta y sube captura + Order ID',
                 }] as const)
               : []),
+            { id: 'cashea' as const, icon: Wallet, label: 'Cashea', sub: 'Compra ahora y paga después — coordinamos por WhatsApp' },
           ] as const
         ).map((m) => {
           const isActive = selected === m.id;
@@ -210,7 +229,7 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
 
       {/* ── Datos de la tienda para pagar ── */}
       <AnimatePresence mode="wait">
-        {storeDataRows && selected !== 'binancepay' && (
+        {storeDataRows && isBankManual && (
           <motion.div
             key={selected}
             initial={{ opacity: 0, y: 8 }}
@@ -367,8 +386,31 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
         )}
       </AnimatePresence>
 
+      {/* ── Panel informativo Cashea ── */}
+      <AnimatePresence mode="wait">
+        {selected === 'cashea' && (
+          <motion.div
+            key="cashea-static"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.22 }}
+            className="rounded-2xl border border-navy/20 bg-navy/5 p-5 space-y-2"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              Paga con Cashea
+            </p>
+            <p className="text-[13px] text-slate-600 leading-relaxed">
+              Al confirmar tu pedido te mostraremos un botón para escribirnos por WhatsApp.
+              Por ahí coordinamos tu compra con Cashea: generamos tu orden, pagas la inicial en tu app
+              Cashea y, al confirmar el pago, preparamos tu envío. No necesitas subir comprobante aquí.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Datos del comprobante ── */}
-      {selected && selected !== 'binancepay' && (
+      {isBankManual && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}

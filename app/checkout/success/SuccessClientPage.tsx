@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { Check, ArrowRight, Package, Mail, Home } from 'lucide-react';
+import { Check, ArrowRight, Package, Mail, Home, MessageCircle } from 'lucide-react';
+import { MUNDOTECH_SOCIAL } from '@/lib/mundotech-social';
 import type { EnrichedOrder } from './page';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 
@@ -56,6 +57,28 @@ export default function SuccessClientPage({ order }: Props) {
             </span>
           </motion.div>
         </motion.div>
+
+        {/* Banner WhatsApp — solo para Cashea */}
+        {order.paymentMethod === 'Cashea' && (
+          <motion.div variants={fadeUp} className="mt-6 space-y-3">
+            <motion.a
+              variants={fadeUp}
+              href={`${MUNDOTECH_SOCIAL.whatsapp}?text=${encodeURIComponent(
+                `Hola MundoTech 👋 Quiero pagar con Cashea mi pedido #${String(order.orderNumber).padStart(4, '0')}. ¿Me ayudan a coordinar el pago?`
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 bg-[#25D366] text-white font-bold text-sm sm:text-base h-14 rounded-2xl shadow-soft hover:brightness-95 active:scale-[0.98] transition-all"
+            >
+              <MessageCircle size={18} />
+              Escríbenos por WhatsApp para coordinar tu pago Cashea
+            </motion.a>
+            <p className="text-xs text-slate-500 text-center leading-relaxed">
+              Coordinamos tu compra con Cashea por WhatsApp. Pagas la inicial en tu app Cashea
+              y preparamos tu envío en cuanto confirmemos el pago.
+            </p>
+          </motion.div>
+        )}
 
         {/* Próximos pasos */}
         <motion.div

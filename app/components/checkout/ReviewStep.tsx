@@ -143,7 +143,9 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
             ? 'Pago Móvil'
             : paymentData.paymentMethod === 'binancepay'
               ? 'Binance Pay'
-              : 'Transferencia Bancaria',
+              : paymentData.paymentMethod === 'cashea'
+                ? 'Cashea'
+                : 'Transferencia Bancaria',
         paymentBank: paymentData.bank || null,
         paymentHolderIdNumber: paymentData.holderIdNumber || null,
         paymentHolderPhone: paymentData.holderPhone || null,
@@ -193,12 +195,18 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
 
   const ShippingIcon = shippingData?.shippingMethod === 'tienda' ? Store : Building2;
 
+  const isBankManual =
+    paymentData?.paymentMethod === 'pagomovil' ||
+    paymentData?.paymentMethod === 'transferencia';
+
   const paymentLabel =
     paymentData?.paymentMethod === 'pagomovil'
       ? 'Pago Móvil'
       : paymentData?.paymentMethod === 'binancepay'
         ? 'Binance (verificación manual)'
-        : 'Transferencia';
+        : paymentData?.paymentMethod === 'cashea'
+          ? 'Cashea (coordinar por WhatsApp)'
+          : 'Transferencia';
 
   return (
     <div className="space-y-6">
@@ -285,7 +293,7 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
                 {paymentLabel}
               </dd>
             </div>
-            {paymentData?.paymentMethod !== 'binancepay' && (
+            {isBankManual && (
               <>
                 <div className="flex justify-between gap-3">
                   <dt className="text-slate-500">Banco</dt>
@@ -315,6 +323,12 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
                   Tras confirmar, reservamos tu pedido y MundoTech verificará tu pago en Binance antes de preparar el envío.
                 </p>
               </>
+            )}
+            {paymentData?.paymentMethod === 'cashea' && (
+              <p className="text-xs text-slate-500 pt-1 leading-relaxed">
+                Tras confirmar, te mostraremos un botón de WhatsApp para coordinar tu pago con Cashea.
+                Reservamos tu pedido y preparamos el envío en cuanto confirmemos el pago.
+              </p>
             )}
           </dl>
           {paymentData?.proofPreviewUrl ? (
