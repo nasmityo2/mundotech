@@ -7,7 +7,7 @@ import {
   orderCountsTowardValidatedRevenue,
   orderStoredRevenueTotal,
 } from '@/lib/analytics-orders';
-import { hasFrozenBsPricing } from '@/lib/order-pricing';
+import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
 import { BarChart2, TrendingUp, Package, ShoppingCart, Award, Eye } from 'lucide-react';
 
 interface TopViewedProduct {
@@ -92,7 +92,10 @@ export default function AdminStatsPage() {
       // Ratio = order.total / sum(item.price * qty) garantiza que la suma de
       // ingresos por producto cuadre con order.total (caja real).
       const orderItemsTotal = order.items.reduce((s, i) => s + i.price * i.quantity, 0);
-      const prorateRatio = orderItemsTotal > 0 ? orderStoredRevenueTotal(order) / orderItemsTotal : 1;
+      // Convertir el total del pedido a USD antes de prorratear: evita mezclar
+      // pedidos modernos (Bs) con legado (USD) en el mismo acumulador.
+      const orderRevenueUsd = getOrderDualMoney(orderStoredRevenueTotal(order), order).usdAmount ?? 0;
+      const prorateRatio = orderItemsTotal > 0 ? orderRevenueUsd / orderItemsTotal : 1;
 
       for (const item of order.items) {
         const proratedRevenue = item.price * item.quantity * prorateRatio;
@@ -119,15 +122,16 @@ export default function AdminStatsPage() {
   }, [filteredOrders, sortBy]);
 
   const totalUnits = productStats.reduce((s, p) => s + p.unitsSold, 0);
-  // PRD-206: separar ingresos Bs (pedidos modernos con tasa congelada) de los
-  // legados en USD para no mezclar monedas en el mismo acumulador.
+  // USD principal: cada pedido convertido a USD (modernos: total/tasa; legado: ya en USD).
+  const totalRevenueUsd = filteredOrders.reduce(
+    (s, o) => s + (getOrderDualMoney(orderStoredRevenueTotal(o), o).usdAmount ?? 0),
+    0,
+  );
+  // Bs de referencia: solo pedidos modernos con tasa congelada (el legado no tiene Bs).
   const totalRevenueBs = filteredOrders
     .filter(o => hasFrozenBsPricing(o))
     .reduce((s, o) => s + orderStoredRevenueTotal(o), 0);
-  const totalRevenueUsdLegacy = filteredOrders
-    .filter(o => !hasFrozenBsPricing(o))
-    .reduce((s, o) => s + orderStoredRevenueTotal(o), 0);
-  const hasLegacyUsdOrders = totalRevenueUsdLegacy > 0;
+  const hasLegacyUsdOrders = filteredOrders.some(o => !hasFrozenBsPricing(o));
   // Denominador del % por producto: suma de ingresos ya prorateados.
   const itemRevenueTotal = productStats.reduce((s, p) => s + p.revenue, 0);
   const totalOrdersInPeriod = filteredOrders.length;
@@ -205,10 +209,13 @@ export default function AdminStatsPage() {
             <p className="text-2xl font-bold text-gray-900 mt-2">—</p>
           ) : (
             <div className="mt-2 space-y-0.5">
-              <p className="text-2xl font-bold text-gray-900">{formatBs(totalRevenueBs)}</p>
-              {hasLegacyUsdOrders && (
+              <p className="text-2xl font-bold text-gray-900">{formatUsd(totalRevenueUsd)}</p>
+              {totalRevenueBs > 0 && (
                 <p className="text-sm text-gray-500">
-                  + {formatUsd(totalRevenueUsdLegacy)} <span className="text-xs text-gray-400">(pedidos legado USD)</span>
+                  ≈ {formatBs(totalRevenueBs)} en Bs.
+                  {hasLegacyUsdOrders && (
+                    <span className="text-xs text-gray-400"> · incl. pedidos legado USD</span>
+                  )}
                 </p>
               )}
             </div>
@@ -288,7 +295,7 @@ export default function AdminStatsPage() {
 
                     {/* Métricas */}
                     <div className="flex-shrink-0 text-right">
-                      <p className="font-bold text-gray-900">{formatBs(stat.revenue)}</p>
+                      <p className="font-bold text-gray-900">{formatUsd(stat.revenue)}</p>
                       <p className="text-xs text-gray-500 mt-0.5">{stat.unitsSold} uds.</p>
                     </div>
                   </div>
