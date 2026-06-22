@@ -57,6 +57,22 @@ const PERIOD_LABELS: Record<Period, string> = {
   all: 'Todo el Tiempo',
 };
 
+function DeltaBadge({ current, previous }: { current: number; previous: number | null }) {
+  if (previous == null) return null;
+  if (previous === 0) {
+    return current > 0
+      ? <span className="text-[11px] font-semibold text-green-600">▲ nuevo vs. período anterior</span>
+      : null;
+  }
+  const pct = ((current - previous) / previous) * 100;
+  const up = pct >= 0;
+  return (
+    <span className={`text-[11px] font-semibold ${up ? 'text-green-600' : 'text-red-600'}`}>
+      {up ? '▲' : '▼'} {Math.abs(pct).toFixed(0)}% vs. período anterior
+    </span>
+  );
+}
+
 export default function AdminStatsPage() {
   const [orders, setOrders]           = useState<Order[]>([]);
   const [loading, setLoading]         = useState(true);
@@ -83,6 +99,21 @@ export default function AdminStatsPage() {
     const validated = orders.filter(o => orderCountsTowardValidatedRevenue(o.status));
     if (!from) return validated;
     return validated.filter(o => orderAnalyticsPeriodDate(o) >= from);
+  }, [orders, period]);
+
+  // Período anterior equivalente (misma duración justo antes), para comparativa.
+  // 'Todo el tiempo' no tiene comparación → null.
+  const prevPeriodOrders = useMemo(() => {
+    const from = startOf(period);
+    if (!from) return null;
+    const spanMs = Date.now() - from.getTime();
+    const prevFrom = new Date(from.getTime() - spanMs);
+    return orders
+      .filter(o => orderCountsTowardValidatedRevenue(o.status))
+      .filter(o => {
+        const d = orderAnalyticsPeriodDate(o);
+        return d >= prevFrom && d < from;
+      });
   }, [orders, period]);
 
   const productStats = useMemo((): ProductStat[] => {
@@ -135,6 +166,13 @@ export default function AdminStatsPage() {
   // Denominador del % por producto: suma de ingresos ya prorateados.
   const itemRevenueTotal = productStats.reduce((s, p) => s + p.revenue, 0);
   const totalOrdersInPeriod = filteredOrders.length;
+  // Ticket promedio (AOV) en USD.
+  const avgTicketUsd = totalOrdersInPeriod > 0 ? totalRevenueUsd / totalOrdersInPeriod : 0;
+  // Totales del período anterior para las comparativas (null si no aplica).
+  const prevRevenueUsd = prevPeriodOrders
+    ? prevPeriodOrders.reduce((s, o) => s + (getOrderDualMoney(orderStoredRevenueTotal(o), o).usdAmount ?? 0), 0)
+    : null;
+  const prevOrdersCount = prevPeriodOrders ? prevPeriodOrders.length : null;
 
   // PRD-EXTRA-ADM-1: los máximos deben calcularse sobre cada métrica, no sobre
   // la primera fila del orden activo (antes la barra podía superar el 100%).
@@ -186,6 +224,7 @@ export default function AdminStatsPage() {
           <p className="text-3xl font-bold text-gray-900 mt-2">
             {loading ? '—' : totalOrdersInPeriod}
           </p>
+          {!loading && <div className="mt-1"><DeltaBadge current={totalOrdersInPeriod} previous={prevOrdersCount} /></div>}
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-5">
           <div className="flex items-center gap-3 mb-1">
@@ -218,6 +257,10 @@ export default function AdminStatsPage() {
                   )}
                 </p>
               )}
+              <p className="text-xs text-gray-500">
+                Ticket promedio: <span className="font-semibold text-gray-700">{formatUsd(avgTicketUsd)}</span>
+              </p>
+              <DeltaBadge current={totalRevenueUsd} previous={prevRevenueUsd} />
             </div>
           )}
         </div>
