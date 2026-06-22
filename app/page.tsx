@@ -266,16 +266,8 @@ const HomePage = async () => {
   const newest = products.slice(0, 8);
   const gaming = pickGaming(products).slice(0, 8);
 
-  const lcpHeroImage =
-    heroBanners[0]?.imageUrl?.trim() ||
-    siteContent.heroFallback.imageUrl?.trim() ||
-    null;
-
   return (
     <div className="w-full max-w-full overflow-x-hidden">
-      {lcpHeroImage ? (
-        <link rel="preload" as="image" href={lcpHeroImage} fetchPriority="high" />
-      ) : null}
       {/* Hero — ancho completo solo en móvil (< sm); desde sm conserva el padding del container */}
       <div className="-mx-4 w-[calc(100%+2rem)] sm:mx-0 sm:w-full">
         <div className="-mt-1 sm:-mt-2">

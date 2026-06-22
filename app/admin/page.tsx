@@ -14,9 +14,13 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
+import { getOrderDualMoney } from '@/lib/order-pricing';
 
 const formatBs = (amount: number) =>
   new Intl.NumberFormat('es-VE', { style: 'currency', currency: 'VES' }).format(amount);
+
+const formatUsd = (amount: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
 
 const formatShortDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-VE', { day: 'numeric', month: 'short' });
@@ -78,7 +82,9 @@ const AdminHomePage = () => {
   const pendingOrders = data?.pendingOrders ?? 0;
   const inProcessOrders = data?.inProcessOrders ?? 0;
   const shippedOrders = data?.shippedOrders ?? 0;
-  const revenue = data?.revenue ?? 0;
+  const revenueUsd = data?.revenueUsd ?? 0;
+  const revenueBs = data?.revenueBs ?? 0;
+  const hasLegacyUsdRevenue = data?.hasLegacyUsdRevenue ?? false;
 
   const recentOrders = data?.recentOrders ?? [];
   const lowStockProducts = data?.lowStockProducts ?? [];
@@ -106,7 +112,15 @@ const AdminHomePage = () => {
     },
     {
       key: 'total', header: 'Total', mobileLabel: 'Total', align: 'right',
-      cell: o => <span className="font-bold text-gray-900 whitespace-nowrap">{formatBs(o.total)}</span>,
+      cell: o => {
+        const money = getOrderDualMoney(o.total, o);
+        return (
+          <span className="whitespace-nowrap text-right leading-tight">
+            <span className="block font-bold text-gray-900">{money.usd}</span>
+            <span className="block text-[11px] text-gray-400">{money.bs}</span>
+          </span>
+        );
+      },
     },
   ];
 
@@ -121,11 +135,16 @@ const AdminHomePage = () => {
       <div className="bg-gradient-to-br from-navy to-[#0f172a] rounded-2xl p-5 sm:p-6 text-white shadow-lg relative overflow-hidden">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-brand-yellow/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative">
-          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Ingresos totales (VES)</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">Ingresos totales (USD)</p>
           <p className="text-3xl sm:text-4xl font-black mt-1.5 tabular-nums">
-            {loadingOrders ? '—' : formatBs(revenue)}
+            {loadingOrders ? '—' : formatUsd(revenueUsd)}
           </p>
-          <p className="text-[11px] opacity-60 mt-1">Solo pagos validados · montos según el pedido (Bs o USD según corresponda)</p>
+          {!loadingOrders && revenueBs > 0 && (
+            <p className="text-sm font-semibold opacity-80 mt-0.5 tabular-nums">
+              ≈ {formatBs(revenueBs)}{hasLegacyUsdRevenue ? ' + pedidos legado USD' : ''}
+            </p>
+          )}
+          <p className="text-[11px] opacity-60 mt-1">Solo pagos validados · USD principal, Bs según la tasa congelada de cada pedido</p>
         </div>
       </div>
 

@@ -13,6 +13,7 @@ import { requireAdminAction } from '@/lib/api-auth';
 import { VALIDATED_REVENUE_STATUSES } from '@/lib/analytics-orders';
 import type { OrderStatus } from '@/lib/definitions';
 import { d, dn } from '@/lib/decimal';
+import { roundMoney2 } from '@/lib/exchange-rate';
 
 const LOW_STOCK_THRESHOLD = 3;
 
@@ -43,8 +44,12 @@ export interface AdminDashboardData {
   pendingOrders:   number;
   inProcessOrders: number;
   shippedOrders:   number;
-  /** Suma de totales almacenados de pedidos con pago validado (misma lógica que stats — PRD-220). */
-  revenue:         number;
+  /** Ingresos validados expresados en USD (moneda principal del panel). */
+  revenueUsd: number;
+  /** Suma en Bs de los pedidos validados con tasa congelada (excluye legado USD). */
+  revenueBs: number;
+  /** True si hay pedidos validados legado guardados en USD (sin equivalente Bs). */
+  hasLegacyUsdRevenue: boolean;
   recentOrders:    DashboardRecentOrder[];
 }
 
@@ -61,7 +66,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     pendingOrders,
     inProcessOrders,
     shippedOrders,
-    revenueAgg,
+    validatedRevenueRows,
     recentOrders,
   ] = await Promise.all([
     prisma.product.count(),
@@ -84,9 +89,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     }),
     prisma.order.count({ where: { status: 'En Proceso' satisfies OrderStatus } }),
     prisma.order.count({ where: { status: 'Enviado' satisfies OrderStatus } }),
-    prisma.order.aggregate({
-      _sum:  { total: true },
-      where: { status: { in: [...VALIDATED_REVENUE_STATUSES] } },
+    prisma.order.findMany({
+      where:  { status: { in: [...VALIDATED_REVENUE_STATUSES] } },
+      select: { total: true, exchangeRateUsdBs: true },
     }),
     prisma.order.findMany({
       orderBy: { createdAt: 'desc' },
@@ -103,6 +108,23 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     }),
   ]);
 
+  let revenueUsd = 0;
+  let revenueBs = 0;
+  let hasLegacyUsdRevenue = false;
+  for (const row of validatedRevenueRows) {
+    const total = d(row.total);
+    const rate = dn(row.exchangeRateUsdBs);
+    if (rate != null && rate > 0) {
+      revenueUsd += roundMoney2(total / rate); // total en Bs → USD
+      revenueBs += total;                       // Bs congelado
+    } else {
+      revenueUsd += total;                      // legado: total ya está en USD
+      hasLegacyUsdRevenue = true;
+    }
+  }
+  revenueUsd = roundMoney2(revenueUsd);
+  revenueBs = roundMoney2(revenueBs);
+
   return {
     totalProducts,
     totalCategories: categoryRows.length,
@@ -113,8 +135,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     pendingOrders,
     inProcessOrders,
     shippedOrders,
-    // PRD-204: _sum.total devuelve Decimal | null → convertir a number
-    revenue: d(revenueAgg._sum.total),
+    revenueUsd,
+    revenueBs,
+    hasLegacyUsdRevenue,
     recentOrders: recentOrders.map((o) => ({
       id:           o.id,
       orderNumber:  o.orderNumber,
