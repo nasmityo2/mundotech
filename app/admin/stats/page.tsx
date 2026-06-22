@@ -8,7 +8,7 @@ import {
   orderStoredRevenueTotal,
 } from '@/lib/analytics-orders';
 import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
-import { BarChart2, TrendingUp, Package, ShoppingCart, Award, Eye, CreditCard, MapPin, Users, UserPlus, Wallet } from 'lucide-react';
+import { BarChart2, TrendingUp, Package, ShoppingCart, Award, Eye, CreditCard, MapPin, Users, UserPlus, Wallet, BellRing, XCircle } from 'lucide-react';
 
 interface TopViewedProduct {
   productId:   string;
@@ -120,6 +120,13 @@ export default function AdminStatsPage() {
         const d = orderAnalyticsPeriodDate(o);
         return d >= prevFrom && d < from;
       });
+  }, [orders, period]);
+
+  // Todos los pedidos del período sin filtrar por estado (para la tasa de cancelación).
+  const periodOrdersAllStatuses = useMemo(() => {
+    const from = startOf(period);
+    if (!from) return orders;
+    return orders.filter(o => orderAnalyticsPeriodDate(o) >= from);
   }, [orders, period]);
 
   const productStats = useMemo((): ProductStat[] => {
@@ -265,6 +272,16 @@ export default function AdminStatsPage() {
     return { profit, cost, marginPct, uncovered };
   }, [productStats, productCosts]);
 
+  // Órdenes ya pagadas que esperan verificación del admin (alerta operativa, NO por período).
+  const PENDING_STATUSES: string[] = ['Pendiente', 'Pendiente verificación Binance'];
+  const pendingVerifyOrders = orders.filter(o => PENDING_STATUSES.includes(o.status));
+  const pendingVerifyCount = pendingVerifyOrders.length;
+  const pendingVerifyUsd = pendingVerifyOrders.reduce((s, o) => s + (getOrderDualMoney(orderStoredRevenueTotal(o), o).usdAmount ?? 0), 0);
+  // Tasa de cancelación = cancelados / (validados + cancelados) del período.
+  const cancelledCount = periodOrdersAllStatuses.filter(o => o.status === 'Cancelado').length;
+  const cancelRateBase = totalOrdersInPeriod + cancelledCount;
+  const cancelRate = cancelRateBase > 0 ? (cancelledCount / cancelRateBase) * 100 : 0;
+
   // PRD-EXTRA-ADM-1: los máximos deben calcularse sobre cada métrica, no sobre
   // la primera fila del orden activo (antes la barra podía superar el 100%).
   const maxUnits = Math.max(1, ...productStats.map(p => p.unitsSold));
@@ -352,6 +369,47 @@ export default function AdminStatsPage() {
                 Ticket promedio: <span className="font-semibold text-gray-700">{formatUsd(avgTicketUsd)}</span>
               </p>
               <DeltaBadge current={totalRevenueUsd} previous={prevRevenueUsd} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Pendientes de verificación y cancelaciones */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        <div className={`rounded-xl p-5 border ${pendingVerifyCount > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center">
+              <BellRing size={18} className="text-amber-600" />
+            </div>
+            <p className="text-sm text-gray-500">Pendientes de verificación</p>
+          </div>
+          {loading ? (
+            <p className="text-2xl font-bold text-gray-900 mt-2">—</p>
+          ) : pendingVerifyCount === 0 ? (
+            <div className="mt-2">
+              <p className="text-2xl font-bold text-green-600">Todo al día ✓</p>
+              <p className="text-xs text-gray-500 mt-0.5">No hay órdenes por revisar.</p>
+            </div>
+          ) : (
+            <div className="mt-2">
+              <p className="text-3xl font-bold text-amber-700">{pendingVerifyCount}</p>
+              <p className="text-xs text-gray-600 mt-0.5">orden{pendingVerifyCount !== 1 ? 'es' : ''} por revisar · {formatUsd(pendingVerifyUsd)} en juego</p>
+            </div>
+          )}
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center">
+              <XCircle size={18} className="text-red-500" />
+            </div>
+            <p className="text-sm text-gray-500">Tasa de cancelación</p>
+          </div>
+          {loading ? (
+            <p className="text-2xl font-bold text-gray-900 mt-2">—</p>
+          ) : (
+            <div className="mt-2">
+              <p className="text-2xl font-bold text-gray-900">{cancelRate.toFixed(1)}%</p>
+              <p className="text-xs text-gray-500 mt-0.5">{cancelledCount} cancelado{cancelledCount !== 1 ? 's' : ''} de {cancelRateBase} (validados + cancelados)</p>
             </div>
           )}
         </div>
