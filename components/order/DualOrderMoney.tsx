@@ -36,10 +36,17 @@ export function DualOrderMoney({
   return (
     <div className={`flex flex-col ${align === 'right' ? 'items-end text-right' : 'items-start text-left'} ${className}`}>
       {ves ? (
-        <>
-          <span className={primaryCls}>{d.bs}</span>
-          <span className={secondaryCls}>{d.usd}</span>
-        </>
+        variant === 'admin' ? (
+          <>
+            <span className={primaryCls}>{d.usd}</span>
+            <span className={secondaryCls}>{d.bs}</span>
+          </>
+        ) : (
+          <>
+            <span className={primaryCls}>{d.bs}</span>
+            <span className={secondaryCls}>{d.usd}</span>
+          </>
+        )
       ) : (
         <>
           <span className={primaryCls}>{d.usd}</span>
