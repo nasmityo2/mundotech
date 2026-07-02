@@ -35,6 +35,10 @@ if (r2Pattern) {
 }
 
 const nextConfig = {
+  // Permite builds de validación (NEXT_BUILD_DIR=.next-validate npx next build)
+  // sin sobreescribir el .next que systemd está sirviendo en producción.
+  distDir: process.env.NEXT_BUILD_DIR || '.next',
+
   // PRD-071: no exponer el framework al servidor ("X-Powered-By: Next.js").
   poweredByHeader: false,
 
