@@ -185,7 +185,7 @@ function CtaBanner({ data }: { data: CtaBannerData | null }) {
           alt="Tecnología MundoTech"
           fill
           sizes="100vw"
-          quality={90}
+          quality={80}
           className="object-cover opacity-[0.07]"
         />
       ) : null}

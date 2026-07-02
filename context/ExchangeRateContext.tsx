@@ -47,8 +47,24 @@ export function ExchangeRateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchRate();
-    const id = setInterval(fetchRate, REFRESH_INTERVAL);
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setInterval> | null = setInterval(fetchRate, REFRESH_INTERVAL);
+
+    // Móvil: pausar el poll con la pestaña en background (batería/datos) y
+    // refrescar de inmediato al volver — la tasa BCV no necesita polls ocultos.
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        if (id) { clearInterval(id); id = null; }
+      } else if (!id) {
+        fetchRate();
+        id = setInterval(fetchRate, REFRESH_INTERVAL);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      if (id) clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [fetchRate]);
 
   return (

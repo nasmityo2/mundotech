@@ -76,7 +76,7 @@ const ProductCard = ({ product, priority = false }: { product: Product; priority
             priority={priority}
             fetchPriority={priority ? 'high' : undefined}
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            quality={priority ? 75 : 90}
+            quality={75}
             className="object-contain p-4 sm:p-6 transition-transform duration-500 drop-shadow-[0_6px_18px_rgba(11,18,32,0.10)] group-hover:scale-[1.04]"
           />
 

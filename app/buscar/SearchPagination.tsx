@@ -59,13 +59,13 @@ export default function SearchPagination({
       {currentPage > 1 ? (
         <Link
           href={pageHref(q, cat, brand, sort, minPrice, maxPrice, disp, currentPage - 1)}
-          className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-slate-200/80 text-navy hover:bg-slate-50 hover:border-navy/20 shadow-soft transition-all"
+          className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-white border border-slate-200/80 text-navy hover:bg-slate-50 hover:border-navy/20 shadow-soft transition-all"
           aria-label="Página anterior"
         >
           <ChevronLeft size={16} />
         </Link>
       ) : (
-        <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-slate-200/80 text-slate-300 shadow-soft cursor-not-allowed">
+        <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-white border border-slate-200/80 text-slate-300 shadow-soft cursor-not-allowed">
           <ChevronLeft size={16} />
         </span>
       )}
@@ -74,7 +74,7 @@ export default function SearchPagination({
         p === '...' ? (
           <span
             key={`ellipsis-${i}`}
-            className="inline-flex items-center justify-center w-10 h-10 text-slate-400 text-sm"
+            className="inline-flex items-center justify-center w-11 h-11 text-slate-400 text-sm"
           >
             …
           </span>
@@ -83,7 +83,7 @@ export default function SearchPagination({
             key={p}
             href={pageHref(q, cat, brand, sort, minPrice, maxPrice, disp, p as number)}
             aria-current={p === currentPage ? 'page' : undefined}
-            className={`inline-flex items-center justify-center w-10 h-10 rounded-xl text-sm font-semibold transition-all shadow-soft ${
+            className={`inline-flex items-center justify-center w-11 h-11 rounded-xl text-sm font-semibold transition-all shadow-soft ${
               p === currentPage
                 ? 'bg-navy text-white border border-navy'
                 : 'bg-white border border-slate-200/80 text-navy hover:bg-slate-50 hover:border-navy/20'
@@ -97,13 +97,13 @@ export default function SearchPagination({
       {currentPage < totalPages ? (
         <Link
           href={pageHref(q, cat, brand, sort, minPrice, maxPrice, disp, currentPage + 1)}
-          className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-slate-200/80 text-navy hover:bg-slate-50 hover:border-navy/20 shadow-soft transition-all"
+          className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-white border border-slate-200/80 text-navy hover:bg-slate-50 hover:border-navy/20 shadow-soft transition-all"
           aria-label="Página siguiente"
         >
           <ChevronRight size={16} />
         </Link>
       ) : (
-        <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-slate-200/80 text-slate-300 shadow-soft cursor-not-allowed">
+        <span className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-white border border-slate-200/80 text-slate-300 shadow-soft cursor-not-allowed">
           <ChevronRight size={16} />
         </span>
       )}

@@ -87,7 +87,7 @@ export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) 
               onChange={(e) => setGuestRef(e.target.value)}
               placeholder="Ej: 0042 o número completo"
               aria-label="Número de pedido"
-              className="flex-1 min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-navy placeholder-slate-400 outline-none focus:border-navy focus:ring-1 focus:ring-navy/20"
+              className="flex-1 min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 min-h-[44px] text-base text-navy placeholder-slate-400 outline-none focus:border-navy focus:ring-1 focus:ring-navy/20"
             />
             <button
               type="submit"

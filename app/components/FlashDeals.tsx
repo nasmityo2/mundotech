@@ -90,7 +90,7 @@ function FlashCard({ product }: { product: FlashProduct }) {
           alt={product.name}
           fill
           sizes="(max-width:640px) 44vw, 160px"
-          quality={90}
+          quality={80}
           className="object-contain p-2.5 transition-transform duration-300 drop-shadow-[0_6px_20px_rgba(11,18,32,0.1)] group-hover:scale-105 sm:p-4"
         />
       </div>

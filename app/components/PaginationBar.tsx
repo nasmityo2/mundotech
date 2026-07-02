@@ -62,7 +62,7 @@ export default function PaginationBar({ page, totalPages, basePath, catalogQuery
   const items   = pageRange(page, totalPages);
 
   const baseBtn =
-    'inline-flex items-center justify-center h-10 min-w-[40px] px-2 rounded-xl text-[13px] font-semibold transition-colors select-none';
+    'inline-flex items-center justify-center h-11 min-w-[44px] px-2 rounded-xl text-[13px] font-semibold transition-colors select-none';
   const activeBtn = `${baseBtn} bg-navy text-white shadow-soft`;
   const normalBtn = `${baseBtn} text-slate-600 hover:bg-slate-100 hover:text-navy`;
   const disabledBtn = `${baseBtn} text-slate-300 pointer-events-none`;

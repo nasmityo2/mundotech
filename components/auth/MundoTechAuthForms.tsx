@@ -170,6 +170,9 @@ export function AuthLoginForm({ callbackUrl, defaultEmail }: LoginPanelProps) {
   }, []);
 
   useEffect(() => {
+    // Solo auto-enfocar con puntero fino (desktop): en móvil levantaba el
+    // teclado virtual al instante y tapaba media pantalla.
+    if (window.matchMedia('(pointer: coarse)').matches) return;
     const id = window.requestAnimationFrame(() => {
       document.getElementById('login-email')?.focus();
     });
@@ -317,12 +320,12 @@ export function AuthLoginForm({ callbackUrl, defaultEmail }: LoginPanelProps) {
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-0.5">
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 select-none">
+          <label className="flex cursor-pointer items-center gap-2 min-h-[44px] -my-2 text-sm text-slate-600 select-none">
             <input
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-navy focus:ring-navy/40"
+              className="h-5 w-5 rounded border-slate-300 text-navy focus:ring-navy/40"
             />
             Recordarme
           </label>
@@ -414,6 +417,7 @@ export function AuthRegisterForm({ callbackUrl }: RegisterPanelProps) {
   }, []);
 
   useEffect(() => {
+    if (window.matchMedia('(pointer: coarse)').matches) return;
     const id = window.requestAnimationFrame(() => {
       document.getElementById('reg-name')?.focus();
     });
@@ -701,7 +705,7 @@ export function AuthRegisterForm({ callbackUrl }: RegisterPanelProps) {
             <input
               type="checkbox"
               {...form.register('acceptTerms')}
-              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-navy focus:ring-navy/40"
+              className="mt-0.5 h-5 w-5 shrink-0 rounded border-slate-300 text-navy focus:ring-navy/40"
             />
             <span>
               Acepto los{' '}

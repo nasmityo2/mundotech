@@ -26,7 +26,7 @@ function PromoBannerCard({ banner }: { banner: PromoBannerItem }) {
           alt={alt}
           fill
           sizes="(max-width: 640px) 100vw, 50vw"
-          quality={90}
+          quality={80}
           className="object-contain transition-transform duration-300 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
         />
       </div>
