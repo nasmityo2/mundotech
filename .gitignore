@@ -46,3 +46,7 @@ coverage/
 
 # npm debug logs (redundante con *.log, explícito)
 npm-debug.log*
+
+# Backups de variables de entorno: JAMAS trackear (incidente 14-jun: .env.bak commiteado con credenciales)
+.env.bak*
+.env*.bak*
