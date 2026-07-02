@@ -192,11 +192,14 @@ export default function ProductActions({ product }: { product: Product }) {
               <div className="flex gap-2">
                 <input
                   type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  enterKeyHint="send"
                   value={restockEmail || (session?.user?.email ?? '')}
                   onChange={(e) => setRestockEmail(e.target.value)}
                   placeholder="tu@email.com"
                   required
-                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-navy placeholder-slate-400 outline-none focus:border-navy focus:ring-1 focus:ring-navy/20 disabled:opacity-60"
+                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-base text-navy placeholder-slate-400 outline-none focus:border-navy focus:ring-1 focus:ring-navy/20 disabled:opacity-60"
                   disabled={isPending}
                 />
                 <button

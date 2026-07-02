@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { readSiteContent, type TrustIcon } from '@/lib/site-content';
 import ProductActions from './ProductActions';
+import StickyAddToCart from './StickyAddToCart';
 import ProductGallery from './ProductGallery';
 import { firstCardImage, productToGalleryItems } from '@/lib/product-media';
 import ProductTabs from './ProductTabs';
@@ -303,7 +304,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const isLowStock = !isOut && product.stock <= 5;
 
   return (
-    <div className="pb-12 w-full max-w-full">
+    <div className="pb-24 lg:pb-12 w-full max-w-full">
 
       {/* ── Datos estructurados JSON-LD ── */}
       <ProductJsonLd
@@ -315,14 +316,14 @@ export default async function ProductDetailPage({ params }: PageProps) {
       />
 
       {/* ── Breadcrumb ── */}
-      <nav className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400 mt-1 mb-4 sm:mb-6 overflow-hidden whitespace-nowrap" aria-label="Breadcrumb">
-        <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
+      <nav className="flex items-center gap-1.5 text-xs text-slate-400 mt-1 mb-4 sm:mb-6 overflow-hidden whitespace-nowrap" aria-label="Breadcrumb">
+        <Link href="/" className="hover:text-navy transition-colors flex-shrink-0">Inicio</Link>
         <ChevronRight size={12} className="flex-shrink-0" />
-        <Link href="/productos" className="hover:text-navy transition-colors">Catálogo</Link>
+        <Link href="/productos" className="hover:text-navy transition-colors flex-shrink-0">Catálogo</Link>
         <ChevronRight size={12} className="flex-shrink-0 hidden xs:block" />
         <Link
           href={categoryPath}
-          className="hover:text-navy transition-colors capitalize hidden xs:inline"
+          className="hover:text-navy transition-colors capitalize hidden xs:inline truncate max-w-[9rem]"
         >
           {product.category}
         </Link>
@@ -432,8 +433,10 @@ export default async function ProductDetailPage({ params }: PageProps) {
 
           <ProductShare name={product.name} />
 
-          {/* Trust strip — datos reales de la operación, editables en el admin */}
-          <div className={`mt-5 grid gap-2 sm:gap-3 ${siteContent.productTrust.length >= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          {/* Trust strip — datos reales de la operación, editables en el admin.
+              En <420px tres columnas dejaban el texto ilegible: pasa a 2 y
+              reacomoda a 3 desde xs. */}
+          <div className={`mt-5 grid gap-2 sm:gap-3 ${siteContent.productTrust.length >= 3 ? 'grid-cols-2 xs:grid-cols-3' : 'grid-cols-2'}`}>
             {siteContent.productTrust.map(({ icon, title, sub }) => {
               const Icon = TRUST_ICONS[icon] ?? ShieldCheck;
               return (
@@ -560,6 +563,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
         brand={product.brand}
         category={product.category}
       />
+
+      {/* ── Barra de compra fija en móvil (aparece tras el scroll) ── */}
+      <StickyAddToCart product={productForClient} />
     </div>
   );
 }

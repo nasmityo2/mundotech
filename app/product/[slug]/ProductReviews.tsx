@@ -329,7 +329,7 @@ export default function ProductReviews({ productId, productName, initialSummary,
             <h3 className="text-sm font-semibold text-navy">
               {editingId ? `Editar tu reseña de ${productName}` : `Tu reseña de ${productName}`}
             </h3>
-            <button type="button" onClick={resetForm} aria-label="Cerrar" className="text-slate-400 hover:text-navy">
+            <button type="button" onClick={resetForm} aria-label="Cerrar" className="min-w-[44px] min-h-[44px] -my-3 -mr-3 flex items-center justify-center text-slate-400 hover:text-navy">
               <X size={18} />
             </button>
           </div>
@@ -352,10 +352,13 @@ export default function ProductReviews({ productId, productName, initialSummary,
                       role="radio"
                       aria-checked={rating === s}
                       onClick={() => setRating(s)}
-                      onMouseEnter={() => setHover(s)}
-                      onMouseLeave={() => setHover(0)}
+                      // Pointer events: el preview también funciona en touch
+                      // (onMouseEnter solo aplicaba con mouse real).
+                      onPointerEnter={() => setHover(s)}
+                      onPointerLeave={() => setHover(0)}
+                      onPointerCancel={() => setHover(0)}
                       aria-label={`${s} ${s === 1 ? 'estrella' : 'estrellas'}`}
-                      className="p-0.5 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-navy/40"
+                      className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-navy/40"
                     >
                       <Star size={30} aria-hidden className={(hover || rating) >= s ? 'text-amber-400 fill-amber-400' : 'text-slate-300'} />
                     </button>
@@ -365,14 +368,14 @@ export default function ProductReviews({ productId, productName, initialSummary,
               <div>
                 <label htmlFor="review-title" className="block text-xs font-semibold text-slate-600 mb-1.5">Título (opcional)</label>
                 <input id="review-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120}
-                  placeholder="Resume tu experiencia"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-navy focus:ring-2 focus:ring-navy/10 outline-none" />
+                  placeholder="Resume tu experiencia" enterKeyHint="next" autoComplete="off"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-base focus:border-navy focus:ring-2 focus:ring-navy/10 outline-none" />
               </div>
               <div>
                 <label htmlFor="review-comment" className="block text-xs font-semibold text-slate-600 mb-1.5">Tu comentario</label>
                 <textarea id="review-comment" value={comment} onChange={(e) => setComment(e.target.value)} maxLength={2000} rows={4}
                   placeholder="¿Qué te pareció el producto? ¿Lo recomiendas?"
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-navy focus:ring-2 focus:ring-navy/10 outline-none resize-y" />
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-base focus:border-navy focus:ring-2 focus:ring-navy/10 outline-none resize-y" />
               </div>
               <div>
                 <p className="block text-xs font-semibold text-slate-600 mb-1.5">Fotos (opcional, máx {MAX_PHOTOS})</p>
@@ -478,7 +481,7 @@ export default function ProductReviews({ productId, productName, initialSummary,
       {/* Visor de fotos (lightbox) */}
       {lightboxSrc && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" role="dialog" aria-modal="true" onClick={() => setLightboxSrc(null)}>
-          <button type="button" onClick={() => setLightboxSrc(null)} aria-label="Cerrar" className="absolute top-4 right-4 text-white/80 hover:text-white">
+          <button type="button" onClick={() => setLightboxSrc(null)} aria-label="Cerrar" className="absolute top-2 right-2 min-w-[48px] min-h-[48px] flex items-center justify-center text-white/80 hover:text-white">
             <X size={28} />
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -366,7 +366,7 @@ function Lightbox({
           type="button"
           onClick={handleClose}
           aria-label="Cerrar"
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm hover:bg-black/65 transition"
+          className="w-11 h-11 flex items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm hover:bg-black/65 transition"
         >
           <X size={22} />
         </button>
