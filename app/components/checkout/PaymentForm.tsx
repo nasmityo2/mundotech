@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, Building, ChevronRight, Copy, Check, UploadCloud, X, Wallet } from 'lucide-react';
 import { Field } from '@/components/ui/Field';
@@ -28,7 +28,8 @@ export type PaymentFormData = {
 
 interface PaymentFormProps {
   onPaymentSubmit: (data: PaymentFormData) => void;
-  onBack: () => void;
+  /** Datos ya capturados: al volver desde Revisión el formulario se remonta y sin esto se perdía todo. */
+  initialData?: PaymentFormData | null;
   /** Datos de pago de la tienda leídos desde el data-store en el Server Component padre. */
   pagoMovil: StoreSettings['pagoMovil'];
   transferencia: StoreSettings['transferencia'];
@@ -46,31 +47,43 @@ const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 const selectCls =
   'block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy';
 
-const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId = '', binanceQrUrl = '' }: PaymentFormProps) => {
-  const [selected,        setSelected]        = useState<PaymentMethod | null>(null);
+const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, binancePayId = '', binanceQrUrl = '' }: PaymentFormProps) => {
+  const [selected,        setSelected]        = useState<PaymentMethod | null>(initialData?.paymentMethod ?? null);
   const [copiedField,     setCopiedField]      = useState<string | null>(null);
-  const [bank,            setBank]             = useState('');
-  const [holderIdNumber,  setHolderIdNumber]   = useState('');
-  const [holderPhone,     setHolderPhone]      = useState('');
-  const [referenceNumber, setReferenceNumber]  = useState('');
-  const [proofFile,       setProofFile]        = useState<File | null>(null);
-  const [proofPreviewUrl, setProofPreviewUrl]  = useState('');
+  const [bank,            setBank]             = useState(initialData?.bank && initialData.bank !== 'Binance' ? initialData.bank : '');
+  const [holderIdNumber,  setHolderIdNumber]   = useState(initialData?.holderIdNumber ?? '');
+  const [holderPhone,     setHolderPhone]      = useState(initialData?.holderPhone ?? '');
+  const [referenceNumber, setReferenceNumber]  = useState(initialData?.referenceNumber ?? '');
+  const [proofFile,       setProofFile]        = useState<File | null>(initialData?.proofFile ?? null);
+  const [proofPreviewUrl, setProofPreviewUrl]  = useState(initialData?.proofPreviewUrl ?? '');
   const [uploadError,     setUploadError]      = useState<string | null>(null);
   const [errors,          setErrors]           = useState<Partial<Record<'paymentMethod' | 'bank' | 'holderIdNumber' | 'holderPhone' | 'referenceNumber' | 'proofFile', string>>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Liberar el object URL anterior al reemplazar/quitar la captura.
-  useEffect(() => {
-    return () => {
-      if (proofPreviewUrl) URL.revokeObjectURL(proofPreviewUrl);
-    };
-  }, [proofPreviewUrl]);
+  // Nota: el object URL NO se revoca al desmontar — ReviewStep lo usa para
+  // mostrar la captura adjunta y al volver atrás se restaura como preview.
+  // Solo se libera al reemplazar/quitar la imagen (ver selectProof/clearProof).
 
-  const handleCopy = (value: string) => {
-    navigator.clipboard.writeText(value).then(() => {
-      setCopiedField(value);
-      setTimeout(() => setCopiedField(null), 1500);
-    });
+  const handleCopy = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // Safari iOS / WebViews sin permiso de clipboard: fallback clásico.
+      const ta = document.createElement('textarea');
+      ta.value = value;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        document.execCommand('copy');
+      } finally {
+        document.body.removeChild(ta);
+      }
+    }
+    setCopiedField(value);
+    setTimeout(() => setCopiedField(null), 1500);
   };
 
   const selectProof = useCallback((file: File) => {
@@ -84,12 +97,18 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
       return;
     }
     setProofFile(file);
-    setProofPreviewUrl(URL.createObjectURL(file));
+    setProofPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
   }, []);
 
   const clearProof = useCallback(() => {
     setProofFile(null);
-    setProofPreviewUrl('');
+    setProofPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return '';
+    });
   }, []);
 
   const validate = (): boolean => {
@@ -245,17 +264,17 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
               {storeDataRows.map((row) => (
                 <div key={row.label} className="flex items-center justify-between gap-3 text-sm">
                   <dt className="text-slate-500 shrink-0">{row.label}</dt>
-                  <dd className="flex items-center gap-2 font-mono text-navy text-[13px] text-right">
+                  <dd className="flex items-center gap-1 font-mono text-navy text-[13px] text-right">
                     {row.value}
                     <button
                       type="button"
                       onClick={() => handleCopy(row.value)}
-                      className="p-1 rounded-md hover:bg-slate-200 text-slate-400 hover:text-navy transition-colors"
+                      className="min-w-[44px] min-h-[44px] -my-3 -mr-2 flex items-center justify-center rounded-md hover:bg-slate-200 text-slate-400 hover:text-navy transition-colors"
                       aria-label={`Copiar ${row.label}`}
                     >
                       {copiedField === row.value
-                        ? <Check size={12} className="text-emerald-500" />
-                        : <Copy size={12} />}
+                        ? <Check size={14} className="text-emerald-500" />
+                        : <Copy size={14} />}
                     </button>
                   </dd>
                 </div>
@@ -288,7 +307,7 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
                   <button
                     type="button"
                     onClick={() => handleCopy(binancePayId.trim())}
-                    className="shrink-0 p-2 rounded-lg hover:bg-slate-100 text-slate-500"
+                    className="shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500"
                     aria-label="Copiar Binance ID"
                   >
                     {copiedField === binancePayId.trim() ? (
@@ -324,6 +343,7 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
                 <Input
                   id="binanceReference"
                   placeholder="Ej. orden mostrada en historial o comprobante"
+                  autoComplete="off"
                   value={referenceNumber}
                   onChange={(e) => setReferenceNumber(e.target.value)}
                   invalid={!!errors.referenceNumber}
@@ -358,10 +378,12 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
                     <button
                       type="button"
                       onClick={clearProof}
-                      className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center hover:bg-rose-600 transition-colors shadow"
+                      className="absolute -top-4 -right-4 w-11 h-11 flex items-center justify-center"
                       aria-label="Eliminar captura"
                     >
-                      <X size={12} />
+                      <span className="w-7 h-7 bg-rose-500 text-white rounded-full flex items-center justify-center hover:bg-rose-600 transition-colors shadow">
+                        <X size={14} />
+                      </span>
                     </button>
                     <p className="mt-1.5 text-[11px] text-emerald-600 font-medium flex items-center gap-1">
                       <Check size={11} /> Captura lista — se envía al confirmar el pedido
@@ -443,6 +465,7 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
                 <Input
                   id="holderIdNumber"
                   placeholder="V-12345678"
+                  autoComplete="off"
                   value={holderIdNumber}
                   onChange={(e) => setHolderIdNumber(e.target.value)}
                   invalid={!!errors.holderIdNumber}
@@ -454,6 +477,8 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
                 <Input
                   id="holderPhone"
                   type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
                   placeholder="0412-0000000"
                   value={holderPhone}
                   onChange={(e) => setHolderPhone(e.target.value)}
@@ -466,6 +491,8 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
                 <Field id="referenceNumber" label="Número de referencia de la operación" error={errors.referenceNumber}>
                   <Input
                     id="referenceNumber"
+                    inputMode="numeric"
+                    autoComplete="off"
                     placeholder="Ej. 009432871"
                     value={referenceNumber}
                     onChange={(e) => setReferenceNumber(e.target.value)}
@@ -509,10 +536,12 @@ const PaymentForm = ({ onPaymentSubmit, pagoMovil, transferencia, binancePayId =
                 <button
                   type="button"
                   onClick={clearProof}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center hover:bg-rose-600 transition-colors shadow"
+                  className="absolute -top-4 -right-4 w-11 h-11 flex items-center justify-center"
                   aria-label="Eliminar comprobante"
                 >
-                  <X size={12} />
+                  <span className="w-7 h-7 bg-rose-500 text-white rounded-full flex items-center justify-center hover:bg-rose-600 transition-colors shadow">
+                    <X size={14} />
+                  </span>
                 </button>
                 <p className="mt-1.5 text-[11px] text-emerald-600 font-medium flex items-center gap-1">
                   <Check size={11} /> Comprobante listo — se envía al confirmar el pedido

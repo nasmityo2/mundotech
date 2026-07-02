@@ -23,14 +23,16 @@ export type ShippingFormData = {
 
 interface ShippingFormProps {
   onFormSubmit: (data: ShippingFormData) => void;
+  /** Datos ya capturados: al volver desde el paso de pago el formulario se remonta y sin esto se perdía lo escrito. */
+  initialData?: ShippingFormData | null;
 }
 
-const ShippingForm = ({ onFormSubmit }: ShippingFormProps) => {
+const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
   const { data: session } = useSession();
   const {
     register, handleSubmit, formState: { errors }, watch, setValue,
   } = useForm<ShippingFormData>({
-    defaultValues: { shippingMethod: 'tienda', email: '' },
+    defaultValues: initialData ?? { shippingMethod: 'tienda', email: '' },
   });
 
   const [savedAddresses, setSavedAddresses]   = useState<SavedAddress[]>([]);
@@ -39,8 +41,10 @@ const ShippingForm = ({ onFormSubmit }: ShippingFormProps) => {
   const [loadingAddrs,   setLoadingAddrs]      = useState(false);
 
   useEffect(() => {
+    if (initialData?.email) return;
     const e = session?.user?.email?.trim();
     if (e) setValue('email', e);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.email, setValue]);
 
   useEffect(() => {
@@ -49,6 +53,9 @@ const ShippingForm = ({ onFormSubmit }: ShippingFormProps) => {
     getSavedAddresses()
       .then((addrs) => {
         setSavedAddresses(addrs);
+        // Solo auto-aplicar la dirección por defecto en la primera visita:
+        // si venimos "de vuelta" desde el pago, respetar lo que ya escribió.
+        if (initialData) return;
         const def = addrs.find((a) => a.isDefault) ?? addrs[0];
         if (def) applyAddress(def);
       })
@@ -198,15 +205,16 @@ const ShippingForm = ({ onFormSubmit }: ShippingFormProps) => {
       {/* Datos personales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <Field id="firstName" label="Nombre" error={errors.firstName?.message}>
-          <Input id="firstName" {...register('firstName', { required: 'Requerido' })} invalid={!!errors.firstName} />
+          <Input id="firstName" autoComplete="given-name" {...register('firstName', { required: 'Requerido' })} invalid={!!errors.firstName} />
         </Field>
         <Field id="lastName" label="Apellido" error={errors.lastName?.message}>
-          <Input id="lastName" {...register('lastName', { required: 'Requerido' })} invalid={!!errors.lastName} />
+          <Input id="lastName" autoComplete="family-name" {...register('lastName', { required: 'Requerido' })} invalid={!!errors.lastName} />
         </Field>
         <Field id="idNumber" label="Cédula de identidad" error={errors.idNumber?.message}>
           <Input
             id="idNumber"
             placeholder="V-12345678"
+            autoComplete="off"
             {...register('idNumber', { required: 'Requerido' })}
             invalid={!!errors.idNumber}
           />
@@ -215,6 +223,8 @@ const ShippingForm = ({ onFormSubmit }: ShippingFormProps) => {
           <Input
             id="phoneNumber"
             type="tel"
+            inputMode="tel"
+            autoComplete="tel"
             placeholder="+58 412-0000000"
             {...register('phoneNumber', { required: 'Requerido' })}
             invalid={!!errors.phoneNumber}

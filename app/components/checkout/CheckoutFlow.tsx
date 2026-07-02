@@ -50,6 +50,16 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Chrome Android: un gesto hacia arriba en el tope del formulario dispara
+  // pull-to-refresh y pierde el estado del checkout. Contenerlo solo aquí.
+  useEffect(() => {
+    const prev = document.documentElement.style.overscrollBehaviorY;
+    document.documentElement.style.overscrollBehaviorY = 'contain';
+    return () => {
+      document.documentElement.style.overscrollBehaviorY = prev;
+    };
+  }, []);
+
   // PRD-030: sin productos no hay nada que pagar — de vuelta al carrito.
   // Solo aplica en el paso inicial: tras confirmar el pedido (ReviewStep vacía
   // el carrito antes de ir a /checkout/success) este guard ya no interfiere.
@@ -92,11 +102,13 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
 
   const renderStepContent = () => {
     switch (currentStep) {
-      case 0: return <ShippingForm onFormSubmit={handleShippingSubmit} />;
+      // initialData: al volver desde un paso posterior el formulario se
+      // remonta (AnimatePresence) — sin esto el usuario perdía lo escrito.
+      case 0: return <ShippingForm onFormSubmit={handleShippingSubmit} initialData={shippingData} />;
       case 1: return (
         <PaymentForm
           onPaymentSubmit={handlePaymentSubmit}
-          onBack={handleBack}
+          initialData={paymentData}
           pagoMovil={pagoMovil}
           transferencia={transferencia}
           binancePayId={binancePayId}
@@ -138,8 +150,10 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
             <CheckoutStepper currentStep={currentStep} />
           </div>
 
-          {/* Step content */}
-          <div className="card-elevated p-4 sm:p-6 lg:p-8 overflow-hidden relative min-h-[300px]">
+          {/* Step content — sin overflow-hidden: un ancestro con overflow
+              recortado anula position:sticky de los CTAs de cada paso en
+              móvil (quedaban "muertos" al final del formulario). */}
+          <div className="card-elevated p-4 sm:p-6 lg:p-8 relative min-h-[300px]">
             <AnimatePresence mode="wait" custom={direction}>
               <motion.div
                 key={currentStep}
@@ -158,7 +172,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-navy transition-colors"
+                  className="inline-flex items-center gap-1.5 min-h-[44px] px-2 -mx-2 text-sm font-semibold text-slate-500 hover:text-navy transition-colors"
                 >
                   <ChevronLeft size={15} /> Volver al paso anterior
                 </button>

@@ -4,12 +4,13 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
-import { Loader2, CheckCircle2, Store, Building2, CreditCard, Tag, X } from 'lucide-react';
+import { Loader2, CheckCircle2, Store, Building2, CreditCard, Tag, X, LogIn } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useExchangeRate } from '@/context/ExchangeRateContext';
 import { ShippingFormData } from './ShippingForm';
 import { PaymentFormData } from './PaymentForm';
 import { formatCurrency } from '@/lib/utils';
+import { stashLoginRedirectForPathname } from '@/lib/auth-path';
 
 interface ReviewStepProps {
   shippingData: ShippingFormData | null;
@@ -31,6 +32,9 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 401 a mitad del checkout (token expirado): mostrar CTA de re-login que
+  // vuelve directo a /checkout — el carrito persiste en localStorage.
+  const [sessionExpired, setSessionExpired] = useState(false);
   // PRD-049: si el pedido falla DESPUÉS de subir el comprobante, el reintento
   // reutiliza la URL ya subida en vez de duplicar la imagen en R2.
   const uploadedProofRef = useRef<{ file: File; url: string } | null>(null);
@@ -114,6 +118,7 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
 
     setIsProcessing(true);
     setError(null);
+    setSessionExpired(false);
 
     try {
       const proofUrl = await uploadProofIfNeeded();
@@ -168,11 +173,19 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
       const body = (await response.json().catch(() => ({}))) as {
         id?: string;
         message?: string;
+        error?: string;
         errors?: unknown;
       };
 
       if (!response.ok) {
-        const apiMsg = body.message ?? 'Error al crear el pedido.';
+        if (response.status === 401) {
+          setSessionExpired(true);
+          setError('Tu sesión expiró mientras completabas el pedido. Inicia sesión de nuevo: tu carrito y este pedido te esperan.');
+          setIsProcessing(false);
+          return;
+        }
+        // El middleware responde { error }; el route handler { message }.
+        const apiMsg = body.message ?? body.error ?? 'Error al crear el pedido.';
         console.error('[checkout] API error:', response.status, body);
         throw new Error(apiMsg);
       }
@@ -184,9 +197,20 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
       router.push(`/checkout/success?orderId=${body.id}`);
     } catch (err) {
       console.error('[checkout] handleConfirmOrder:', err);
-      setError(err instanceof Error ? err.message : 'Hubo un problema. Por favor, inténtalo de nuevo.');
+      // Redes venezolanas: distinguir "sin conexión" (fetch lanza TypeError)
+      // de un error del servidor — el mensaje crudo era "Failed to fetch".
+      if (err instanceof TypeError) {
+        setError('Sin conexión con la tienda. Revisa tu internet e intenta de nuevo: no se creó ningún pedido.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Hubo un problema. Por favor, inténtalo de nuevo.');
+      }
       setIsProcessing(false);
     }
+  };
+
+  const handleRelogin = () => {
+    stashLoginRedirectForPathname('/checkout');
+    router.push('/login');
   };
 
   if (isCartLoading) {
@@ -366,7 +390,7 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
             <button
               type="button"
               onClick={handleRemoveCoupon}
-              className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-rose-600 transition-colors"
+              className="inline-flex items-center gap-1 min-h-[44px] px-2 -my-2 -mr-2 text-xs font-medium text-slate-500 hover:text-rose-600 transition-colors"
             >
               <X size={14} /> Quitar
             </button>
@@ -384,7 +408,10 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
                 }
               }}
               placeholder="Ingresa tu código"
-              className="flex-grow min-w-0 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-mono uppercase tracking-wide focus:border-navy focus:ring-2 focus:ring-navy/10 outline-none"
+              autoComplete="off"
+              autoCapitalize="characters"
+              enterKeyHint="go"
+              className="flex-grow min-w-0 min-h-[48px] rounded-xl border border-slate-200 px-4 text-base font-mono uppercase tracking-wide focus:border-navy focus:ring-2 focus:ring-navy/10 outline-none"
             />
             <button
               type="button"
@@ -430,7 +457,18 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
       </div>
 
       {error && (
-        <p className="rounded-xl bg-rose-50 border border-rose-100 text-rose-700 text-sm px-4 py-3">{error}</p>
+        <div className="rounded-xl bg-rose-50 border border-rose-100 px-4 py-3 space-y-2.5">
+          <p className="text-rose-700 text-sm">{error}</p>
+          {sessionExpired && (
+            <button
+              type="button"
+              onClick={handleRelogin}
+              className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-xl bg-navy text-white text-sm font-semibold hover:bg-navy-700 active:scale-[0.98] transition-all"
+            >
+              <LogIn size={15} /> Iniciar sesión y volver al checkout
+            </button>
+          )}
+        </div>
       )}
 
       <div
