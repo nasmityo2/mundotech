@@ -15,7 +15,9 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-4 sm:right-4 sm:top-auto sm:flex-col md:max-w-[400px]",
+      // pt con safe-area: en iPhone con notch/Dynamic Island el toast quedaba
+      // debajo del status bar.
+      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 pt-[max(1rem,env(safe-area-inset-top))] sm:bottom-4 sm:right-4 sm:top-auto sm:flex-col sm:pt-4 md:max-w-[400px]",
       className,
     )}
     {...props}
@@ -96,7 +98,7 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2 top-2 rounded-lg p-1.5 text-slate-400 hover:text-navy hover:bg-slate-100 transition-colors focus:outline-none",
+      "absolute right-0 top-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-slate-400 hover:text-navy hover:bg-slate-100 transition-colors focus:outline-none",
       className,
     )}
     toast-close=""

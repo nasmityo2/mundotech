@@ -83,7 +83,7 @@ export default function PromoPopup({ popup }: { popup: SiteContent['popup'] }) {
               type="button"
               onClick={dismiss}
               aria-label="Cerrar promoción"
-              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-navy transition-colors"
+              className="absolute right-1 top-1 flex h-11 w-11 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-navy transition-colors"
             >
               <X size={16} />
             </button>
@@ -107,7 +107,7 @@ export default function PromoPopup({ popup }: { popup: SiteContent['popup'] }) {
               <Link
                 href={popup.ctaLink || '/productos'}
                 onClick={dismiss}
-                className="mt-4 inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-brand-yellowDk bg-brand-yellow px-4 text-[13px] font-black text-navy transition-all hover:bg-[#FFE03A] active:scale-[0.98]"
+                className="mt-4 inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-brand-yellowDk bg-brand-yellow px-4 text-[13px] font-black text-navy transition-all hover:bg-[#FFE03A] active:scale-[0.98]"
               >
                 {popup.ctaText} <ArrowRight size={15} aria-hidden />
               </Link>

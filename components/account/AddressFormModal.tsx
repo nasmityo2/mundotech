@@ -6,6 +6,7 @@ import { Store, Building2, Loader2, X } from 'lucide-react';
 import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 import { mrwOffices } from '@/lib/mrw-offices';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import type { SavedAddress, SavedAddressInput } from '@/lib/definitions';
 
 type FormValues = {
@@ -70,6 +71,9 @@ export default function AddressFormModal({
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Bottom sheet móvil: sin esto el body seguía scrolleando detrás del modal.
+  useBodyScrollLock(true);
+
   const submit = handleSubmit(async (values) => {
     await onSubmit({
       alias:          values.alias,
@@ -90,7 +94,7 @@ export default function AddressFormModal({
       onClick={handleOverlayClick}
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
     >
-      <div className="relative w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl max-h-[90dvh] overflow-y-auto">
+      <div role="dialog" aria-modal="true" aria-label="Formulario de dirección" className="relative w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl max-h-[90dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
         {/* Header */}
         <div className="sticky top-0 bg-white/95 backdrop-blur-sm z-10 flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-navy">
@@ -99,7 +103,7 @@ export default function AddressFormModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-navy transition-colors"
+            className="w-11 h-11 -my-1.5 -mr-2 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-navy transition-colors"
             aria-label="Cerrar"
           >
             <X size={16} />

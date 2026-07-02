@@ -31,6 +31,11 @@ export default function WhatsAppFab({
     pathname.startsWith('/admin') ||
     pathname.startsWith('/checkout');
 
+  // En /cart y /product/* hay barras de compra fijas al fondo en móvil
+  // (checkout sticky / StickyAddToCart): subir el FAB para no tapar el CTA.
+  const hasBottomBar =
+    !!pathname && (pathname === '/cart' || pathname.startsWith('/product/'));
+
   if (hidden || !phone.trim()) return null;
 
   return (
@@ -42,10 +47,13 @@ export default function WhatsAppFab({
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`Escríbenos por WhatsApp al ${phone}`}
-      className="group fixed z-50 flex items-center gap-0 rounded-full bg-[#25D366] text-white shadow-[0_8px_24px_-6px_rgba(18,140,126,0.5)] hover:shadow-[0_12px_32px_-6px_rgba(18,140,126,0.6)] transition-shadow"
+      className={`group fixed z-50 flex items-center gap-0 rounded-full bg-[#25D366] text-white shadow-[0_8px_24px_-6px_rgba(18,140,126,0.5)] hover:shadow-[0_12px_32px_-6px_rgba(18,140,126,0.6)] transition-shadow ${
+        hasBottomBar
+          ? 'bottom-[calc(max(1.25rem,env(safe-area-inset-bottom))+5.5rem)] lg:bottom-[max(1.25rem,env(safe-area-inset-bottom))]'
+          : 'bottom-[max(1.25rem,env(safe-area-inset-bottom))]'
+      }`}
       style={{
         right: 'max(1rem, env(safe-area-inset-right))',
-        bottom: 'max(1.25rem, env(safe-area-inset-bottom))',
       }}
     >
       <span className="sr-only">Escríbenos por WhatsApp</span>

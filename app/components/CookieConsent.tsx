@@ -139,14 +139,14 @@ export default function CookieConsent({ initialConsent = null }: Props) {
               <button
                 type="button"
                 onClick={() => choose('essential')}
-                className="min-h-[40px] flex-1 rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-navy transition-colors hover:bg-slate-50 sm:flex-none"
+                className="min-h-[44px] flex-1 rounded-xl border border-slate-200 bg-white px-4 text-[13px] font-semibold text-navy transition-colors hover:bg-slate-50 sm:flex-none"
               >
                 Solo lo necesario
               </button>
               <button
                 type="button"
                 onClick={() => choose('accepted')}
-                className="min-h-[40px] flex-1 rounded-xl border border-brand-yellowDk bg-brand-yellow px-4 text-[13px] font-black text-navy transition-all hover:bg-[#FFE03A] active:scale-[0.98] sm:flex-none"
+                className="min-h-[44px] flex-1 rounded-xl border border-brand-yellowDk bg-brand-yellow px-4 text-[13px] font-black text-navy transition-all hover:bg-[#FFE03A] active:scale-[0.98] sm:flex-none"
               >
                 Aceptar
               </button>
