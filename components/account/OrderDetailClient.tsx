@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import {
   ArrowLeft, Truck, MapPin, CreditCard, CheckCircle2, Package, Send, Home,
-  ExternalLink, Copy, Check, Camera,
+  ExternalLink, Copy, Check, Camera, Store, Building2, MessageCircle,
 } from 'lucide-react';
 import { EnrichedOrder } from '@/app/account/orders/[id]/page';
+import { MUNDOTECH_SOCIAL } from '@/lib/mundotech-social';
 import { Badge } from '@/components/ui/Badge';
 import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
@@ -58,6 +59,22 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
   const router = useRouter();
   const [trackingCopied, setTrackingCopied] = useState(false);
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const pickupAddress = order.shippingDetails.address ?? '';
+  const isStorePickup = pickupAddress.startsWith('Retiro en tienda');
+  const isMrwPickup = pickupAddress.startsWith('Retiro en Oficina MRW');
+  const deliveryTitle = isStorePickup
+    ? 'Retiro en tienda'
+    : isMrwPickup
+      ? 'Retiro en oficina MRW'
+      : 'Envío';
+  const DeliveryIcon = isStorePickup ? Store : isMrwPickup ? Building2 : Truck;
+  const isCasheaPending =
+    order.paymentMethod === 'Cashea' &&
+    !order.paidAt &&
+    order.status !== 'Cancelado';
+  const casheaWhatsappHref = `${MUNDOTECH_SOCIAL.whatsapp}?text=${encodeURIComponent(
+    `Hola MundoTech 👋 Quiero pagar con Cashea mi pedido #${String(order.orderNumber).padStart(4, '0')}. ¿Me ayudan a coordinar el pago?`
+  )}`;
   const status =
     statusConfig[order.status as keyof typeof statusConfig] ??
     { label: order.status, variant: 'neutral' as const };
@@ -282,8 +299,8 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
         <aside className="space-y-4">
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-5">
             <div className="flex items-center gap-2 mb-3">
-              <Truck size={15} className="text-slate-400" />
-              <h3 className="text-sm font-semibold text-navy">Envío</h3>
+              <DeliveryIcon size={15} className="text-slate-400" />
+              <h3 className="text-sm font-semibold text-navy">{deliveryTitle}</h3>
             </div>
             <p className="text-sm font-semibold text-navy">{order.customerName}</p>
             <p className="text-sm text-slate-600 mt-1">{order.shippingDetails.address}</p>
@@ -301,6 +318,23 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
               <h3 className="text-sm font-semibold text-navy">Pago</h3>
             </div>
             <p className="text-sm text-navy font-medium">{order.paymentMethod}</p>
+            {isCasheaPending && (
+              <div className="mt-3 space-y-2">
+                <a
+                  href={casheaWhatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 bg-[#25D366] text-white font-bold text-sm h-11 rounded-xl shadow-soft hover:brightness-95 active:scale-[0.98] transition-all"
+                >
+                  <MessageCircle size={16} />
+                  Coordinar pago por WhatsApp
+                </a>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Escríbenos por WhatsApp para coordinar tu pago con Cashea. Preparamos tu
+                  envío en cuanto confirmemos el pago.
+                </p>
+              </div>
+            )}
           </div>
         </aside>
       </div>

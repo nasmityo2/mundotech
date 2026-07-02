@@ -161,8 +161,8 @@ const ShippingForm = ({ onFormSubmit }: ShippingFormProps) => {
       {/* Método */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {([
-          { id: 'tienda', icon: Store,     label: 'Retirar en tienda', sub: 'Recoge tu pedido en nuestra tienda' },
-          { id: 'mrw',    icon: Building2, label: 'Retiro MRW',        sub: 'Retira en oficina más cercana'      },
+          { id: 'tienda', icon: Store,     label: 'Retirar en tienda', sub: 'Recoge tu pedido en nuestra tienda física' },
+          { id: 'mrw',    icon: Building2, label: 'Envío nacional',        sub: 'Retira en la oficina de MRW más cercana'      },
         ] as const).map((opt) => {
           const active = shippingMethod === opt.id;
           return (
