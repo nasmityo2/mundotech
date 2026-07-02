@@ -200,7 +200,7 @@ const CartDrawer = () => {
                           <button
                             type="button"
                             onClick={() => removeFromCart(item.id)}
-                            className="text-slate-300 hover:text-rose-500 active:text-rose-600 transition-colors flex-shrink-0 min-w-[40px] min-h-[40px] flex items-center justify-center -mr-1.5"
+                            className="text-slate-300 hover:text-rose-500 active:text-rose-600 transition-colors flex-shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center -mr-2"
                             aria-label="Eliminar"
                           >
                             <X size={18} />
@@ -213,7 +213,7 @@ const CartDrawer = () => {
                               type="button"
                               onClick={() => updateQuantity(item.id, item.quantity - 1)}
                               disabled={item.quantity <= 1}
-                              className="min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-500 hover:text-navy hover:bg-slate-50 active:bg-slate-100 transition-colors disabled:opacity-30"
+                              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-500 hover:text-navy hover:bg-slate-50 active:bg-slate-100 transition-colors disabled:opacity-30"
                               aria-label="Reducir cantidad"
                             >
                               <Minus size={14} />
@@ -225,7 +225,7 @@ const CartDrawer = () => {
                               type="button"
                               onClick={() => updateQuantity(item.id, item.quantity + 1)}
                               disabled={item.quantity >= item.stock}
-                              className="min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-500 hover:text-navy hover:bg-slate-50 active:bg-slate-100 transition-colors disabled:opacity-30"
+                              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-500 hover:text-navy hover:bg-slate-50 active:bg-slate-100 transition-colors disabled:opacity-30"
                               aria-label="Aumentar cantidad"
                             >
                               <Plus size={14} />

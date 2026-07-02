@@ -142,7 +142,7 @@ const CartClient = () => {
                         type="button"
                         onClick={() => updateQuantity(product.id, product.quantity - 1)}
                         disabled={product.quantity <= 1}
-                        className="min-w-[40px] min-h-[40px] sm:min-w-[44px] sm:min-h-[44px] flex items-center justify-center hover:bg-white active:bg-slate-200 text-slate-500 hover:text-navy transition-colors disabled:opacity-30"
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-white active:bg-slate-200 text-slate-500 hover:text-navy transition-colors disabled:opacity-30"
                         aria-label="Reducir cantidad"
                       >
                         <Minus size={14} />
@@ -154,7 +154,7 @@ const CartClient = () => {
                         type="button"
                         onClick={() => updateQuantity(product.id, product.quantity + 1)}
                         disabled={product.quantity >= product.stock}
-                        className="min-w-[40px] min-h-[40px] sm:min-w-[44px] sm:min-h-[44px] flex items-center justify-center hover:bg-white active:bg-slate-200 text-slate-500 hover:text-navy transition-colors disabled:opacity-30"
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-white active:bg-slate-200 text-slate-500 hover:text-navy transition-colors disabled:opacity-30"
                         aria-label="Aumentar cantidad"
                       >
                         <Plus size={14} />
@@ -164,7 +164,7 @@ const CartClient = () => {
                     <button
                       type="button"
                       onClick={() => removeFromCart(product.id)}
-                      className="inline-flex items-center gap-1.5 min-h-[40px] px-2 text-[11px] sm:text-xs font-medium text-slate-400 hover:text-rose-500 active:text-rose-600 transition-colors"
+                      className="inline-flex items-center gap-1.5 min-h-[44px] px-2 text-[11px] sm:text-xs font-medium text-slate-400 hover:text-rose-500 active:text-rose-600 transition-colors"
                       aria-label="Eliminar producto"
                     >
                       <Trash2 size={14} />

@@ -213,6 +213,18 @@ export default function HomeHeroCyber({
           </span>
         ) : null}
 
+        {/* Móvil: el copy/CTA vive dentro de la imagen del banner (diseño del
+            admin), pero el banner no era tocable — link overlay solo <sm. */}
+        {slide.img ? (
+          <Link
+            href={slide.href}
+            aria-label={slide.title.trim() || slide.cta || 'Ver oferta'}
+            className="sm:hidden absolute inset-0 z-[2]"
+          >
+            <span className="sr-only">{slide.cta || 'Ver oferta'}</span>
+          </Link>
+        ) : null}
+
         {/* Fallback h1 for screen readers when the hero has no visible copy */}
         {!showCopy && (
           <h1 className="sr-only">
@@ -263,17 +275,24 @@ export default function HomeHeroCyber({
         ) : null}
 
         {slides.length > 1 ? (
-          <div className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 sm:bottom-4">
+          <div className="absolute bottom-0 left-1/2 z-20 flex -translate-x-1/2 items-center sm:bottom-1">
+            {/* Dot visual pequeño dentro de un hit-area táctil de 44px */}
             {slides.map((_, i) => (
               <button
                 key={i}
                 type="button"
                 aria-label={`Ir al slide ${i + 1}`}
+                aria-current={i === active ? 'true' : undefined}
                 onClick={() => setActive(i)}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  i === active ? 'w-6 bg-[#FFD700]' : 'w-1.5 bg-white/45'
-                }`}
-              />
+                className="min-w-[32px] min-h-[44px] flex items-center justify-center"
+              >
+                <span
+                  aria-hidden
+                  className={`h-1.5 rounded-full transition-all duration-300 motion-reduce:transition-none ${
+                    i === active ? 'w-6 bg-[#FFD700]' : 'w-1.5 bg-white/45'
+                  }`}
+                />
+              </button>
             ))}
           </div>
         ) : null}

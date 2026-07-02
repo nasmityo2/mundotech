@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   SlidersHorizontal,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { buildCatalogHref, type ProductSort } from '@/lib/products/filter';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 const SORT_OPTIONS = [
   { value: 'default',    label: 'Relevancia'   },
@@ -250,10 +251,11 @@ function FilterPanel({
                 type="number"
                 min={0}
                 step="0.01"
+                inputMode="decimal"
                 placeholder="Mín"
                 value={localMin}
                 onChange={(e) => setLocalMin(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl bg-slate-100 text-sm text-navy border border-transparent focus:outline-none focus:bg-white focus:border-navy/20"
+                className="w-full h-11 px-3 rounded-xl bg-slate-100 text-base text-navy border border-transparent focus:outline-none focus:bg-white focus:border-navy/20"
                 aria-label="Precio mínimo"
               />
               <span className="text-slate-400 text-sm">—</span>
@@ -261,17 +263,18 @@ function FilterPanel({
                 type="number"
                 min={0}
                 step="0.01"
+                inputMode="decimal"
                 placeholder="Máx"
                 value={localMax}
                 onChange={(e) => setLocalMax(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl bg-slate-100 text-sm text-navy border border-transparent focus:outline-none focus:bg-white focus:border-navy/20"
+                className="w-full h-11 px-3 rounded-xl bg-slate-100 text-base text-navy border border-transparent focus:outline-none focus:bg-white focus:border-navy/20"
                 aria-label="Precio máximo"
               />
             </div>
             <button
               type="button"
               onClick={() => navigate(currentCat, currentBrand, currentSort, localMin, localMax)}
-              className="w-full h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-navy text-xs font-semibold transition-colors"
+              className="w-full min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 text-navy text-xs font-semibold transition-colors"
             >
               Aplicar precio
             </button>
@@ -376,6 +379,22 @@ export default function SearchFiltersBar(props: Props) {
   const { variant, q, currentCat, currentBrand, currentSort, minPrice, maxPrice, includeOutOfStock, filteredCount } = props;
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileCloseRef = useRef<HTMLButtonElement>(null);
+
+  // A11y móvil del drawer de filtros: scroll-lock + Escape + foco inicial.
+  useBodyScrollLock(mobileOpen);
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const t = setTimeout(() => mobileCloseRef.current?.focus(), 120);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [mobileOpen]);
 
   if (variant === 'sidebar') {
     return <FilterPanel {...props} />;
@@ -426,7 +445,7 @@ export default function SearchFiltersBar(props: Props) {
               router.push(buildHref(q, currentCat, currentBrand, e.target.value, includeOutOfStock, minPrice, maxPrice))
             }
             aria-label="Ordenar resultados"
-            className="appearance-none bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-navy text-base font-semibold pl-3 pr-8 min-h-[44px] rounded-xl cursor-pointer transition-colors focus:outline-none focus:bg-white focus:shadow-ring-navy max-w-[160px] xs:max-w-none truncate"
+            className="appearance-none bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-navy text-base font-semibold pl-3 pr-8 min-h-[44px] rounded-xl cursor-pointer transition-colors focus:outline-none focus:bg-white focus:shadow-ring-navy max-w-[45vw] xs:max-w-none truncate"
           >
             {SORT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -453,15 +472,20 @@ export default function SearchFiltersBar(props: Props) {
               onClick={() => setMobileOpen(false)}
             />
             <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Filtros de búsqueda"
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
               className="relative w-[88vw] max-w-[340px] bg-surface-sunken h-full overflow-y-auto p-5 shadow-lift"
+              style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
             >
               <div className="flex items-center justify-between mb-5">
                 <p className="text-base font-semibold text-navy">Filtros</p>
                 <button
+                  ref={mobileCloseRef}
                   onClick={() => setMobileOpen(false)}
                   className="min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center text-slate-400 hover:text-navy hover:bg-slate-100 active:bg-slate-200"
                   aria-label="Cerrar filtros"

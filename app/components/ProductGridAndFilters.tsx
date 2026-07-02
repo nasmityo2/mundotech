@@ -15,6 +15,7 @@ import {
   type CatalogUrlParams,
   type ProductSort,
 } from '@/lib/products/filter';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 const DEBOUNCE_MS = 300;
 
@@ -113,10 +114,11 @@ function FilterPanel({
           <input
             id="catalog-search"
             type="search"
+            enterKeyHint="search"
             value={state.q}
             onChange={(e) => onNavigate({ q: e.target.value, brand: state.category ? state.brand : '' })}
             placeholder="Buscar productos..."
-            className="w-full pl-9 pr-3 h-10 rounded-xl bg-slate-100 text-sm text-navy placeholder:text-slate-400 border border-transparent focus:outline-none focus:bg-white focus:border-navy/20 focus:shadow-ring-navy"
+            className="w-full pl-9 pr-3 h-11 rounded-xl bg-slate-100 text-base text-navy placeholder:text-slate-400 border border-transparent focus:outline-none focus:bg-white focus:border-navy/20 focus:shadow-ring-navy"
           />
         </div>
       </div>
@@ -252,7 +254,7 @@ function FilterPanel({
                 placeholder="Mín"
                 value={localMin}
                 onChange={(e) => setLocalMin(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl bg-slate-100 text-sm text-navy border border-transparent focus:outline-none focus:bg-white focus:border-navy/20"
+                className="w-full h-11 px-3 rounded-xl bg-slate-100 text-base text-navy border border-transparent focus:outline-none focus:bg-white focus:border-navy/20"
                 aria-label="Precio mínimo"
               />
               <span className="text-slate-400 text-sm">—</span>
@@ -264,14 +266,14 @@ function FilterPanel({
                 placeholder="Máx"
                 value={localMax}
                 onChange={(e) => setLocalMax(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl bg-slate-100 text-sm text-navy border border-transparent focus:outline-none focus:bg-white focus:border-navy/20"
+                className="w-full h-11 px-3 rounded-xl bg-slate-100 text-base text-navy border border-transparent focus:outline-none focus:bg-white focus:border-navy/20"
                 aria-label="Precio máximo"
               />
             </div>
             <button
               type="button"
               onClick={() => onApplyPrice(localMin, localMax)}
-              className="w-full h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-navy text-xs font-semibold transition-colors"
+              className="w-full min-h-[44px] rounded-xl bg-slate-100 hover:bg-slate-200 text-navy text-xs font-semibold transition-colors"
             >
               Aplicar precio
             </button>
@@ -354,6 +356,22 @@ const ProductGridAndFilters = ({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const mobileCloseRef = useRef<HTMLButtonElement>(null);
+
+  // A11y móvil del drawer de filtros: scroll-lock + Escape + foco inicial.
+  useBodyScrollLock(mobileSidebarOpen);
+  useEffect(() => {
+    if (!mobileSidebarOpen) return;
+    const t = setTimeout(() => mobileCloseRef.current?.focus(), 120);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileSidebarOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [mobileSidebarOpen]);
 
   const [state, setState] = useState<InitialQuery>(initialQuery);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -481,7 +499,7 @@ const ProductGridAndFilters = ({
               value={state.sort}
               onChange={(e) => handleNavigate({ sort: e.target.value as ProductSort }, true)}
               aria-label="Ordenar productos"
-              className="appearance-none bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-navy text-base font-semibold pl-3 pr-8 min-h-[44px] rounded-xl cursor-pointer transition-colors focus:outline-none focus:bg-white focus:shadow-ring-navy max-w-[160px] xs:max-w-none truncate"
+              className="appearance-none bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-navy text-base font-semibold pl-3 pr-8 min-h-[44px] rounded-xl cursor-pointer transition-colors focus:outline-none focus:bg-white focus:shadow-ring-navy max-w-[45vw] xs:max-w-none truncate"
             >
               {SORT_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -498,7 +516,7 @@ const ProductGridAndFilters = ({
               <button
                 type="button"
                 onClick={() => handleNavigate({ q: '' }, true)}
-                className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors"
+                className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 min-h-[44px] sm:min-h-0 sm:h-8 rounded-full hover:bg-navy-700 transition-colors"
               >
                 <span className="truncate max-w-[160px]">&ldquo;{state.q}&rdquo;</span>
                 <X size={12} />
@@ -508,7 +526,7 @@ const ProductGridAndFilters = ({
               <button
                 type="button"
                 onClick={() => handleNavigate({ category: '', brand: '' }, true)}
-                className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors capitalize"
+                className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 min-h-[44px] sm:min-h-0 sm:h-8 rounded-full hover:bg-navy-700 transition-colors capitalize"
               >
                 {state.category}
                 <X size={12} />
@@ -518,7 +536,7 @@ const ProductGridAndFilters = ({
               <button
                 type="button"
                 onClick={() => handleNavigate({ brand: '' }, true)}
-                className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors"
+                className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 min-h-[44px] sm:min-h-0 sm:h-8 rounded-full hover:bg-navy-700 transition-colors"
               >
                 {state.brand}
                 <X size={12} />
@@ -528,7 +546,7 @@ const ProductGridAndFilters = ({
               <button
                 type="button"
                 onClick={() => handleNavigate({ minPrice: '', maxPrice: '' }, true)}
-                className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 h-8 rounded-full hover:bg-navy-700 transition-colors"
+                className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-semibold px-3 min-h-[44px] sm:min-h-0 sm:h-8 rounded-full hover:bg-navy-700 transition-colors"
               >
                 ${state.minPrice || '0'} — ${state.maxPrice || '∞'}
                 <X size={12} />
@@ -537,7 +555,7 @@ const ProductGridAndFilters = ({
             <button
               type="button"
               onClick={handleClear}
-              className="text-xs text-slate-500 hover:text-navy underline underline-offset-2"
+              className="inline-flex items-center min-h-[44px] sm:min-h-0 px-1 text-xs text-slate-500 hover:text-navy underline underline-offset-2"
             >
               Limpiar todo
             </button>
@@ -602,17 +620,23 @@ const ProductGridAndFilters = ({
               onClick={() => setMobileSidebarOpen(false)}
             />
             <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Filtros del catálogo"
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
               className="relative w-[88vw] max-w-[340px] bg-surface-sunken h-full overflow-y-auto p-5 shadow-lift"
+              style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
             >
               <div className="flex items-center justify-between mb-5">
                 <p className="text-base font-semibold text-navy">Filtros</p>
                 <button
+                  ref={mobileCloseRef}
                   type="button"
                   onClick={() => setMobileSidebarOpen(false)}
+                  aria-label="Cerrar filtros"
                   className="min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center text-slate-400 hover:text-navy hover:bg-slate-100"
                 >
                   <X size={18} />

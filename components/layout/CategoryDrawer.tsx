@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, Clock, Zap, Sparkles, Tag } from 'lucide-react';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface PromoData {
   title:        string;
@@ -103,14 +104,14 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
       .catch(() => {});
   }, []);
 
+  // Lock compartido: no pisa el overflow de otros drawers (cart/búsqueda).
+  useBodyScrollLock(open);
+
   useEffect(() => {
     if (open) {
-      document.body.style.overflow = 'hidden';
-      setTimeout(() => firstCatRef.current?.focus(), 180);
-    } else {
-      document.body.style.overflow = '';
+      const t = setTimeout(() => firstCatRef.current?.focus(), 180);
+      return () => clearTimeout(t);
     }
-    return () => { document.body.style.overflow = ''; };
   }, [open]);
 
   useEffect(() => {
@@ -259,8 +260,11 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
               </ul>
             </div>
 
-            {/* ── Footer ──────────────────────────────────────────── */}
-            <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex-shrink-0">
+            {/* ── Footer (con safe-area para el home indicator) ──── */}
+            <div
+              className="px-5 pt-3 border-t border-slate-100 bg-slate-50 flex-shrink-0"
+              style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+            >
               <p className="text-[11px] text-slate-500 text-center">
                 Tecnología · Garantía 7 días en electrónica
               </p>
