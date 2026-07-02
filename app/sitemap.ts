@@ -32,6 +32,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     },
     {
+      // /ofertas es indexable (canonical propio + breadcrumb) pero faltaba aquí.
+      url: `${SITE_URL}/ofertas`,
+      changeFrequency: 'daily',
+      priority: 0.8,
+    },
+    {
       url: `${SITE_URL}/tienda-barquisimeto`,
       changeFrequency: 'monthly',
       priority: 0.5,

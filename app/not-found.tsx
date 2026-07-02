@@ -4,9 +4,15 @@
  * Muestra búsqueda rápida y categorías destacadas para retener al usuario.
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Search, Home, Tag, ArrowRight } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Página no encontrada",
+  robots: { index: false, follow: false },
+};
 
 async function getFeaturedCategories() {
   try {

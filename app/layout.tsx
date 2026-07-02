@@ -89,6 +89,13 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true, "max-snippet": -1, "max-image-preview": "large" },
   },
+  // iOS "Añadir a pantalla de inicio": título corto y modo standalone.
+  // (Los iconos PNG/maskable van en manifest.ts + app/apple-icon.png.)
+  appleWebApp: {
+    capable: true,
+    title: "MundoTech",
+    statusBarStyle: "default",
+  },
   // H24: solo emitir el meta de verificación cuando la env var existe
   // (un content="" vacío no verifica Search Console y ensucia el head).
   ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION

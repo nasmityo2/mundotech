@@ -68,12 +68,19 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
       : 'Catálogo de tecnología, hogar y variedades';
   const title = page >= 2 ? `${titleBase} — Página ${page}` : titleBase;
 
+  // Variantes con filtros (?q=, ?brand=, precio, sort) → noindex,follow:
+  // son resultados de búsqueda/filtrado internos (thin/duplicate content según
+  // las guías de Google). Solo /productos y su paginación limpia se indexan.
+  const isFiltered = hasActiveCatalogFilters(query);
+
   return {
     title,
     description:
       'Catálogo de MundoTech Barquisimeto: tecnología, gadgets, hogar, cocina, fitness, salud y más. Paga en USD o Bs y recibe en toda Venezuela.',
     alternates: { canonical: canonicalUrl },
-    robots: { index: true, follow: true },
+    robots: isFiltered
+      ? { index: false, follow: true }
+      : { index: true, follow: true },
     openGraph: {
       title: `${title} | MundoTech`,
       description:
@@ -107,6 +114,30 @@ const catalogBreadcrumbSchema = {
     { '@type': 'ListItem', position: 2, name: 'Catálogo', item: `${SITE_URL}/productos` },
   ],
 };
+
+/**
+ * ItemList del catálogo sin filtros (mismo patrón que CategoryJsonLd):
+ * refleja los productos de la página actual con posición absoluta.
+ */
+function buildCatalogItemList(products: Product[], page: number) {
+  const positionOffset = (page - 1) * PAGE_SIZE;
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: 'Catálogo — MundoTech',
+    url: page <= 1 ? `${SITE_URL}/productos` : `${SITE_URL}/productos?page=${page}`,
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: products.length,
+      itemListElement: products.map((p, i) => ({
+        '@type': 'ListItem',
+        position: positionOffset + i + 1,
+        url: `${SITE_URL}/product/${p.slug ?? p.id}`,
+        name: p.name,
+      })),
+    },
+  };
+}
 
 export default async function ProductosPage({ searchParams }: PageProps) {
   const params = await searchParams;
@@ -155,7 +186,13 @@ export default async function ProductosPage({ searchParams }: PageProps) {
 
   return (
     <div className="pb-10 sm:pb-12 w-full max-w-full">
-      <JsonLd data={catalogBreadcrumbSchema} />
+      <JsonLd
+        data={
+          useFilteredQuery
+            ? catalogBreadcrumbSchema
+            : [catalogBreadcrumbSchema, buildCatalogItemList(products as Product[], page)]
+        }
+      />
 
       <div className="card-elevated p-4 sm:p-6 lg:p-8 mb-5 sm:mb-8">
         <nav

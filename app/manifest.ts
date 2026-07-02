@@ -23,9 +23,14 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     theme_color: '#0B1220',
     lang: 'es-VE',
     categories: ['shopping', 'electronics', 'lifestyle'],
+    // PNG 192/512 + maskable: Android Chrome no instala la PWA con icono
+    // correcto solo con SVG. El SVG queda como fallback escalable.
     icons: [
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+      { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
       { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-      { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
     ],
   };
 }
