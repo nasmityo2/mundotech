@@ -5,11 +5,9 @@ import { X, Plus, Minus, ShoppingBag, ArrowRight, ShieldCheck } from 'lucide-rea
 import { useCart } from '../context/CartContext';
 import { useExchangeRate } from '../context/ExchangeRateContext';
 import { formatCurrency } from '../lib/utils';
-import { stashLoginRedirectForPathname } from '@/lib/auth-path';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { useEffect, useRef } from 'react';
 
 const FOCUSABLE_SELECTOR =
@@ -21,7 +19,6 @@ const CartDrawer = () => {
     getCartTotal, isCartOpen, closeCart,
   } = useCart();
   const router           = useRouter();
-  const { status }       = useSession();
   const { rate, stale }  = useExchangeRate();
   const panelRef         = useRef<HTMLElement | null>(null);
 
@@ -84,13 +81,9 @@ const CartDrawer = () => {
     };
   }, [isCartOpen]);
 
+  // FASE 4.1 (MEJORA 1.2): el checkout ya no exige login — los invitados
+  // compran directo y pueden crear cuenta en 1 clic tras pagar.
   const handleCheckout = () => {
-    if (status !== 'authenticated') {
-      closeCart();
-      stashLoginRedirectForPathname('/checkout');
-      router.push('/login');
-      return;
-    }
     closeCart();
     router.push('/checkout');
   };

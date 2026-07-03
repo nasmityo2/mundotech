@@ -236,8 +236,9 @@ export async function middleware(req: NextRequest) {
 
   const isAdminUiPath  = pathname.startsWith('/admin');
   const isApiAdminPath = pathname.startsWith('/api/admin');
-  const isProtectedPath =
-    pathname.startsWith('/account') || pathname.startsWith('/checkout');
+  /* FASE 4.1 (MEJORA 1.2): /checkout ya NO exige sesión — checkout invitado.
+     El route handler POST /api/orders valida los datos de contacto del guest. */
+  const isProtectedPath = pathname.startsWith('/account');
 
   /* PRD-018: mutaciones de APIs de configuración/catálogo → solo admin. */
   const isWriteMethod = !['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase());
@@ -246,12 +247,20 @@ export async function middleware(req: NextRequest) {
     ADMIN_WRITE_API_PREFIXES.some((p) => matchesPrefix(pathname, p)) &&
     !ADMIN_WRITE_API_EXCEPTIONS.some((p) => matchesPrefix(pathname, p));
 
+  /* FASE 4.1: mutaciones públicas del flujo de compra invitado. Cada handler
+     mantiene su propia defensa (verifySameOrigin + rate limit + Zod). */
+  const isGuestCheckoutApi =
+    (pathname === '/api/orders' && req.method.toUpperCase() === 'POST') ||
+    (pathname === '/api/checkout/upload-proof' && req.method.toUpperCase() === 'POST');
+
   /* PRD-118 / PRD-119: APIs de pedidos, carrito y checkout exigen sesión.
-     `/api/cart/unsubscribe` queda fuera: es el enlace GET de baja en emails. */
+     `/api/cart/unsubscribe` queda fuera: es el enlace GET de baja en emails.
+     FASE 4.1: POST /api/orders y upload-proof quedan fuera (guest checkout). */
   const isUserTokenApi =
-    matchesPrefix(pathname, '/api/orders') ||
-    (matchesPrefix(pathname, '/api/cart') && !matchesPrefix(pathname, '/api/cart/unsubscribe')) ||
-    matchesPrefix(pathname, '/api/checkout');
+    !isGuestCheckoutApi &&
+    (matchesPrefix(pathname, '/api/orders') ||
+      (matchesPrefix(pathname, '/api/cart') && !matchesPrefix(pathname, '/api/cart/unsubscribe')) ||
+      matchesPrefix(pathname, '/api/checkout'));
 
   if (isAdminUiPath || isApiAdminPath || isProtectedPath || isAdminWriteApi || isUserTokenApi) {
     const token = await getToken({

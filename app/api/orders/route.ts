@@ -141,8 +141,13 @@ export async function GET(request: Request) {
  *
  * El customerId del body es ignorado: siempre se usa session.user.id
  * del servidor para evitar que un cliente vincule un pedido al ID de
- * otra cuenta. Sin sesión se responde 401 (PRD-069): la tienda exige login
- * para comprar, igual que la UI.
+ * otra cuenta.
+ *
+ * FASE 4.1 (MEJORA 1.2): checkout INVITADO permitido de forma controlada —
+ * sin sesión, el pedido exige email + teléfono + cédula de contacto (el pago
+ * se verifica manualmente en admin, lo que mitiga el fraude). Se mantienen
+ * verifySameOrigin, rate limit por IP (+ por email para guests), Zod y la
+ * transacción serializable intacta. PRD-069 queda sustituido por esta política.
  *
  * Binance Pay: el pedido inicia como "Pendiente verificación Binance".
  * El stock se descuenta atómicamente en esta misma transacción (`updateMany`
@@ -166,17 +171,9 @@ export async function POST(request: Request) {
 
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
+  const isGuest = !userId || userId === 'guest';
 
-  // PRD-069: la tienda exige iniciar sesión para comprar (middleware protege
-  // /checkout). Un POST directo sin sesión no debe poder crear pedidos "guest".
-  if (!userId || userId === 'guest') {
-    return NextResponse.json(
-      { message: 'Inicia sesión para completar tu compra.' },
-      { status: 401 }
-    );
-  }
-
-  if (await rateLimit(`orders:post:user:${userId}`, { limit: 5, windowMs: 60_000 })) {
+  if (!isGuest && (await rateLimit(`orders:post:user:${userId}`, { limit: 5, windowMs: 60_000 }))) {
     return NextResponse.json(
       { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
       { status: 429 }
@@ -195,10 +192,32 @@ export async function POST(request: Request) {
       );
     }
 
-    // Ignorar el customerId enviado por el cliente; usar siempre la sesión del servidor
+    // FASE 4.1: los invitados deben dejar datos de contacto reales — sin ellos
+    // no hay forma de verificar el pago ni de coordinar la entrega.
+    if (isGuest) {
+      const guestEmail = parsed.data.customerEmail?.trim().toLowerCase();
+      const guestPhone = parsed.data.customerPhone?.trim();
+      const guestIdNumber = parsed.data.customerIdNumber?.trim();
+      if (!guestEmail || !guestPhone || !guestIdNumber) {
+        return NextResponse.json(
+          { message: 'Para comprar como invitado necesitamos tu correo, teléfono y cédula.' },
+          { status: 400 }
+        );
+      }
+      // Rate limit adicional por email: un mismo invitado no puede spamear pedidos.
+      if (await rateLimit(`orders:post:guest:${guestEmail}`, { limit: 5, windowMs: 60_000 })) {
+        return NextResponse.json(
+          { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
+          { status: 429 }
+        );
+      }
+    }
+
+    // Ignorar el customerId enviado por el cliente; usar siempre la sesión del
+    // servidor. 'guest' = pedido sin cuenta (customerId null en BD).
     const safeData = {
       ...parsed.data,
-      customerId: userId,
+      customerId: isGuest ? 'guest' : userId,
     };
 
     // PRD-128 (R1): para retiro en tienda la dirección NUNCA viene del cliente —
@@ -215,9 +234,11 @@ export async function POST(request: Request) {
 
     // PRD-131: reintentos (doble clic, recarga, retry de red) con la misma
     // referencia de pago devuelven el pedido ya creado en vez de duplicarlo.
+    // FASE 4.1: para invitados la clave de idempotencia es (email, referencia).
     const { order, reused } = await runCheckoutTransaction(async (tx) => {
       const duplicate = await findRecentDuplicateOrderInTransaction(tx, {
-        customerId: userId,
+        customerId: isGuest ? null : (userId as string),
+        customerEmail: isGuest ? (safeData.customerEmail?.trim().toLowerCase() ?? null) : null,
         paymentReference: safeData.paymentReference,
       });
       if (duplicate) return { order: duplicate, reused: true };

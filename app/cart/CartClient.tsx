@@ -6,9 +6,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Plus, Minus, Trash2, ArrowRight, ShoppingBag, ShieldCheck, Truck, Tag } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
-import { stashLoginRedirectForPathname } from '@/lib/auth-path';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 
 const CartImageWithFallback = ({ src, alt }: { src: string; alt: string }) => {
   const [imgSrc, setImgSrc] = useState(src || '/placeholder-product.png');
@@ -27,14 +25,9 @@ const CartImageWithFallback = ({ src, alt }: { src: string; alt: string }) => {
 const CartClient = () => {
   const { cart: cartItems, updateQuantity, removeFromCart, getCartTotal } = useCart();
   const router           = useRouter();
-  const { status }       = useSession();
 
+  // FASE 4.1 (MEJORA 1.2): checkout invitado — sin exigir login para comprar.
   const handleCheckout = () => {
-    if (status !== 'authenticated') {
-      stashLoginRedirectForPathname('/checkout');
-      router.push('/login');
-      return;
-    }
     router.push('/checkout');
   };
 

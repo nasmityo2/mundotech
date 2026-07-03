@@ -9,6 +9,7 @@ import { MUNDOTECH_SOCIAL } from '@/lib/mundotech-social';
 import type { EnrichedOrder } from './page';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import { trackPurchaseOnce } from '@/lib/ga4';
+import GuestAccountCard from './GuestAccountCard';
 
 interface Props {
   order: EnrichedOrder;
@@ -102,6 +103,13 @@ export default function SuccessClientPage({ order }: Props) {
             </p>
           </motion.div>
         )}
+
+        {/* FASE 4.1: registro post-compra para invitados (sin fricción) */}
+        {!order.customerId && order.customerEmail ? (
+          <motion.div variants={fadeUp}>
+            <GuestAccountCard orderId={order.id} customerEmail={order.customerEmail} />
+          </motion.div>
+        ) : null}
 
         {/* Próximos pasos */}
         <motion.div

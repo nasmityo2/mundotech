@@ -18,18 +18,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
   }
 
-  // Requiere sesión activa — rechazar invitados no autenticados
+  // FASE 4.1 (MEJORA 1.2): los invitados también suben comprobante — la sesión
+  // deja de ser obligatoria. Defensas que se mantienen: verifySameOrigin (arriba),
+  // rate limit (más estricto para invitados), magic bytes y re-encode con sharp.
   const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json(
-      { error: 'Debes iniciar sesión para subir el comprobante de pago.' },
-      { status: 401 }
-    );
-  }
+  const isGuest = !session?.user?.id;
 
-  // Rate limit: máx 10 uploads por usuario por 10 minutos
-  const userId = session.user?.id ?? getClientIp(request);
-  if (await rateLimit(`upload-proof:${userId}`, { limit: 10, windowMs: 10 * 60_000 })) {
+  const limitKey = isGuest
+    ? `upload-proof:ip:${getClientIp(request)}`
+    : `upload-proof:${session!.user!.id}`;
+  const limitCfg = isGuest
+    ? { limit: 6, windowMs: 10 * 60_000 }
+    : { limit: 10, windowMs: 10 * 60_000 };
+  if (await rateLimit(limitKey, limitCfg)) {
     return NextResponse.json(
       { error: 'Demasiadas solicitudes de subida. Espera unos minutos.' },
       { status: 429 }

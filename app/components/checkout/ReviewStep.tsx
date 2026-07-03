@@ -39,6 +39,9 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
   // PRD-049: si el pedido falla DESPUÉS de subir el comprobante, el reintento
   // reutiliza la URL ya subida en vez de duplicar la imagen en R2.
   const uploadedProofRef = useRef<{ file: File; url: string } | null>(null);
+  // RUN-05 (AUDITORIA-2026-07): guard síncrono de reentrada — dos taps rápidos
+  // en 4G disparaban dos POST antes de que React aplicara `disabled`.
+  const submittingRef = useRef(false);
 
   // Cupón de descuento (validado contra el servidor).
   const [couponInput, setCouponInput] = useState('');
@@ -112,11 +115,13 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
   };
 
   const handleConfirmOrder = async () => {
+    if (submittingRef.current) return;
     if (!shippingData || !paymentData) {
       setError('Faltan datos de envío o pago.');
       return;
     }
 
+    submittingRef.current = true;
     setIsProcessing(true);
     setError(null);
     setSessionExpired(false);
@@ -192,6 +197,7 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
         if (response.status === 401) {
           setSessionExpired(true);
           setError('Tu sesión expiró mientras completabas el pedido. Inicia sesión de nuevo: tu carrito y este pedido te esperan.');
+          submittingRef.current = false;
           setIsProcessing(false);
           return;
         }
@@ -215,6 +221,7 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
       } else {
         setError(err instanceof Error ? err.message : 'Hubo un problema. Por favor, inténtalo de nuevo.');
       }
+      submittingRef.current = false;
       setIsProcessing(false);
     }
   };

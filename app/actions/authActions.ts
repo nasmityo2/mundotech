@@ -76,13 +76,22 @@ export async function registerUserAction({ name, email, password }: Record<strin
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // 5. Crear el usuario (rol normalizado en mayúsculas, consistente con isAdminRole)
-    await prisma.user.create({
-      data: {
-        name: name.trim(),
-        email: normalizedEmail,
-        password: hashedPassword,
-        role: 'CLIENT',
-      },
+    // FASE 4.1: en la misma transacción se vinculan los pedidos invitados
+    // previos hechos con este email (customerId null → nueva cuenta).
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          name: name.trim(),
+          email: normalizedEmail,
+          password: hashedPassword,
+          role: 'CLIENT',
+        },
+        select: { id: true },
+      });
+      await tx.order.updateMany({
+        where: { customerId: null, customerEmail: { equals: normalizedEmail, mode: 'insensitive' } },
+        data: { customerId: created.id },
+      });
     });
 
     // Correo de bienvenida (fallos no revierten el registro; se registran en logs)
@@ -93,6 +102,93 @@ export async function registerUserAction({ name, email, password }: Record<strin
   } catch (error) {
     console.error('Error en registerUserAction:', error);
     return { success: false, message: 'Ocurrió un error inesperado en el servidor.' };
+  }
+}
+
+/**
+ * FASE 4.1 (MEJORA 1.2): registro post-compra "en 1 clic" desde /checkout/success.
+ *
+ * El invitado ya dejó nombre/email/teléfono/cédula en el pedido; aquí solo
+ * define contraseña. El cuid del pedido actúa como bearer no adivinable
+ * (mismo modelo de acceso que /checkout/success?orderId=).
+ *
+ * Al crear la cuenta se vinculan automáticamente el pedido recién hecho y
+ * cualquier pedido previo invitado con el mismo email (customerId null).
+ */
+export async function registerFromOrderAction(
+  orderId: string,
+  password: string,
+): Promise<{ success: boolean; message: string; email?: string }> {
+  try {
+    const ip = await getActionClientIp();
+    if (await rateLimit(`register-from-order:${ip}`, { limit: 5, windowMs: 15 * 60_000 })) {
+      return {
+        success: false,
+        message: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.',
+      };
+    }
+
+    const id = orderId?.trim();
+    if (!id || password.length < 8) {
+      return { success: false, message: 'La contraseña debe tener al menos 8 caracteres.' };
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: { id: true, customerId: true, customerEmail: true, customerName: true },
+    });
+    if (!order || !order.customerEmail) {
+      return { success: false, message: 'No pudimos crear la cuenta desde este pedido.' };
+    }
+    if (order.customerId) {
+      return { success: false, message: 'Este pedido ya está vinculado a una cuenta. Inicia sesión para verlo.' };
+    }
+
+    const normalizedEmail = order.customerEmail.trim().toLowerCase();
+
+    const existing = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+    if (existing) {
+      // El email es del propio comprador (viene del pedido) — sin riesgo de
+      // enumeración al decirle que ya tiene cuenta.
+      return {
+        success: false,
+        message: 'Ya existe una cuenta con este correo. Inicia sesión para ver tu pedido.',
+      };
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          name: order.customerName.trim() || null,
+          email: normalizedEmail,
+          password: hashedPassword,
+          role: 'CLIENT',
+        },
+        select: { id: true },
+      });
+      // Vincular este pedido y todos los pedidos invitados previos del mismo email.
+      await tx.order.updateMany({
+        where: { customerId: null, customerEmail: { equals: normalizedEmail, mode: 'insensitive' } },
+        data: { customerId: created.id },
+      });
+      return created;
+    });
+
+    await sendWelcomeEmail(normalizedEmail, firstNameFromName(order.customerName));
+
+    console.log('[register-from-order] cuenta creada y pedidos vinculados:', user.id);
+    return {
+      success: true,
+      message: '¡Cuenta creada! Tus pedidos ya están vinculados.',
+      email: normalizedEmail,
+    };
+  } catch (error) {
+    console.error('[registerFromOrderAction]', error);
+    return { success: false, message: 'Ocurrió un error inesperado. Intenta de nuevo.' };
   }
 }
 

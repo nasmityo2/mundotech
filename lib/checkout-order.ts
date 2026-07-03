@@ -100,20 +100,36 @@ export type CheckoutExecuteOptions = {
  * referencia de pago, no cancelado) para tratar reintentos/doble envío como
  * idempotentes. Una misma transferencia no puede pagar dos pedidos distintos,
  * así que la referencia funciona como clave natural de idempotencia.
- * Debe ejecutarse DENTRO de la misma transacción que crea el pedido.
- * // DEPENDENCIA-03 (PRD-131): la garantía total exige índice único
- * // (customerId, paymentReference) o columna idempotencyKey en schema.prisma.
+ * FASE 4.1: para invitados (customerId null) la clave es (customerEmail, ref).
+ * Debe ejecutarse DENTRO de la misma transacción que crea el pedido —
+ * el aislamiento Serializable convierte la carrera lectura→inserción en un
+ * conflicto de serialización que el caller reintenta (runCheckoutTransaction).
+ * // DECISIÓN ASUMIDA (RUN-02): NO se añade índice único (customerId,
+ * // paymentReference) — las referencias bancarias venezolanas (4-6 dígitos)
+ * // se repiten legítimamente entre pedidos de meses distintos; un unique sin
+ * // ventana temporal bloquearía compras válidas. La ventana de 24 h + SSI
+ * // cubren el caso real (doble toque / retry).
  */
 export async function findRecentDuplicateOrderInTransaction(
   tx: Prisma.TransactionClient,
-  params: { customerId: string | null; paymentReference: string | null | undefined },
+  params: {
+    customerId: string | null;
+    customerEmail?: string | null;
+    paymentReference: string | null | undefined;
+  },
 ) {
   const reference = params.paymentReference?.trim();
-  if (!reference || !params.customerId || params.customerId === 'guest') return null;
+  if (!reference) return null;
+
+  const hasAccount = params.customerId && params.customerId !== 'guest';
+  const guestEmail = params.customerEmail?.trim().toLowerCase();
+  if (!hasAccount && !guestEmail) return null;
 
   return tx.order.findFirst({
     where: {
-      customerId: params.customerId,
+      ...(hasAccount
+        ? { customerId: params.customerId }
+        : { customerId: null, customerEmail: { equals: guestEmail, mode: 'insensitive' } }),
       paymentReference: reference,
       status: { not: 'Cancelado' satisfies OrderStatus },
       createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
