@@ -1,6 +1,6 @@
 'use client';
 
-import { Store, Building2, Star, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Store, Building2, Truck, Star, Pencil, Trash2, Loader2 } from 'lucide-react';
 import type { SavedAddress } from '@/lib/definitions';
 
 interface AddressCardProps {
@@ -20,8 +20,9 @@ export default function AddressCard({
   isDeleting,
   isSettingDefault,
 }: AddressCardProps) {
-  const isMrw = address.shippingMethod === 'mrw';
-  const Icon  = isMrw ? Building2 : Store;
+  const isMrw   = address.shippingMethod === 'mrw';
+  const isZoom  = address.shippingMethod === 'zoom';
+  const Icon    = isMrw ? Building2 : isZoom ? Truck : Store;
 
   return (
     <div
@@ -46,7 +47,7 @@ export default function AddressCard({
         <div className="min-w-0">
           <p className="text-sm font-bold text-navy leading-tight">{address.alias}</p>
           <p className="text-[12px] text-slate-500 mt-0.5">
-            {isMrw ? 'Retiro MRW' : 'Retiro en tienda'}
+            {isMrw ? 'Retiro MRW' : isZoom ? 'Retiro ZOOM' : 'Retiro en tienda'}
           </p>
         </div>
       </div>
@@ -68,6 +69,14 @@ export default function AddressCard({
         {isMrw && address.mrwState && (
           <div>
             <dt className="text-[11px] text-slate-400 font-medium">Oficina MRW</dt>
+            <dd className="text-navy line-clamp-1">
+              {address.mrwOffice}{address.mrwState ? `, ${address.mrwState}` : ''}
+            </dd>
+          </div>
+        )}
+        {isZoom && address.mrwState && (
+          <div>
+            <dt className="text-[11px] text-slate-400 font-medium">Oficina ZOOM</dt>
             <dd className="text-navy line-clamp-1">
               {address.mrwOffice}{address.mrwState ? `, ${address.mrwState}` : ''}
             </dd>

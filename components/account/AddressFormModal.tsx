@@ -2,23 +2,25 @@
 
 import { useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { Store, Building2, Loader2, X } from 'lucide-react';
+import { Store, Building2, Truck, Loader2, X } from 'lucide-react';
 import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 import { mrwOffices } from '@/lib/mrw-offices';
+import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
-import type { SavedAddress, SavedAddressInput } from '@/lib/definitions';
+import type { SavedAddress, SavedAddressInput, ShippingMethod } from '@/lib/definitions';
 
 type FormValues = {
-  alias:          string;
-  firstName:      string;
-  lastName:       string;
-  idNumber:       string;
-  phoneNumber:    string;
-  shippingMethod: 'tienda' | 'mrw';
-  mrwState:       string;
-  mrwOffice:      string;
-  isDefault:      boolean;
+  alias:           string;
+  firstName:       string;
+  lastName:        string;
+  idNumber:        string;
+  phoneNumber:     string;
+  shippingMethod:  ShippingMethod;
+  mrwState:        string;
+  mrwOffice:       string;
+  zoomOfficeIndex: string;
+  isDefault:       boolean;
 };
 
 interface AddressFormModalProps {
@@ -42,15 +44,16 @@ export default function AddressFormModal({
   const { register, handleSubmit, watch, setValue, formState: { errors } } =
     useForm<FormValues>({
       defaultValues: {
-        alias:          editAddress?.alias          ?? '',
-        firstName:      editAddress?.firstName      ?? '',
-        lastName:       editAddress?.lastName       ?? '',
-        idNumber:       editAddress?.idNumber       ?? '',
-        phoneNumber:    editAddress?.phoneNumber    ?? '',
-        shippingMethod: editAddress?.shippingMethod ?? 'tienda',
-        mrwState:       editAddress?.mrwState       ?? '',
-        mrwOffice:      editAddress?.mrwOffice      ?? '',
-        isDefault:      editAddress?.isDefault      ?? false,
+        alias:           editAddress?.alias          ?? '',
+        firstName:       editAddress?.firstName      ?? '',
+        lastName:        editAddress?.lastName       ?? '',
+        idNumber:        editAddress?.idNumber       ?? '',
+        phoneNumber:     editAddress?.phoneNumber    ?? '',
+        shippingMethod:  (editAddress?.shippingMethod ?? 'tienda') as ShippingMethod,
+        mrwState:        editAddress?.mrwState       ?? '',
+        mrwOffice:       editAddress?.mrwOffice      ?? '',
+        zoomOfficeIndex: '',
+        isDefault:       editAddress?.isDefault      ?? false,
       },
     });
 
@@ -58,8 +61,12 @@ export default function AddressFormModal({
   const selectedState = watch('mrwState');
 
   useEffect(() => {
-    setValue('mrwOffice', '');
-  }, [selectedState, setValue]);
+    if (method === 'zoom') {
+      setValue('zoomOfficeIndex', '');
+    } else {
+      setValue('mrwOffice', '');
+    }
+  }, [selectedState, method, setValue]);
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === overlayRef.current) onClose();
@@ -74,7 +81,31 @@ export default function AddressFormModal({
   // Bottom sheet móvil: sin esto el body seguía scrolleando detrás del modal.
   useBodyScrollLock(true);
 
+  const resolveZoomOfficeName = (): string | null => {
+    if (method !== 'zoom') return null;
+    const state = watch('mrwState');
+    const idxStr = watch('zoomOfficeIndex');
+    if (!state || idxStr === '' || idxStr === undefined) return null;
+    const offices = (zoomOffices as Record<string, ZoomOffice[]>)[state];
+    const idx = Number(idxStr);
+    const office = offices?.[idx];
+    return office?.name ?? null;
+  };
+
   const submit = handleSubmit(async (values) => {
+    const isCarrier = values.shippingMethod === 'mrw' || values.shippingMethod === 'zoom';
+    let officeLabel: string | null = null;
+    let officeState: string | null = null;
+    if (values.shippingMethod === 'zoom') {
+      const zoomName = resolveZoomOfficeName();
+      if (zoomName) {
+        officeLabel = zoomName;
+        officeState = values.mrwState || null;
+      }
+    } else if (values.shippingMethod === 'mrw') {
+      officeLabel = values.mrwOffice || null;
+      officeState = values.mrwState || null;
+    }
     await onSubmit({
       alias:          values.alias,
       firstName:      values.firstName,
@@ -82,8 +113,8 @@ export default function AddressFormModal({
       idNumber:       values.idNumber,
       phoneNumber:    values.phoneNumber,
       shippingMethod: values.shippingMethod,
-      mrwState:       values.shippingMethod === 'mrw' ? values.mrwState : null,
-      mrwOffice:      values.shippingMethod === 'mrw' ? values.mrwOffice : null,
+      mrwState:       officeState,
+      mrwOffice:      officeLabel,
       isDefault:      values.isDefault,
     });
   });
@@ -128,6 +159,7 @@ export default function AddressFormModal({
               {([
                 { id: 'tienda', icon: Store,     label: 'Retirar en tienda' },
                 { id: 'mrw',    icon: Building2, label: 'Retiro MRW'        },
+                { id: 'zoom',   icon: Truck,     label: 'Retiro ZOOM'       },
               ] as const).map((opt) => {
                 const active = method === opt.id;
                 return (
@@ -144,7 +176,12 @@ export default function AddressFormModal({
                       value={opt.id}
                       {...register('shippingMethod')}
                       className="sr-only"
-                      onChange={() => setValue('shippingMethod', opt.id)}
+                      onChange={() => {
+                        setValue('shippingMethod', opt.id);
+                        setValue('mrwState', '');
+                        setValue('mrwOffice', '');
+                        setValue('zoomOfficeIndex', '');
+                      }}
                     />
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
                       active ? 'bg-navy text-white' : 'bg-slate-100 text-slate-500'
@@ -185,6 +222,41 @@ export default function AddressFormModal({
                     (mrwOffices as Record<string, string[]>)[selectedState]?.map((o) => (
                       <option key={o} value={o}>{o}</option>
                     ))}
+                </select>
+              </Field>
+            </div>
+          )}
+
+          {/* ZOOM: estado y oficina */}
+          {method === 'zoom' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field id="mrwState" label="Estado" error={errors.mrwState?.message}>
+                <select
+                  id="mrwState"
+                  {...register('mrwState', { required: method === 'zoom' ? 'Selecciona un estado.' : false })}
+                  className={selectCls}
+                >
+                  <option value="">Selecciona…</option>
+                  {Object.keys(zoomOffices).sort().map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field id="zoomOfficeIndex" label="Oficina ZOOM" error={errors.zoomOfficeIndex?.message}>
+                <select
+                  id="zoomOfficeIndex"
+                  disabled={!selectedState}
+                  {...register('zoomOfficeIndex', { required: method === 'zoom' ? 'Selecciona una oficina.' : false })}
+                  className={`${selectCls} disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  <option value="">Selecciona…</option>
+                  {selectedState &&
+                    (zoomOffices as Record<string, ZoomOffice[]>)[selectedState]?.map((o, idx) => {
+                      const label = o.address?.trim()
+                        ? `${o.name} · ${o.address} · ${o.city}`
+                        : `${o.name} · ${o.city}`;
+                      return <option key={idx} value={String(idx)}>{label}</option>;
+                    })}
                 </select>
               </Field>
             </div>

@@ -37,6 +37,7 @@ export default async function OrderLabelPage({ params }: PageProps) {
     }, {})
   );
   const isMrw = /mrw/i.test(order.shippingAddress) || /mrw/i.test(order.trackingCarrier ?? '');
+  const isZoom = /zoom/i.test(order.shippingAddress) || /zoom/i.test(order.trackingCarrier ?? '');
   const pageW  = Number(settings.labelWidthMm) || 100;
   const pageH  = Number(settings.labelHeightMm) || 150;
   const labelW = Math.min(pageW, 100); // etiqueta compacta en hojas grandes
@@ -112,7 +113,7 @@ export default async function OrderLabelPage({ params }: PageProps) {
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase' }}>Envío</div>
               <div style={{ fontSize: '13px', fontWeight: 700 }}>
-                {order.trackingCarrier || (isMrw ? 'MRW' : 'Retiro / Encomienda')}
+                {order.trackingCarrier || (isMrw ? 'MRW' : isZoom ? 'ZOOM' : 'Retiro / Encomienda')}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>

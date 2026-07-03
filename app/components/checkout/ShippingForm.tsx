@@ -5,10 +5,11 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { useSession } from 'next-auth/react';
 import { Store, Building2, ChevronRight, BookUser, Check } from 'lucide-react';
 import { mrwOffices } from '@/lib/mrw-offices';
+import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
 import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 import { getSavedAddresses } from '@/app/actions/addressActions';
-import type { SavedAddress } from '@/lib/definitions';
+import type { SavedAddress, ShippingMethod } from '@/lib/definitions';
 
 export type ShippingFormData = {
   firstName:   string;
@@ -16,9 +17,11 @@ export type ShippingFormData = {
   email:       string;
   idNumber:    string;
   phoneNumber: string;
-  shippingMethod: 'tienda' | 'mrw';
+  shippingMethod: ShippingMethod;
   mrwState?:  string;
   mrwOffice?: string;
+  zoomState?: string;
+  zoomOfficeIndex?: string;
 };
 
 interface ShippingFormProps {
@@ -68,26 +71,56 @@ const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
     setValue('lastName',       addr.lastName);
     setValue('idNumber',       addr.idNumber);
     setValue('phoneNumber',    addr.phoneNumber);
-    setValue('shippingMethod', addr.shippingMethod);
+    setValue('shippingMethod', addr.shippingMethod as ShippingMethod);
     if (addr.shippingMethod === 'mrw') {
       setValue('mrwState',  addr.mrwState  ?? '');
       setValue('mrwOffice', addr.mrwOffice ?? '');
+      setValue('zoomState', '');
+      setValue('zoomOfficeIndex', '');
+    } else if (addr.shippingMethod === 'zoom') {
+      setValue('mrwState', '');
+      setValue('mrwOffice', '');
+      setValue('zoomState', addr.mrwState ?? '');
+      // Find the office index by matching the name
+      if (addr.mrwState && addr.mrwOffice) {
+        const offices = (zoomOffices as Record<string, ZoomOffice[]>)[addr.mrwState] ?? [];
+        const idx = offices.findIndex(o => o.name === addr.mrwOffice);
+        setValue('zoomOfficeIndex', idx >= 0 ? String(idx) : '');
+      } else {
+        setValue('zoomOfficeIndex', '');
+      }
     } else {
       setValue('mrwState',  '');
       setValue('mrwOffice', '');
+      setValue('zoomState', '');
+      setValue('zoomOfficeIndex', '');
     }
     setSelectedAddrId(addr.id);
     setShowAddrPicker(false);
   }
 
   const shippingMethod = watch('shippingMethod');
-  const selectedState  = watch('mrwState');
+  const selectedMrwState  = watch('mrwState');
+  const selectedZoomState = watch('zoomState');
 
   const onSubmit: SubmitHandler<ShippingFormData> = (data) => onFormSubmit(data);
 
   const inputCls = "block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy";
 
   const selectedAddr = savedAddresses.find((a) => a.id === selectedAddrId);
+
+  // Zoom: las oficinas filtradas por estado seleccionado
+  const zoomOfficesForState: ZoomOffice[] = selectedZoomState
+    ? (zoomOffices as Record<string, ZoomOffice[]>)[selectedZoomState] ?? []
+    : [];
+
+  // Zoom: etiqueta para el <select>
+  const zoomOptionLabel = (o: ZoomOffice, idx: number): string => {
+    if (o.address?.trim()) {
+      return `${o.name} · ${o.address} · ${o.city}`;
+    }
+    return `${o.name} · ${o.city}`;
+  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-7">
@@ -149,7 +182,9 @@ const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
                             {addr.firstName} {addr.lastName} · {addr.phoneNumber}
                             {addr.shippingMethod === 'mrw' && addr.mrwOffice
                               ? ` · ${addr.mrwOffice}, ${addr.mrwState}`
-                              : ' · Retiro en tienda'}
+                              : addr.shippingMethod === 'zoom' && addr.mrwOffice
+                                ? ` · ${addr.mrwOffice}, ${addr.mrwState}`
+                                : ' · Retiro en tienda'}
                           </p>
                         </div>
                         {selectedAddrId === addr.id && (
@@ -168,9 +203,10 @@ const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
       {/* Método */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {([
-          { id: 'tienda', icon: Store,     label: 'Retirar en tienda', sub: 'Recoge tu pedido en nuestra tienda física' },
-          { id: 'mrw',    icon: Building2, label: 'Envío nacional',        sub: 'Retira en la oficina de MRW más cercana'      },
-        ] as const).map((opt) => {
+          { id: 'tienda' as const, icon: Store,     label: 'Retirar en tienda', sub: 'Recoge tu pedido en nuestra tienda física' },
+          { id: 'mrw' as const,    icon: Building2, label: 'Envío nacional',        sub: 'Retira en la oficina de MRW más cercana'      },
+          { id: 'zoom' as const,   icon: Building2, label: 'Envío ZOOM',        sub: 'Retira en la oficina de ZOOM más cercana'      },
+        ]).map((opt) => {
           const active = shippingMethod === opt.id;
           return (
             <label
@@ -186,7 +222,13 @@ const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
                 value={opt.id}
                 {...register('shippingMethod')}
                 className="sr-only"
-                onChange={() => setValue('shippingMethod', opt.id)}
+                onChange={() => {
+                  setValue('shippingMethod', opt.id);
+                  setValue('mrwState', '');
+                  setValue('mrwOffice', '');
+                  setValue('zoomState', '');
+                  setValue('zoomOfficeIndex', '');
+                }}
               />
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                 active ? 'bg-navy text-white' : 'bg-slate-100 text-slate-500'
@@ -271,15 +313,46 @@ const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
           <Field id="mrwOffice" label="Oficina MRW" error={errors.mrwOffice?.message}>
             <select
               id="mrwOffice"
-              disabled={!selectedState}
+              disabled={!selectedMrwState}
               {...register('mrwOffice', { required: 'Selecciona una oficina' })}
               className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <option value="">Selecciona…</option>
-              {selectedState &&
-                (mrwOffices as Record<string, string[]>)[selectedState]?.map((o) => (
+              {selectedMrwState &&
+                (mrwOffices as Record<string, string[]>)[selectedMrwState]?.map((o) => (
                   <option key={o} value={o}>{o}</option>
                 ))}
+            </select>
+          </Field>
+        </div>
+      )}
+
+      {/* Solo para ZOOM: estado y oficina */}
+      {shippingMethod === 'zoom' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <Field id="zoomState" label="Estado" error={errors.zoomState?.message}>
+            <select
+              id="zoomState"
+              {...register('zoomState', { required: 'Selecciona un estado' })}
+              className={inputCls}
+            >
+              <option value="">Selecciona…</option>
+              {Object.keys(zoomOffices).sort().map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </Field>
+          <Field id="zoomOfficeIndex" label="Oficina ZOOM" error={errors.zoomOfficeIndex?.message}>
+            <select
+              id="zoomOfficeIndex"
+              disabled={!selectedZoomState}
+              {...register('zoomOfficeIndex', { required: 'Selecciona una oficina' })}
+              className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              <option value="">Selecciona…</option>
+              {zoomOfficesForState.map((o, idx) => (
+                <option key={idx} value={String(idx)}>{zoomOptionLabel(o, idx)}</option>
+              ))}
             </select>
           </Field>
         </div>

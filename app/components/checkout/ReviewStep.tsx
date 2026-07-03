@@ -4,9 +4,10 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
-import { Loader2, CheckCircle2, Store, Building2, CreditCard, Tag, X, LogIn } from 'lucide-react';
+import { Loader2, CheckCircle2, Store, Building2, Truck, CreditCard, Tag, X, LogIn } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import { useExchangeRate } from '@/context/ExchangeRateContext';
+import { zoomOffices } from '@/lib/zoom-offices';
 import { ShippingFormData } from './ShippingForm';
 import { PaymentFormData } from './PaymentForm';
 import { formatCurrency } from '@/lib/utils';
@@ -137,9 +138,19 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
           address:
             shippingData.shippingMethod === 'tienda'
               ? 'Retiro en tienda'
-              : 'Retiro en Oficina MRW',
-          city: shippingData.shippingMethod === 'mrw' ? (shippingData.mrwOffice ?? '') : 'Barquisimeto',
-          state: shippingData.shippingMethod === 'mrw' ? (shippingData.mrwState ?? '') : 'Lara',
+              : shippingData.shippingMethod === 'zoom' && zoomOffice
+                ? 'Retiro en Oficina ZOOM'
+                : 'Retiro en Oficina MRW',
+          city: shippingData.shippingMethod === 'mrw'
+            ? (shippingData.mrwOffice ?? '')
+            : shippingData.shippingMethod === 'zoom' && zoomOffice
+              ? zoomOffice.name
+              : 'Barquisimeto',
+          state: shippingData.shippingMethod === 'mrw'
+            ? (shippingData.mrwState ?? '')
+            : shippingData.shippingMethod === 'zoom' && zoomOffice
+              ? shippingData.zoomState ?? 'Lara'
+              : 'Lara',
           zipCode: 'N/A',
           country: 'Venezuela',
         },
@@ -217,7 +228,22 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
     return <div className="py-8 text-center text-slate-500">Cargando información del carrito…</div>;
   }
 
-  const ShippingIcon = shippingData?.shippingMethod === 'tienda' ? Store : Building2;
+  const zoomOffice = (() => {
+    if (
+      shippingData?.shippingMethod === 'zoom' &&
+      shippingData?.zoomState &&
+      shippingData?.zoomOfficeIndex !== undefined &&
+      shippingData?.zoomOfficeIndex !== ''
+    ) {
+      const offices = (zoomOffices as Record<string, { name: string; address: string; city: string }[]>)[shippingData.zoomState];
+      const idx = Number(shippingData.zoomOfficeIndex);
+      const office = offices?.[idx];
+      if (office) return office;
+    }
+    return null;
+  })();
+
+  const ShippingIcon = shippingData?.shippingMethod === 'tienda' ? Store : shippingData?.shippingMethod === 'zoom' ? Truck : Building2;
 
   const isBankManual =
     paymentData?.paymentMethod === 'pagomovil' ||
@@ -275,7 +301,11 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
           <div className="flex items-center gap-2 mb-3">
             <ShippingIcon size={15} className="text-slate-400" />
             <h3 className="text-sm font-semibold text-navy">
-              {shippingData?.shippingMethod === 'tienda' ? 'Retiro en tienda' : 'Retiro MRW'}
+              {shippingData?.shippingMethod === 'tienda'
+                ? 'Retiro en tienda'
+                : shippingData?.shippingMethod === 'zoom'
+                  ? 'Retiro ZOOM'
+                  : 'Retiro MRW'}
             </h3>
           </div>
           <dl className="text-sm space-y-1.5">
@@ -298,6 +328,14 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
                 <dt className="text-slate-500">Oficina</dt>
                 <dd className="text-navy text-right">
                   {shippingData.mrwOffice}, {shippingData.mrwState}
+                </dd>
+              </div>
+            )}
+            {shippingData?.shippingMethod === 'zoom' && zoomOffice && (
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-500">Oficina</dt>
+                <dd className="text-navy text-right">
+                  {zoomOffice.name}{zoomOffice.city ? ` · ${zoomOffice.city}` : ''}, {shippingData.zoomState}
                 </dd>
               </div>
             )}

@@ -4,8 +4,9 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import type { SavedAddress, SavedAddressInput } from '@/lib/definitions';
+import type { SavedAddress, SavedAddressInput, ShippingMethod } from '@/lib/definitions';
 import { mrwOffices } from '@/lib/mrw-offices';
+import { zoomOffices } from '@/lib/zoom-offices';
 
 interface ActionResult {
   success: boolean;
@@ -27,6 +28,17 @@ function validateMrwSelection(data: SavedAddressInput): string | null {
   if (!offices.includes(data.mrwOffice?.trim() ?? '')) {
     return 'La oficina MRW seleccionada no corresponde a ese estado.';
   }
+  return null;
+}
+
+/**
+ * Valida estado y oficina ZOOM contra la lista blanca de lib/zoom-offices.ts.
+ * Devuelve un mensaje de error o null si es válido.
+ */
+function validateZoomSelection(data: SavedAddressInput): string | null {
+  if (data.shippingMethod !== 'zoom') return null;
+  const offices = (zoomOffices as Record<string, unknown[]>)[data.mrwState?.trim() ?? ''];
+  if (!offices) return 'El estado ZOOM seleccionado no es válido.';
   return null;
 }
 
@@ -52,7 +64,7 @@ function toSavedAddress(row: {
     lastName:       row.lastName,
     idNumber:       row.idNumber,
     phoneNumber:    row.phoneNumber,
-    shippingMethod: row.shippingMethod as 'tienda' | 'mrw',
+    shippingMethod: row.shippingMethod as ShippingMethod,
     mrwState:       row.mrwState,
     mrwOffice:      row.mrwOffice,
     isDefault:      row.isDefault,
@@ -95,14 +107,24 @@ export async function createSavedAddress(
   if (!data.lastName?.trim()) return { success: false, message: 'El apellido es requerido.' };
   if (!data.idNumber?.trim()) return { success: false, message: 'La cédula es requerida.' };
   if (!data.phoneNumber?.trim()) return { success: false, message: 'El teléfono es requerido.' };
-  if (data.shippingMethod === 'mrw' && !data.mrwState?.trim()) {
-    return { success: false, message: 'Selecciona un estado para MRW.' };
+  const isCarrierMethod = data.shippingMethod === 'mrw' || data.shippingMethod === 'zoom';
+
+  if (isCarrierMethod && !data.mrwState?.trim()) {
+    return {
+      success: false,
+      message: data.shippingMethod === 'mrw' ? 'Selecciona un estado para MRW.' : 'Selecciona un estado para ZOOM.',
+    };
   }
-  if (data.shippingMethod === 'mrw' && !data.mrwOffice?.trim()) {
-    return { success: false, message: 'Selecciona una oficina MRW.' };
+  if (isCarrierMethod && !data.mrwOffice?.trim()) {
+    return {
+      success: false,
+      message: data.shippingMethod === 'mrw' ? 'Selecciona una oficina MRW.' : 'Selecciona una oficina ZOOM.',
+    };
   }
   const mrwError = validateMrwSelection(data);
   if (mrwError) return { success: false, message: mrwError };
+  const zoomError = validateZoomSelection(data);
+  if (zoomError) return { success: false, message: zoomError };
 
   try {
     const count = await prisma.savedAddress.count({ where: { userId } });
@@ -131,8 +153,8 @@ export async function createSavedAddress(
         idNumber:       data.idNumber.trim(),
         phoneNumber:    data.phoneNumber.trim(),
         shippingMethod: data.shippingMethod,
-        mrwState:       data.shippingMethod === 'mrw' ? (data.mrwState?.trim() ?? null) : null,
-        mrwOffice:      data.shippingMethod === 'mrw' ? (data.mrwOffice?.trim() ?? null) : null,
+        mrwState:       isCarrierMethod ? (data.mrwState?.trim() ?? null) : null,
+        mrwOffice:      isCarrierMethod ? (data.mrwOffice?.trim() ?? null) : null,
         isDefault:      makeDefault,
       },
     });
@@ -159,14 +181,25 @@ export async function updateSavedAddress(
   if (!data.lastName?.trim()) return { success: false, message: 'El apellido es requerido.' };
   if (!data.idNumber?.trim()) return { success: false, message: 'La cédula es requerida.' };
   if (!data.phoneNumber?.trim()) return { success: false, message: 'El teléfono es requerido.' };
-  if (data.shippingMethod === 'mrw' && !data.mrwState?.trim()) {
-    return { success: false, message: 'Selecciona un estado para MRW.' };
+
+  const isCarrierMethod = data.shippingMethod === 'mrw' || data.shippingMethod === 'zoom';
+
+  if (isCarrierMethod && !data.mrwState?.trim()) {
+    return {
+      success: false,
+      message: data.shippingMethod === 'mrw' ? 'Selecciona un estado para MRW.' : 'Selecciona un estado para ZOOM.',
+    };
   }
-  if (data.shippingMethod === 'mrw' && !data.mrwOffice?.trim()) {
-    return { success: false, message: 'Selecciona una oficina MRW.' };
+  if (isCarrierMethod && !data.mrwOffice?.trim()) {
+    return {
+      success: false,
+      message: data.shippingMethod === 'mrw' ? 'Selecciona una oficina MRW.' : 'Selecciona una oficina ZOOM.',
+    };
   }
   const mrwError = validateMrwSelection(data);
   if (mrwError) return { success: false, message: mrwError };
+  const zoomError = validateZoomSelection(data);
+  if (zoomError) return { success: false, message: zoomError };
 
   try {
     const existing = await prisma.savedAddress.findUnique({ where: { id } });
@@ -190,8 +223,8 @@ export async function updateSavedAddress(
         idNumber:       data.idNumber.trim(),
         phoneNumber:    data.phoneNumber.trim(),
         shippingMethod: data.shippingMethod,
-        mrwState:       data.shippingMethod === 'mrw' ? (data.mrwState?.trim() ?? null) : null,
-        mrwOffice:      data.shippingMethod === 'mrw' ? (data.mrwOffice?.trim() ?? null) : null,
+        mrwState:       isCarrierMethod ? (data.mrwState?.trim() ?? null) : null,
+        mrwOffice:      isCarrierMethod ? (data.mrwOffice?.trim() ?? null) : null,
         isDefault:      data.isDefault ?? existing.isDefault,
       },
     });

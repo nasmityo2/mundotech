@@ -216,6 +216,8 @@ export interface Order {
 // LIBRO DE DIRECCIONES
 // ─────────────────────────────────────────────────────────────
 
+export type ShippingMethod = 'tienda' | 'mrw' | 'zoom';
+
 export interface SavedAddress {
   id:             string;
   userId:         string;
@@ -224,7 +226,7 @@ export interface SavedAddress {
   lastName:       string;
   idNumber:       string;
   phoneNumber:    string;
-  shippingMethod: 'tienda' | 'mrw';
+  shippingMethod: ShippingMethod;
   mrwState?:      string | null;
   mrwOffice?:     string | null;
   isDefault:      boolean;
@@ -237,7 +239,7 @@ export interface SavedAddressInput {
   lastName:       string;
   idNumber:       string;
   phoneNumber:    string;
-  shippingMethod: 'tienda' | 'mrw';
+  shippingMethod: ShippingMethod;
   mrwState?:      string | null;
   mrwOffice?:     string | null;
   isDefault?:     boolean;
