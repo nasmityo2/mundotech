@@ -139,17 +139,17 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
             shippingData.shippingMethod === 'tienda'
               ? 'Retiro en tienda'
               : shippingData.shippingMethod === 'zoom' && zoomOffice
-                ? 'Retiro en Oficina ZOOM'
+                ? `Oficina ZOOM ${zoomOffice.name}${zoomOffice.address ? ` — ${zoomOffice.address}` : ''}`
                 : 'Retiro en Oficina MRW',
           city: shippingData.shippingMethod === 'mrw'
             ? (shippingData.mrwOffice ?? '')
             : shippingData.shippingMethod === 'zoom' && zoomOffice
-              ? zoomOffice.name
+              ? (zoomOffice.city || zoomOffice.name)
               : 'Barquisimeto',
           state: shippingData.shippingMethod === 'mrw'
             ? (shippingData.mrwState ?? '')
             : shippingData.shippingMethod === 'zoom' && zoomOffice
-              ? shippingData.zoomState ?? 'Lara'
+              ? (shippingData.zoomState ?? 'Lara')
               : 'Lara',
           zipCode: 'N/A',
           country: 'Venezuela',
@@ -335,7 +335,9 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-500">Oficina</dt>
                 <dd className="text-navy text-right">
-                  {zoomOffice.name}{zoomOffice.city ? ` · ${zoomOffice.city}` : ''}, {shippingData.zoomState}
+                  {zoomOffice.name}
+                  {zoomOffice.address ? ` — ${zoomOffice.address}` : ''}
+                  {zoomOffice.city ? ` · ${zoomOffice.city}` : ''}, {shippingData.zoomState}
                 </dd>
               </div>
             )}
