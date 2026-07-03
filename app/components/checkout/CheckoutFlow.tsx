@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -19,6 +19,7 @@ import type { StoreSettings } from '@/lib/data-store';
 import type { ShippingEstimates } from '@/lib/shipping-estimates';
 import { saveCartSnapshotAction } from '@/app/actions/abandonedCartActions';
 import type { AbandonedCartItem } from '@/lib/definitions';
+import { track, toGa4Item, ga4ItemsValue, GA4_CURRENCY } from '@/lib/ga4';
 
 interface CheckoutFlowProps {
   pagoMovil: StoreSettings['pagoMovil'];
@@ -53,6 +54,19 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // FASE 4.4: begin_checkout una vez por montaje del flujo (cuando ya hay carrito).
+  const beginTrackedRef = useRef(false);
+  useEffect(() => {
+    if (beginTrackedRef.current || isCartLoading || cart.length === 0) return;
+    beginTrackedRef.current = true;
+    const items = cart.map((i) => toGa4Item(i));
+    track('begin_checkout', {
+      currency: GA4_CURRENCY,
+      value: ga4ItemsValue(items),
+      items,
+    });
+  }, [isCartLoading, cart]);
+
   // Chrome Android: un gesto hacia arriba en el tope del formulario dispara
   // pull-to-refresh y pierde el estado del checkout. Contenerlo solo aquí.
   useEffect(() => {
@@ -77,6 +91,17 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
     setDirection(1);
     setCurrentStep(1);
 
+    // FASE 4.4: add_shipping_info al completar el paso de envío.
+    {
+      const items = cart.map((i) => toGa4Item(i));
+      track('add_shipping_info', {
+        currency: GA4_CURRENCY,
+        value: ga4ItemsValue(items),
+        shipping_tier: data.shippingMethod,
+        items,
+      });
+    }
+
     // Guardar snapshot de carrito abandonado (best-effort, no bloquea el flujo)
     if (data.email && cart.length > 0) {
       const items: AbandonedCartItem[] = cart.map((item) => ({
@@ -96,6 +121,15 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
     setPaymentData(data);
     setDirection(1);
     setCurrentStep(2);
+
+    // FASE 4.4: add_payment_info al completar el paso de pago.
+    const items = cart.map((i) => toGa4Item(i));
+    track('add_payment_info', {
+      currency: GA4_CURRENCY,
+      value: ga4ItemsValue(items),
+      payment_type: data.paymentMethod,
+      items,
+    });
   };
 
   const handleBack = () => {

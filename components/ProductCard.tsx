@@ -10,6 +10,7 @@ import type { Product } from '../context/ProductContext';
 import { useExchangeRate } from '../context/ExchangeRateContext';
 import { Stars } from '@/components/reviews/Stars';
 import { isGenericBrand } from '@/lib/utils';
+import { track, toGa4Item, GA4_CURRENCY } from '@/lib/ga4';
 
 function formatUSD(amount: number): string {
   return `$${new Intl.NumberFormat('en-US', {
@@ -132,6 +133,12 @@ const ProductCard = ({ product, priority = false }: { product: Product; priority
           <h3 className="text-[13px] sm:text-sm font-semibold text-navy leading-snug line-clamp-2 transition-colors min-h-[2.4rem]">
             <Link
               href={`/product/${product.slug ?? product.id}`}
+              onClick={() =>
+                track('select_item', {
+                  currency: GA4_CURRENCY,
+                  items: [toGa4Item(product)],
+                })
+              }
               className="focus:outline-none after:absolute after:inset-0 after:content-[''] after:rounded-2xl"
             >
               {product.name}

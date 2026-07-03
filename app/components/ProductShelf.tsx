@@ -1,9 +1,11 @@
 // PERF-03 (AUDITORIA-2026-07): Server Component — solo renderiza props del
-// servidor; la única isla client es ProductCard (botones carrito/wishlist).
+// servidor; las islas client son ProductCard y el tracker GA4.
 import Link from 'next/link';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import ProductCard from '@/components/ProductCard';
+import TrackViewItemList from '@/app/components/TrackViewItemList';
 import { firstCardImage } from '@/lib/product-media';
+import { slugify } from '@/lib/slugify';
 
 interface ShelfProduct {
   id:            string;
@@ -78,6 +80,19 @@ const ProductShelf = ({
 
   return (
     <section className="py-5 sm:py-8 w-full max-w-full overflow-x-hidden">
+      {/* FASE 4.4: impresión de la estantería en GA4 (no-op sin GA4). */}
+      <TrackViewItemList
+        listId={slugify(title)}
+        listName={title}
+        items={slice.map((p) => ({
+          item_id: p.id,
+          item_name: p.name,
+          item_category: p.category,
+          ...(p.brand ? { item_brand: p.brand } : {}),
+          price: p.price,
+          quantity: 1,
+        }))}
+      />
       {/* Header row */}
       <div className="flex items-end justify-between gap-3 mb-3 sm:mb-4">
         <div className="min-w-0 flex-1">

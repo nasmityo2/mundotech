@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRecentlyViewed, type RecentlyViewedItem } from '@/lib/useRecentlyViewed';
+import { track, GA4_CURRENCY } from '@/lib/ga4';
 
 function getOrCreateSessionId(): string {
   if (typeof window === 'undefined') return '';
@@ -29,6 +30,22 @@ export default function RecentlyViewedTracker(props: Omit<RecentlyViewedItem, 't
       body: JSON.stringify({ productId: props.id, sessionId }),
       keepalive: true, // sobrevive a navegaciones
     }).catch(() => {}); // silencioso ante fallo de red
+
+    // 3. FASE 4.4: view_item de GA4 (no-op sin GA4 configurado).
+    track('view_item', {
+      currency: GA4_CURRENCY,
+      value: props.price,
+      items: [
+        {
+          item_id: props.id,
+          item_name: props.name,
+          ...(props.category ? { item_category: props.category } : {}),
+          ...(props.brand ? { item_brand: props.brand } : {}),
+          price: props.price,
+          quantity: 1,
+        },
+      ],
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.id]);
 

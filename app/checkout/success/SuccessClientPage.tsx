@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -7,6 +8,7 @@ import { Check, ArrowRight, Package, Mail, Home, MessageCircle } from 'lucide-re
 import { MUNDOTECH_SOCIAL } from '@/lib/mundotech-social';
 import type { EnrichedOrder } from './page';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
+import { trackPurchaseOnce } from '@/lib/ga4';
 
 interface Props {
   order: EnrichedOrder;
@@ -19,6 +21,27 @@ const fadeUp = {
 
 export default function SuccessClientPage({ order }: Props) {
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+
+  // FASE 4.4: purchase con dedupe por transaction_id (recargas de la página no
+  // duplican). Los montos congelados en Bs se convierten a USD con la tasa del pedido.
+  useEffect(() => {
+    const rate = order.exchangeRateUsdBs;
+    const toUsd = (amount: number) =>
+      rate && rate > 0 ? Math.round((amount / rate) * 100) / 100 : amount;
+    trackPurchaseOnce({
+      transactionId: String(order.orderNumber),
+      value: toUsd(order.total),
+      coupon: order.couponCode ?? null,
+      items: order.items.map((i) => ({
+        item_id: i.productId,
+        item_name: i.productName,
+        price: toUsd(i.price),
+        quantity: i.quantity,
+      })),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.orderNumber]);
+
   return (
     <div className="py-10 sm:py-14 max-w-3xl mx-auto">
       <motion.div

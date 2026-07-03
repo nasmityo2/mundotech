@@ -14,6 +14,7 @@ import { Product } from './ProductContext';
 import type { CartItemAPI } from '@/lib/definitions';
 import { getProductSnapshots } from '@/app/actions/productSnapshotActions';
 import { firstCardImage } from '@/lib/product-media';
+import { track, toGa4Item, ga4ItemsValue, GA4_CURRENCY } from '@/lib/ga4';
 
 interface CartItem extends Product {
   quantity: number;
@@ -271,6 +272,13 @@ export const CartProvider = ({ children }: CartProviderProps) => {
     setIsCartOpen(true);
     // PRD-234/235: stock fresco antes de que el usuario ajuste cantidades.
     refreshCartThrottled();
+    // FASE 4.4: view_cart al abrir el drawer.
+    const items = cartRef.current.map((i) => toGa4Item(i));
+    track('view_cart', {
+      currency: GA4_CURRENCY,
+      value: ga4ItemsValue(items),
+      items,
+    });
   }, [refreshCartThrottled]);
   const closeCart = useCallback(() => setIsCartOpen(false), []);
 
@@ -353,6 +361,12 @@ export const CartProvider = ({ children }: CartProviderProps) => {
     setItemAdded(true);
     setTimeout(() => setItemAdded(false), 500);
     openCart();
+    // FASE 4.4: evento GA4 (no-op sin NEXT_PUBLIC_GA4_ID / sin consentimiento).
+    track('add_to_cart', {
+      currency: GA4_CURRENCY,
+      value: Math.round(product.price * quantity * 100) / 100,
+      items: [toGa4Item({ ...product, quantity })],
+    });
   };
 
   const silentAddToCart = (product: Product, quantity: number = 1) => {
@@ -365,6 +379,11 @@ export const CartProvider = ({ children }: CartProviderProps) => {
     dbRemoveItem(productId);
     if (itemToRemove) {
       showNotification(`"${itemToRemove.name}" eliminado.`, 'success');
+      track('remove_from_cart', {
+        currency: GA4_CURRENCY,
+        value: Math.round(itemToRemove.price * itemToRemove.quantity * 100) / 100,
+        items: [toGa4Item(itemToRemove)],
+      });
     }
   };
 
