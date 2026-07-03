@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { readSiteContent, type TrustIcon } from '@/lib/site-content';
 import ProductActions from './ProductActions';
-import StickyAddToCart from './StickyAddToCart';
 import ProductGallery from './ProductGallery';
 import { firstCardImage, productToGalleryItems } from '@/lib/product-media';
 import ProductTabs from './ProductTabs';
@@ -304,7 +303,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const isLowStock = !isOut && product.stock <= 5;
 
   return (
-    <div className="pb-24 lg:pb-12 w-full max-w-full">
+    <div className="pb-12 w-full max-w-full">
 
       {/* ── Datos estructurados JSON-LD ── */}
       <ProductJsonLd
@@ -564,8 +563,6 @@ export default async function ProductDetailPage({ params }: PageProps) {
         category={product.category}
       />
 
-      {/* ── Barra de compra fija en móvil (aparece tras el scroll) ── */}
-      <StickyAddToCart product={productForClient} />
     </div>
   );
 }

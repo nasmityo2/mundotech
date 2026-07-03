@@ -165,7 +165,6 @@ Globales fijos: WhatsAppFab, PromoPopup, CookieConsent, Toaster
 ```
 
 **No hay bottom navigation en la tienda.** La navegación inferior se sustituye por:
-- Sticky CTA en PDP (`StickyAddToCart`, `lg:hidden`)
 - Sticky checkout en carrito (`CartClient`, `lg:hidden`)
 - FAB de WhatsApp flotante
 
@@ -242,7 +241,7 @@ img, video, iframe, svg {
 |----------|--------|
 | `SearchMobileOverlay.tsx` | top, bottom, left, right |
 | `CartDrawer.tsx` | top + bottom en footer |
-| `StickyAddToCart.tsx`, `CartClient.tsx` | bottom |
+| `CartClient.tsx` | bottom |
 | `WhatsAppFab.tsx` | right + bottom |
 | `CookieConsent.tsx`, `PromoPopup.tsx` | bottom |
 | Checkout forms (Shipping, Payment, Review) | bottom sticky CTA |
@@ -345,17 +344,15 @@ flowchart TD
 
 ### 6.4 Detalle de producto (`/product/[slug]`)
 
-**Archivos:** `app/product/[slug]/page.tsx`, `ProductGallery.tsx`, `ProductActions.tsx`, `StickyAddToCart.tsx`, `ProductTabs.tsx`, `ProductReviews.tsx`
+**Archivos:** `app/product/[slug]/page.tsx`, `ProductGallery.tsx`, `ProductActions.tsx`, `ProductTabs.tsx`, `ProductReviews.tsx`
 
 | Aspecto | Estado | Detalle |
 |---------|--------|---------|
 | Galería responsive | ✅ | `sizes` correctos, thumbs 80px |
-| Sticky bar compra | ✅ | Aparece tras scroll >360px, safe-area bottom |
-| Compensación scroll | ⚠️ | `pb-24` puede quedar corto con popup + cookies + FAB |
+| Compensación scroll | ✅ | Sin barra fija inferior (eliminada), sin colisión con overlays |
 | Tab "Reseñas" | ❌ | Copy "próximamente" mientras `ProductReviews` ya funciona abajo |
 | Breadcrumb | ⚠️ | `whitespace-nowrap` — nombres largos ilegibles |
 | Trust strip | ⚠️ | `grid-cols-3` con `text-[11px]` ilegible en 320px |
-| FAB vs sticky | ❌ | WhatsApp z-50 encima de barra compra z-40 |
 | Estrellas reseña | ⚠️ | Preview con `onMouseEnter` — no funciona en touch |
 
 ### 6.5 Carrito (`/cart`)
@@ -597,17 +594,17 @@ try {
 
 | ID | Problema | Archivo(s) | Impacto |
 |----|----------|------------|---------|
-| P1-1 | FAB WhatsApp tapa CTA sticky en PDP y carrito | `WhatsAppFab.tsx`, `StickyAddToCart.tsx`, `CartClient.tsx` | CTA de compra parcialmente bloqueado |
+| P1-1 | FAB WhatsApp tapa CTA en carrito | `WhatsAppFab.tsx`, `CartClient.tsx` | CTA de compra parcialmente bloqueado en carrito |
 | P1-2 | Cupón decorativo en carrito (sin lógica) | `CartClient.tsx` L186-205 | Expectativa rota; cupón real solo en `ReviewStep` |
 | P1-3 | Tab "Reseñas" obsoleta en PDP | `ProductTabs.tsx` L158-165 vs `ProductReviews.tsx` | Confusión; doble fuente de verdad |
 | P1-4 | `text-sm` en inputs anula anti-zoom iOS | `ProductReviews.tsx`, `ReviewStep.tsx`, `ProductActions.tsx` | Zoom Safari al enfocar |
 | P1-5 | Catálogo completo descargado en cada visita | `context/ProductContext.tsx` L75-77 | Datos, CPU, batería en 3G/4G |
 | P1-6 | Checkout sin guard de carrito vacío | `CheckoutFlow.tsx` | URL directa `/checkout` sin ítems |
-| P1-7 | Comprar ahora no reemplaza carrito existente | `StickyAddToCart.tsx`, `ProductActions.tsx` | `silentAddToCart` + redirect — sorpresa si ya hay ítems |
+| P1-7 | Comprar ahora no reemplaza carrito existente | `ProductActions.tsx` | `silentAddToCart` + redirect — sorpresa si ya hay ítems |
 
 **P1-7 — Detalle y corrección sugerida:**
 
-`StickyAddToCart` y `ProductActions` llaman a `silentAddToCart` al hacer "Comprar ahora", que **agrega** el producto al carrito existente y redirige a `/cart`. Si el usuario ya tenía otros ítems, llega a un carrito combinado sin haberlo esperado.
+`ProductActions` llama a `silentAddToCart` al hacer "Comprar ahora", que **agrega** el producto al carrito existente y redirige a `/cart`. Si el usuario ya tenía otros ítems, llega a un carrito combinado sin haberlo esperado.
 
 ```tsx
 // Corrección: limpiar carrito antes de agregar, o mostrar modal de confirmación
@@ -677,7 +674,6 @@ async function handleBuyNow(product, quantity) {
 |---------|------------|----------|------|
 | z-30 | Barra checkout carrito | `fixed bottom` | `/cart` |
 | z-40 | Navbar header | `sticky top` | Global |
-| z-40 | StickyAddToCart | `fixed bottom` | PDP |
 | z-50 | WhatsApp FAB | `fixed` | Global (excepto checkout/admin) |
 | z-55-56 | CategoryDrawer | `fixed` | Overlay menú |
 | z-60 | PromoPopup | `fixed bottom` | Global |
@@ -689,13 +685,13 @@ async function handleBuyNow(product, quantity) {
 
 ### Colisión inferior documentada
 
-En PDP y carrito pueden coexistir simultáneamente:
-1. Barra sticky compra/checkout (z-30/40)
+En carrito pueden coexistir simultáneamente:
+1. Barra sticky checkout (z-30)
 2. WhatsApp FAB (z-50) — **encima del CTA**
 3. Promo popup (z-60)
 4. Cookie banner (z-70)
 
-**Mitigación actual parcial:** WhatsApp oculto solo en `/checkout`, no cuando hay sticky bar activa.
+**Mitigación actual parcial:** WhatsApp oculto solo en `/checkout`, no cuando hay sticky bar activa en carrito.
 
 ### Gestión de scroll lock (`body.overflow`)
 
@@ -1281,7 +1277,7 @@ La paleta base del proyecto (`#0B1220` fondos, `#F3F4F6` textos) es inherentemen
 | 1 | Quitar `overflow-hidden` o usar `fixed` CTAs en checkout | P0-1 | S | Dev frontend |
 | 2 | Unificar totales carrito/checkout | P0-2 | M | Dev frontend |
 | 3 | `CategoryDrawer` → `router.push('/productos?cat=...')` | P0-3 | S | Dev frontend |
-| 4 | Ocultar/reubicar WhatsApp cuando sticky bar activa | P1-1 | M | Dev frontend |
+| 4 | Ocultar/reubicar WhatsApp cuando barra fija de carrito activa | P1-1 | M | Dev frontend |
 | 5 | Protección doble-submit en "Confirmar pedido" | P0-4 | S | Dev frontend |
 | 6 | Manejo de sesión expirada en checkout | P0-5 | M | Dev fullstack |
 | 7 | Manejo de error de red / timeout en submit pedido | P0-6 | S | Dev frontend |
@@ -1462,7 +1458,6 @@ La paleta base del proyecto (`#0B1220` fondos, `#F3F4F6` textos) es inherentemen
 | Archivo | Rol |
 |---------|-----|
 | `app/product/[slug]/page.tsx` | Layout PDP |
-| `app/product/[slug]/StickyAddToCart.tsx` | Barra compra fija |
 | `app/product/[slug]/ProductGallery.tsx` | Galería imágenes |
 | `app/product/[slug]/ProductTabs.tsx` | Tabs (bug reseñas) |
 | `app/product/[slug]/ProductReviews.tsx` | Reseñas reales |
@@ -1615,7 +1610,7 @@ No hay análisis de qué ve el usuario cuando `product.stock === 0` o cuando el 
 | Aspecto | Estado esperado | Estado verificar |
 |---------|----------------|-----------------|
 | Botón "Añadir al carrito" | Deshabilitado, texto "Sin stock" | ¿O se oculta? |
-| "Comprar ahora" (StickyAddToCart) | Deshabilitado | ¿O desaparece la sticky bar? |
+| "Comprar ahora" | Deshabilitado | ¿O se oculta el botón? |
 | "Avísame cuando esté disponible" | Input email de restock | ¿Funciona el submit? |
 | Stock race condition | Si el último ítem se agota mientras el usuario está en la PDP | ¿Se bloquea en el checkout? |
 

@@ -72,7 +72,7 @@
 - **Por qué:** ver `PLAN-CORRECCION-INTEGRAL.md` P0-1 (el `.env.bak` estuvo commiteado). Tras rotar, considerar `git filter-repo` para purgar el blob y activar secret-scanning de GitHub.
 
 ### 4.5 Tests E2E del flujo de compra
-- **Por qué:** Playwright ya está en devDependencies; no hay specs. Un smoke test (home → PDP → carrito → checkout hasta el paso de pago) en CI habría detectado la regresión del StickyAddToCart y el overflow-hidden del checkout.
+- **Por qué:** Playwright ya está en devDependencies; no hay specs. Un smoke test (home → PDP → carrito → checkout hasta el paso de pago) en CI habría detectado el overflow-hidden del checkout y otras regresiones.
 
 ## Accesibilidad (transversal)
 - Auditoría VoiceOver/TalkBack del flujo completo en dispositivo real (los fundamentos ya están: labels, roles, focus, 44px).

@@ -33,8 +33,8 @@
 
 ## P1 — Altos
 
-### P1-1 · (Fase 1) Regresión StickyAddToCart + pérdida de datos del checkout al volver atrás
-- ✅ Corregidos en `feat/mobile-optimization` (ver `docs/OPTIMIZACION-MOVIL-2026-07-02.md`). Se listan aquí porque eran bugs funcionales de conversión, no solo UX.
+### P1-1 · (Fase 1) Barra de compra fija en PDP
+- ✅ Eliminada intencionalmente para simplificar la PDP y evitar colisión con overlays. El CTA principal queda en `ProductActions` siempre visible en la tarjeta de información.
 
 ### P1-2 · Manejo de sesión expirada y errores de red en "Confirmar pedido"
 - ✅ Corregido en Fase 1 (`ReviewStep.tsx`): 401 → CTA re-login; error de red → mensaje claro con reintento.

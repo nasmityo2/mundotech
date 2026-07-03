@@ -25,7 +25,7 @@
 
 | ID | Hallazgo | Acción |
 |----|----------|--------|
-| **P0-A** | **Regresión:** `StickyAddToCart` (barra de compra fija del PDP) fue **eliminado por accidente** en el commit "fix fotos movil" (15 jun). En móvil no quedaba CTA de compra tras el scroll largo | ✅ Restaurado sin framer-motion, safe-area, targets 48px, FAB desplazado |
+| **P0-A** | **Regresión:** barra de compra fija del PDP fue **eliminado por accidente** en el commit "fix fotos movil" (15 jun). En móvil no quedaba CTA de compra tras el scroll largo | ✅ ~~Restaurado~~ Eliminado definitivamente (jul 2026) — el CTA principal en `ProductActions` es suficiente; se simplifica la PDP y se evita colisión con overlays |
 | **P0-B** | Pérdida de datos al volver atrás en el checkout: `AnimatePresence` remonta los formularios y `shippingData`/`paymentData` no se reinyectaban (incluye el comprobante subido) | ✅ `initialData` en ShippingForm/PaymentForm; el object URL del comprobante ya no se revoca al desmontar (el preview de ReviewStep dependía de él) |
 
 ### P1 del doc antiguo

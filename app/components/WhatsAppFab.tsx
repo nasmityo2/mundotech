@@ -31,8 +31,8 @@ export default function WhatsAppFab({
     pathname.startsWith('/admin') ||
     pathname.startsWith('/checkout');
 
-  // En /cart y /product/* hay barras de compra fijas al fondo en móvil
-  // (checkout sticky / StickyAddToCart): subir el FAB para no tapar el CTA.
+  // En /cart hay barra de compra fija al fondo en móvil
+  // (checkout sticky): subir el FAB para no tapar el CTA.
   const hasBottomBar =
     !!pathname && (pathname === '/cart' || pathname.startsWith('/product/'));
 
