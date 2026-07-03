@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import type { SavedAddress, SavedAddressInput, ShippingMethod } from '@/lib/definitions';
 import { mrwOffices } from '@/lib/mrw-offices';
-import { zoomOffices } from '@/lib/zoom-offices';
+import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
 
 interface ActionResult {
   success: boolean;
@@ -37,8 +37,12 @@ function validateMrwSelection(data: SavedAddressInput): string | null {
  */
 function validateZoomSelection(data: SavedAddressInput): string | null {
   if (data.shippingMethod !== 'zoom') return null;
-  const offices = (zoomOffices as Record<string, unknown[]>)[data.mrwState?.trim() ?? ''];
+  const offices = (zoomOffices as Record<string, ZoomOffice[]>)[data.mrwState?.trim() ?? ''];
   if (!offices) return 'El estado ZOOM seleccionado no es válido.';
+  const name = data.mrwOffice?.trim() ?? '';
+  if (!offices.some((o) => o.name === name)) {
+    return 'La oficina ZOOM seleccionada no corresponde a ese estado.';
+  }
   return null;
 }
 
@@ -53,6 +57,8 @@ function toSavedAddress(row: {
   shippingMethod: string;
   mrwState: string | null;
   mrwOffice: string | null;
+  officeAddress: string | null;
+  officeCity: string | null;
   isDefault: boolean;
   createdAt: Date;
 }): SavedAddress {
@@ -67,6 +73,8 @@ function toSavedAddress(row: {
     shippingMethod: row.shippingMethod as ShippingMethod,
     mrwState:       row.mrwState,
     mrwOffice:      row.mrwOffice,
+    officeAddress:  row.officeAddress,
+    officeCity:     row.officeCity,
     isDefault:      row.isDefault,
     createdAt:      row.createdAt.toISOString(),
   };
@@ -155,6 +163,8 @@ export async function createSavedAddress(
         shippingMethod: data.shippingMethod,
         mrwState:       isCarrierMethod ? (data.mrwState?.trim() ?? null) : null,
         mrwOffice:      isCarrierMethod ? (data.mrwOffice?.trim() ?? null) : null,
+        officeAddress:  data.shippingMethod === 'zoom' ? (data.officeAddress?.trim() || null) : null,
+        officeCity:     data.shippingMethod === 'zoom' ? (data.officeCity?.trim()    || null) : null,
         isDefault:      makeDefault,
       },
     });
@@ -225,6 +235,8 @@ export async function updateSavedAddress(
         shippingMethod: data.shippingMethod,
         mrwState:       isCarrierMethod ? (data.mrwState?.trim() ?? null) : null,
         mrwOffice:      isCarrierMethod ? (data.mrwOffice?.trim() ?? null) : null,
+        officeAddress:  data.shippingMethod === 'zoom' ? (data.officeAddress?.trim() || null) : null,
+        officeCity:     data.shippingMethod === 'zoom' ? (data.officeCity?.trim()    || null) : null,
         isDefault:      data.isDefault ?? existing.isDefault,
       },
     });

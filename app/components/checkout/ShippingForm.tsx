@@ -22,6 +22,9 @@ export type ShippingFormData = {
   mrwOffice?: string;
   zoomState?: string;
   zoomOfficeIndex?: string;
+  zoomOfficeName?: string;
+  zoomOfficeAddress?: string;
+  zoomOfficeCity?: string;
 };
 
 interface ShippingFormProps {
@@ -77,11 +80,16 @@ const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
       setValue('mrwOffice', addr.mrwOffice ?? '');
       setValue('zoomState', '');
       setValue('zoomOfficeIndex', '');
+      setValue('zoomOfficeName', '');
+      setValue('zoomOfficeAddress', '');
+      setValue('zoomOfficeCity', '');
     } else if (addr.shippingMethod === 'zoom') {
       setValue('mrwState', '');
       setValue('mrwOffice', '');
       setValue('zoomState', addr.mrwState ?? '');
-      // Find the office index by matching the name
+      setValue('zoomOfficeName',    addr.mrwOffice ?? '');
+      setValue('zoomOfficeAddress', addr.officeAddress ?? '');
+      setValue('zoomOfficeCity',    addr.officeCity ?? '');
       if (addr.mrwState && addr.mrwOffice) {
         const offices = (zoomOffices as Record<string, ZoomOffice[]>)[addr.mrwState] ?? [];
         const idx = offices.findIndex(o => o.name === addr.mrwOffice);
@@ -94,6 +102,9 @@ const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
       setValue('mrwOffice', '');
       setValue('zoomState', '');
       setValue('zoomOfficeIndex', '');
+      setValue('zoomOfficeName', '');
+      setValue('zoomOfficeAddress', '');
+      setValue('zoomOfficeCity', '');
     }
     setSelectedAddrId(addr.id);
     setShowAddrPicker(false);
@@ -115,7 +126,7 @@ const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
     : [];
 
   // Zoom: etiqueta para el <select>
-  const zoomOptionLabel = (o: ZoomOffice, idx: number): string => {
+  const zoomOptionLabel = (o: ZoomOffice): string => {
     if (o.address?.trim()) {
       return `${o.name} · ${o.address} · ${o.city}`;
     }
@@ -228,6 +239,9 @@ const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
                   setValue('mrwOffice', '');
                   setValue('zoomState', '');
                   setValue('zoomOfficeIndex', '');
+                  setValue('zoomOfficeName', '');
+                  setValue('zoomOfficeAddress', '');
+                  setValue('zoomOfficeCity', '');
                 }}
               />
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
@@ -351,7 +365,7 @@ const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
             >
               <option value="">Selecciona…</option>
               {zoomOfficesForState.map((o, idx) => (
-                <option key={idx} value={String(idx)}>{zoomOptionLabel(o, idx)}</option>
+                <option key={idx} value={String(idx)}>{zoomOptionLabel(o)}</option>
               ))}
             </select>
           </Field>

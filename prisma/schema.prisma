@@ -164,6 +164,8 @@ model SavedAddress {
   shippingMethod String   @default("tienda")
   mrwState       String?
   mrwOffice      String?
+  officeAddress  String?   // ZOOM: dirección física de la oficina (snapshot). MRW no la usa.
+  officeCity     String?   // ZOOM: ciudad de la oficina (snapshot). MRW no la usa.
   isDefault      Boolean  @default(false)
 
   createdAt      DateTime @default(now())

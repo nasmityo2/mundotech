@@ -229,16 +229,24 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
   }
 
   const zoomOffice = (() => {
+    if (shippingData?.shippingMethod !== 'zoom') return null;
+    // 1) resolver desde la lista viva por índice (selección manual siempre gana)
     if (
-      shippingData?.shippingMethod === 'zoom' &&
-      shippingData?.zoomState &&
-      shippingData?.zoomOfficeIndex !== undefined &&
-      shippingData?.zoomOfficeIndex !== ''
+      shippingData.zoomState &&
+      shippingData.zoomOfficeIndex !== undefined &&
+      shippingData.zoomOfficeIndex !== ''
     ) {
       const offices = (zoomOffices as Record<string, { name: string; address: string; city: string }[]>)[shippingData.zoomState];
-      const idx = Number(shippingData.zoomOfficeIndex);
-      const office = offices?.[idx];
+      const office = offices?.[Number(shippingData.zoomOfficeIndex)];
       if (office) return office;
+    }
+    // 2) fallback: snapshot de la dirección guardada
+    if (shippingData.zoomOfficeName || shippingData.zoomOfficeAddress || shippingData.zoomOfficeCity) {
+      return {
+        name:    shippingData.zoomOfficeName ?? '',
+        address: shippingData.zoomOfficeAddress ?? '',
+        city:    shippingData.zoomOfficeCity ?? '',
+      };
     }
     return null;
   })();

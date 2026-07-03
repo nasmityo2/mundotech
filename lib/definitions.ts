@@ -229,6 +229,8 @@ export interface SavedAddress {
   shippingMethod: ShippingMethod;
   mrwState?:      string | null;
   mrwOffice?:     string | null;
+  officeAddress?: string | null;
+  officeCity?:    string | null;
   isDefault:      boolean;
   createdAt:      string;
 }
@@ -242,6 +244,8 @@ export interface SavedAddressInput {
   shippingMethod: ShippingMethod;
   mrwState?:      string | null;
   mrwOffice?:     string | null;
+  officeAddress?: string | null;
+  officeCity?:    string | null;
   isDefault?:     boolean;
 }
 

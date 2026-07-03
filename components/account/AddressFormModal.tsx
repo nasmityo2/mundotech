@@ -41,6 +41,15 @@ export default function AddressFormModal({
 }: AddressFormModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
 
+  const initialZoomIndex = (() => {
+    if (editAddress?.shippingMethod === 'zoom' && editAddress.mrwState && editAddress.mrwOffice) {
+      const offices = (zoomOffices as Record<string, ZoomOffice[]>)[editAddress.mrwState] ?? [];
+      const idx = offices.findIndex((o) => o.name === editAddress.mrwOffice);
+      return idx >= 0 ? String(idx) : '';
+    }
+    return '';
+  })();
+
   const { register, handleSubmit, watch, setValue, formState: { errors } } =
     useForm<FormValues>({
       defaultValues: {
@@ -52,7 +61,7 @@ export default function AddressFormModal({
         shippingMethod:  (editAddress?.shippingMethod ?? 'tienda') as ShippingMethod,
         mrwState:        editAddress?.mrwState       ?? '',
         mrwOffice:       editAddress?.mrwOffice      ?? '',
-        zoomOfficeIndex: '',
+        zoomOfficeIndex: initialZoomIndex,
         isDefault:       editAddress?.isDefault      ?? false,
       },
     });
@@ -81,31 +90,26 @@ export default function AddressFormModal({
   // Bottom sheet móvil: sin esto el body seguía scrolleando detrás del modal.
   useBodyScrollLock(true);
 
-  const resolveZoomOfficeName = (): string | null => {
-    if (method !== 'zoom') return null;
-    const state = watch('mrwState');
-    const idxStr = watch('zoomOfficeIndex');
-    if (!state || idxStr === '' || idxStr === undefined) return null;
-    const offices = (zoomOffices as Record<string, ZoomOffice[]>)[state];
-    const idx = Number(idxStr);
-    const office = offices?.[idx];
-    return office?.name ?? null;
-  };
-
   const submit = handleSubmit(async (values) => {
-    const isCarrier = values.shippingMethod === 'mrw' || values.shippingMethod === 'zoom';
     let officeLabel: string | null = null;
     let officeState: string | null = null;
+    let officeAddr:  string | null = null;
+    let officeCityVal: string | null = null;
+
     if (values.shippingMethod === 'zoom') {
-      const zoomName = resolveZoomOfficeName();
-      if (zoomName) {
-        officeLabel = zoomName;
-        officeState = values.mrwState || null;
+      const offices = (zoomOffices as Record<string, ZoomOffice[]>)[values.mrwState] ?? [];
+      const office = values.zoomOfficeIndex !== '' ? offices[Number(values.zoomOfficeIndex)] : undefined;
+      if (office) {
+        officeLabel   = office.name;
+        officeState   = values.mrwState || null;
+        officeAddr    = office.address || null;
+        officeCityVal = office.city || null;
       }
     } else if (values.shippingMethod === 'mrw') {
       officeLabel = values.mrwOffice || null;
       officeState = values.mrwState || null;
     }
+
     await onSubmit({
       alias:          values.alias,
       firstName:      values.firstName,
@@ -115,6 +119,8 @@ export default function AddressFormModal({
       shippingMethod: values.shippingMethod,
       mrwState:       officeState,
       mrwOffice:      officeLabel,
+      officeAddress:  officeAddr,
+      officeCity:     officeCityVal,
       isDefault:      values.isDefault,
     });
   });
