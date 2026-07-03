@@ -1,0 +1,1416 @@
+{
+  "node": {
+    "40410fa8d08f033b75f9fc573a6854c33851b42568": {
+      "workers": {
+        "app/_not-found/page": {
+          "moduleId": 108032,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/account/addresses/page": {
+          "moduleId": 544659,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/account/details/page": {
+          "moduleId": 137616,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/account/orders/[id]/page": {
+          "moduleId": 86767,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/account/orders/page": {
+          "moduleId": 163775,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/account/page": {
+          "moduleId": 774034,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/account/password/page": {
+          "moduleId": 130367,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/banners/page": {
+          "moduleId": 612214,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/categories/page": {
+          "moduleId": 617486,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/coupons/page": {
+          "moduleId": 387483,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/home-manager/page": {
+          "moduleId": 11577,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/menu/page": {
+          "moduleId": 456448,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/orders/[id]/etiqueta/page": {
+          "moduleId": 172164,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/orders/[id]/page": {
+          "moduleId": 502630,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/orders/page": {
+          "moduleId": 299908,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/page": {
+          "moduleId": 619782,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/personalizar/page": {
+          "moduleId": 822810,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/reviews/page": {
+          "moduleId": 195624,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/settings/announcement/page": {
+          "moduleId": 371202,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/settings/seo-local/page": {
+          "moduleId": 248405,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/settings/users/page": {
+          "moduleId": 906894,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/admin/stats/page": {
+          "moduleId": 485220,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/buscar/page": {
+          "moduleId": 662607,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/cart/page": {
+          "moduleId": 136895,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/cart/unsubscribe/confirm/page": {
+          "moduleId": 619409,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/categoria/[slug]/page": {
+          "moduleId": 672046,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/checkout/page": {
+          "moduleId": 66739,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/checkout/success/page": {
+          "moduleId": 949086,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/devoluciones/page": {
+          "moduleId": 522808,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/forgot-password/page": {
+          "moduleId": 756252,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/login/page": {
+          "moduleId": 407547,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/nosotros/page": {
+          "moduleId": 847359,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/ofertas/page": {
+          "moduleId": 703609,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/page": {
+          "moduleId": 451215,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/privacy-policy/page": {
+          "moduleId": 686663,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/productos/page": {
+          "moduleId": 392830,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/register/page": {
+          "moduleId": 703522,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/registro/page": {
+          "moduleId": 600976,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/reset-password/page": {
+          "moduleId": 535894,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/shipping-policy/page": {
+          "moduleId": 26321,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/terms-of-service/page": {
+          "moduleId": 296178,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/tienda-barquisimeto/page": {
+          "moduleId": 992626,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        },
+        "app/wishlist/page": {
+          "moduleId": 212224,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        }
+      },
+      "filename": "app/actions/productSnapshotActions.ts",
+      "exportedName": "getProductSnapshots"
+    },
+    "6074ca042e9e1085200877bca72d3c8eb6cb070629": {
+      "workers": {
+        "app/_not-found/page": {
+          "moduleId": 108032,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/account/addresses/page": {
+          "moduleId": 544659,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/account/details/page": {
+          "moduleId": 137616,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/account/orders/[id]/page": {
+          "moduleId": 86767,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/account/orders/page": {
+          "moduleId": 163775,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/account/page": {
+          "moduleId": 774034,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/account/password/page": {
+          "moduleId": 130367,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/banners/page": {
+          "moduleId": 612214,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/categories/page": {
+          "moduleId": 617486,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/coupons/page": {
+          "moduleId": 387483,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/home-manager/page": {
+          "moduleId": 11577,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/menu/page": {
+          "moduleId": 456448,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/orders/[id]/etiqueta/page": {
+          "moduleId": 172164,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/orders/[id]/page": {
+          "moduleId": 502630,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/orders/page": {
+          "moduleId": 299908,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/page": {
+          "moduleId": 619782,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/personalizar/page": {
+          "moduleId": 822810,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/reviews/page": {
+          "moduleId": 195624,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/settings/announcement/page": {
+          "moduleId": 371202,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/settings/seo-local/page": {
+          "moduleId": 248405,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/settings/users/page": {
+          "moduleId": 906894,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/admin/stats/page": {
+          "moduleId": 485220,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/buscar/page": {
+          "moduleId": 662607,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/cart/page": {
+          "moduleId": 136895,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/cart/unsubscribe/confirm/page": {
+          "moduleId": 619409,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/categoria/[slug]/page": {
+          "moduleId": 672046,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/checkout/page": {
+          "moduleId": 66739,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/checkout/success/page": {
+          "moduleId": 949086,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/devoluciones/page": {
+          "moduleId": 522808,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/forgot-password/page": {
+          "moduleId": 756252,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/login/page": {
+          "moduleId": 407547,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/nosotros/page": {
+          "moduleId": 847359,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/ofertas/page": {
+          "moduleId": 703609,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/page": {
+          "moduleId": 451215,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/privacy-policy/page": {
+          "moduleId": 686663,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/productos/page": {
+          "moduleId": 392830,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/register/page": {
+          "moduleId": 703522,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/registro/page": {
+          "moduleId": 600976,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/reset-password/page": {
+          "moduleId": 535894,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/shipping-policy/page": {
+          "moduleId": 26321,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/terms-of-service/page": {
+          "moduleId": 296178,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/tienda-barquisimeto/page": {
+          "moduleId": 992626,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        },
+        "app/wishlist/page": {
+          "moduleId": 212224,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "filename": "app/actions/productActions.ts",
+      "exportedName": "getProducts"
+    },
+    "4025385e5e625ca872d2ef39f3e46ca3edec68783c": {
+      "workers": {
+        "app/_not-found/page": {
+          "moduleId": 108032,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/account/addresses/page": {
+          "moduleId": 544659,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/account/details/page": {
+          "moduleId": 137616,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/account/orders/[id]/page": {
+          "moduleId": 86767,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/account/orders/page": {
+          "moduleId": 163775,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/account/page": {
+          "moduleId": 774034,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/account/password/page": {
+          "moduleId": 130367,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/banners/page": {
+          "moduleId": 612214,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/categories/page": {
+          "moduleId": 617486,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/coupons/page": {
+          "moduleId": 387483,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/home-manager/page": {
+          "moduleId": 11577,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/menu/page": {
+          "moduleId": 456448,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/orders/[id]/etiqueta/page": {
+          "moduleId": 172164,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/orders/[id]/page": {
+          "moduleId": 502630,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/orders/page": {
+          "moduleId": 299908,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/page": {
+          "moduleId": 619782,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/personalizar/page": {
+          "moduleId": 822810,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/reviews/page": {
+          "moduleId": 195624,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/settings/announcement/page": {
+          "moduleId": 371202,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/settings/seo-local/page": {
+          "moduleId": 248405,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/settings/users/page": {
+          "moduleId": 906894,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/admin/stats/page": {
+          "moduleId": 485220,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/buscar/page": {
+          "moduleId": 662607,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/cart/page": {
+          "moduleId": 136895,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/cart/unsubscribe/confirm/page": {
+          "moduleId": 619409,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/categoria/[slug]/page": {
+          "moduleId": 672046,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/checkout/page": {
+          "moduleId": 66739,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/checkout/success/page": {
+          "moduleId": 949086,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/devoluciones/page": {
+          "moduleId": 522808,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/forgot-password/page": {
+          "moduleId": 756252,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/login/page": {
+          "moduleId": 407547,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/nosotros/page": {
+          "moduleId": 847359,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/ofertas/page": {
+          "moduleId": 703609,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/page": {
+          "moduleId": 451215,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/privacy-policy/page": {
+          "moduleId": 686663,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/productos/page": {
+          "moduleId": 392830,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/register/page": {
+          "moduleId": 703522,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/registro/page": {
+          "moduleId": 600976,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/reset-password/page": {
+          "moduleId": 535894,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/shipping-policy/page": {
+          "moduleId": 26321,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/terms-of-service/page": {
+          "moduleId": 296178,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/tienda-barquisimeto/page": {
+          "moduleId": 992626,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        },
+        "app/wishlist/page": {
+          "moduleId": 212224,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        }
+      },
+      "filename": "app/actions/search.ts",
+      "exportedName": "searchProducts"
+    },
+    "0066436ad7d77701210c6b192ba7f151ca97a70705": {
+      "workers": {
+        "app/account/addresses/page": {
+          "moduleId": 544659,
+          "async": true,
+          "exportedName": "getSavedAddresses",
+          "filename": "app/actions/addressActions.ts"
+        },
+        "app/checkout/page": {
+          "moduleId": 66739,
+          "async": true,
+          "exportedName": "getSavedAddresses",
+          "filename": "app/actions/addressActions.ts"
+        }
+      },
+      "filename": "app/actions/addressActions.ts",
+      "exportedName": "getSavedAddresses"
+    },
+    "40055e5dbd7327b88c57242c614241d1bd3a0a723a": {
+      "workers": {
+        "app/account/addresses/page": {
+          "moduleId": 544659,
+          "async": true,
+          "exportedName": "createSavedAddress",
+          "filename": "app/actions/addressActions.ts"
+        }
+      },
+      "filename": "app/actions/addressActions.ts",
+      "exportedName": "createSavedAddress"
+    },
+    "4056c8c408da2b48c676cee0bb35c81de0c247dfef": {
+      "workers": {
+        "app/account/addresses/page": {
+          "moduleId": 544659,
+          "async": true,
+          "exportedName": "deleteSavedAddress",
+          "filename": "app/actions/addressActions.ts"
+        }
+      },
+      "filename": "app/actions/addressActions.ts",
+      "exportedName": "deleteSavedAddress"
+    },
+    "40780e050aa5e48daed8d594179c003b5cb9aa9d7a": {
+      "workers": {
+        "app/account/addresses/page": {
+          "moduleId": 544659,
+          "async": true,
+          "exportedName": "setDefaultAddress",
+          "filename": "app/actions/addressActions.ts"
+        }
+      },
+      "filename": "app/actions/addressActions.ts",
+      "exportedName": "setDefaultAddress"
+    },
+    "60c89ea27245c1204b7f75c903d9445c6baa2146c6": {
+      "workers": {
+        "app/account/addresses/page": {
+          "moduleId": 544659,
+          "async": true,
+          "exportedName": "updateSavedAddress",
+          "filename": "app/actions/addressActions.ts"
+        }
+      },
+      "filename": "app/actions/addressActions.ts",
+      "exportedName": "updateSavedAddress"
+    },
+    "402378c23699892f5b73890c02881a407f954a93c3": {
+      "workers": {
+        "app/account/details/page": {
+          "moduleId": 137616,
+          "async": true,
+          "exportedName": "updateUserDetails",
+          "filename": "app/account/actions.ts"
+        }
+      },
+      "filename": "app/account/actions.ts",
+      "exportedName": "updateUserDetails"
+    },
+    "40bc4febe9e9f1c637f792d26278912fae52295195": {
+      "workers": {
+        "app/account/password/page": {
+          "moduleId": 130367,
+          "async": true,
+          "exportedName": "updatePassword",
+          "filename": "app/account/actions.ts"
+        }
+      },
+      "filename": "app/account/actions.ts",
+      "exportedName": "updatePassword"
+    },
+    "00042402d7e571860f0bef9a5fe77701ada04c084a": {
+      "workers": {
+        "app/admin/page": {
+          "moduleId": 619782,
+          "async": true,
+          "exportedName": "getAdminDashboardData",
+          "filename": "app/actions/adminDashboardActions.ts"
+        }
+      },
+      "filename": "app/actions/adminDashboardActions.ts",
+      "exportedName": "getAdminDashboardData"
+    },
+    "405d83fdf877a451c681801ca0e4814c18df3420c7": {
+      "workers": {
+        "app/admin/orders/[id]/page": {
+          "moduleId": 502630,
+          "async": true,
+          "exportedName": "validateOrderPayment",
+          "filename": "app/actions/orderActions.ts"
+        }
+      },
+      "filename": "app/actions/orderActions.ts",
+      "exportedName": "validateOrderPayment"
+    },
+    "607d73f51f4c0352c5d7f3c12a1d131b085ce44eda": {
+      "workers": {
+        "app/admin/orders/[id]/page": {
+          "moduleId": 502630,
+          "async": true,
+          "exportedName": "rejectOrderPayment",
+          "filename": "app/actions/orderActions.ts"
+        }
+      },
+      "filename": "app/actions/orderActions.ts",
+      "exportedName": "rejectOrderPayment"
+    },
+    "002b31ae9a91a15bc633a6091e6f875a8ebf72af2e": {
+      "workers": {
+        "app/admin/personalizar/page": {
+          "moduleId": 822810,
+          "async": true,
+          "exportedName": "getSiteContent",
+          "filename": "app/actions/siteContentActions.ts"
+        }
+      },
+      "filename": "app/actions/siteContentActions.ts",
+      "exportedName": "getSiteContent"
+    },
+    "40ec5717ef40d5131ea24a1a25cdb0136b2abacb67": {
+      "workers": {
+        "app/admin/personalizar/page": {
+          "moduleId": 822810,
+          "async": true,
+          "exportedName": "updateSiteContent",
+          "filename": "app/actions/siteContentActions.ts"
+        }
+      },
+      "filename": "app/actions/siteContentActions.ts",
+      "exportedName": "updateSiteContent"
+    },
+    "4083f992e370a1de0b977dee7e00be24ca1ea5c99a": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "getProductsAdmin",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "filename": "app/actions/productActions.ts",
+      "exportedName": "getProductsAdmin"
+    },
+    "40ec7cf2493086326eeffa74d867d3da1e82de1293": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "deleteProductAction",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "filename": "app/actions/productActions.ts",
+      "exportedName": "deleteProductAction"
+    },
+    "60d9735f74072abd8c02caf3de904bce568f34d8c2": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "setProductActiveAction",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "filename": "app/actions/productActions.ts",
+      "exportedName": "setProductActiveAction"
+    },
+    "40d31ddd3cc88bcbdd9f580ba6a551ad59ade54cf5": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "importProductsFromCSV",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "filename": "app/actions/productActions.ts",
+      "exportedName": "importProductsFromCSV"
+    },
+    "600666c74b3c3ec00780eb259a60c2c27c52c6cf5f": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "quickUpdateStockAction",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "filename": "app/actions/productActions.ts",
+      "exportedName": "quickUpdateStockAction"
+    },
+    "6049eecf32d86400dd946bdfb2d21612ef304cf3a0": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "quickUpdatePriceAction",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "filename": "app/actions/productActions.ts",
+      "exportedName": "quickUpdatePriceAction"
+    },
+    "4036047e411933d131f12fa217505501213e549c6a": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "createProductAction",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "filename": "app/actions/productActions.ts",
+      "exportedName": "createProductAction"
+    },
+    "60e15f8e44b2bbfe859b250b040c83f0701272244d": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "updateProductAction",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "filename": "app/actions/productActions.ts",
+      "exportedName": "updateProductAction"
+    },
+    "00c0a6351297670b2a1d3615245349457180ef1cd5": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "getPricingParams",
+          "filename": "app/actions/configActions.ts"
+        },
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "getPricingParams",
+          "filename": "app/actions/configActions.ts"
+        },
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "getPricingParams",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "filename": "app/actions/configActions.ts",
+      "exportedName": "getPricingParams"
+    },
+    "009b5ec0fb57e4702cebf9022a710f2af99b273071": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "getMarginPresets",
+          "filename": "app/actions/configActions.ts"
+        },
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "getMarginPresets",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "filename": "app/actions/configActions.ts",
+      "exportedName": "getMarginPresets"
+    },
+    "40152e388c1e303d096073500365e8e08b9bc13161": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "updateMarginPresets",
+          "filename": "app/actions/configActions.ts"
+        },
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "updateMarginPresets",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "filename": "app/actions/configActions.ts",
+      "exportedName": "updateMarginPresets"
+    },
+    "40ace48f9fb03764e7ecab886d58a3efdafe3bdd56": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "updateSettings",
+          "filename": "app/actions/settingsActions.ts"
+        }
+      },
+      "filename": "app/actions/settingsActions.ts",
+      "exportedName": "updateSettings"
+    },
+    "40c7cc429a90e52bb95e419fcf88bda1f4a81950f8": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "updateExchangeRate",
+          "filename": "app/actions/configActions.ts"
+        },
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "updateExchangeRate",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "filename": "app/actions/configActions.ts",
+      "exportedName": "updateExchangeRate"
+    },
+    "40bfc05f880592e0c8c1bdb0aefe0bc4f7b1a2d245": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "updatePricingParams",
+          "filename": "app/actions/configActions.ts"
+        },
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "updatePricingParams",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "filename": "app/actions/configActions.ts",
+      "exportedName": "updatePricingParams"
+    },
+    "00908b7d2c669704b74445836a446240b76ec0c4c0": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "recalculateAllProductPrices",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "filename": "app/actions/productActions.ts",
+      "exportedName": "recalculateAllProductPrices"
+    },
+    "00532eb2e56b388140045afcc87c5f0a9a1b047241": {
+      "workers": {
+        "app/admin/settings/announcement/page": {
+          "moduleId": 371202,
+          "async": true,
+          "exportedName": "getAnnouncement",
+          "filename": "app/actions/announcementActions.ts"
+        }
+      },
+      "filename": "app/actions/announcementActions.ts",
+      "exportedName": "getAnnouncement"
+    },
+    "40dc7bf19f857c70dc378a9c3d8fd7116a3875dbc2": {
+      "workers": {
+        "app/admin/settings/announcement/page": {
+          "moduleId": 371202,
+          "async": true,
+          "exportedName": "updateAnnouncement",
+          "filename": "app/actions/announcementActions.ts"
+        }
+      },
+      "filename": "app/actions/announcementActions.ts",
+      "exportedName": "updateAnnouncement"
+    },
+    "40e9cd07f6b715f9df237f3256de8d8afa72bfd092": {
+      "workers": {
+        "app/admin/settings/seo-local/page": {
+          "moduleId": 248405,
+          "async": true,
+          "exportedName": "updateSeoLocal",
+          "filename": "app/actions/seoLocalActions.ts"
+        }
+      },
+      "filename": "app/actions/seoLocalActions.ts",
+      "exportedName": "updateSeoLocal"
+    },
+    "007b6bbfd19f551a7bc70fa571f522c33edcf666ae": {
+      "workers": {
+        "app/admin/settings/users/page": {
+          "moduleId": 906894,
+          "async": true,
+          "exportedName": "listAdminUsers",
+          "filename": "app/actions/userActions.ts"
+        }
+      },
+      "filename": "app/actions/userActions.ts",
+      "exportedName": "listAdminUsers"
+    },
+    "4018333a4cd46d459102d23b8e43b8b666b3487213": {
+      "workers": {
+        "app/admin/settings/users/page": {
+          "moduleId": 906894,
+          "async": true,
+          "exportedName": "resetUserPassword",
+          "filename": "app/actions/userActions.ts"
+        }
+      },
+      "filename": "app/actions/userActions.ts",
+      "exportedName": "resetUserPassword"
+    },
+    "4092a4424591e7b81ef59e7a11a8fe3dc9e48d1699": {
+      "workers": {
+        "app/admin/settings/users/page": {
+          "moduleId": 906894,
+          "async": true,
+          "exportedName": "deleteAdminUser",
+          "filename": "app/actions/userActions.ts"
+        }
+      },
+      "filename": "app/actions/userActions.ts",
+      "exportedName": "deleteAdminUser"
+    },
+    "40eb5be49a68ef1b6e08f8023f5a828b1699b21088": {
+      "workers": {
+        "app/admin/settings/users/page": {
+          "moduleId": 906894,
+          "async": true,
+          "exportedName": "createAdminUser",
+          "filename": "app/actions/userActions.ts"
+        }
+      },
+      "filename": "app/actions/userActions.ts",
+      "exportedName": "createAdminUser"
+    },
+    "60ee3f08ee9b1954d271b5a181d26954787ca37601": {
+      "workers": {
+        "app/admin/settings/users/page": {
+          "moduleId": 906894,
+          "async": true,
+          "exportedName": "updateUserRole",
+          "filename": "app/actions/userActions.ts"
+        }
+      },
+      "filename": "app/actions/userActions.ts",
+      "exportedName": "updateUserRole"
+    },
+    "40702004fe53fd6b86f90d27bfd3c2789a98acd43b": {
+      "workers": {
+        "app/buscar/page": {
+          "moduleId": 662607,
+          "async": true,
+          "exportedName": "searchProductsFull",
+          "filename": "app/actions/search.ts"
+        }
+      },
+      "filename": "app/actions/search.ts",
+      "exportedName": "searchProductsFull"
+    },
+    "78decd97c0a2d443a43e8ba5877559b326a37ad135": {
+      "workers": {
+        "app/checkout/page": {
+          "moduleId": 66739,
+          "async": true,
+          "exportedName": "saveCartSnapshotAction",
+          "filename": "app/actions/abandonedCartActions.ts"
+        }
+      },
+      "filename": "app/actions/abandonedCartActions.ts",
+      "exportedName": "saveCartSnapshotAction"
+    },
+    "40350a7a940d874892767e80d603d835adb64e4bfa": {
+      "workers": {
+        "app/forgot-password/page": {
+          "moduleId": 756252,
+          "async": true,
+          "exportedName": "requestPasswordReset",
+          "filename": "app/actions/authActions.ts"
+        }
+      },
+      "filename": "app/actions/authActions.ts",
+      "exportedName": "requestPasswordReset"
+    },
+    "40339c6492fee70407d582d23efc92e95e58921a80": {
+      "workers": {
+        "app/login/page": {
+          "moduleId": 407547,
+          "async": true,
+          "exportedName": "registerUserAction",
+          "filename": "app/actions/authActions.ts"
+        },
+        "app/registro/page": {
+          "moduleId": 600976,
+          "async": true,
+          "exportedName": "registerUserAction",
+          "filename": "app/actions/authActions.ts"
+        }
+      },
+      "filename": "app/actions/authActions.ts",
+      "exportedName": "registerUserAction"
+    },
+    "6078a0375e170e32a688f0d052d3b033b219ccc732": {
+      "workers": {
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "subscribeRestockAction",
+          "filename": "app/actions/restockActions.ts"
+        }
+      },
+      "filename": "app/actions/restockActions.ts",
+      "exportedName": "subscribeRestockAction"
+    },
+    "00051c5cdab28b1eae0bb13d57391881171caaccce": {
+      "workers": {
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "getExchangeRate",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "filename": "app/actions/configActions.ts",
+      "exportedName": "getExchangeRate"
+    },
+    "604e14392f9ced71e0edd41b5240ef3d38590c1256": {
+      "workers": {
+        "app/reset-password/page": {
+          "moduleId": 535894,
+          "async": true,
+          "exportedName": "resetPassword",
+          "filename": "app/actions/authActions.ts"
+        }
+      },
+      "filename": "app/actions/authActions.ts",
+      "exportedName": "resetPassword"
+    },
+    "4056e2eed70e1ee3dadc207271f29102b777d6908f": {
+      "workers": {
+        "app/reset-password/page": {
+          "moduleId": 535894,
+          "async": true,
+          "exportedName": "verifyPasswordResetToken",
+          "filename": "app/actions/authActions.ts"
+        }
+      },
+      "filename": "app/actions/authActions.ts",
+      "exportedName": "verifyPasswordResetToken"
+    }
+  },
+  "edge": {},
+  "encryptionKey": "saQpxjDhIabEnCAN0tMiL4shE5XM0VG81Jb9BRPQ6UQ="
+}

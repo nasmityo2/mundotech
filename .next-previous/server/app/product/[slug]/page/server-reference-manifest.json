@@ -1,0 +1,125 @@
+{
+  "node": {
+    "40410fa8d08f033b75f9fc573a6854c33851b42568": {
+      "workers": {
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        }
+      },
+      "exportedName": "getProductSnapshots",
+      "filename": "app/actions/productSnapshotActions.ts"
+    },
+    "6074ca042e9e1085200877bca72d3c8eb6cb070629": {
+      "workers": {
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "getProducts",
+      "filename": "app/actions/productActions.ts"
+    },
+    "4025385e5e625ca872d2ef39f3e46ca3edec68783c": {
+      "workers": {
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        }
+      },
+      "exportedName": "searchProducts",
+      "filename": "app/actions/search.ts"
+    },
+    "6078a0375e170e32a688f0d052d3b033b219ccc732": {
+      "workers": {
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "subscribeRestockAction",
+          "filename": "app/actions/restockActions.ts"
+        }
+      },
+      "exportedName": "subscribeRestockAction",
+      "filename": "app/actions/restockActions.ts"
+    },
+    "00051c5cdab28b1eae0bb13d57391881171caaccce": {
+      "workers": {
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "getExchangeRate",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "exportedName": "getExchangeRate",
+      "filename": "app/actions/configActions.ts"
+    },
+    "009b5ec0fb57e4702cebf9022a710f2af99b273071": {
+      "workers": {
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "getMarginPresets",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "exportedName": "getMarginPresets",
+      "filename": "app/actions/configActions.ts"
+    },
+    "00c0a6351297670b2a1d3615245349457180ef1cd5": {
+      "workers": {
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "getPricingParams",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "exportedName": "getPricingParams",
+      "filename": "app/actions/configActions.ts"
+    },
+    "40152e388c1e303d096073500365e8e08b9bc13161": {
+      "workers": {
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "updateMarginPresets",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "exportedName": "updateMarginPresets",
+      "filename": "app/actions/configActions.ts"
+    },
+    "40bfc05f880592e0c8c1bdb0aefe0bc4f7b1a2d245": {
+      "workers": {
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "updatePricingParams",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "exportedName": "updatePricingParams",
+      "filename": "app/actions/configActions.ts"
+    },
+    "40c7cc429a90e52bb95e419fcf88bda1f4a81950f8": {
+      "workers": {
+        "app/product/[slug]/page": {
+          "moduleId": 714360,
+          "async": true,
+          "exportedName": "updateExchangeRate",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "exportedName": "updateExchangeRate",
+      "filename": "app/actions/configActions.ts"
+    }
+  },
+  "edge": {}
+}

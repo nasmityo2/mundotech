@@ -1,0 +1,3 @@
+{
+  "/api/checkout/upload-proof/route": "app/api/checkout/upload-proof/route.js"
+}

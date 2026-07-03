@@ -1,0 +1,173 @@
+{
+  "node": {
+    "40410fa8d08f033b75f9fc573a6854c33851b42568": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        }
+      },
+      "exportedName": "getProductSnapshots",
+      "filename": "app/actions/productSnapshotActions.ts"
+    },
+    "6074ca042e9e1085200877bca72d3c8eb6cb070629": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "getProducts",
+      "filename": "app/actions/productActions.ts"
+    },
+    "4025385e5e625ca872d2ef39f3e46ca3edec68783c": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        }
+      },
+      "exportedName": "searchProducts",
+      "filename": "app/actions/search.ts"
+    },
+    "4083f992e370a1de0b977dee7e00be24ca1ea5c99a": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "getProductsAdmin",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "getProductsAdmin",
+      "filename": "app/actions/productActions.ts"
+    },
+    "40ec7cf2493086326eeffa74d867d3da1e82de1293": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "deleteProductAction",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "deleteProductAction",
+      "filename": "app/actions/productActions.ts"
+    },
+    "60d9735f74072abd8c02caf3de904bce568f34d8c2": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "setProductActiveAction",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "setProductActiveAction",
+      "filename": "app/actions/productActions.ts"
+    },
+    "40d31ddd3cc88bcbdd9f580ba6a551ad59ade54cf5": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "importProductsFromCSV",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "importProductsFromCSV",
+      "filename": "app/actions/productActions.ts"
+    },
+    "600666c74b3c3ec00780eb259a60c2c27c52c6cf5f": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "quickUpdateStockAction",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "quickUpdateStockAction",
+      "filename": "app/actions/productActions.ts"
+    },
+    "6049eecf32d86400dd946bdfb2d21612ef304cf3a0": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "quickUpdatePriceAction",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "quickUpdatePriceAction",
+      "filename": "app/actions/productActions.ts"
+    },
+    "4036047e411933d131f12fa217505501213e549c6a": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "createProductAction",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "createProductAction",
+      "filename": "app/actions/productActions.ts"
+    },
+    "60e15f8e44b2bbfe859b250b040c83f0701272244d": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "updateProductAction",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "updateProductAction",
+      "filename": "app/actions/productActions.ts"
+    },
+    "00c0a6351297670b2a1d3615245349457180ef1cd5": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "getPricingParams",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "exportedName": "getPricingParams",
+      "filename": "app/actions/configActions.ts"
+    },
+    "009b5ec0fb57e4702cebf9022a710f2af99b273071": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "getMarginPresets",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "exportedName": "getMarginPresets",
+      "filename": "app/actions/configActions.ts"
+    },
+    "40152e388c1e303d096073500365e8e08b9bc13161": {
+      "workers": {
+        "app/admin/products/page": {
+          "moduleId": 941407,
+          "async": true,
+          "exportedName": "updateMarginPresets",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "exportedName": "updateMarginPresets",
+      "filename": "app/actions/configActions.ts"
+    }
+  },
+  "edge": {}
+}

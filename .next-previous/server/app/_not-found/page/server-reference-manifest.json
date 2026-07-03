@@ -1,0 +1,41 @@
+{
+  "node": {
+    "40410fa8d08f033b75f9fc573a6854c33851b42568": {
+      "workers": {
+        "app/_not-found/page": {
+          "moduleId": 108032,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        }
+      },
+      "exportedName": "getProductSnapshots",
+      "filename": "app/actions/productSnapshotActions.ts"
+    },
+    "6074ca042e9e1085200877bca72d3c8eb6cb070629": {
+      "workers": {
+        "app/_not-found/page": {
+          "moduleId": 108032,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "getProducts",
+      "filename": "app/actions/productActions.ts"
+    },
+    "4025385e5e625ca872d2ef39f3e46ca3edec68783c": {
+      "workers": {
+        "app/_not-found/page": {
+          "moduleId": 108032,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        }
+      },
+      "exportedName": "searchProducts",
+      "filename": "app/actions/search.ts"
+    }
+  },
+  "edge": {}
+}

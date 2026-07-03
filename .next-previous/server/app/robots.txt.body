@@ -1,0 +1,22 @@
+User-Agent: *
+Allow: /
+Allow: /productos
+Allow: /product/
+Allow: /categoria/
+Disallow: /admin
+Disallow: /admin/
+Disallow: /api/
+Disallow: /api/cron/
+Disallow: /checkout
+Disallow: /checkout/
+Disallow: /account
+Disallow: /account/
+Disallow: /cart
+Disallow: /cart/
+Disallow: /wishlist
+
+User-Agent: GPTBot
+Disallow: /
+
+Host: https://mundotechve.com
+Sitemap: https://mundotechve.com/sitemap.xml

@@ -1,0 +1,3 @@
+{
+  "/api/cron/update-bcv-rate/route": "app/api/cron/update-bcv-rate/route.js"
+}

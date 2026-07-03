@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/checkout/upload-proof": {},
+    "/api/cron/update-bcv-rate": {
+      "maxDuration": 30
+    },
+    "/api/reviews/upload-photo": {},
+    "/api/upload-video": {
+      "maxDuration": 300
+    },
+    "/api/upload-video/status": {},
+    "/opengraph-image": {}
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "node": {
+    "40410fa8d08f033b75f9fc573a6854c33851b42568": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        }
+      },
+      "exportedName": "getProductSnapshots",
+      "filename": "app/actions/productSnapshotActions.ts"
+    },
+    "6074ca042e9e1085200877bca72d3c8eb6cb070629": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "getProducts",
+      "filename": "app/actions/productActions.ts"
+    },
+    "4025385e5e625ca872d2ef39f3e46ca3edec68783c": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        }
+      },
+      "exportedName": "searchProducts",
+      "filename": "app/actions/search.ts"
+    },
+    "40ace48f9fb03764e7ecab886d58a3efdafe3bdd56": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "updateSettings",
+          "filename": "app/actions/settingsActions.ts"
+        }
+      },
+      "exportedName": "updateSettings",
+      "filename": "app/actions/settingsActions.ts"
+    },
+    "40c7cc429a90e52bb95e419fcf88bda1f4a81950f8": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "updateExchangeRate",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "exportedName": "updateExchangeRate",
+      "filename": "app/actions/configActions.ts"
+    },
+    "40bfc05f880592e0c8c1bdb0aefe0bc4f7b1a2d245": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "updatePricingParams",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "exportedName": "updatePricingParams",
+      "filename": "app/actions/configActions.ts"
+    },
+    "00c0a6351297670b2a1d3615245349457180ef1cd5": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "getPricingParams",
+          "filename": "app/actions/configActions.ts"
+        }
+      },
+      "exportedName": "getPricingParams",
+      "filename": "app/actions/configActions.ts"
+    },
+    "00908b7d2c669704b74445836a446240b76ec0c4c0": {
+      "workers": {
+        "app/admin/settings/page": {
+          "moduleId": 86267,
+          "async": true,
+          "exportedName": "recalculateAllProductPrices",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "recalculateAllProductPrices",
+      "filename": "app/actions/productActions.ts"
+    }
+  },
+  "edge": {}
+}

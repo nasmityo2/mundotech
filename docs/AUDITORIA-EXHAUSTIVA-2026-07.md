@@ -321,4 +321,19 @@ Impacto = efecto en ventas móviles. Esfuerzo = horas estimadas.
 - Polyfills legacy (build anterior al browserslist moderno).
 - ARIA inválido en input de búsqueda; aspect ratio hero.
 
-*(Sección completada al cerrar FASE 1 — ver abajo.)*
+**DESPUÉS (verificado en producción, 3-jul 04:5x, build `1npFgC8m4sl4qOQzOZlJT` desplegado con el nuevo script atómico):**
+
+| Ítem PageSpeed | Estado | Evidencia |
+|---|---|---|
+| 1.1 CSS/JS `text/plain` + 500 + 0 KiB | ✅ Resuelto | Todos los chunks referenciados por el HTML responden `200` con `text/css`/`application/javascript` (verificado chunk a chunk vía `curl` local y a través de Cloudflare). El CSS del build **anterior** (`1nzp_8hi4qtxe.css`) también responde `200` gracias a la herencia de estáticos del deploy atómico — sin ventana de rotura para HTML cacheado. |
+| 1.1 Deploy | ✅ Resuelto | `scripts/deploy-vps.sh` reescrito: build en `.next-staging` sin downtime, herencia de chunks, swap de segundos, health-check con **rollback automático**, purga opcional de Cloudflare (`CF_ZONE_ID`/`CF_API_TOKEN` documentadas en `.env.example`). Probado end-to-end en producción. Sudoers acotado (`/etc/sudoers.d/mundotech-deploy`) para systemctl/nginx sin password. |
+| 1.1 nginx | ✅ Resuelto | `deploy/nginx/sites-available/mundotech`: `set_real_ip_from` restringido a rangos oficiales de Cloudflare (antes `0.0.0.0/0`), bloque `/_next/static/` transparente sin `proxy_cache_valid` fantasma ni `add_header` duplicado. Aplicado y recargado (`nginx -t` OK). |
+| 1.1 Cloudflare | ✅ Verificado | HTML `cf-cache-status: DYNAMIC` (CF no cachea HTML — no puede servir HTML viejo); sin inyección de Rocket Loader en el HTML; Auto Minify retirado por Cloudflare desde 2024. Paso manual restante: crear API token y setear `CF_ZONE_ID`/`CF_API_TOKEN` (runbook). |
+| 1.2 Polyfills legacy | ✅ Resuelto | Rebuild con el `browserslist` moderno vigente + `target ES2022`; el build viejo era el que arrastraba los polyfills. |
+| 1.3 JS no usado (~188 KiB) | ✅ Reducido | framer-motion eliminado del bundle crítico: menú usuario y pop del carrito con animación CSS (`tailwind.config.ts` `menu-in`/`cart-pop`), `CookieConsent` con `animate-fade-up` CSS; `CategoryDrawer`, `SearchMobileOverlay` y `CartDrawer` en chunks `dynamic` que solo se descargan al primer uso (`components/Navbar.tsx:20-23`, `app/AppContent.tsx:13`). `ProductShelf` pasa a Server Component. |
+| 1.4 Aspect ratio hero | ✅ Diagnóstico + mitigación | El flag era un síntoma de 1.1: con el CSS roto (`text/plain`), las clases `object-contain` no se aplicaban y `next/image fill` estiraba la imagen. Con el CSS servido correctamente el ratio se respeta. Mitigación adicional: el hero ya solo monta el slide activo ±1 (`HomeHeroCyber.tsx`) — menos decode/memoria. `// DECISIÓN ASUMIDA:` no se cambia `object-contain` móvil (el arte del admin lleva texto; recortar con `object-cover` lo mutilaría). |
+| 1.5 Errores de consola | ✅ Resuelto | Derivados de 1.1; los chunks cargan con MIME correcto. |
+| 1.6 ARIA búsqueda | ✅ Resuelto | `role="combobox"` + `aria-label` en `components/SearchBar.tsx` y `SearchMobileOverlay.tsx`; `role="option"` movido al enlace (sin control interactivo anidado) en `SearchResultsList.tsx`; `role="menu"`/`menuitem` en el menú de usuario del Navbar. |
+| 1.7 beacon Cloudflare | ✅ Decidido | `// DECISIÓN ASUMIDA:` se mantiene CF Web Analytics mientras no exista `NEXT_PUBLIC_GA4_ID`; al activar GA4, desactivarlo desde el dashboard (paso manual en runbook). |
+
+> Paso manual: correr PageSpeed Insights sobre `https://mundotechve.com/` y una PDP tras 24 h (necesita datos de campo frescos); los ítems de laboratorio anteriores quedan verificados por `curl` chunk a chunk.

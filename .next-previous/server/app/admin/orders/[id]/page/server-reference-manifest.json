@@ -1,0 +1,65 @@
+{
+  "node": {
+    "40410fa8d08f033b75f9fc573a6854c33851b42568": {
+      "workers": {
+        "app/admin/orders/[id]/page": {
+          "moduleId": 502630,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        }
+      },
+      "exportedName": "getProductSnapshots",
+      "filename": "app/actions/productSnapshotActions.ts"
+    },
+    "6074ca042e9e1085200877bca72d3c8eb6cb070629": {
+      "workers": {
+        "app/admin/orders/[id]/page": {
+          "moduleId": 502630,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "getProducts",
+      "filename": "app/actions/productActions.ts"
+    },
+    "4025385e5e625ca872d2ef39f3e46ca3edec68783c": {
+      "workers": {
+        "app/admin/orders/[id]/page": {
+          "moduleId": 502630,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        }
+      },
+      "exportedName": "searchProducts",
+      "filename": "app/actions/search.ts"
+    },
+    "405d83fdf877a451c681801ca0e4814c18df3420c7": {
+      "workers": {
+        "app/admin/orders/[id]/page": {
+          "moduleId": 502630,
+          "async": true,
+          "exportedName": "validateOrderPayment",
+          "filename": "app/actions/orderActions.ts"
+        }
+      },
+      "exportedName": "validateOrderPayment",
+      "filename": "app/actions/orderActions.ts"
+    },
+    "607d73f51f4c0352c5d7f3c12a1d131b085ce44eda": {
+      "workers": {
+        "app/admin/orders/[id]/page": {
+          "moduleId": 502630,
+          "async": true,
+          "exportedName": "rejectOrderPayment",
+          "filename": "app/actions/orderActions.ts"
+        }
+      },
+      "exportedName": "rejectOrderPayment",
+      "filename": "app/actions/orderActions.ts"
+    }
+  },
+  "edge": {}
+}

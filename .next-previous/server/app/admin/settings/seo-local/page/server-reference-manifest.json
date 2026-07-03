@@ -1,0 +1,53 @@
+{
+  "node": {
+    "40410fa8d08f033b75f9fc573a6854c33851b42568": {
+      "workers": {
+        "app/admin/settings/seo-local/page": {
+          "moduleId": 248405,
+          "async": true,
+          "exportedName": "getProductSnapshots",
+          "filename": "app/actions/productSnapshotActions.ts"
+        }
+      },
+      "exportedName": "getProductSnapshots",
+      "filename": "app/actions/productSnapshotActions.ts"
+    },
+    "6074ca042e9e1085200877bca72d3c8eb6cb070629": {
+      "workers": {
+        "app/admin/settings/seo-local/page": {
+          "moduleId": 248405,
+          "async": true,
+          "exportedName": "getProducts",
+          "filename": "app/actions/productActions.ts"
+        }
+      },
+      "exportedName": "getProducts",
+      "filename": "app/actions/productActions.ts"
+    },
+    "4025385e5e625ca872d2ef39f3e46ca3edec68783c": {
+      "workers": {
+        "app/admin/settings/seo-local/page": {
+          "moduleId": 248405,
+          "async": true,
+          "exportedName": "searchProducts",
+          "filename": "app/actions/search.ts"
+        }
+      },
+      "exportedName": "searchProducts",
+      "filename": "app/actions/search.ts"
+    },
+    "40e9cd07f6b715f9df237f3256de8d8afa72bfd092": {
+      "workers": {
+        "app/admin/settings/seo-local/page": {
+          "moduleId": 248405,
+          "async": true,
+          "exportedName": "updateSeoLocal",
+          "filename": "app/actions/seoLocalActions.ts"
+        }
+      },
+      "exportedName": "updateSeoLocal",
+      "filename": "app/actions/seoLocalActions.ts"
+    }
+  },
+  "edge": {}
+}

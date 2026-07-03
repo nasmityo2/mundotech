@@ -1,0 +1,3 @@
+{
+  "/api/orders/[id]/approve-binance/route": "app/api/orders/[id]/approve-binance/route.js"
+}
