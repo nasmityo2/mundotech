@@ -43,6 +43,7 @@ model Product {
   reviews       Review[]
   cartItems     CartItem[]
   orderItems    OrderItem[]
+  wishlistItems WishlistItem[]
 
   @@index([slug])
   @@index([category])
@@ -146,6 +147,7 @@ model User {
   savedAddresses      SavedAddress[]
   abandonedCarts      AbandonedCart[]
   cart                Cart?
+  wishlistItems       WishlistItem[]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -419,6 +421,23 @@ model Cart {
   items     CartItem[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
+}
+
+/// FASE 4.6 (MEJORA 3.2): wishlist persistida por cuenta. Al iniciar sesión se
+/// fusiona (unión sin duplicados) con la lista local de localStorage.
+/// Cascade en ambas FKs: borrar usuario o producto limpia sus favoritos
+/// (la wishlist no es historial financiero — sin valor de auditoría).
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
 }
 
 model CartItem {
