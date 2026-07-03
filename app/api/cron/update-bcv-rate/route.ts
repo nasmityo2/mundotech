@@ -25,6 +25,23 @@ async function getStoredBcvDate(): Promise<string | null> {
   return record?.value ?? null;
 }
 
+/** FASE 4.8 (MEJORA 4.3): marca de última corrida EXITOSA del cron BCV.
+ *  /api/health la usa para alertar si el cron lleva 2+ días sin correr bien. */
+const BCV_LAST_SUCCESS_KEY = 'bcv_last_success_at';
+
+async function recordBcvSuccess(): Promise<void> {
+  const now = new Date().toISOString();
+  try {
+    await prisma.appConfig.upsert({
+      where:  { key: BCV_LAST_SUCCESS_KEY },
+      update: { value: now },
+      create: { key: BCV_LAST_SUCCESS_KEY, value: now },
+    });
+  } catch (err) {
+    console.error('[cron-bcv] no se pudo registrar lastBcvSuccessAt:', err);
+  }
+}
+
 export async function GET(request: Request): Promise<NextResponse> {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -39,6 +56,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     const storedDate = await getStoredBcvDate();
     if (storedDate === fetched.date) {
+      await recordBcvSuccess();
       return NextResponse.json({ ok: true, sinCambios: true });
     }
 
@@ -58,6 +76,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
 
     await persistExchangeRateWithBcvDate(fetched.rate, fetched.date);
+    await recordBcvSuccess();
 
     console.log(
       `[cron-bcv] tasa actualizada: Bs. ${fetched.rate.toFixed(4)}/USD (${fetched.date})`,

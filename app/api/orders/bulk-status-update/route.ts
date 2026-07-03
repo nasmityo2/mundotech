@@ -104,7 +104,12 @@ export async function POST(request: Request) {
 
     await tx.order.updateMany({
       where: { id: { in: eligibleIds } },
-      data: { status },
+      data: {
+        status,
+        // FASE 4.5: si algún flujo bulk llegara a marcar Entregado, registrar la
+        // fecha para el cron de reseñas (hoy el bulk se limita a En Proceso).
+        ...(status === 'Entregado' ? { deliveredAt: new Date() } : {}),
+      },
     });
   });
 

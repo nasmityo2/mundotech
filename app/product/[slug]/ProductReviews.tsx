@@ -81,6 +81,20 @@ export default function ProductReviews({ productId, productName, initialSummary,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
+  // FASE 4.5: deep-link desde el email de solicitud de reseña —
+  // /product/[slug]?review=1 abre el formulario y hace scroll a la sección.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('review') !== '1') return;
+      setShowForm(true);
+      const t = setTimeout(() => {
+        document.getElementById('reviews')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 250);
+      return () => clearTimeout(t);
+    } catch { /* noop */ }
+  }, []);
+
   useEffect(() => {
     if (!lightboxSrc) return;
     const prev = document.body.style.overflow;

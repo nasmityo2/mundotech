@@ -11,6 +11,10 @@ import {
 } from '@/emails/mundotech/ShippingNotificationEmail';
 import { RestockNotificationEmail } from '@/emails/mundotech/RestockNotificationEmail';
 import { AbandonedCartEmail } from '@/emails/mundotech/AbandonedCartEmail';
+import {
+  ReviewRequestEmail,
+  type ReviewRequestProduct,
+} from '@/emails/mundotech/ReviewRequestEmail';
 import type { OrderConfirmationPayload } from '@/emails/mundotech/types';
 import type { AbandonedCartItem } from '@/lib/definitions';
 import { emailSiteBaseUrl, emailContactAddress } from '@/emails/mundotech/site';
@@ -469,6 +473,42 @@ export async function sendEmailChangeConfirmEmail(params: {
       />
     ),
   });
+}
+
+/**
+ * FASE 4.5 (MEJORA 2.2): solicitud de reseña 7 días después de la entrega.
+ * Un email por pedido con deep-links por producto. Errores se registran; no relanza.
+ */
+export async function sendReviewRequestEmail(params: {
+  email: string;
+  customerName: string;
+  products: ReviewRequestProduct[];
+}): Promise<boolean> {
+  const resend = getResend();
+  if (!resend) {
+    console.warn('[review-request-email] RESEND_API_KEY no está configurada; se omite el envío para:', params.email);
+    return false;
+  }
+
+  const trimmedEmail = params.email.trim();
+  if (!trimmedEmail || params.products.length === 0) {
+    console.warn('[review-request-email] Email vacío o sin productos; se omite el envío.');
+    return false;
+  }
+
+  await sendBrandedEmail({
+    resend,
+    to: trimmedEmail,
+    subject: 'MundoTech · ¿Qué tal tu compra? Cuéntanos en 1 minuto',
+    logScope: 'review-request-email',
+    element: (
+      <ReviewRequestEmail
+        customerName={params.customerName.trim() || 'Cliente'}
+        products={params.products}
+      />
+    ),
+  });
+  return true;
 }
 
 /** Correo de recuperación de contraseña. Errores se registran; no relanza. */

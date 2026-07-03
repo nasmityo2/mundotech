@@ -51,7 +51,7 @@ export async function PUT(
 
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { status: true, shippedAt: true, trackingNumber: true },
+    select: { status: true, shippedAt: true, trackingNumber: true, deliveredAt: true },
   });
 
   if (!existing) {
@@ -121,6 +121,8 @@ export async function PUT(
         status,
         ...trackingData,
         shippedAt: status === 'Enviado' && !existing.shippedAt ? new Date() : undefined,
+        // FASE 4.5: base del cron review-request (email a los 7 días de entrega).
+        deliveredAt: status === 'Entregado' && !existing.deliveredAt ? new Date() : undefined,
       },
       include: {
         items: true,
