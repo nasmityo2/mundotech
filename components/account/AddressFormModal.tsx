@@ -69,7 +69,13 @@ export default function AddressFormModal({
   const method       = watch('shippingMethod');
   const selectedState = watch('mrwState');
 
+  const didMountRef = useRef(false);
   useEffect(() => {
+    // No resetear en el montaje: preserva la preselección al editar.
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
     if (method === 'zoom') {
       setValue('zoomOfficeIndex', '');
     } else {
