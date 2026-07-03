@@ -36,22 +36,30 @@ export default function AdminCategoriesPage() {
   const [creating, setCreating]     = useState(false);
   const [feedback, setFeedback]     = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
+  const flash = (type: 'success' | 'error', msg: string) => {
+    setFeedback({ type, msg });
+    setTimeout(() => setFeedback(null), 3500);
+  };
+
   const fetchCategories = async () => {
     setLoading(true);
-    const res = await fetch(`/api/categories?t=${Date.now()}`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      setCategories(data); // productCount ya viene del servidor
+    try {
+      const res = await fetch(`/api/categories?t=${Date.now()}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setCategories(data); // productCount ya viene del servidor
+      } else {
+        // RUN-12: un fallo HTTP parecía "0 categorías" sin ninguna señal.
+        flash('error', 'No se pudieron cargar las categorías. Recarga la página.');
+      }
+    } catch (err) {
+      console.error('[admin/categories] error cargando:', err);
+      flash('error', 'Error de conexión al cargar categorías.');
     }
     setLoading(false);
   };
 
   useEffect(() => { fetchCategories(); }, []);
-
-  const flash = (type: 'success' | 'error', msg: string) => {
-    setFeedback({ type, msg });
-    setTimeout(() => setFeedback(null), 3500);
-  };
 
   const handleDelete = async (cat: Category) => {
     if (cat.productCount && cat.productCount > 0) {

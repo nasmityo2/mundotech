@@ -3,6 +3,8 @@ node_modules/
 
 # Archivos de Next.js (Basura técnica de compilación)
 .next/
+# Builds del deploy atómico (scripts/deploy-vps.sh)
+.next-*/
 out/
 build/
 

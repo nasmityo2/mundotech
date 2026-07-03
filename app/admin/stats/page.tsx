@@ -7,6 +7,7 @@ import {
   orderCountsTowardValidatedRevenue,
   orderStoredRevenueTotal,
 } from '@/lib/analytics-orders';
+import Link from 'next/link';
 import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
 import { BarChart2, TrendingUp, Package, ShoppingCart, Award, Eye, CreditCard, MapPin, Users, UserPlus, Wallet, BellRing, XCircle } from 'lucide-react';
 
@@ -81,22 +82,42 @@ export default function AdminStatsPage() {
   const [topViewed, setTopViewed]     = useState<TopViewedProduct[]>([]);
   const [loadingViews, setLoadingViews] = useState(true);
   const [productCosts, setProductCosts] = useState<Record<string, number>>({});
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
+    // RUN-03/RUN-04 (AUDITORIA-2026-07): validar res.ok y la forma de la
+    // respuesta — ante 401/500 la API devuelve { message } y `orders.filter`
+    // reventaba el panel completo.
     fetch('/api/orders')
-      .then(r => r.json())
-      .then(data => { setOrders(data); setLoading(false); })
-      .catch(() => setLoading(false));
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(data => {
+        if (Array.isArray(data)) setOrders(data);
+        else setLoadError(true);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('[admin-stats] error cargando pedidos:', err);
+        setLoadError(true);
+        setLoading(false);
+      });
 
     fetch('/api/events/top-viewed')
-      .then(r => r.json())
-      .then(data => { setTopViewed(data); setLoadingViews(false); })
-      .catch(() => setLoadingViews(false));
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(data => {
+        if (Array.isArray(data)) setTopViewed(data);
+        setLoadingViews(false);
+      })
+      .catch(err => {
+        console.error('[admin-stats] error cargando más vistos:', err);
+        setLoadingViews(false);
+      });
 
     fetch('/api/admin/product-costs')
-      .then(r => r.json())
-      .then(data => setProductCosts(data))
-      .catch(() => {});
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(data => {
+        if (data && typeof data === 'object' && !Array.isArray(data)) setProductCosts(data);
+      })
+      .catch(err => console.error('[admin-stats] error cargando costos:', err));
   }, []);
 
   /** Solo pedidos con pago validado; el período usa paidAt si existe (día de cobro), si no createdAt (legado). */
@@ -374,9 +395,24 @@ export default function AdminStatsPage() {
         </div>
       </div>
 
+      {/* RUN-03: aviso visible cuando la carga de pedidos falló */}
+      {loadError && (
+        <div role="alert" className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <XCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-red-800">
+            <p className="font-bold">No se pudieron cargar los pedidos.</p>
+            <p className="text-xs mt-0.5">Las cifras de abajo pueden estar vacías. Recarga la página; si persiste, vuelve a iniciar sesión.</p>
+          </div>
+        </div>
+      )}
+
       {/* Pendientes de verificación y cancelaciones */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        <div className={`rounded-xl p-5 border ${pendingVerifyCount > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+        {/* ADM-09: tarjeta enlazada a la cola de pedidos pendientes */}
+        <Link
+          href="/admin/orders?tab=pending"
+          className={`block rounded-xl p-5 border transition-colors ${pendingVerifyCount > 0 ? 'bg-amber-50 border-amber-200 active:bg-amber-100' : 'bg-white border-gray-200 active:bg-gray-50'}`}
+        >
           <div className="flex items-center gap-3 mb-1">
             <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center">
               <BellRing size={18} className="text-amber-600" />
@@ -393,10 +429,10 @@ export default function AdminStatsPage() {
           ) : (
             <div className="mt-2">
               <p className="text-3xl font-bold text-amber-700">{pendingVerifyCount}</p>
-              <p className="text-xs text-gray-600 mt-0.5">orden{pendingVerifyCount !== 1 ? 'es' : ''} por revisar · {formatUsd(pendingVerifyUsd)} en juego</p>
+              <p className="text-xs text-gray-600 mt-0.5">orden{pendingVerifyCount !== 1 ? 'es' : ''} por revisar · {formatUsd(pendingVerifyUsd)} en juego · toca para ir a la cola</p>
             </div>
           )}
-        </div>
+        </Link>
         <div className="bg-white border border-gray-200 rounded-xl p-5">
           <div className="flex items-center gap-3 mb-1">
             <div className="w-9 h-9 bg-red-50 rounded-lg flex items-center justify-center">

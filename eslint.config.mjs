@@ -19,7 +19,8 @@ const eslintConfig = [
   {
     ignores: [
       'node_modules/**',
-      '.next/**',
+      // .next-staging / .next-previous / .next-validate: builds del deploy atómico
+      '.next*/**',
       'out/**',
       'build/**',
       'next-env.d.ts',

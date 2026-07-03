@@ -42,6 +42,8 @@ export interface AdminDashboardData {
   lowStockProducts: DashboardLowStockProduct[];
   totalOrders:     number;
   pendingOrders:   number;
+  /** ADM-05: desglose del KPI "por verificar" — pagos Binance pendientes. */
+  binancePendingOrders: number;
   inProcessOrders: number;
   shippedOrders:   number;
   /** Ingresos validados expresados en USD (moneda principal del panel). */
@@ -51,7 +53,18 @@ export interface AdminDashboardData {
   /** True si hay pedidos validados legado guardados en USD (sin equivalente Bs). */
   hasLegacyUsdRevenue: boolean;
   recentOrders:    DashboardRecentOrder[];
+  /** ADM-13 / PRD-039: false si AppConfig no tiene store_settings — el checkout
+   *  estaría mostrando DEFAULT_SETTINGS sin datos bancarios reales. */
+  bankingConfigured: boolean;
+  /** INF-05 / ADM-12: fecha de la tasa BCV vigente (ISO) y si está desactualizada. */
+  bcvRateDate: string | null;
+  bcvStale: boolean;
+  /** ADM-12: última corrida exitosa del backup (ISO), si el script la registró. */
+  lastBackupAt: string | null;
 }
+
+/** La tasa BCV se considera vieja si su fecha tiene más de 2 días hábiles (~72 h). */
+const BCV_STALE_MS = 72 * 60 * 60 * 1000;
 
 export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   await requireAdminAction();
@@ -64,10 +77,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     lowStockProducts,
     totalOrders,
     pendingOrders,
+    binancePendingOrders,
     inProcessOrders,
     shippedOrders,
     validatedRevenueRows,
     recentOrders,
+    opsConfigRows,
   ] = await Promise.all([
     prisma.product.count(),
     prisma.product.findMany({ distinct: ['category'], select: { category: true } }),
@@ -86,6 +101,9 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
           in: ['Pendiente', 'Pendiente verificación Binance'] satisfies OrderStatus[],
         },
       },
+    }),
+    prisma.order.count({
+      where: { status: 'Pendiente verificación Binance' satisfies OrderStatus },
     }),
     prisma.order.count({ where: { status: 'En Proceso' satisfies OrderStatus } }),
     prisma.order.count({ where: { status: 'Enviado' satisfies OrderStatus } }),
@@ -106,6 +124,12 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
         exchangeRateUsdBs: true,
       },
     }),
+    prisma.appConfig.findMany({
+      where: {
+        key: { in: ['store_settings', 'exchange_rate_bcv_date', 'backup_last_success_at'] },
+      },
+      select: { key: true, value: true },
+    }),
   ]);
 
   let revenueUsd = 0;
@@ -125,6 +149,20 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   revenueUsd = roundMoney2(revenueUsd);
   revenueBs = roundMoney2(revenueBs);
 
+  const opsMap = new Map(opsConfigRows.map((r) => [r.key, r.value]));
+  const bankingConfigured = opsMap.has('store_settings');
+  const bcvRateDateRaw = opsMap.get('exchange_rate_bcv_date') ?? null;
+  const bcvRateDateMs = bcvRateDateRaw ? Date.parse(bcvRateDateRaw) : NaN;
+  const bcvRateDate = Number.isFinite(bcvRateDateMs)
+    ? new Date(bcvRateDateMs).toISOString()
+    : null;
+  const bcvStale = bcvRateDate == null || Date.now() - bcvRateDateMs > BCV_STALE_MS;
+  const lastBackupRaw = opsMap.get('backup_last_success_at') ?? null;
+  const lastBackupAt =
+    lastBackupRaw && Number.isFinite(Date.parse(lastBackupRaw))
+      ? new Date(Date.parse(lastBackupRaw)).toISOString()
+      : null;
+
   return {
     totalProducts,
     totalCategories: categoryRows.length,
@@ -133,11 +171,16 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     lowStockProducts,
     totalOrders,
     pendingOrders,
+    binancePendingOrders,
     inProcessOrders,
     shippedOrders,
     revenueUsd,
     revenueBs,
     hasLegacyUsdRevenue,
+    bankingConfigured,
+    bcvRateDate,
+    bcvStale,
+    lastBackupAt,
     recentOrders: recentOrders.map((o) => ({
       id:           o.id,
       orderNumber:  o.orderNumber,

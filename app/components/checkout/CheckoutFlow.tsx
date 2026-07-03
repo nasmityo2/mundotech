@@ -16,6 +16,7 @@ import { useCart } from '@/context/CartContext';
 import { useExchangeRate } from '@/context/ExchangeRateContext';
 import { formatCurrency } from '@/lib/utils';
 import type { StoreSettings } from '@/lib/data-store';
+import type { ShippingEstimates } from '@/lib/shipping-estimates';
 import { saveCartSnapshotAction } from '@/app/actions/abandonedCartActions';
 import type { AbandonedCartItem } from '@/lib/definitions';
 
@@ -28,9 +29,11 @@ interface CheckoutFlowProps {
   binancePayId?: string;
   /** PRD-027/130: URL del QR de Binance desde readSettings(). */
   binanceQrUrl?: string;
+  /** MEJORA 2.3: estimados de envío (Admin → Configuración) — R1, sin hardcode. */
+  shippingEstimates?: ShippingEstimates;
 }
 
-const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, binanceQrUrl }: CheckoutFlowProps) => {
+const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, binanceQrUrl, shippingEstimates }: CheckoutFlowProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection]     = useState<1 | -1>(1);
   const [shippingData, setShippingData] = useState<ShippingFormData | null>(null);
@@ -104,7 +107,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
     switch (currentStep) {
       // initialData: al volver desde un paso posterior el formulario se
       // remonta (AnimatePresence) — sin esto el usuario perdía lo escrito.
-      case 0: return <ShippingForm onFormSubmit={handleShippingSubmit} initialData={shippingData} />;
+      case 0: return <ShippingForm onFormSubmit={handleShippingSubmit} initialData={shippingData} estimates={shippingEstimates} />;
       case 1: return (
         <PaymentForm
           onPaymentSubmit={handlePaymentSubmit}

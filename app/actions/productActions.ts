@@ -809,6 +809,8 @@ export async function quickUpdateStockAction(productId: string, stock: number) {
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No autorizado.' };
     }
+    // RUN-08: sin log, un fallo de Prisma en producción es indiagnosticable.
+    console.error('[quickUpdateStockAction]', productId, error);
     return { success: false, message: 'Error al actualizar stock.' };
   }
 }
@@ -837,6 +839,7 @@ export async function quickUpdatePriceAction(productId: string, price: number) {
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No autorizado.' };
     }
+    console.error('[quickUpdatePriceAction]', productId, error);
     return { success: false, message: 'Error al actualizar precio.' };
   }
 }
@@ -918,6 +921,11 @@ export async function recalculateAllProductPrices() {
     let updated = 0;
     let skipped = 0;
 
+    // RUN-04 (AUDITORIA-2026-07): acumular las escrituras y aplicarlas en UNA
+    // transacción — antes un fallo a mitad del bucle dejaba el catálogo con
+    // precios mixtos (parte reescalada, parte vieja) y priceBaseFactor inconsistente.
+    const writes: ReturnType<typeof prisma.product.update>[] = [];
+
     for (const p of products) {
       const curPrice = Number(p.price);
       const curOriginal = p.originalPrice != null ? Number(p.originalPrice) : null;
@@ -933,10 +941,12 @@ export async function recalculateAllProductPrices() {
         if (base != null && base > 0) {
           newNormal = roundUpToStep(curNormal * (factor / base));
         } else {
-          await prisma.product.update({
-            where: { id: p.id },
-            data: { priceBaseFactor: factor },
-          });
+          writes.push(
+            prisma.product.update({
+              where: { id: p.id },
+              data: { priceBaseFactor: factor },
+            }),
+          );
           skipped++;
           continue;
         }
@@ -955,11 +965,17 @@ export async function recalculateAllProductPrices() {
         newOriginal = newNormal;
       }
 
-      await prisma.product.update({
-        where: { id: p.id },
-        data: { price: newPrice, originalPrice: newOriginal, priceBaseFactor: factor },
-      });
+      writes.push(
+        prisma.product.update({
+          where: { id: p.id },
+          data: { price: newPrice, originalPrice: newOriginal, priceBaseFactor: factor },
+        }),
+      );
       updated++;
+    }
+
+    if (writes.length > 0) {
+      await prisma.$transaction(writes);
     }
 
     revalidatePath('/admin/products');

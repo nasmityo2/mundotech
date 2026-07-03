@@ -49,16 +49,41 @@ export default function AdminOrderDetailPage() {
   const router = useRouter();
   const id = params?.id as string | undefined;
 
+  // RUN-10: distinguir "no existe" (404) de fallos transitorios (red/500/403) —
+  // antes todo caía en "Pedido no encontrado" sin log.
+  const [loadFailed, setLoadFailed] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     fetch(`/api/orders/${id}`)
-      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(data => { setOrder(data); setNotesDraft(data.notes ?? ''); setLoading(false); })
-      .catch(() => { setOrder(null); setLoading(false); });
+      .then(r => {
+        if (r.status === 404) return null;
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(data => {
+        setOrder(data);
+        if (data) setNotesDraft(data.notes ?? '');
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('[admin/orders/:id] error cargando pedido:', err);
+        setLoadFailed(true);
+        setLoading(false);
+      });
   }, [id]);
 
   if (loading) {
     return <div className="py-16 text-center text-gray-400 text-sm">Cargando detalles del pedido...</div>;
+  }
+
+  if (loadFailed) {
+    return (
+      <div className="py-16 text-center text-sm">
+        <p className="text-red-600 font-semibold">Error de conexión al cargar el pedido.</p>
+        <p className="text-gray-500 mt-1">Revisa tu internet y recarga la página.</p>
+      </div>
+    );
   }
 
   if (!order) {

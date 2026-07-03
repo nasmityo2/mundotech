@@ -74,6 +74,7 @@ function AdminProductsContent() {
   const [products, setProducts]           = useState<Product[]>([]);
   const [categories, setCategories]       = useState<string[]>([]);
   const [loading, setLoading]             = useState(true);
+  const [loadError, setLoadError]         = useState(false);
   const [isModalOpen, setIsModalOpen]     = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isImporting, startImportTr]      = useTransition();
@@ -175,6 +176,12 @@ function AdminProductsContent() {
         profitMarginPct: p.profitMarginPct != null ? Number(p.profitMarginPct) : null,
       })) as Product[]);
       setCategories(cats);
+      setLoadError(false);
+    } catch (err) {
+      // RUN-12/ADM: sin este catch, un fallo de red/sesión dejaba la lista
+      // vacía sin ninguna señal para el operador.
+      console.error('[admin/products] error cargando inventario:', err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -580,6 +587,12 @@ function AdminProductsContent() {
           >
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {loadError && (
+        <div role="alert" className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+          No se pudo cargar el inventario. Revisa tu conexión y recarga la página.
         </div>
       )}
 

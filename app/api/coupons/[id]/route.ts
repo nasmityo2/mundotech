@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { couponInputSchema, couponToClient, normalizeCouponCode } from '@/lib/coupons';
@@ -71,6 +73,52 @@ export async function PUT(
     return NextResponse.json(couponToClient(coupon));
   } catch (error) {
     console.error('[PUT /api/coupons/[id]] Error inesperado:', error);
+    return NextResponse.json({ error: 'Error al actualizar el cupón.' }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH /api/coupons/[id] — actualización parcial atómica (admin).
+ *
+ * RUN-14 / PRD-244 (DEPENDENCIA-02 cerrada): el toggle activo/inactivo ya no
+ * reenvía el cupón completo — un PATCH { active } no puede pisar campos que
+ * otro admin esté editando en paralelo.
+ */
+const couponPatchSchema = z.object({
+  active: z.boolean(),
+});
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = await requireAdmin();
+  if (!auth.authorized) return auth.response;
+
+  const { id } = await params;
+  const body = await request.json().catch(() => null);
+  const parsed = couponPatchSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Datos inválidos. Solo se acepta { active: boolean }.' },
+      { status: 422 }
+    );
+  }
+
+  try {
+    const coupon = await prisma.coupon.update({
+      where: { id },
+      data: { active: parsed.data.active },
+    });
+    return NextResponse.json(couponToClient(coupon));
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2025'
+    ) {
+      return NextResponse.json({ error: 'Cupón no encontrado.' }, { status: 404 });
+    }
+    console.error('[PATCH /api/coupons/[id]] Error inesperado:', error);
     return NextResponse.json({ error: 'Error al actualizar el cupón.' }, { status: 500 });
   }
 }

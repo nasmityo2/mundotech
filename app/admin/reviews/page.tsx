@@ -121,6 +121,35 @@ export default function AdminReviewsPage() {
       ),
     },
     {
+      // ADM-08: thumbnail de foto en la cola — antes solo era visible abriendo
+      // el modal de detalle, lento para moderar desde el celular.
+      key: 'photos', header: 'Foto', mobileLabel: 'Foto',
+      cell: r =>
+        r.photos && r.photos.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setDetailFor(r)}
+            className="relative inline-flex items-center"
+            aria-label={`Ver ${r.photos.length} foto${r.photos.length !== 1 ? 's' : ''} de la reseña`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={r.photos[0]}
+              alt=""
+              loading="lazy"
+              className="w-10 h-10 rounded-lg object-cover border border-slate-200"
+            />
+            {r.photos.length > 1 && (
+              <span className="absolute -right-1.5 -bottom-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-navy text-white text-[10px] font-bold flex items-center justify-center">
+                +{r.photos.length - 1}
+              </span>
+            )}
+          </button>
+        ) : (
+          <span className="text-[11px] text-gray-300">—</span>
+        ),
+    },
+    {
       key: 'author', header: 'Autor', mobileLabel: 'Autor',
       cell: r => <span className="text-[12px] text-gray-500">{r.authorName}</span>,
     },

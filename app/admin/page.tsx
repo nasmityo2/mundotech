@@ -60,6 +60,8 @@ function venezuelanDate(): string {
 const AdminHomePage = () => {
   const [data, setData] = useState<AdminDashboardData | null>(null);
   const [loadingOrders, setLoadingOrders] = useState(true);
+  // ADM-04: el operador debe VER que los KPIs no cargaron (antes solo console.error).
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,7 +70,7 @@ const AdminHomePage = () => {
       .catch(err => {
         // PRD-221: nunca tragar errores del panel en silencio
         console.error('[admin-dashboard] error cargando KPIs:', err);
-        if (!cancelled) setLoadingOrders(false);
+        if (!cancelled) { setLoadError(true); setLoadingOrders(false); }
       });
     return () => { cancelled = true; };
   }, []);
@@ -124,12 +126,48 @@ const AdminHomePage = () => {
     },
   ];
 
+  const binancePending = data?.binancePendingOrders ?? 0;
+  const bankingConfigured = data?.bankingConfigured ?? true;
+  const bcvStale = data?.bcvStale ?? false;
+  const bcvRateDate = data?.bcvRateDate ?? null;
+  const lastBackupAt = data?.lastBackupAt ?? null;
+
   return (
     <div className="space-y-5">
       <div>
         <h1 className="text-xl sm:text-2xl font-black text-navy">{venezuelanGreeting()} Así va la tienda</h1>
         <p className="text-xs sm:text-sm text-gray-500 mt-0.5 capitalize">{venezuelanDate()} · Barquisimeto</p>
       </div>
+
+      {/* ADM-04: error visible al operador */}
+      {loadError && (
+        <div role="alert" className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3">
+          <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-red-800">
+            <p className="font-bold">No se pudieron cargar los indicadores.</p>
+            <p className="text-xs mt-0.5">Revisa tu conexión y recarga la página. Si persiste, la base de datos puede estar caída.</p>
+          </div>
+        </div>
+      )}
+
+      {/* ADM-13 / PRD-039: la tienda opera con DEFAULT_SETTINGS — checkout sin cuentas reales */}
+      {!loadingOrders && !loadError && !bankingConfigured && (
+        <Link
+          href="/admin/settings"
+          role="alert"
+          className="flex items-start gap-3 rounded-2xl border-2 border-red-300 bg-red-50 px-4 py-3 active:bg-red-100"
+        >
+          <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-red-800 min-w-0">
+            <p className="font-bold">⚠ Faltan los datos bancarios de la tienda.</p>
+            <p className="text-xs mt-0.5">
+              El checkout está mostrando datos de ejemplo (no tus cuentas reales).
+              Toca aquí y guarda Pago Móvil / transferencia / Binance en Configuración.
+            </p>
+          </div>
+          <ArrowRight size={16} className="text-red-600 flex-shrink-0 mt-1" />
+        </Link>
+      )}
 
       {/* Hero ingresos */}
       <div className="bg-gradient-to-br from-navy to-[#0f172a] rounded-2xl p-5 sm:p-6 text-white shadow-lg relative overflow-hidden">
@@ -151,7 +189,13 @@ const AdminHomePage = () => {
       {/* KPIs grid 2 cols mobile / 4 cols desktop */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         <KpiCard label="Pedidos totales" value={loadingOrders ? '—' : totalOrders} icon={ShoppingCart} accent="navy" href="/admin/orders" />
-        <KpiCard label="Por verificar pago" value={loadingOrders ? '—' : pendingOrders} icon={Clock} accent="yellow" href="/admin/orders?tab=pending" />
+        <KpiCard
+          label={binancePending > 0 ? `Por verificar (${binancePending} Binance)` : 'Por verificar pago'}
+          value={loadingOrders ? '—' : pendingOrders}
+          icon={Clock}
+          accent="yellow"
+          href="/admin/orders?tab=pending"
+        />
         <KpiCard label="Para despachar" value={loadingOrders ? '—' : inProcessOrders} icon={TrendingUp} accent="navy" href="/admin/orders?tab=processing" />
         <KpiCard label="En camino" value={loadingOrders ? '—' : shippedOrders} icon={Truck} accent="success" href="/admin/orders?tab=shipped" />
       </div>
@@ -180,6 +224,34 @@ const AdminHomePage = () => {
           onRowClick={o => { window.location.href = `/admin/orders/${o.id}`; }}
         />
       </section>
+
+      {/* ADM-12 / INF-05: observabilidad — tasa BCV y último backup */}
+      {!loadingOrders && !loadError && (
+        <section className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className={`rounded-2xl border px-4 py-3 ${bcvStale ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-white'}`}>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Tasa BCV (cron nocturno)</p>
+            <p className={`text-sm font-bold mt-0.5 ${bcvStale ? 'text-orange-700' : 'text-navy'}`}>
+              {bcvRateDate
+                ? `Actualizada: ${new Date(bcvRateDate).toLocaleDateString('es-VE', { day: 'numeric', month: 'short' })}`
+                : 'Sin registro'}
+              {bcvStale ? ' · ⚠ desactualizada (+72 h)' : ' · al día'}
+            </p>
+            {bcvStale && (
+              <p className="text-[11px] text-orange-700 mt-0.5">
+                Los precios en Bs pueden estar viejos — revisa el cron del VPS o actualiza la tasa en Configuración.
+              </p>
+            )}
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Último backup de la base de datos</p>
+            <p className="text-sm font-bold text-navy mt-0.5">
+              {lastBackupAt
+                ? new Date(lastBackupAt).toLocaleString('es-VE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                : 'Sin registro aún'}
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Stock bajo */}
       {lowStockProducts.length > 0 && (

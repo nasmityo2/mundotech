@@ -5,11 +5,17 @@ import { useRouter } from 'next/navigation';
 import {
   Settings, Store, Phone, Building2,
   Save, Check, DollarSign, RefreshCw, TrendingUp, Share2, Wallet, Calculator, Printer,
+  Truck, Plus, Trash2,
 } from 'lucide-react';
-import { updateSettings } from '@/app/actions/settingsActions';
+import { updateSettings, updateShippingEstimates } from '@/app/actions/settingsActions';
 import { updateExchangeRate, updatePricingParams, getPricingParams } from '@/app/actions/configActions';
 import { recalculateAllProductPrices } from '@/app/actions/productActions';
 import type { StoreSettings } from '@/lib/data-store';
+import type { ShippingEstimates } from '@/lib/shipping-estimates';
+import { mrwOffices } from '@/lib/mrw-offices';
+
+/** Estados con cobertura (mismas llaves que usa el checkout MRW). */
+const VE_STATES = Object.keys(mrwOffices).sort();
 
 function SectionCard({ title, icon: Icon, children, accent }: {
   title: string; icon: React.ElementType; children: React.ReactNode; accent?: boolean;
@@ -25,9 +31,10 @@ function SectionCard({ title, icon: Icon, children, accent }: {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder }: {
+// ADM-06: inputs táctiles (min-h 48px, operador en móvil) + error inline por campo.
+function Field({ label, value, onChange, type = 'text', placeholder, error }: {
   label: string; value: string; onChange: (v: string) => void;
-  type?: string; placeholder?: string;
+  type?: string; placeholder?: string; error?: string;
 }) {
   return (
     <div>
@@ -37,8 +44,12 @@ function Field({ label, value, onChange, type = 'text', placeholder }: {
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full px-3 py-2 border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-1 focus:ring-navy/30 focus:border-navy"
+        aria-invalid={error ? true : undefined}
+        className={`w-full px-3 py-2 min-h-[48px] rounded-lg border bg-gray-50 text-base sm:text-sm focus:outline-none focus:ring-1 focus:ring-navy/30 focus:border-navy ${
+          error ? 'border-red-400 bg-red-50' : 'border-gray-200'
+        }`}
       />
+      {error && <p className="text-xs text-red-600 mt-1 font-medium">{error}</p>}
     </div>
   );
 }
@@ -55,9 +66,11 @@ function formatBcvDate(iso: string): string {
 
 export default function SettingsClient({
   initial,
+  initialEstimates,
   bcvDate,
 }: {
   initial: StoreSettings;
+  initialEstimates: ShippingEstimates;
   bcvDate: string | null;
 }) {
   const router = useRouter();
@@ -65,11 +78,21 @@ export default function SettingsClient({
   const [settings, setSettings] = useState<StoreSettings>(initial);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // ADM-06: errores Zod por campo ("pagoMovil.bank") + mensaje global visible.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const fieldError = (path: string) => fieldErrors[path];
 
   const [currentRate, setCurrentRate] = useState<number | null>(null);
   const [newRate, setNewRate] = useState('');
   const [rateMsg, setRateMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [isUpdatingRate, startRateTransition] = useTransition();
+
+  // MEJORA 2.3: estimados de envío (tabla por método + overrides por estado).
+  const [estimates, setEstimates] = useState<ShippingEstimates>(initialEstimates);
+  const [estimatesMsg, setEstimatesMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [isSavingEstimates, startEstimatesTransition] = useTransition();
 
   const [marginPct, setMarginPct] = useState('');
   const [factor, setFactor] = useState('');
@@ -79,16 +102,25 @@ export default function SettingsClient({
   const [recalcMsg, setRecalcMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
+    // RUN-12: validar res.ok — antes un 500 dejaba los campos vacíos sin traza.
     fetch('/api/config/exchange-rate')
-      .then(r => r.json())
-      .then(data => { setCurrentRate(data.rate); setNewRate(data.rate.toString()); })
-      .catch(() => {});
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(data => {
+        if (typeof data?.rate === 'number') {
+          setCurrentRate(data.rate);
+          setNewRate(data.rate.toString());
+        }
+      })
+      .catch(err => {
+        console.error('[admin/settings] error cargando tasa:', err);
+        setRateMsg({ ok: false, text: 'No se pudo cargar la tasa actual. Recarga la página.' });
+      });
   }, []);
 
   useEffect(() => {
     getPricingParams()
       .then(({ marginPct, factor }) => { setMarginPct(String(marginPct)); setFactor(String(factor)); })
-      .catch(() => {});
+      .catch(err => console.error('[admin/settings] error cargando fórmula:', err));
   }, []);
 
   const set = (path: string[], value: string) => {
@@ -103,6 +135,8 @@ export default function SettingsClient({
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
+    setFieldErrors({});
     try {
       const result = await updateSettings(settings);
       if (result.success) {
@@ -111,10 +145,18 @@ export default function SettingsClient({
         setTimeout(() => setSaved(false), 3000);
         router.refresh();
       } else {
-        alert(result.message);
+        setSaveError(result.message);
+        if (result.errors) {
+          const flat: Record<string, string> = {};
+          for (const [path, msgs] of Object.entries(result.errors)) {
+            if (msgs[0]) flat[path] = msgs[0];
+          }
+          setFieldErrors(flat);
+        }
       }
-    } catch {
-      alert('Error de conexión.');
+    } catch (err) {
+      console.error('[admin/settings] error guardando:', err);
+      setSaveError('Error de conexión. Revisa tu internet e inténtalo de nuevo.');
     } finally {
       setSaving(false);
     }
@@ -156,6 +198,19 @@ export default function SettingsClient({
     });
   };
 
+  const handleSaveEstimates = () => {
+    startEstimatesTransition(async () => {
+      const cleaned: ShippingEstimates = {
+        ...estimates,
+        states: estimates.states.filter(s => s.state.trim() && s.note.trim()),
+      };
+      const result = await updateShippingEstimates(cleaned);
+      setEstimatesMsg({ ok: result.success, text: result.message });
+      if (result.success && result.data) setEstimates(result.data);
+      setTimeout(() => setEstimatesMsg(null), 4000);
+    });
+  };
+
   const LABEL_PRESETS: { id: string; label: string; w: number; h: number }[] = [
     { id: 'thermal', label: 'Térmica 100×150 mm (4×6")', w: 100, h: 150 },
     { id: 'letter',  label: 'Hoja Carta 216×279 mm',     w: 216, h: 279 },
@@ -188,6 +243,12 @@ export default function SettingsClient({
       </div>
 
       <div className="space-y-6 max-w-2xl">
+
+        {saveError && (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+            {saveError}
+          </div>
+        )}
 
         <SectionCard title="Tasa de Cambio USD / Bs" icon={TrendingUp} accent>
           <div className="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -282,14 +343,14 @@ export default function SettingsClient({
         </SectionCard>
 
         <SectionCard title="Información de la Tienda" icon={Store}>
-          <Field label="Nombre de la tienda" value={settings.storeName} onChange={v => set(['storeName'], v)} placeholder="MundoTech" />
+          <Field label="Nombre de la tienda" value={settings.storeName} onChange={v => set(['storeName'], v)} placeholder="MundoTech" error={fieldError('storeName')} />
           <Field label="Eslogan / Tagline" value={settings.tagline ?? ''} onChange={v => set(['tagline'], v)} placeholder="Tu tienda de tecnología en Venezuela." />
           <Field label="Dirección / Ubicación" value={settings.address ?? ''} onChange={v => set(['address'], v)} placeholder="Barquisimeto, Lara — Venezuela" />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Teléfono principal" value={settings.phone} onChange={v => set(['phone'], v)} type="tel" placeholder="0412-1471338" />
+            <Field label="Teléfono principal" value={settings.phone} onChange={v => set(['phone'], v)} type="tel" placeholder="0412-1471338" error={fieldError('phone')} />
             <Field label="Teléfono secundario" value={settings.phone2 ?? ''} onChange={v => set(['phone2'], v)} type="tel" placeholder="0414-5709470" />
           </div>
-          <Field label="Correo electrónico" value={settings.email} onChange={v => set(['email'], v)} type="email" placeholder="ventas@mundotechve.com" />
+          <Field label="Correo electrónico" value={settings.email} onChange={v => set(['email'], v)} type="email" placeholder="ventas@mundotechve.com" error={fieldError('email')} />
         </SectionCard>
 
         <SectionCard title="Etiqueta de envío" icon={Printer}>
@@ -327,19 +388,108 @@ export default function SettingsClient({
           <div className="p-3 bg-gray-50 border border-gray-200 text-xs text-navy font-medium">
             Datos mostrados al cliente cuando elige &ldquo;Pago Móvil&rdquo; en el checkout.
           </div>
-          <Field label="Banco" value={settings.pagoMovil.bank} onChange={v => set(['pagoMovil', 'bank'], v)} placeholder="Banesco" />
-          <Field label="Teléfono" value={settings.pagoMovil.phone} onChange={v => set(['pagoMovil', 'phone'], v)} type="tel" placeholder="0412-1234567" />
-          <Field label="Cédula" value={settings.pagoMovil.idNumber} onChange={v => set(['pagoMovil', 'idNumber'], v)} placeholder="V-12.345.678" />
+          <Field label="Banco" value={settings.pagoMovil.bank} onChange={v => set(['pagoMovil', 'bank'], v)} placeholder="Banesco" error={fieldError('pagoMovil.bank')} />
+          <Field label="Teléfono" value={settings.pagoMovil.phone} onChange={v => set(['pagoMovil', 'phone'], v)} type="tel" placeholder="0412-1234567" error={fieldError('pagoMovil.phone')} />
+          <Field label="Cédula" value={settings.pagoMovil.idNumber} onChange={v => set(['pagoMovil', 'idNumber'], v)} placeholder="V-12.345.678" error={fieldError('pagoMovil.idNumber')} />
         </SectionCard>
 
         <SectionCard title="Transferencia Bancaria" icon={Building2}>
           <div className="p-3 bg-green-50 rounded-lg text-xs text-green-700 font-medium">
             Datos mostrados al cliente cuando elige &ldquo;Transferencia Bancaria&rdquo; en el checkout.
           </div>
-          <Field label="Banco" value={settings.transferencia.bank} onChange={v => set(['transferencia', 'bank'], v)} placeholder="Mercantil" />
-          <Field label="Número de cuenta" value={settings.transferencia.accountNumber} onChange={v => set(['transferencia', 'accountNumber'], v)} placeholder="0105-0000-00-1234567890" />
-          <Field label="Titular" value={settings.transferencia.accountHolder} onChange={v => set(['transferencia', 'accountHolder'], v)} placeholder="Empresa Ejemplo C.A." />
-          <Field label="RIF" value={settings.transferencia.rif} onChange={v => set(['transferencia', 'rif'], v)} placeholder="J-12345678-9" />
+          <Field label="Banco" value={settings.transferencia.bank} onChange={v => set(['transferencia', 'bank'], v)} placeholder="Mercantil" error={fieldError('transferencia.bank')} />
+          <Field label="Número de cuenta" value={settings.transferencia.accountNumber} onChange={v => set(['transferencia', 'accountNumber'], v)} placeholder="0105-0000-00-1234567890" error={fieldError('transferencia.accountNumber')} />
+          <Field label="Titular" value={settings.transferencia.accountHolder} onChange={v => set(['transferencia', 'accountHolder'], v)} placeholder="Empresa Ejemplo C.A." error={fieldError('transferencia.accountHolder')} />
+          <Field label="RIF" value={settings.transferencia.rif} onChange={v => set(['transferencia', 'rif'], v)} placeholder="J-12345678-9" error={fieldError('transferencia.rif')} />
+        </SectionCard>
+
+        {/* MEJORA 2.3: estimados de envío visibles en el paso de envío del checkout */}
+        <SectionCard title="Estimados de envío" icon={Truck}>
+          <p className="text-xs text-gray-500">
+            Texto que ve el cliente al elegir el método de envío (tiempo estimado y costo aproximado).
+            Deja vacío lo que no quieras mostrar. Ejemplo: «2–4 días hábiles · lo pagas al recibir (~$3–6 según destino)».
+          </p>
+          <Field
+            label="Retiro en tienda"
+            value={estimates.tienda}
+            onChange={v => setEstimates(p => ({ ...p, tienda: v }))}
+            placeholder="Listo el mismo día · te avisamos por WhatsApp"
+          />
+          <Field
+            label="MRW (nota general)"
+            value={estimates.mrw}
+            onChange={v => setEstimates(p => ({ ...p, mrw: v }))}
+            placeholder="2–4 días hábiles · lo pagas al recibir en la oficina"
+          />
+          <Field
+            label="ZOOM (nota general)"
+            value={estimates.zoom}
+            onChange={v => setEstimates(p => ({ ...p, zoom: v }))}
+            placeholder="2–5 días hábiles · lo pagas al recibir en la oficina"
+          />
+
+          <div className="pt-2 border-t border-gray-100">
+            <p className="text-sm font-medium text-gray-700 mb-2">Excepciones por estado (opcional)</p>
+            <div className="space-y-2">
+              {estimates.states.map((row, i) => (
+                <div key={i} className="flex gap-2 items-start">
+                  <select
+                    value={row.state}
+                    onChange={e => setEstimates(p => ({
+                      ...p,
+                      states: p.states.map((s, j) => j === i ? { ...s, state: e.target.value } : s),
+                    }))}
+                    className="w-[38%] px-2 py-2 min-h-[48px] rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-1 focus:ring-navy/30"
+                    aria-label="Estado"
+                  >
+                    <option value="">Estado…</option>
+                    {VE_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <input
+                    type="text"
+                    value={row.note}
+                    onChange={e => setEstimates(p => ({
+                      ...p,
+                      states: p.states.map((s, j) => j === i ? { ...s, note: e.target.value } : s),
+                    }))}
+                    placeholder="1–2 días hábiles"
+                    className="flex-1 px-3 py-2 min-h-[48px] rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-1 focus:ring-navy/30"
+                    aria-label="Estimado para el estado"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setEstimates(p => ({ ...p, states: p.states.filter((_, j) => j !== i) }))}
+                    className="min-w-[44px] min-h-[48px] flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 active:bg-red-100"
+                    aria-label="Quitar excepción"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setEstimates(p => ({ ...p, states: [...p.states, { state: '', note: '' }] }))}
+              disabled={estimates.states.length >= 30}
+              className="mt-2 inline-flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg border border-gray-200 text-sm font-semibold text-navy hover:bg-gray-50 disabled:opacity-50"
+            >
+              <Plus size={15} /> Agregar estado
+            </button>
+          </div>
+
+          <button
+            onClick={handleSaveEstimates}
+            disabled={isSavingEstimates}
+            className="flex items-center gap-2 px-4 py-2 min-h-[44px] bg-navy text-white text-sm font-semibold rounded-lg hover:bg-navy/90 disabled:opacity-60 transition"
+          >
+            <Save size={15} />
+            {isSavingEstimates ? 'Guardando…' : 'Guardar estimados'}
+          </button>
+          {estimatesMsg && (
+            <p className={`text-sm font-medium ${estimatesMsg.ok ? 'text-green-600' : 'text-red-600'}`}>
+              {estimatesMsg.text}
+            </p>
+          )}
         </SectionCard>
 
         {/* PRD-027/130: Binance Pay configurable sin redeploy */}

@@ -191,7 +191,7 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
     <Dialog title="Nuevo usuario" onClose={onClose}>
       <DialogField label="Nombre completo" value={name} onChange={setName} />
       <DialogField label="Email" type="email" value={email} onChange={setEmail} />
-      <DialogField label="Contraseña" type="password" value={password} onChange={setPassword} hint="Mínimo 6 caracteres." />
+      <DialogField label="Contraseña" type="password" value={password} onChange={setPassword} hint="Mínimo 8 caracteres." />
       <div>
         <label className="block text-xs font-bold uppercase tracking-wide text-gray-700 mb-1.5">Rol</label>
         <div className="grid grid-cols-2 gap-2">
@@ -240,7 +240,7 @@ function ResetPasswordDialog({ user, onClose, onDone }: { user: AdminUser; onClo
 
   return (
     <Dialog title={`Nueva contraseña — ${user.email}`} onClose={onClose}>
-      <DialogField label="Nueva contraseña" type="password" value={password} onChange={setPassword} hint="Mínimo 6 caracteres." />
+      <DialogField label="Nueva contraseña" type="password" value={password} onChange={setPassword} hint="Mínimo 8 caracteres." />
       {error && (
         <p className="text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
       )}

@@ -5,6 +5,14 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { isAdminRole } from '@/lib/api-auth';
+
+/** SEC-06 (R3): un solo helper de guard admin para las mutaciones de este módulo
+ *  (variante que devuelve resultado en vez de lanzar, para no romper la UI). */
+async function isAdminSession(): Promise<boolean> {
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  return Boolean(session && isAdminRole(role));
+}
 import {
   DEFAULT_EXCHANGE_RATE_USD_BS,
   EXCHANGE_RATE_APP_CONFIG_KEY,
@@ -30,15 +38,16 @@ export async function getExchangeRate(): Promise<number> {
       where: { key: EXCHANGE_RATE_APP_CONFIG_KEY },
     });
     return parseExchangeRateFromConfigValue(record?.value);
-  } catch {
+  } catch (err) {
+    // RUN-07 / PRD-139: degradación visible en logs — la tasa de fallback (36.5)
+    // es ficticia y sin traza ops no detecta la caída de BD.
+    console.error('[getExchangeRate] fallo de BD — usando DEFAULT_EXCHANGE_RATE_USD_BS:', err);
     return DEFAULT_EXCHANGE_RATE_USD_BS;
   }
 }
 
 export async function updateExchangeRate(rate: unknown) {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string } | undefined)?.role;
-  if (!session || !isAdminRole(role)) {
+  if (!(await isAdminSession())) {
     return { success: false, message: 'No autorizado.' };
   }
 
@@ -68,15 +77,14 @@ export async function getPricingParams(): Promise<{ marginPct: number; factor: n
     const marginPct = rawMargin != null && Number.isFinite(Number(rawMargin)) ? Number(rawMargin) : DEFAULT_PROFIT_MARGIN_PCT;
     const factor = rawFactor != null && Number.isFinite(Number(rawFactor)) && Number(rawFactor) > 0 ? Number(rawFactor) : DEFAULT_BCV_BINANCE_FACTOR;
     return { marginPct, factor };
-  } catch {
+  } catch (err) {
+    console.error('[getPricingParams] fallo de BD — usando defaults:', err);
     return { marginPct: DEFAULT_PROFIT_MARGIN_PCT, factor: DEFAULT_BCV_BINANCE_FACTOR };
   }
 }
 
 export async function updatePricingParams(input: { marginPct: unknown; factor: unknown }) {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string } | undefined)?.role;
-  if (!session || !isAdminRole(role)) {
+  if (!(await isAdminSession())) {
     return { success: false, message: 'No autorizado.' };
   }
 
@@ -114,15 +122,14 @@ export async function getMarginPresets(): Promise<number[]> {
     if (!record?.value) return DEFAULT_MARGIN_PRESETS;
     const parsed = marginPresetsSchema.safeParse(JSON.parse(record.value));
     return parsed.success ? parsed.data : DEFAULT_MARGIN_PRESETS;
-  } catch {
+  } catch (err) {
+    console.error('[getMarginPresets] fallo de BD — usando defaults:', err);
     return DEFAULT_MARGIN_PRESETS;
   }
 }
 
 export async function updateMarginPresets(presets: unknown) {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string } | undefined)?.role;
-  if (!session || !isAdminRole(role)) {
+  if (!(await isAdminSession())) {
     return { success: false, message: 'No autorizado.' };
   }
   const parsed = marginPresetsSchema.safeParse(presets);

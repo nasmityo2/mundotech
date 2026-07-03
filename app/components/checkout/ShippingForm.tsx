@@ -10,6 +10,7 @@ import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 import { getSavedAddresses } from '@/app/actions/addressActions';
 import type { SavedAddress, ShippingMethod } from '@/lib/definitions';
+import { estimateFor, type ShippingEstimates } from '@/lib/shipping-estimates';
 
 export type ShippingFormData = {
   firstName:   string;
@@ -31,9 +32,11 @@ interface ShippingFormProps {
   onFormSubmit: (data: ShippingFormData) => void;
   /** Datos ya capturados: al volver desde el paso de pago el formulario se remonta y sin esto se perdía lo escrito. */
   initialData?: ShippingFormData | null;
+  /** MEJORA 2.3: estimados de envío editables desde el admin (R1). */
+  estimates?: ShippingEstimates;
 }
 
-const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
+const ShippingForm = ({ onFormSubmit, initialData, estimates }: ShippingFormProps) => {
   const { data: session } = useSession();
   const {
     register, handleSubmit, formState: { errors }, watch, setValue,
@@ -113,6 +116,15 @@ const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
   const shippingMethod = watch('shippingMethod');
   const selectedMrwState  = watch('mrwState');
   const selectedZoomState = watch('zoomState');
+
+  // MEJORA 2.3: estimado a mostrar bajo la selección de método/estado.
+  const estimateNote = estimates
+    ? estimateFor(
+        estimates,
+        shippingMethod,
+        shippingMethod === 'mrw' ? selectedMrwState : shippingMethod === 'zoom' ? selectedZoomState : null,
+      )
+    : '';
 
   const onSubmit: SubmitHandler<ShippingFormData> = (data) => onFormSubmit(data);
 
@@ -257,6 +269,17 @@ const ShippingForm = ({ onFormSubmit, initialData }: ShippingFormProps) => {
           );
         })}
       </div>
+
+      {/* MEJORA 2.3: estimado de tiempo/costo del método elegido (editable en admin) */}
+      {estimateNote ? (
+        <p
+          aria-live="polite"
+          className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-[12.5px] font-medium text-slate-600"
+        >
+          <Check size={14} className="text-emerald-500 flex-shrink-0 mt-0.5" aria-hidden />
+          <span>{estimateNote}</span>
+        </p>
+      ) : null}
 
       {/* Datos personales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

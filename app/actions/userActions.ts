@@ -71,24 +71,39 @@ export async function createAdminUser(input: unknown): Promise<{ success: boolea
   return { success: true, message: 'Usuario creado.' };
 }
 
+const updateRoleSchema = z.object({
+  userId: z.string().min(1),
+  role:   z.enum(['ADMIN', 'CLIENT']),
+});
+
 export async function updateUserRole(
   userId: string,
   role: 'ADMIN' | 'CLIENT',
 ): Promise<{ success: boolean; message: string }> {
   const session = await requireAdminAction();
-  if (session.user?.id === userId && role !== 'ADMIN') {
+  // ADM-07: validar con Zod (las Server Actions reciben input no confiable en
+  // runtime, aunque TypeScript declare el tipo) + R3: sin literal suelto.
+  const parsed = updateRoleSchema.safeParse({ userId, role });
+  if (!parsed.success) {
+    return { success: false, message: 'Datos inválidos.' };
+  }
+  const demoting = !isAdminRole(parsed.data.role);
+  if (session.user?.id === parsed.data.userId && demoting) {
     return { success: false, message: 'No puedes degradar tu propio usuario.' };
   }
 
   // Bloquear que se quede sin admins
-  if (role === 'CLIENT') {
+  if (demoting) {
     const adminCount = await countAdmins();
     if (adminCount <= 1) {
       return { success: false, message: 'No puedes dejar la tienda sin administradores.' };
     }
   }
 
-  await prisma.user.update({ where: { id: userId }, data: { role } });
+  await prisma.user.update({
+    where: { id: parsed.data.userId },
+    data: { role: parsed.data.role },
+  });
   revalidatePath('/admin/settings/users');
   return { success: true, message: 'Rol actualizado.' };
 }

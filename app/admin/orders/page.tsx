@@ -372,7 +372,7 @@ function OrdersPageContent() {
               enterKeyHint="search"
               autoCorrect="off"
               autoCapitalize="none"
-              placeholder="Buscar por # o nombre…"
+              placeholder="Buscar por #, nombre, teléfono, cédula o referencia…"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               className="w-full pl-10 pr-4 min-h-[48px] py-2.5 rounded-xl border border-slate-600/50 bg-slate-900/60 text-slate-100 placeholder:text-slate-500 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-brand-yellow/40 focus:border-brand-yellow/50"

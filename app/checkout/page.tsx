@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { readSettings } from '@/lib/data-store';
+import { readShippingEstimates } from '@/lib/shipping-estimates';
 import CheckoutFlow from '@/app/components/checkout/CheckoutFlow';
 
 // Fuerza renderizado dinámico (por-request) para que readSettings()
@@ -18,7 +19,10 @@ export const metadata: Metadata = {
  * y los pasa al flujo interactivo de checkout (Client Component).
  */
 export default async function CheckoutPage() {
-  const settings = await readSettings();
+  const [settings, shippingEstimates] = await Promise.all([
+    readSettings(),
+    readShippingEstimates(),
+  ]);
 
   return (
     <CheckoutFlow
@@ -27,6 +31,7 @@ export default async function CheckoutPage() {
       supportPhone={settings.phone}
       binancePayId={settings.binancePayId}
       binanceQrUrl={settings.binanceQrUrl}
+      shippingEstimates={shippingEstimates}
     />
   );
 }
