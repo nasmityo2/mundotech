@@ -176,13 +176,13 @@ export default function SuccessClientPage({ order }: Props) {
           </div>
         </motion.div>
 
-        {/* CTAs */}
+        {/* CTAs — invitados van al seguimiento público (no tienen cuenta) */}
         <motion.div variants={fadeUp} className="mt-7 flex flex-col sm:flex-row gap-3">
           <Link
-            href="/account/orders"
+            href={order.customerId ? '/account/orders' : `/pedido?n=${order.orderNumber}`}
             className="flex-1 inline-flex items-center justify-center gap-2 bg-navy text-white font-bold text-sm h-12 rounded-2xl hover:bg-navy-700 shadow-soft hover:shadow-card transition-all"
           >
-            Ver mis pedidos <ArrowRight size={15} />
+            {order.customerId ? 'Ver mis pedidos' : 'Seguir mi pedido'} <ArrowRight size={15} />
           </Link>
           <Link
             href="/productos"

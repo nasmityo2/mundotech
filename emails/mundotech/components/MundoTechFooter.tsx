@@ -7,6 +7,7 @@ import {
   emailStoreAddress,
   emailStorePhones,
   emailInstagramHandle,
+  emailSiteBaseUrl,
 } from '../site';
 
 /**
@@ -46,6 +47,15 @@ export function MundoTechFooter() {
           style={{ color: MT.goldText, fontWeight: 700, textDecoration: 'none', fontSize: 13 }}
         >
           {mail}
+        </Link>
+      </Text>
+      {/* FASE 4.2: seguimiento público sin cuenta — número de pedido + cédula. */}
+      <Text style={{ margin: '0 0 12px', fontSize: 12 }}>
+        <Link
+          href={`${emailSiteBaseUrl().replace(/\/$/, '')}/pedido`}
+          style={{ color: MT.textMuted, textDecoration: 'underline', fontSize: 12 }}
+        >
+          ¿Dónde está mi pedido? Consúltalo aquí con tu número de pedido y cédula
         </Link>
       </Text>
       <Text style={{ margin: 0, fontSize: 11, color: MT.textMuted }}>

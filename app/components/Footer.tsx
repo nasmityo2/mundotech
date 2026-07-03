@@ -121,6 +121,8 @@ const Footer = async () => {
             <h3 className="text-sm font-bold uppercase tracking-widest text-gray-300 mb-4">Ayuda</h3>
             <ul className="space-y-2">
               <li><Link href="/account/orders"   className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Mis pedidos</Link></li>
+              {/* FASE 4.2: seguimiento público (invitados) — número + cédula */}
+              <li><Link href="/pedido"           className="text-sm text-on-dark hover:text-brand-yellow transition-colors">¿Dónde está mi pedido?</Link></li>
               <li><Link href="/devoluciones"     className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Devoluciones y garantía</Link></li>
               <li><Link href="/shipping-policy"  className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Envíos</Link></li>
               <li><Link href="/privacy-policy"   className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Privacidad</Link></li>

@@ -58,14 +58,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const ref = parseOrderRef(orderId);
   const order = ref ? await getEnrichedOrder(ref) : null;
 
-  if (!order) {
-    return <div className="p-6"><p className="text-red-500">Pedido no encontrado.</p></div>;
-  }
-
-  if (order.customerId !== session.user.id) {
+  // SEC-04 (AUDITORIA-2026-07): mensaje único para "no existe" y "no es tuyo" —
+  // mensajes distintos revelaban qué números correlativos de pedido existen.
+  if (!order || order.customerId !== session.user.id) {
     return (
       <div className="p-6">
-        <p className="text-red-500">No tienes permiso para ver este pedido.</p>
+        <p className="text-red-500">Pedido no disponible. Verifica el enlace o revisa tu lista de pedidos.</p>
       </div>
     );
   }
