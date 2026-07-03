@@ -107,6 +107,12 @@ export default function SearchMobileOverlay({ open, onClose }: Props) {
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onFocus={() => results.length > 0 && setOpen(true)}
+                  /* A11Y-02: mismo patrón combobox que SearchBar desktop. */
+                  role="combobox"
+                  aria-label="Buscar productos"
+                  aria-expanded={suggestionsOpen}
+                  aria-controls="search-suggestions-mobile"
+                  aria-autocomplete="list"
                   placeholder="Buscar productos, marcas…"
                   className="w-full bg-slate-100 text-navy text-base rounded-2xl pl-11 pr-12 min-h-[48px] h-12 border border-transparent focus:outline-none focus:bg-white focus:border-navy/30 focus:shadow-ring-navy placeholder:text-slate-400"
                 />
@@ -135,7 +141,7 @@ export default function SearchMobileOverlay({ open, onClose }: Props) {
             </form>
           </div>
 
-          <div className="flex-1 overflow-y-auto overscroll-contain">
+          <div id="search-suggestions-mobile" className="flex-1 overflow-y-auto overscroll-contain">
             {query.trim().length < 2 ? (
               <div className="px-6 py-12 text-center text-slate-500 text-sm">
                 Escribe al menos 2 caracteres para buscar.

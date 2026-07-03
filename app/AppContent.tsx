@@ -1,11 +1,15 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { APP_CHUNK_RELOAD_KEY, clearChunkReloadFlag } from '@/lib/chunk-load-error';
 import { useCart } from "../context/CartContext";
 import Navbar, { type NavbarContact } from "../components/Navbar";
-import CartDrawer from "../components/CartDrawer";
+
+// PERF-02 (AUDITORIA-2026-07): el drawer (framer-motion + next/image) va en un
+// chunk aparte y solo se descarga tras la primera apertura del carrito.
+const CartDrawer = dynamic(() => import("../components/CartDrawer"), { ssr: false });
 
 /**
  * Shell mínimo del cliente: solo gestiona la apertura del carrito
@@ -15,9 +19,16 @@ import CartDrawer from "../components/CartDrawer";
  * nada de teléfonos ni emails hardcodeados en componentes de UI.
  */
 export default function AppContent({ contact }: { contact: NavbarContact }) {
-  const { openCart } = useCart();
+  const { openCart, isCartOpen } = useCart();
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith('/admin') ?? false;
+
+  // Monta el drawer solo cuando se necesita por primera vez (y ya no se desmonta,
+  // para conservar la animación de cierre).
+  const [cartMounted, setCartMounted] = useState(false);
+  useEffect(() => {
+    if (isCartOpen) setCartMounted(true);
+  }, [isCartOpen]);
 
   useEffect(() => {
     if (isAdmin) return;
@@ -34,7 +45,7 @@ export default function AppContent({ contact }: { contact: NavbarContact }) {
   return (
     <>
       <Navbar onCartClick={openCart} contact={contact} />
-      <CartDrawer />
+      {cartMounted && <CartDrawer />}
     </>
   );
 }

@@ -1,5 +1,5 @@
-'use client';
-
+// PERF-03 (AUDITORIA-2026-07): Server Component — solo renderiza props del
+// servidor; la única isla client es ProductCard (botones carrito/wishlist).
 import Link from 'next/link';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import ProductCard from '@/components/ProductCard';

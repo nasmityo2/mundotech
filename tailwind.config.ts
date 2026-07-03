@@ -95,10 +95,23 @@ const config: Config = {
           '0%':   { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
+        // PERF-02: animaciones CSS que sustituyen a framer-motion en la ruta
+        // crítica (Navbar/CookieConsent) — menos JS inicial en móvil.
+        'cart-pop': {
+          '0%':   { transform: 'scale(1)' },
+          '45%':  { transform: 'scale(1.18)' },
+          '100%': { transform: 'scale(1)' },
+        },
+        'menu-in': {
+          '0%':   { opacity: '0', transform: 'translateY(-8px) scale(0.97)' },
+          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+        },
       },
       animation: {
         shimmer:  'shimmer 1.6s linear infinite',
         'fade-up': 'fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both',
+        'cart-pop': 'cart-pop 0.32s ease-out',
+        'menu-in':  'menu-in 0.18s ease-out both',
       },
       backgroundImage: {
         'noise':

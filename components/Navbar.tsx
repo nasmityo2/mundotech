@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
   ShoppingBag, Heart, Phone, Mail,
   UserCircle, LogOut, Package, Settings,
@@ -11,12 +12,14 @@ import {
 import { useSession, signOut } from 'next-auth/react';
 import { useCart }     from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
-import { motion, AnimatePresence } from 'framer-motion';
 import SearchBar          from './SearchBar';
-import SearchMobileOverlay from './SearchMobileOverlay';
-import CategoryDrawer     from './layout/CategoryDrawer';
 import { isAdminRole } from '@/lib/is-admin-role';
 import Logo from '@/components/Logo';
+
+// PERF-02 (AUDITORIA-2026-07): los overlays viven en chunks aparte y solo se
+// montan tras la primera apertura — framer-motion sale del bundle crítico.
+const SearchMobileOverlay = dynamic(() => import('./SearchMobileOverlay'), { ssr: false });
+const CategoryDrawer      = dynamic(() => import('./layout/CategoryDrawer'), { ssr: false });
 
 export interface NavbarContact {
   phone: string;
@@ -37,12 +40,17 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
   const [drawerOpen,   setDrawerOpen]   = useState(false);
   const [scrolled,     setScrolled]     = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  // PERF-02: los chunks de los overlays solo se descargan tras el primer uso.
+  const [drawerMounted, setDrawerMounted] = useState(false);
+  const [searchMounted, setSearchMounted] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const openDrawer = () => { setDrawerMounted(true); setDrawerOpen(true); };
+  const openMobileSearch = () => { setSearchMounted(true); setMobileSearchOpen(true); };
 
   const totalItems = !isCartLoading && cart
     ? cart.reduce((acc, item) => acc + item.quantity, 0)
     : 0;
-  const cartAnim = { scale: itemAdded ? [1, 1.18, 1] : 1, transition: { duration: 0.32 } };
   const isAdmin  = isAdminRole(session?.user?.role);
 
   // Sombra/blur progresivo
@@ -64,8 +72,12 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
 
   return (
     <>
-      <CategoryDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
-      <SearchMobileOverlay open={mobileSearchOpen} onClose={() => setMobileSearchOpen(false)} />
+      {drawerMounted && (
+        <CategoryDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      )}
+      {searchMounted && (
+        <SearchMobileOverlay open={mobileSearchOpen} onClose={() => setMobileSearchOpen(false)} />
+      )}
 
       <header className="sticky top-0 z-40 w-full max-w-full overflow-visible">
         {/* Top bar trust — solo desktop */}
@@ -104,18 +116,19 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button
                   type="button"
-                  onClick={() => setDrawerOpen(true)}
+                  onClick={openDrawer}
                   className="lg:hidden flex items-center justify-center min-w-[44px] min-h-[44px] rounded-xl text-navy hover:bg-slate-100 active:bg-slate-200 transition-colors"
                   aria-label="Abrir menú de categorías"
                 >
                   <Menu size={22} aria-hidden="true" />
                 </button>
 
-                <Logo variant="light" size="md" priority className="sm:h-10" />
+                {/* PERF-04: sin priority — la imagen LCP es el hero, no el logo. */}
+                <Logo variant="light" size="md" className="sm:h-10" />
 
                 <button
                   type="button"
-                  onClick={() => setDrawerOpen(true)}
+                  onClick={openDrawer}
                   className="hidden lg:inline-flex ml-3 items-center gap-1.5 text-sm font-semibold text-navy/80
                              hover:text-navy hover:bg-slate-100 transition-colors px-3 py-2 rounded-xl"
                 >
@@ -138,7 +151,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                 {/* Búsqueda móvil */}
                 <button
                   type="button"
-                  onClick={() => setMobileSearchOpen(true)}
+                  onClick={openMobileSearch}
                   className="md:hidden flex items-center justify-center min-w-[44px] min-h-[44px] rounded-xl text-navy hover:bg-slate-100 active:bg-slate-200 transition-colors"
                   aria-label="Abrir búsqueda"
                 >
@@ -193,15 +206,14 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                       <ChevronDown size={13} aria-hidden="true" className={`hidden lg:block transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
                     </button>
 
-                    <AnimatePresence>
-                      {userMenuOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -8, scale: 0.97 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                          transition={{ duration: 0.18 }}
+                    {/* PERF-02: animación CSS (animate-menu-in) en vez de framer-motion. */}
+                    {userMenuOpen && (
+                        <div
+                          role="menu"
+                          aria-label="Menú de cuenta"
                           className="absolute right-0 mt-2 w-[min(calc(100vw-1rem),16rem)] bg-white rounded-2xl shadow-lift
-                                     border border-slate-200/70 py-2 z-[70] overflow-hidden"
+                                     border border-slate-200/70 py-2 z-[70] overflow-hidden
+                                     animate-menu-in motion-reduce:animate-none"
                         >
                           <div className="px-4 py-3 border-b border-slate-100">
                             <p className="text-sm font-semibold text-navy truncate">{session.user?.name}</p>
@@ -215,6 +227,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                             ].map(item => (
                               <Link
                                 key={item.href} href={item.href}
+                                role="menuitem"
                                 onClick={() => setUserMenuOpen(false)}
                                 className="flex items-center gap-3 px-4 min-h-[44px] text-sm text-navy/80 hover:bg-slate-50 hover:text-navy transition-colors"
                               >
@@ -225,7 +238,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                           {isAdmin && (
                             <div className="border-t border-slate-100 py-1">
                               <Link
-                                href="/admin" onClick={() => setUserMenuOpen(false)}
+                                href="/admin" role="menuitem" onClick={() => setUserMenuOpen(false)}
                                 className="flex items-center gap-3 px-4 min-h-[44px] text-sm text-amber-700 font-semibold hover:bg-amber-50 transition-colors"
                               >
                                 <LayoutDashboard size={16} className="flex-shrink-0" /> Panel admin
@@ -235,15 +248,15 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                           <div className="border-t border-slate-100 py-1">
                             <button
                               type="button"
+                              role="menuitem"
                               onClick={() => { setUserMenuOpen(false); signOut({ callbackUrl: '/' }); }}
                               className="flex items-center gap-3 w-full px-4 min-h-[44px] text-sm text-rose-600 hover:bg-rose-50 transition-colors"
                             >
                               <LogOut size={16} className="flex-shrink-0" /> Cerrar sesión
                             </button>
                           </div>
-                        </motion.div>
+                        </div>
                       )}
-                    </AnimatePresence>
                   </div>
                 ) : (
                   <Link
@@ -258,14 +271,15 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                   </Link>
                 )}
 
-                {/* Carrito — siempre accesible con pulgar */}
-                <motion.button
+                {/* Carrito — siempre accesible con pulgar.
+                    PERF-02: pop de "añadido" con animación CSS (animate-cart-pop). */}
+                <button
                   type="button"
                   onClick={onCartClick}
-                  className="relative flex items-center gap-1.5 sm:gap-2 min-h-[44px] px-2.5 sm:pl-3 sm:pr-4 ml-0.5 sm:ml-1
+                  className={`relative flex items-center gap-1.5 sm:gap-2 min-h-[44px] px-2.5 sm:pl-3 sm:pr-4 ml-0.5 sm:ml-1
                              bg-navy text-white text-sm font-semibold rounded-full
-                             hover:bg-navy-700 active:bg-navy-800 shadow-soft hover:shadow-card transition-all"
-                  animate={cartAnim}
+                             hover:bg-navy-700 active:bg-navy-800 shadow-soft hover:shadow-card transition-all
+                             ${itemAdded ? 'animate-cart-pop motion-reduce:animate-none' : ''}`}
                   aria-label="Carrito de compras"
                 >
                   <span className="sr-only">Carrito de compras</span>
@@ -278,7 +292,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                       </span>
                     ) : null}
                   </span>
-                </motion.button>
+                </button>
               </nav>
             </div>
           </div>

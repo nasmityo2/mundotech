@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import Script from 'next/script';
 import { usePathname } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Cookie } from 'lucide-react';
 
 declare global {
@@ -108,16 +107,13 @@ export default function CookieConsent({ initialConsent = null }: Props) {
         </>
       ) : null}
 
-      <AnimatePresence>
-        {showBanner && (
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 24 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+      {/* PERF-02: entrada con animación CSS (animate-fade-up) — framer-motion
+          fuera del bundle crítico de todas las páginas. */}
+      {showBanner && (
+          <div
             role="dialog"
             aria-label="Aviso de cookies"
-            className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-4 shadow-lift sm:flex sm:items-center sm:gap-4 sm:p-5"
+            className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-xl rounded-2xl border border-slate-200 bg-white p-4 shadow-lift sm:flex sm:items-center sm:gap-4 sm:p-5 animate-fade-up motion-reduce:animate-none"
             style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
           >
             <div className="flex items-start gap-3 sm:flex-1">
@@ -151,9 +147,8 @@ export default function CookieConsent({ initialConsent = null }: Props) {
                 Aceptar
               </button>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
     </>
   );
 }

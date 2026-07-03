@@ -106,6 +106,10 @@ export default function SearchBar({
             autoComplete="off"
             autoCorrect="off"
             enterKeyHint="search"
+            /* A11Y-01 (PageSpeed): aria-expanded/controls/autocomplete requieren
+               el rol combobox — sin él, lectores de pantalla ignoran el patrón. */
+            role="combobox"
+            aria-label="Buscar productos"
             aria-expanded={open}
             aria-controls="search-suggestions"
             aria-autocomplete="list"

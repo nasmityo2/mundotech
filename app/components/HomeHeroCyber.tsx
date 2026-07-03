@@ -157,6 +157,14 @@ export default function HomeHeroCyber({
           <div className="absolute inset-0">
             {slides.map((s, i) => {
               if (!s.img) return null;
+              // PERF-09 (AUDITORIA-2026-07): solo el slide activo y sus vecinos
+              // viven en el DOM — antes se montaban hasta 10 <Image fill> en capas.
+              const n = slides.length;
+              const dist = Math.min(
+                Math.abs(i - active),
+                n - Math.abs(i - active),
+              );
+              if (dist > 1) return null;
               const layerAlt =
                 s.title.replace(/\n/g, ' ') || s.badge || 'MundoTech — Conectados Contigo';
               const isActive = i === active;

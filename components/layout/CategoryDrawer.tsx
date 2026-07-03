@@ -95,14 +95,19 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
       .catch((err) => console.error('[CategoryDrawer] Error al cargar categorías:', err));
   }, [open]);
 
+  // PERF-07: la promo solo se pide al abrir el drawer (antes: en cada visita,
+  // aunque el menú nunca se abriera) y se valida res.ok (RUN-12).
+  const promoLoadedRef = useRef(false);
   useEffect(() => {
+    if (!open || promoLoadedRef.current) return;
+    promoLoadedRef.current = true;
     fetch('/api/promotions?active=true')
-      .then(r => r.json())
+      .then(r => (r.ok ? r.json() : null))
       .then((data: unknown) => {
         if (Array.isArray(data) && data.length > 0) setPromo(data[0] as PromoData);
       })
-      .catch(() => {});
-  }, []);
+      .catch((err) => console.error('[CategoryDrawer] Error al cargar promo:', err));
+  }, [open]);
 
   // Lock compartido: no pisa el overflow de otros drawers (cart/búsqueda).
   useBodyScrollLock(open);

@@ -58,13 +58,13 @@ export default function SearchResultsList({
       <p className="px-4 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
         Resultados
       </p>
-      <ul className="px-1.5 pb-2" role="listbox">
+      {/* A11Y-01: rol option sobre el propio enlace (un role="option" no debe
+          contener controles interactivos anidados — patrón combobox WAI-ARIA). */}
+      <ul className="px-1.5 pb-2" role="listbox" aria-label="Sugerencias de productos">
         {results.map((product, i) => (
           <li
             key={product.id}
-            id={`search-option-${i}`}
-            role="option"
-            aria-selected={i === activeIndex}
+            role="presentation"
             ref={(el) => {
               itemRefs.current[i] = el;
             }}
@@ -72,6 +72,9 @@ export default function SearchResultsList({
             <Link
               href={`/product/${product.slug ?? product.id}`}
               onClick={onPick}
+              id={`search-option-${i}`}
+              role="option"
+              aria-selected={i === activeIndex}
               className={`flex items-center gap-3 ${pad} rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors min-h-[52px] ${
                 i === activeIndex ? 'bg-slate-100' : ''
               }`}
