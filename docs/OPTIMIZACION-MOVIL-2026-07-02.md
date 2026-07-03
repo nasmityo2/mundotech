@@ -32,7 +32,7 @@
 
 | ID | Hallazgo | Estado | Acción |
 |----|----------|--------|--------|
-| P1-1 | FAB WhatsApp tapa CTAs en PDP/carrito | Seguía | ✅ FAB sube 5.5rem en `/cart` y `/product/*` (solo móvil) |
+| P1-1 | FAB WhatsApp tapa CTAs en carrito | Seguía | ✅ FAB sube 5.5rem en `/cart` (solo móvil) |
 | P1-2 | Cupón decorativo en carrito | Ya resuelto (nota informativa; cupón real en ReviewStep) | — |
 | P1-3 | Tab "Reseñas" con "próximamente" | Ya resuelto | — |
 | P1-4 | Inputs `text-sm` anulan anti-zoom iOS | Seguía en reseñas/cupón/restock/filtros/pedido-invitado | ✅ Todos a `text-base` (16px) |
