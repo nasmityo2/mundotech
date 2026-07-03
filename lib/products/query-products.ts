@@ -62,11 +62,44 @@ function mapRowToCard(p: CatalogProductRow): CatalogProductCard {
   };
 }
 
+/**
+ * FASE 4.3 (MEJORA 1.4): tokeniza la consulta para matching por palabra.
+ * - "casco moto" debe encontrar "Casco de Moto" (el LIKE de frase completa no).
+ * - Palabras de 1 carácter se descartan (LIKE '%a%' matchearía todo).
+ * - Máximo 6 palabras: acota el costo del query plan.
+ */
+export function searchTermsFrom(q: string): string[] {
+  return q
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length >= 2)
+    .slice(0, 6);
+}
+
+/**
+ * Matching tolerante a errores por palabra (pg_trgm + unaccent):
+ * - LIKE sobre la expresión normalizada → coincidencia exacta de subcadena.
+ * - `<%` (word_similarity ≥ 0.6 por defecto) → tolera typos como
+ *   "interconunicador" ≈ "intercomunicador" incluso dentro de nombres largos,
+ *   donde similarity() de cadena completa quedaba bajo el umbral.
+ * Ambos operadores usan el índice GIN product_search_trgm_idx.
+ * Umbral configurable a nivel de BD: SET pg_trgm.word_similarity_threshold.
+ */
 function textMatchWhere(q: string): Prisma.Sql {
-  return Prisma.sql`(
-    ${NORMALIZED_SEARCH_EXPR} LIKE '%' || immutable_unaccent(lower(${q})) || '%'
-    OR immutable_unaccent(lower(name)) % immutable_unaccent(lower(${q}))
-  )`;
+  const words = searchTermsFrom(q);
+  if (words.length === 0) {
+    return Prisma.sql`(
+      ${NORMALIZED_SEARCH_EXPR} LIKE '%' || immutable_unaccent(lower(${q})) || '%'
+      OR immutable_unaccent(lower(name)) % immutable_unaccent(lower(${q}))
+    )`;
+  }
+  const perWord = words.map(
+    (w) => Prisma.sql`(
+      ${NORMALIZED_SEARCH_EXPR} LIKE '%' || immutable_unaccent(lower(${w})) || '%'
+      OR immutable_unaccent(lower(${w})) <% ${NORMALIZED_SEARCH_EXPR}
+    )`,
+  );
+  return Prisma.sql`(${Prisma.join(perWord, ' AND ')})`;
 }
 
 function relevanceOrderBy(q: string): Prisma.Sql {
