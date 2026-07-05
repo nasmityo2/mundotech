@@ -109,10 +109,12 @@ export default function HomeHeroCyber({
   slides: dbSlides,
   fallback,
   brandStrip,
+  priorityImages = true,
 }: {
   slides?: HeroBannerRow[];
   fallback: HeroFallbackContent;
   brandStrip: BrandStripContent;
+  priorityImages?: boolean;
 }) {
   const fromDatabase = Boolean(dbSlides && dbSlides.length > 0);
   const slides: Slide[] =
@@ -174,9 +176,9 @@ export default function HomeHeroCyber({
                   src={s.img}
                   alt={layerAlt}
                   fill
-                  priority={i === 0}
-                  fetchPriority={i === 0 ? 'high' : 'auto'}
-                  quality={i === 0 ? 68 : 65}
+                  priority={priorityImages && i === 0}
+                  fetchPriority={priorityImages && i === 0 ? 'high' : 'auto'}
+                  quality={priorityImages && i === 0 ? 68 : 65}
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1400px"
                   className={`absolute inset-0 object-contain sm:object-cover transition-opacity duration-700 ease-out motion-reduce:transition-none ${
                     isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'

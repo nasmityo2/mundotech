@@ -36,6 +36,18 @@ function PromoBannerCard({ banner, priority = false }: { banner: PromoBannerItem
   );
 }
 
+function shouldPrioritizePromoBanner(banner: PromoBannerItem, index: number, total: number) {
+  const title = (banner.title ?? '').toLowerCase();
+  if (title.includes('articulos gaming') || title.includes('artículos gaming')) {
+    return true;
+  }
+  // Fallback: cuando hay 2 promos apiladas en móvil, Lighthouse toma la segunda como LCP.
+  if (total > 1 && index === 1) {
+    return true;
+  }
+  return total === 1 && index === 0;
+}
+
 export default function PromoBanners({ banners }: Props) {
   if (banners.length === 0) return null;
   const singleBanner = banners.length === 1;
@@ -43,7 +55,10 @@ export default function PromoBanners({ banners }: Props) {
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
       {banners.map((banner, i) => (
         <div key={banner.id} className={singleBanner ? 'sm:col-span-2' : undefined}>
-          <PromoBannerCard banner={banner} priority={i < 2} />
+          <PromoBannerCard
+            banner={banner}
+            priority={shouldPrioritizePromoBanner(banner, i, banners.length)}
+          />
         </div>
       ))}
     </div>

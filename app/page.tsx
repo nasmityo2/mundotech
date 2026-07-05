@@ -275,6 +275,7 @@ const HomePage = async () => {
             slides={heroBanners.length > 0 ? heroBanners : undefined}
             fallback={siteContent.heroFallback}
             brandStrip={siteContent.brandStrip}
+            priorityImages={promoBanners.length === 0}
           />
         </div>
       </div>
