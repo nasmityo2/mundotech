@@ -17,6 +17,9 @@ import { PRODUCT_CARD_SELECT, PRODUCT_ADMIN_SELECT } from '@/lib/product-select'
 import { deleteFromR2, isR2PublicUrl, keyFromR2PublicUrl } from '@/lib/r2';
 import { calcSellingPriceUsd, roundUpToStep } from '@/lib/pricing-formula';
 import { getPricingParams } from '@/app/actions/configActions';
+import { pingIndexNow } from '@/lib/indexnow';
+import { rateLimit } from '@/lib/rate-limit';
+import { getActionClientIp } from '@/lib/security';
 
 const absoluteUrl = z.string().refine(
   (s) => {
@@ -277,6 +280,8 @@ export async function createProductAction(formData: FormData) {
     revalidatePath('/');
     revalidateTag('catalog', 'default');
     revalidateTag('categories', 'default'); // category product counts in sidebar
+    // FASE 3 (SEO): notificar la ficha nueva a IndexNow (no-op sin INDEXNOW_KEY).
+    void pingIndexNow([`/product/${slug}`, '/productos']);
     return { success: true, message: 'Producto añadido con éxito.' };
   } catch (error) {
     console.error('Error al crear el producto:', error);
@@ -410,6 +415,8 @@ export async function updateProductAction(productId: string, formData: FormData)
     revalidatePath(`/product/${slug}`);
     if (slugChanged && current?.slug) revalidatePath(`/product/${current.slug}`);
     revalidateTag('catalog', 'default');
+    // FASE 3 (SEO): re-indexación rápida de la ficha editada (no-op sin key).
+    void pingIndexNow([`/product/${slug}`]);
     return { success: true, message: 'Producto actualizado con éxito.' };
   } catch (error) {
     console.error('Error al actualizar el producto:', error);
@@ -523,6 +530,13 @@ export async function setProductActiveAction(productId: string, isActive: boolea
  * obtiene vía `getProductsAdmin()` (con sesión admin).
  */
 export async function getProducts(searchTerm?: string, categoryFilter?: string) {
+  // SEC-01 (AUDITORIA-2026-07): Server Action pública invocable como RPC —
+  // rate limit por IP contra scraping masivo del catálogo.
+  const ip = await getActionClientIp();
+  if (await rateLimit(`get-products:ip:${ip}`, { limit: 30, windowMs: 60_000 })) {
+    return { products: [], categories: [] };
+  }
+
   const where: Record<string, unknown> = { isActive: true };
 
   if (searchTerm) {

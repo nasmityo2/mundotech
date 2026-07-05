@@ -470,6 +470,20 @@ export default function AdminPersonalizarPage() {
             />
           </div>
         </div>
+        {/* FASE 3: solo ofertas reales con fecha de fin — vencida, el popup se oculta solo. */}
+        <div>
+          <label className={labelClass}>La promo termina el (opcional)</label>
+          <input
+            type="date" className={inputClass}
+            value={popup.endsAt ?? ''}
+            onChange={(e) =>
+              setData((d) => ({ ...d, popup: { ...d.popup, endsAt: e.target.value } }))
+            }
+          />
+          <p className="text-[11px] text-gray-400 mt-1">
+            Al pasar esta fecha el popup deja de mostrarse automáticamente. Déjalo vacío si la promo no vence.
+          </p>
+        </div>
         <PhotoUploader
           value={popup.imageUrl || null}
           onChange={(url) => setData((d) => ({ ...d, popup: { ...d.popup, imageUrl: url ?? '' } }))}

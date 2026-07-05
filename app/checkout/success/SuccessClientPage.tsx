@@ -104,6 +104,23 @@ export default function SuccessClientPage({ order }: Props) {
           </motion.div>
         )}
 
+        {/* FASE 3 / MEJORA 1.1: WhatsApp como canal #1 — botón de arranque con
+            mensaje pre-llenado para recibir actualizaciones del pedido. */}
+        {order.paymentMethod !== 'Cashea' && (
+          <motion.a
+            variants={fadeUp}
+            href={`${MUNDOTECH_SOCIAL.whatsapp}?text=${encodeURIComponent(
+              `Hola MundoTech 👋 Acabo de hacer el pedido #${String(order.orderNumber).padStart(4, '0')}. Quiero recibir las actualizaciones de mi pedido por WhatsApp.`
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 flex items-center justify-center gap-2 bg-[#25D366] text-white font-bold text-sm sm:text-base h-14 rounded-2xl shadow-soft hover:brightness-95 active:scale-[0.98] transition-all"
+          >
+            <MessageCircle size={18} />
+            Recibir actualizaciones por WhatsApp
+          </motion.a>
+        )}
+
         {/* FASE 4.1: registro post-compra para invitados (sin fricción) */}
         {!order.customerId && order.customerEmail ? (
           <motion.div variants={fadeUp}>

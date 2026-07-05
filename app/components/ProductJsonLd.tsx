@@ -17,6 +17,7 @@
 import JsonLd from '@/app/components/JsonLd';
 import type { Review, ReviewSummary, ProductSpec } from '@/lib/definitions';
 import { parseProductSpecs } from '@/lib/definitions';
+import type { ProductFaqItem } from '@/lib/product-faq';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 
@@ -58,10 +59,12 @@ interface Props {
   reviewSummary?: ReviewSummary;
   /** Reseñas APROBADAS para emitir como schema:Review (máx. 5 para no inflar el HTML). */
   reviews?: Review[];
+  /** FASE 3: FAQ visible en la ficha (pestaña Envío) — emite FAQPage JSON-LD. */
+  faq?: ProductFaqItem[];
 }
 
 // ── Componente ─────────────────────────────────────────────────────────────
-export default function ProductJsonLd({ product, categoryPath, storeName, reviewSummary, reviews }: Props) {
+export default function ProductJsonLd({ product, categoryPath, storeName, reviewSummary, reviews, faq }: Props) {
   const baseUrl = SITE_URL.replace(/\/$/, '');
   const categoryItemUrl = `${baseUrl}${categoryPath}`;
   const productUrl = `${baseUrl}/product/${product.slug ?? product.id}`;
@@ -276,9 +279,24 @@ export default function ProductJsonLd({ product, categoryPath, storeName, review
     ],
   };
 
+  // ── 3. FAQPage (FASE 3) — solo si la ficha muestra la FAQ visible ─────────
+  const faqSchema =
+    faq && faq.length > 0
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: faq.map((f) => ({
+            '@type': 'Question',
+            name: f.question,
+            acceptedAnswer: { '@type': 'Answer', text: f.answer },
+          })),
+        }
+      : null;
+
   const allSchemas = [
     productSchema,
     breadcrumbSchema,
+    ...(faqSchema ? [faqSchema] : []),
   ] satisfies Record<string, unknown>[];
 
   return <JsonLd data={allSchemas} />;

@@ -5,9 +5,9 @@ import { requireAdminAction } from '@/lib/api-auth';
 import { storeSettingsSchema, writeSettings, type StoreSettings } from '@/lib/data-store';
 import {
   shippingEstimatesSchema,
-  writeShippingEstimates,
   type ShippingEstimates,
 } from '@/lib/shipping-estimates';
+import { writeShippingEstimates } from '@/lib/shipping-estimates-db';
 
 export interface SettingsActionResult {
   success: boolean;

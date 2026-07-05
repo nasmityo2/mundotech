@@ -93,6 +93,29 @@ const nextConfig = {
     // TODO: transformación on-the-fly opcional con Cloudflare Image Resizing (cdn-cgi/image).
     remotePatterns,
   },
+
+  /**
+   * Sustituye next-polyfill-module por un stub vacío vía resolveAlias de Turbopack.
+   *
+   * Next.js inyecta ~13 KiB de polyfills (Array.prototype.at, flat, flatMap,
+   * Object.fromEntries, Object.hasOwn, String.prototype.trimStart/trimEnd)
+   * independientemente del browserslist. Nuestro objetivo (chrome >= 111,
+   * safari >= 16, firefox >= 111, edge >= 111) cubre nativamente todos estos
+   * métodos, así que los polyfills son bytes desperdiciados.
+   *
+   * @see https://github.com/vercel/next.js/issues/86785
+   * @see https://github.com/vercel/next.js/pull/87270
+   */
+  transpilePackages: ['next'],
+
+  turbopack: {
+    resolveAlias: {
+      // next/dist/{client,esm}/client/index.js: require("../build/polyfills/polyfill-module")
+      // También cubre imports absolutos desde node_modules
+      '../build/polyfills/polyfill-module': './lib/polyfill-stub.js',
+      'next/dist/build/polyfills/polyfill-module': './lib/polyfill-stub.js',
+    },
+  },
 };
 
 export default nextConfig;

@@ -83,6 +83,13 @@ export const siteContentSchema = z.object({
     frequencyDays: z.number().int().min(1).max(90).default(7),
     /** Segundos de navegación antes de aparecer. */
     delaySeconds: z.number().int().min(0).max(120).default(6),
+    /** FASE 3: fecha de fin de la promo (YYYY-MM-DD). Vencida = popup oculto.
+     *  Vacío = sin fecha de fin (se muestra mientras enabled sea true). */
+    endsAt: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha: AAAA-MM-DD')
+      .or(z.literal(''))
+      .default(''),
   }),
 });
 
@@ -140,5 +147,6 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     imageUrl: '',
     frequencyDays: 7,
     delaySeconds: 6,
+    endsAt: '',
   },
 };

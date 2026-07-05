@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { FileText, Settings2, Truck, Star, MessageSquareText } from 'lucide-react';
 import { Stars } from '@/components/reviews/Stars';
 import type { ProductSpec } from '@/lib/definitions';
+import type { ProductFaqItem } from '@/lib/product-faq';
 import { isGenericBrand } from '@/lib/utils';
 
 interface Props {
@@ -18,6 +19,8 @@ interface Props {
   /** PRD-037: resumen real de reseñas — la tab deja de decir "Próximamente". */
   reviewsCount?: number;
   reviewsAverage?: number;
+  /** FASE 3 (SEO): FAQ visible en la pestaña Envío (contenido = FAQPage JSON-LD). */
+  faq?: ProductFaqItem[];
 }
 
 const tabs = [
@@ -130,7 +133,7 @@ function SpecsPanel({
   );
 }
 
-function ShippingPanel() {
+function ShippingPanel({ faq }: { faq?: ProductFaqItem[] }) {
   return (
     <>
       <h2 className="text-base font-bold text-navy mb-3">Envío y garantía</h2>
@@ -156,6 +159,28 @@ function ShippingPanel() {
             </p>
           </div>
         </div>
+
+        {/* FASE 3 (SEO): FAQ real de la operación — mismo contenido que el
+            FAQPage JSON-LD emitido por ProductJsonLd. */}
+        {faq && faq.length > 0 && (
+          <div className="pt-2">
+            <h3 className="text-sm font-bold text-navy mb-2">Preguntas frecuentes</h3>
+            <div className="space-y-2">
+              {faq.map((f) => (
+                <details
+                  key={f.question}
+                  className="group rounded-2xl border border-slate-200 bg-white open:bg-slate-50 transition-colors"
+                >
+                  <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-navy [&::-webkit-details-marker]:hidden">
+                    {f.question}
+                    <span aria-hidden className="text-slate-400 transition-transform group-open:rotate-45">+</span>
+                  </summary>
+                  <p className="px-4 pb-4 text-[13.5px] leading-relaxed text-slate-600">{f.answer}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
@@ -215,6 +240,7 @@ export default function ProductTabs({
   specs,
   reviewsCount = 0,
   reviewsAverage = 0,
+  faq,
 }: Props) {
   const [active, setActive] = useState<TabId>('description');
   const tabRefs = useRef<Map<TabId, HTMLButtonElement>>(new Map());
@@ -315,7 +341,7 @@ export default function ProductTabs({
                   stock={stock}
                 />
               )}
-              {tab.id === 'shipping' && <ShippingPanel />}
+              {tab.id === 'shipping' && <ShippingPanel faq={faq} />}
               {tab.id === 'reviews' && (
                 <ReviewsPanel
                   reviewsCount={reviewsCount}

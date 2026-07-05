@@ -17,9 +17,15 @@ import {
 
 /** GET /api/products/[id]/reviews — reseñas aprobadas + resumen (público). */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // SEC-03 (AUDITORIA-2026-07): rate limit por IP contra scraping de reseñas.
+  const ip = getClientIp(req);
+  if (await rateLimit(`reviews:get:ip:${ip}`, { limit: 60, windowMs: 60_000 })) {
+    return NextResponse.json({ error: 'Demasiadas solicitudes.' }, { status: 429 });
+  }
+
   try {
     const { id } = await params;
     const [summary, reviews] = await Promise.all([

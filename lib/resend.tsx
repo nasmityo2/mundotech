@@ -368,6 +368,8 @@ export async function sendAbandonedCartEmail(params: {
   items:         AbandonedCartItem[];
   totalUsd:      number;
   recoveryToken: string;
+  /** MEJORA 1.3: cupón de un solo uso incluido en el segundo toque (72 h). */
+  coupon?: { code: string; discountLabel: string; expiryDays: number };
 }): Promise<void> {
   const resend = getResend();
   if (!resend) {
@@ -391,7 +393,9 @@ export async function sendAbandonedCartEmail(params: {
   await sendBrandedEmail({
     resend,
     to:       trimmedEmail,
-    subject:  'MundoTech · Te guardamos el carrito tal como lo dejaste',
+    subject: params.coupon
+      ? `MundoTech · Tu carrito te espera — con ${params.coupon.discountLabel}`
+      : 'MundoTech · Te guardamos el carrito tal como lo dejaste',
     logScope: 'abandoned-cart-email',
     element: (
       <AbandonedCartEmail
@@ -400,6 +404,7 @@ export async function sendAbandonedCartEmail(params: {
         totalUsd={params.totalUsd}
         recoveryUrl={recoveryUrl}
         unsubscribeUrl={unsubscribeUrl}
+        coupon={params.coupon}
       />
     ),
   });

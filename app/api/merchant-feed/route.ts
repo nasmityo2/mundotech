@@ -28,6 +28,7 @@
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { readSettings } from '@/lib/data-store';
 import { getGoogleCategoryId } from '@/lib/google-product-categories';
 
@@ -49,7 +50,14 @@ function stripHtml(html: string | null | undefined): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  // SEC-03 (AUDITORIA-2026-07): el feed expone precios/stock/SKUs completos —
+  // rate limit por IP contra scraping masivo (Merchant Center lo lee 1-2×/día).
+  const ip = getClientIp(request);
+  if (await rateLimit(`merchant-feed:ip:${ip}`, { limit: 30, windowMs: 60_000 })) {
+    return new NextResponse('Too many requests', { status: 429 });
+  }
+
   try {
     const [products, categories, settings] = await Promise.all([
       prisma.product.findMany({

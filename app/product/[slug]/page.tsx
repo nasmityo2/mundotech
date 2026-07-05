@@ -31,6 +31,7 @@ import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-p
 import { getExchangeRate } from '@/app/actions/configActions';
 import { resolveSlugRedirect } from '@/lib/slug-redirects';
 import { PRODUCT_CARD_SELECT, PRODUCT_DETAIL_SELECT } from '@/lib/product-select';
+import { buildProductFaq } from '@/lib/product-faq';
 import type { Product as CatalogProduct } from '@/context/ProductContext';
 
 interface PageProps {
@@ -298,6 +299,14 @@ export default async function ProductDetailPage({ params }: PageProps) {
     getReviewSummariesMap(dealsProducts.map((r) => r.id)),
   ]);
 
+  // FASE 3 (SEO): FAQ real (pagos/envío/garantía/tienda) — visible en la
+  // pestaña Envío + FAQPage JSON-LD. Datos vivos desde readSettings() (R1).
+  const productFaq = buildProductFaq({
+    productName: product.name,
+    storeAddress: settings.address,
+    storePhone: settings.phone,
+  });
+
   const brandPart = isGenericBrand(product.brand) ? null : product.brand;
   const brandChipLabel = [brandPart, product.category].filter(Boolean).join(' · ');
   const isLowStock = !isOut && product.stock <= 5;
@@ -312,6 +321,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
         storeName={settings.storeName}
         reviewSummary={reviewSummary}
         reviews={productReviews}
+        faq={productFaq}
       />
 
       {/* ── Breadcrumb ── */}
@@ -468,6 +478,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
           specs={productSpecs}
           reviewsCount={reviewSummary.count}
           reviewsAverage={reviewSummary.average}
+          faq={productFaq}
         />
       </div>
 

@@ -1,14 +1,14 @@
 /**
- * MEJORA 2.3 / ADM-11 (AUDITORIA-2026-07): estimados de envío editables desde
- * Admin → Configuración, persistidos en AppConfig. Se muestran en el paso de
- * envío del checkout para bajar la ansiedad de "¿cuánto y cuándo llega?".
+ * MEJORA 2.3 / ADM-11 (AUDITORIA-2026-07): tipos, schema y lógica pura de
+ * estimados de envío. Sin dependencia de Prisma para poder importarse desde
+ * Client Components.
  *
- * Modelo: nota por método (tienda/MRW/ZOOM) + overrides opcionales por estado
- * (tabla). Todo texto libre en tono de la tienda, p. ej.:
- *   "2–4 días hábiles · lo pagas al recibir (~$3–6 según destino)".
+ * Las funciones DB (readShippingEstimates, writeShippingEstimates) están en
+ * lib/shipping-estimates-db.ts — solo importables desde Server Components.
+ *
+ * Modelo: nota por método (tienda/MRW/ZOOM) + overrides opcionales por estado.
  */
 import { z } from 'zod';
-import { prisma } from '@/lib/prisma';
 
 export const SHIPPING_ESTIMATES_KEY = 'shipping_estimates';
 
@@ -36,32 +36,6 @@ export const DEFAULT_SHIPPING_ESTIMATES: ShippingEstimates = {
   zoom: '',
   states: [],
 };
-
-export async function readShippingEstimates(): Promise<ShippingEstimates> {
-  try {
-    const record = await prisma.appConfig.findUnique({
-      where: { key: SHIPPING_ESTIMATES_KEY },
-    });
-    if (!record?.value) return DEFAULT_SHIPPING_ESTIMATES;
-    const parsed = shippingEstimatesSchema.safeParse(JSON.parse(record.value));
-    if (!parsed.success) {
-      console.error('[shipping-estimates] JSON corrupto en AppConfig — usando defaults:', parsed.error.flatten());
-      return DEFAULT_SHIPPING_ESTIMATES;
-    }
-    return parsed.data;
-  } catch (err) {
-    console.error('[shipping-estimates] lectura falló — usando defaults:', err);
-    return DEFAULT_SHIPPING_ESTIMATES;
-  }
-}
-
-export async function writeShippingEstimates(value: ShippingEstimates): Promise<void> {
-  await prisma.appConfig.upsert({
-    where:  { key: SHIPPING_ESTIMATES_KEY },
-    update: { value: JSON.stringify(value) },
-    create: { key: SHIPPING_ESTIMATES_KEY, value: JSON.stringify(value) },
-  });
-}
 
 /** Nota a mostrar para un método + estado (override por estado > nota del método). */
 export function estimateFor(

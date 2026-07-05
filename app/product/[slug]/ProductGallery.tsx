@@ -2,9 +2,14 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { Play, X, Maximize2, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const ZoomLightbox = dynamic(() => import('./ZoomLightbox'), {
+  ssr: false,
+  loading: () => null,
+});
 import type { ProductGalleryItem } from '@/lib/product-media';
 import { cn } from '@/lib/utils';
 
@@ -397,29 +402,12 @@ function Lightbox({
                   className="max-h-full max-w-full object-contain"
                 />
               ) : i === index ? (
-                <TransformWrapper
-                  key={`tw-${index}`}
-                  minScale={1}
-                  maxScale={4}
-                  centerOnInit
-                  doubleClick={{ mode: 'toggle', step: 2.5 }}
-                  wheel={{ disabled: true }}
-                  panning={{ disabled: !zoomed }}
-                  onTransform={(_ref, state) => setZoomed(state.scale > 1.01)}
-                >
-                  <TransformComponent
-                    wrapperStyle={{ width: '100%', height: '100%' }}
-                    contentStyle={{ width: '100%', height: '100%' }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={item.url}
-                      alt={`${name} — imagen ${i + 1}`}
-                      className="w-full h-full object-contain"
-                      draggable={false}
-                    />
-                  </TransformComponent>
-                </TransformWrapper>
+                <ZoomLightbox
+                  url={item.url}
+                  alt={`${name} — imagen ${i + 1}`}
+                  zoomed={zoomed}
+                  onZoomChange={setZoomed}
+                />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img

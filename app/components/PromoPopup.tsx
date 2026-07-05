@@ -21,6 +21,12 @@ export default function PromoPopup({ popup }: { popup: SiteContent['popup'] }) {
 
   useEffect(() => {
     if (!popup.enabled || !popup.title.trim()) return;
+    // FASE 3: la promo tiene fecha de fin — vencida no se muestra (fin del día,
+    // hora local del visitante).
+    if (popup.endsAt) {
+      const end = new Date(`${popup.endsAt}T23:59:59`);
+      if (!Number.isNaN(end.getTime()) && Date.now() > end.getTime()) return;
+    }
     try {
       const dismissedAt = Number(localStorage.getItem(STORAGE_KEY) ?? 0);
       const cooldownMs = popup.frequencyDays * 24 * 60 * 60 * 1000;

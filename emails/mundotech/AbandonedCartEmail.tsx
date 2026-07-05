@@ -12,6 +12,8 @@ export interface AbandonedCartEmailProps {
   totalUsd:       number;
   recoveryUrl:    string;
   unsubscribeUrl: string;
+  /** MEJORA 1.3: cupón de un solo uso — solo en el segundo toque (72 h). */
+  coupon?: { code: string; discountLabel: string; expiryDays: number };
 }
 
 const cardTableStyle: React.CSSProperties = {
@@ -37,6 +39,7 @@ export function AbandonedCartEmail({
   totalUsd,
   recoveryUrl,
   unsubscribeUrl,
+  coupon,
 }: AbandonedCartEmailProps) {
   const base      = emailSiteBaseUrl().replace(/\/$/, '');
   const itemCount = items.reduce((acc, i) => acc + i.quantity, 0);
@@ -67,6 +70,49 @@ export function AbandonedCartEmail({
           ayudamos a cerrarla.
         </Text>
       </Section>
+
+      {/* ── Cupón de recuperación (solo segundo toque) ─────────────────────── */}
+      {coupon ? (
+        <Section style={{ padding: '0 24px 12px', fontFamily: fontSans }}>
+          <table
+            role="presentation"
+            width="100%"
+            cellPadding={0}
+            cellSpacing={0}
+            style={{
+              borderCollapse: 'separate',
+              backgroundColor: 'rgba(255, 215, 0, 0.12)',
+              border: '2px dashed #e6c200',
+              borderRadius: 14,
+            }}
+          >
+            <tbody>
+              <tr>
+                <td style={{ padding: '16px 18px', textAlign: 'center' }}>
+                  <Text style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 700, color: MT.textPrimary }}>
+                    Para que vuelvas: {coupon.discountLabel}
+                  </Text>
+                  <Text
+                    style={{
+                      margin: '0 0 4px',
+                      fontSize: 22,
+                      fontWeight: 800,
+                      letterSpacing: '0.08em',
+                      color: MT.navy,
+                      fontFamily: 'monospace',
+                    }}
+                  >
+                    {coupon.code}
+                  </Text>
+                  <Text style={{ margin: 0, fontSize: 12, color: MT.textMuted }}>
+                    Un solo uso · aplícalo al revisar tu pedido · vence en {coupon.expiryDays} días
+                  </Text>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </Section>
+      ) : null}
 
       {/* ── Lista de productos ────────────────────────────────────────────── */}
       <Section style={{ padding: '4px 24px 8px', fontFamily: fontSans }}>

@@ -1,5 +1,5 @@
 import { readSettings } from '@/lib/data-store';
-import { readShippingEstimates } from '@/lib/shipping-estimates';
+import { readShippingEstimates } from '@/lib/shipping-estimates-db';
 import { prisma } from '@/lib/prisma';
 import { EXCHANGE_RATE_BCV_DATE_KEY } from '@/lib/exchange-rate';
 import SettingsClient from './SettingsClient';

@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getCartsFor24hEmail,
@@ -5,6 +6,7 @@ import {
   markCartEmailedAndRotateToken,
   refreshAbandonedCartItems,
 } from '@/lib/abandoned-cart';
+import { prisma } from '@/lib/prisma';
 import { sendAbandonedCartEmail } from '@/lib/resend';
 
 /**
@@ -40,6 +42,48 @@ function isAuthorized(req: NextRequest): boolean {
 
   // Sin CRON_SECRET configurado: solo permitir en desarrollo local
   return !cronSecret && process.env.NODE_ENV === 'development';
+}
+
+/**
+ * FASE 3 / MEJORA 1.3: el SEGUNDO toque (oleada 72 h) incluye un cupón de un
+ * solo uso (5% con tope $10, expira en 7 días) generado con el sistema de
+ * cupones existente. perUserLimit=1 aplica también por email para invitados
+ * (PRD-157). Si la creación falla, el email sale sin cupón (best-effort).
+ */
+const RECOVERY_COUPON = {
+  discountType: 'PERCENT',
+  discountValue: 5,
+  maxDiscount: 10,
+  expiryDays: 7,
+} as const;
+
+async function createRecoveryCoupon(): Promise<string | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const code = `VUELVE-${randomBytes(3).toString('hex').toUpperCase()}`;
+    try {
+      await prisma.coupon.create({
+        data: {
+          code,
+          description: 'Cupón de recuperación de carrito (un solo uso)',
+          discountType: RECOVERY_COUPON.discountType,
+          discountValue: RECOVERY_COUPON.discountValue,
+          maxDiscount: RECOVERY_COUPON.maxDiscount,
+          minPurchase: 0,
+          maxUses: 1,
+          perUserLimit: 1,
+          expiresAt: new Date(Date.now() + RECOVERY_COUPON.expiryDays * 24 * 60 * 60 * 1000),
+          active: true,
+        },
+      });
+      return code;
+    } catch (err) {
+      // Colisión de código único (P2002) → reintenta con otro código.
+      if (attempt === 2) {
+        console.error('[cron/abandoned-cart] no se pudo crear cupón de recuperación:', err);
+      }
+    }
+  }
+  return null;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -98,6 +142,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       const claim72 = await markCartEmailedAndRotateToken(cart.id, 'EMAILED_24H');
       if (!claim72.claimed) continue;
 
+      // MEJORA 1.3: segundo toque más agresivo — cupón de un solo uso.
+      const couponCode = await createRecoveryCoupon();
+
       try {
         await sendAbandonedCartEmail({
           email:         cart.email,
@@ -105,6 +152,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           items:         refreshed.items,
           totalUsd:      refreshed.totalUsd,
           recoveryToken: claim72.recoveryToken,
+          coupon: couponCode
+            ? {
+                code: couponCode,
+                discountLabel: `${RECOVERY_COUPON.discountValue}% de descuento (hasta $${RECOVERY_COUPON.maxDiscount})`,
+                expiryDays: RECOVERY_COUPON.expiryDays,
+              }
+            : undefined,
         });
         sent72h++;
       } catch (err) {
