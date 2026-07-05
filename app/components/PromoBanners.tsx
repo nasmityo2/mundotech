@@ -28,7 +28,7 @@ function PromoBannerCard({ banner, priority = false }: { banner: PromoBannerItem
           priority={priority}
           fetchPriority={priority ? 'high' : undefined}
           sizes="(max-width: 640px) 100vw, 50vw"
-          quality={72}
+          quality={68}
           className="object-contain transition-transform duration-300 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
         />
       </div>
@@ -43,7 +43,7 @@ export default function PromoBanners({ banners }: Props) {
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
       {banners.map((banner, i) => (
         <div key={banner.id} className={singleBanner ? 'sm:col-span-2' : undefined}>
-          <PromoBannerCard banner={banner} priority={i === 0} />
+          <PromoBannerCard banner={banner} priority={i < 2} />
         </div>
       ))}
     </div>

@@ -91,6 +91,8 @@ const nextConfig = {
   },
 
   images: {
+    // AVIF (20-30% más ligero que WebP) con fallback WebP para Safari <16.
+    formats: ['image/avif', 'image/webp'],
     // Optimizador por defecto de Next.js contra el dominio público de R2.
     // TODO: transformación on-the-fly opcional con Cloudflare Image Resizing (cdn-cgi/image).
     remotePatterns,
