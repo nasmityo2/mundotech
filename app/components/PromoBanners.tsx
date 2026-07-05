@@ -12,7 +12,7 @@ interface Props {
   banners: PromoBannerItem[];
 }
 
-function PromoBannerCard({ banner }: { banner: PromoBannerItem }) {
+function PromoBannerCard({ banner, priority = false }: { banner: PromoBannerItem; priority?: boolean }) {
   const href = banner.link || '/productos';
   const alt = banner.title || 'Promoción MundoTech';
   return (
@@ -25,8 +25,10 @@ function PromoBannerCard({ banner }: { banner: PromoBannerItem }) {
           src={banner.imageUrl}
           alt={alt}
           fill
+          priority={priority}
+          fetchPriority={priority ? 'high' : undefined}
           sizes="(max-width: 640px) 100vw, 50vw"
-          quality={80}
+          quality={72}
           className="object-contain transition-transform duration-300 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
         />
       </div>
@@ -39,9 +41,9 @@ export default function PromoBanners({ banners }: Props) {
   const singleBanner = banners.length === 1;
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-      {banners.map((banner) => (
+      {banners.map((banner, i) => (
         <div key={banner.id} className={singleBanner ? 'sm:col-span-2' : undefined}>
-          <PromoBannerCard banner={banner} />
+          <PromoBannerCard banner={banner} priority={i === 0} />
         </div>
       ))}
     </div>

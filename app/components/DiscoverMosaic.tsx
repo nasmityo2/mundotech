@@ -25,8 +25,9 @@ export default function DiscoverMosaic({ banners }: { banners: DiscoverBannerIte
               src={b.imageUrl}
               alt={b.title || 'Descubre'}
               fill
-              sizes="(max-width: 768px) 50vw, 33vw"
-              className="object-cover"
+            sizes="(max-width: 768px) 50vw, 33vw"
+            quality={68}
+            className="object-cover"
             />
           </Link>
         ))}

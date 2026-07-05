@@ -34,10 +34,11 @@ const snapshotSchema = z.object({
  * Llamada best-effort desde CheckoutFlow: los errores no deben
  * bloquear el flujo de compra.
  *
- * PRD-017: el email y el userId del snapshot se toman SIEMPRE de la sesión
- * del servidor (el checkout exige login). Los parámetros del cliente se
- * ignoran para identidad — sin esto, cualquiera podía registrar correos
- * ajenos que luego recibían los recordatorios de carrito abandonado.
+ * PRD-017: para usuarios registrados el email se toma SIEMPRE de la sesión
+ * del servidor — los parámetros del cliente se ignoran para identidad.
+ * FASE 4.1 (guest checkout): sin sesión, se acepta el email del formulario
+ * (ya es requerido y validado por Zod en el cliente); rate limit por IP
+ * previene abusos.
  */
 export async function saveCartSnapshotAction(
   _email:   string,
@@ -49,10 +50,13 @@ export async function saveCartSnapshotAction(
     const session = await getServerSession(authOptions);
     const sessionEmail = session?.user?.email?.trim().toLowerCase() ?? '';
     const sessionUserId = session?.user?.id ?? null;
-    if (!sessionEmail || !sessionUserId) {
-      // Sin sesión no hay snapshot: el checkout requiere login (middleware).
-      return;
-    }
+    const hasSession = !!sessionEmail && !!sessionUserId;
+
+    // FASE 4.1: sin sesión, el email del formulario es la única fuente.
+    // Se valida con Zod abajo; rate limit por IP protege contra abuso.
+    const email = hasSession ? sessionEmail : _email?.trim().toLowerCase();
+    const userId = hasSession ? sessionUserId : null;
+    if (!email) return;
 
     const ip = await getActionClientIp();
     if (await rateLimit(`cart-snapshot:${ip}`, { limit: 10, windowMs: 10 * 60_000 })) {
@@ -61,8 +65,8 @@ export async function saveCartSnapshotAction(
     }
 
     const parsed = snapshotSchema.safeParse({
-      email: sessionEmail,
-      userId: sessionUserId,
+      email,
+      userId,
       items,
       totalUsd,
     });

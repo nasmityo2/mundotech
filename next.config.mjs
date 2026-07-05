@@ -1,3 +1,5 @@
+import withBundleAnalyzer from '@next/bundle-analyzer';
+
 /** @type {import('next').NextConfig} */
 /**
  * Headers estáticos que no requieren nonce por petición.
@@ -118,4 +120,8 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+const withAnalyzer = process.env.ANALYZE === 'true'
+  ? withBundleAnalyzer({ enabled: true })
+  : (config) => config;
+
+export default withAnalyzer(nextConfig);

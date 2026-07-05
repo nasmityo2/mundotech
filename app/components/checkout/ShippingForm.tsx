@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { useSession } from 'next-auth/react';
-import { Store, Building2, ChevronRight, BookUser, Check } from 'lucide-react';
+import { Store, Building2, ChevronRight, BookUser, Check, LogIn } from 'lucide-react';
+import Link from 'next/link';
 import { mrwOffices } from '@/lib/mrw-offices';
 import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
 import { Field } from '@/components/ui/Field';
@@ -151,6 +152,23 @@ const ShippingForm = ({ onFormSubmit, initialData, estimates }: ShippingFormProp
         <h2 className="text-xl font-semibold text-navy tracking-tight">Información de entrega</h2>
         <p className="text-sm text-slate-500 mt-1">Selecciona cómo quieres recibir tu pedido.</p>
       </div>
+
+      {/* FASE 4.1: banner sutil de invitado — no bloquea, enlace opcional a login */}
+      {!session?.user?.id && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/60 px-3.5 py-2.5">
+          <LogIn size={14} className="text-navy/40 flex-shrink-0 mt-0.5" aria-hidden />
+          <p className="text-[12.5px] text-slate-500 leading-snug">
+            Estás comprando como invitado. ¿Ya tienes cuenta?{' '}
+            <Link
+              href="/login?next=checkout"
+              className="font-semibold text-navy underline decoration-navy/20 hover:decoration-navy/60 underline-offset-2 transition-colors"
+            >
+              Inicia sesión
+            </Link>{' '}
+            para usar tus direcciones guardadas.
+          </p>
+        </div>
+      )}
 
       {/* Selector de direcciones guardadas */}
       {session?.user?.id && (
