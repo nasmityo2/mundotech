@@ -12,6 +12,7 @@ import PaymentForm, { type PaymentFormHandle } from '@/app/components/checkout/P
 import { formatCurrency } from '@/lib/utils';
 import type { ShippingEstimates } from '@/lib/shipping-estimates';
 import type { StoreSettings } from '@/lib/data-store';
+import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
 
 interface WhatsAppCheckoutProps {
   pagoMovil: StoreSettings['pagoMovil'];
@@ -32,13 +33,42 @@ function buildAddress(shippingData: ShippingFormData): string {
 
 function buildCity(shippingData: ShippingFormData): string {
   if (shippingData.shippingMethod === 'mrw') return shippingData.mrwOffice ?? '';
-  if (shippingData.shippingMethod === 'zoom') return shippingData.zoomOfficeName ?? shippingData.zoomOfficeCity ?? '';
+  if (shippingData.shippingMethod === 'zoom') {
+    const name = shippingData.zoomOfficeName;
+    const city = shippingData.zoomOfficeCity;
+    if (name || city) return name ?? city ?? '';
+    // Respaldo defensivo: resolver desde zoomOffices si los campos vienen vacíos
+    if (shippingData.zoomState && shippingData.zoomOfficeIndex) {
+      try {
+        const offices = (zoomOffices as Record<string, ZoomOffice[]>)[shippingData.zoomState];
+        const office = offices?.[Number(shippingData.zoomOfficeIndex)];
+        if (office) return office.name ?? office.city ?? '';
+      } catch { /* fallback */ }
+    }
+    return 'Barquisimeto';
+  }
   return 'Barquisimeto';
 }
 
 function buildState(shippingData: ShippingFormData): string {
   if (shippingData.shippingMethod === 'mrw') return shippingData.mrwState ?? '';
-  if (shippingData.shippingMethod === 'zoom') return shippingData.zoomState ?? 'Lara';
+  if (shippingData.shippingMethod === 'zoom') {
+    if (shippingData.zoomState) return shippingData.zoomState;
+    // Respaldo defensivo
+    if (shippingData.zoomOfficeIndex) {
+      try {
+        const stateKey = Object.keys(zoomOffices).find((s) =>
+          (zoomOffices as Record<string, ZoomOffice[]>)[s].some(
+            (o: { name: string; address: string; city: string }) =>
+              o.name === shippingData.zoomOfficeName ||
+              o.city === shippingData.zoomOfficeCity,
+          ),
+        );
+        if (stateKey) return stateKey;
+      } catch { /* fallback */ }
+    }
+    return 'Lara';
+  }
   return 'Lara';
 }
 

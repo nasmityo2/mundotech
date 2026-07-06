@@ -281,101 +281,100 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
       )}
 
       {/* ── Datos de la tienda para pagar ── */}
-      <AnimatePresence mode="wait">
-        {storeDataRows && isBankManual && (
-          <motion.div
-            key={selected}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.22 }}
-            className="bg-navy/5 border border-navy/10 rounded-2xl p-5"
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3">
-              Transfiere a estos datos de MundoTech
-            </p>
-            <dl className="space-y-2">
-              {storeDataRows.map((row) => (
-                <div key={row.label} className="flex items-center justify-between gap-3 text-sm">
-                  <dt className="text-slate-500 shrink-0">{row.label}</dt>
-                  <dd className="flex items-center gap-1 font-mono text-navy text-[13px] text-right">
-                    {row.value}
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(row.value)}
-                      className="min-w-[44px] min-h-[44px] -my-3 -mr-2 flex items-center justify-center rounded-md hover:bg-slate-200 text-slate-400 hover:text-navy transition-colors"
-                      aria-label={`Copiar ${row.label}`}
-                    >
-                      {copiedField === row.value
-                        ? <Check size={14} className="text-emerald-500" />
-                        : <Copy size={14} />}
-                    </button>
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {!whatsappMode && (
+        <AnimatePresence mode="wait">
+          {storeDataRows && isBankManual && (
+            <motion.div
+              key={selected}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22 }}
+              className="bg-navy/5 border border-navy/10 rounded-2xl p-5"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3">
+                Transfiere a estos datos de MundoTech
+              </p>
+              <dl className="space-y-2">
+                {storeDataRows.map((row) => (
+                  <div key={row.label} className="flex items-center justify-between gap-3 text-sm">
+                    <dt className="text-slate-500 shrink-0">{row.label}</dt>
+                    <dd className="flex items-center gap-1 font-mono text-navy text-[13px] text-right">
+                      {row.value}
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(row.value)}
+                        className="min-w-[44px] min-h-[44px] -my-3 -mr-2 flex items-center justify-center rounded-md hover:bg-slate-200 text-slate-400 hover:text-navy transition-colors"
+                        aria-label={`Copiar ${row.label}`}
+                      >
+                        {copiedField === row.value
+                          ? <Check size={14} className="text-emerald-500" />
+                          : <Copy size={14} />}
+                      </button>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
 
-      {whatsappMode && isBankManual && (
+      {whatsappMode && selected && selected !== 'binancepay' && selected !== 'cashea' && (
         <p className="text-[12px] text-slate-600 leading-relaxed rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5">
-          Realiza el pago a estos datos. Al confirmar el pedido, te llevaremos a WhatsApp para
-          coordinar y enviar tu comprobante. No necesitas subirlo aquí.
+          Coordinaremos los datos de pago contigo por WhatsApp al confirmar tu pedido.
         </p>
       )}
 
-      <AnimatePresence mode="wait">
-        {selected === 'binancepay' && (
-          <motion.div
-            key="binance-static"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.22 }}
-            className="rounded-2xl border border-[#F0B90B]/50 bg-gradient-to-br from-amber-50/90 to-white p-5 space-y-4"
-          >
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
-                Paga a MundoTech en Binance
-              </p>
-              {binancePayId.trim() ? (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <div>
-                    <p className="text-[11px] text-slate-500">Binance ID / Pay ID</p>
-                    <p className="font-mono text-sm font-semibold text-navy break-all">{binancePayId.trim()}</p>
+      {!whatsappMode && (
+        <AnimatePresence mode="wait">
+          {selected === 'binancepay' && (
+            <motion.div
+              key="binance-static"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22 }}
+              className="rounded-2xl border border-[#F0B90B]/50 bg-gradient-to-br from-amber-50/90 to-white p-5 space-y-4"
+            >
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                  Paga a MundoTech en Binance
+                </p>
+                {binancePayId.trim() ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                    <div>
+                      <p className="text-[11px] text-slate-500">Binance ID / Pay ID</p>
+                      <p className="font-mono text-sm font-semibold text-navy break-all">{binancePayId.trim()}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(binancePayId.trim())}
+                      className="shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500"
+                      aria-label="Copiar Binance ID"
+                    >
+                      {copiedField === binancePayId.trim() ? (
+                        <Check size={14} className="text-emerald-500" />
+                      ) : (
+                        <Copy size={14} />
+                      )}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(binancePayId.trim())}
-                    className="shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500"
-                    aria-label="Copiar Binance ID"
-                  >
-                    {copiedField === binancePayId.trim() ? (
-                      <Check size={14} className="text-emerald-500" />
-                    ) : (
-                      <Copy size={14} />
-                    )}
-                  </button>
-                </div>
-              ) : null}
-              {binanceQrUrl.trim() ? (
-                <div className="mt-3 flex justify-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={binanceQrUrl.trim()}
-                    alt="Código QR Binance MundoTech"
-                    className="w-36 h-36 rounded-xl border border-slate-200 bg-white object-contain"
-                  />
-                </div>
-              ) : null}
-              <p className="text-[12px] text-slate-600 mt-3 leading-relaxed">
-                {whatsappMode
-                  ? 'Envía el monto del pedido desde Binance a la cuenta indicada. Al confirmar, coordinamos el pago y nos envías el Order ID y la captura por WhatsApp.'
-                  : (<>Envía el monto del pedido desde Binance a la cuenta indicada. Luego completa los datos abajo: el <strong>Order ID</strong> que muestra Binance y una <strong>captura</strong> del pago. MundoTech verificará el movimiento antes de preparar el envío.</>)}
-              </p>
-            </div>
-            {!whatsappMode && (
+                ) : null}
+                {binanceQrUrl.trim() ? (
+                  <div className="mt-3 flex justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={binanceQrUrl.trim()}
+                      alt="Código QR Binance MundoTech"
+                      className="w-36 h-36 rounded-xl border border-slate-200 bg-white object-contain"
+                    />
+                  </div>
+                ) : null}
+                <p className="text-[12px] text-slate-600 mt-3 leading-relaxed">
+                  Envía el monto del pedido desde Binance a la cuenta indicada. Luego completa los datos abajo: el <strong>Order ID</strong> que muestra Binance y una <strong>captura</strong> del pago. MundoTech verificará el movimiento antes de preparar el envío.
+                </p>
+              </div>
               <div className="border-t border-amber-200/60 pt-4 space-y-4">
               <Field
                 id="binanceReference"
@@ -446,10 +445,10 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                 )}
               </div>
             </div>
-            )}
           </motion.div>
         )}
       </AnimatePresence>
+      )}
 
       {/* ── Panel informativo Cashea ── */}
       <AnimatePresence mode="wait">

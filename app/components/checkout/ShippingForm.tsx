@@ -17,6 +17,7 @@ export type ShippingFormData = {
   firstName:   string;
   lastName:    string;
   email:       string;
+  idType:      string;
   idNumber:    string;
   phoneNumber: string;
   shippingMethod: ShippingMethod;
@@ -28,6 +29,60 @@ export type ShippingFormData = {
   zoomOfficeAddress?: string;
   zoomOfficeCity?: string;
 };
+
+// ── Helpers de validación venezolana ──
+
+const VE_PHONE_PREFIXES = [
+  '0412','0422','0414','0416','0424','0426','0212','0235','0238','0240','0241','0242','0243','0244','0247','0248',
+  '0251','0252','0253','0254','0255','0256','0257','0261','0262','0263','0264','0265','0266','0267','0268','0269',
+  '0271','0272','0273','0274','0275','0276','0277','0278','0281','0282','0283','0285','0286','0287','0288',
+  '0293','0294','0295',
+];
+
+export function normalizeVePhone(raw: string): string {
+  let d = (raw || '').replace(/\D/g, '');
+  if (d.startsWith('58')) d = '0' + d.slice(2);
+  return d;
+}
+
+export function isValidVePhone(raw: string): boolean {
+  const d = normalizeVePhone(raw);
+  return d.length === 11 && VE_PHONE_PREFIXES.includes(d.slice(0, 4));
+}
+
+const VE_ID_TYPES = [
+  { v: 'V', label: 'V — Venezolano' },
+  { v: 'E', label: 'E — Extranjero' },
+  { v: 'J', label: 'J — RIF (Jurídico)' },
+  { v: 'G', label: 'G — Gobierno' },
+  { v: 'P', label: 'P — Pasaporte' },
+];
+
+/**
+ * Normaliza y combina idType + idNumber al formato que esperan los consumidores (ej. "V-12345678").
+ * También normaliza el teléfono a 11 dígitos.
+ */
+export function finalizeShipping(data: ShippingFormData): ShippingFormData {
+  const phoneNumber = normalizeVePhone(data.phoneNumber);
+  const idPrefix = data.idType || 'V';
+  const idDigits = (data.idNumber || '').replace(/\D/g, '');
+  const idNumber = `${idPrefix}-${idDigits}`;
+  return { ...data, phoneNumber, idNumber };
+}
+
+/** Extrae la letra del tipo de documento (V/E/J/G/P) de un idNumber combinado como "V-12345678". */
+function extractIdType(raw: string | undefined): string {
+  if (!raw) return 'V';
+  const match = raw.match(/^([VEJGJP])\s*-?\s*/);
+  if (match && VE_ID_TYPES.some(t => t.v === match[1])) return match[1];
+  return 'V';
+}
+
+/** Extrae solo los dígitos de un idNumber combinado como "V-12345678". */
+function extractIdDigits(raw: string | undefined): string {
+  if (!raw) return '';
+  return raw.replace(/^[VEJGJP]\s*-?\s*/, '').replace(/\D/g, '');
+}
 
 export type ShippingFormHandle = {
   submit: () => Promise<ShippingFormData | null>;
@@ -50,7 +105,9 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
   const {
     register, handleSubmit, formState: { errors }, watch, setValue,
   } = useForm<ShippingFormData>({
-    defaultValues: initialData ?? { shippingMethod: 'tienda', email: '' },
+    defaultValues: initialData
+      ? { ...initialData, idType: extractIdType(initialData.idNumber), idNumber: extractIdDigits(initialData.idNumber) }
+      : { shippingMethod: 'tienda', email: '', idType: 'V' },
   });
 
   const [savedAddresses, setSavedAddresses]   = useState<SavedAddress[]>([]);
@@ -84,7 +141,8 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
   function applyAddress(addr: SavedAddress) {
     setValue('firstName',      addr.firstName);
     setValue('lastName',       addr.lastName);
-    setValue('idNumber',       addr.idNumber);
+    setValue('idType',         extractIdType(addr.idNumber));
+    setValue('idNumber',       extractIdDigits(addr.idNumber));
     setValue('phoneNumber',    addr.phoneNumber);
     setValue('shippingMethod', addr.shippingMethod as ShippingMethod);
     if (addr.shippingMethod === 'mrw') {
@@ -137,11 +195,11 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
 
   useImperativeHandle(ref, () => ({
     submit: () => new Promise<ShippingFormData | null>((resolve) => {
-      handleSubmit((data) => resolve(data), () => resolve(null))();
+      handleSubmit((data) => resolve(finalizeShipping(data)), () => resolve(null))();
     }),
   }));
 
-  const onSubmit: SubmitHandler<ShippingFormData> = (data) => onFormSubmit(data);
+  const onSubmit: SubmitHandler<ShippingFormData> = (data) => onFormSubmit(finalizeShipping(data));
 
   const inputCls = "block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy";
 
@@ -321,14 +379,28 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
         <Field id="lastName" label="Apellido" error={errors.lastName?.message}>
           <Input id="lastName" autoComplete="family-name" {...register('lastName', { required: 'Requerido' })} invalid={!!errors.lastName} />
         </Field>
-        <Field id="idNumber" label="Cédula de identidad" error={errors.idNumber?.message}>
-          <Input
-            id="idNumber"
-            placeholder="V-12345678"
-            autoComplete="off"
-            {...register('idNumber', { required: 'Requerido' })}
-            invalid={!!errors.idNumber}
-          />
+        {/* Cédula / RIF con selector de tipo de documento */}
+        <Field id="idNumber" label="Cédula / RIF" error={errors.idNumber?.message}>
+          <div className="flex gap-0">
+            <select
+              {...register('idType')}
+              className="block min-h-[48px] px-2 text-sm bg-slate-50/70 border border-slate-200 border-r-0 rounded-l-xl text-navy focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy"
+              aria-label="Tipo de documento"
+            >
+              {VE_ID_TYPES.map((t) => (
+                <option key={t.v} value={t.v}>{t.v}</option>
+              ))}
+            </select>
+            <Input
+              id="idNumber"
+              placeholder="12345678"
+              inputMode="numeric"
+              autoComplete="off"
+              className="rounded-l-none border-l-0 flex-1 min-w-0"
+              {...register('idNumber', { required: 'Requerido' })}
+              invalid={!!errors.idNumber}
+            />
+          </div>
         </Field>
         <Field id="phoneNumber" label="Número de celular" error={errors.phoneNumber?.message}>
           <Input
@@ -336,8 +408,11 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
             type="tel"
             inputMode="tel"
             autoComplete="tel"
-            placeholder="+58 412-0000000"
-            {...register('phoneNumber', { required: 'Requerido' })}
+            placeholder="0412-1234567"
+            {...register('phoneNumber', {
+              required: 'Requerido',
+              validate: (v) => isValidVePhone(v) || 'Ingresa un número venezolano válido (ej. 0412-1234567).',
+            })}
             invalid={!!errors.phoneNumber}
           />
         </Field>
@@ -417,7 +492,22 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
             <select
               id="zoomOfficeIndex"
               disabled={!selectedZoomState}
-              {...register('zoomOfficeIndex', { required: 'Selecciona una oficina' })}
+              {...register('zoomOfficeIndex', { required: 'Selecciona una oficina', onChange: (e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setValue('zoomOfficeName', '');
+                  setValue('zoomOfficeAddress', '');
+                  setValue('zoomOfficeCity', '');
+                } else {
+                  const idx = Number(val);
+                  const office = zoomOfficesForState[idx];
+                  if (office) {
+                    setValue('zoomOfficeName', office.name);
+                    setValue('zoomOfficeAddress', office.address ?? '');
+                    setValue('zoomOfficeCity', office.city);
+                  }
+                }
+              }})}
               className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <option value="">Selecciona…</option>
