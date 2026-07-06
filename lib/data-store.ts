@@ -16,15 +16,15 @@ export const storeSettingsSchema = z.object({
   instagram:     z.string().optional().default(''),
   facebook:      z.string().optional().default(''),
   pagoMovil: z.object({
-    bank:     z.string().min(1),
-    phone:    z.string().min(1),
-    idNumber: z.string().min(1),
+    bank:     z.string().optional().default(''),
+    phone:    z.string().optional().default(''),
+    idNumber: z.string().optional().default(''),
   }),
   transferencia: z.object({
-    bank:          z.string().min(1),
-    accountNumber: z.string().min(1),
-    accountHolder: z.string().min(1),
-    rif:           z.string().min(1),
+    bank:          z.string().optional().default(''),
+    accountNumber: z.string().optional().default(''),
+    accountHolder: z.string().optional().default(''),
+    rif:           z.string().optional().default(''),
   }),
   /**
    * PRD-027/130: Binance Pay configurable desde Admin → sin redeploy.
@@ -38,6 +38,35 @@ export const storeSettingsSchema = z.object({
   labelHeightMm: z.coerce.number().min(40).max(400).default(150),
   /// Número de WhatsApp para pedidos en modo WhatsApp (formato internacional, ej. 584121471338).
   whatsappOrderPhone: z.string().optional().default(''),
+}).superRefine((data, ctx) => {
+  // Pago Móvil: o todo vacío, o todo completo
+  const pmKeys = ['bank', 'phone', 'idNumber'] as const;
+  const pmVals = pmKeys.map((k) => (data.pagoMovil[k] ?? '').trim());
+  if (pmVals.some(Boolean) && !pmVals.every(Boolean)) {
+    pmKeys.forEach((k) => {
+      if (!(data.pagoMovil[k] ?? '').trim()) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Completa todos los datos de Pago Móvil o déjalos todos vacíos.',
+          path: ['pagoMovil', k],
+        });
+      }
+    });
+  }
+  // Transferencia: o todo vacío, o todo completo
+  const trKeys = ['bank', 'accountNumber', 'accountHolder', 'rif'] as const;
+  const trVals = trKeys.map((k) => (data.transferencia[k] ?? '').trim());
+  if (trVals.some(Boolean) && !trVals.every(Boolean)) {
+    trKeys.forEach((k) => {
+      if (!(data.transferencia[k] ?? '').trim()) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Completa todos los datos de Transferencia o déjalos todos vacíos.',
+          path: ['transferencia', k],
+        });
+      }
+    });
+  }
 });
 
 export type StoreSettings = z.infer<typeof storeSettingsSchema>;
@@ -59,8 +88,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   instagram:  'https://instagram.com/Mundotech39',
   facebook:   '',
   // Sin datos bancarios por defecto: deben guardarse desde Admin → Configuración
-  // antes del lanzamiento. storeSettingsSchema exige min(1) al ESCRIBIR, así que
-  // el admin no puede persistir estos vacíos por accidente.
+  // antes del lanzamiento. La validación todo-o-nada en superRefine exige que
+  // si se llena un campo del grupo se completen todos, o todos vacíos.
   pagoMovil:  { bank: '', phone: '', idNumber: '' },
   transferencia: {
     bank:          '',
