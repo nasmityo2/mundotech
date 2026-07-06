@@ -103,6 +103,8 @@ const WhatsAppCheckout = ({
   const [waUrl, setWaUrl] = useState<string | null>(null);
   // RUN-05: guard síncrono de reentrada
   const submittingRef = useRef(false);
+  // RUN-05b: evita race condition entre clearCart() y el async import que sigue
+  const orderPlacedRef = useRef(false);
 
   const subtotal = getCartTotal();
   const total = subtotal;
@@ -114,7 +116,7 @@ const WhatsAppCheckout = ({
   }, []);
 
   useEffect(() => {
-    if (!isCartLoading && cart.length === 0 && !completed) {
+    if (!isCartLoading && cart.length === 0 && !completed && !orderPlacedRef.current) {
       router.replace('/cart');
     }
   }, [isCartLoading, cart.length, completed, router]);
@@ -208,6 +210,8 @@ const WhatsAppCheckout = ({
         throw new Error(apiMsg);
       }
 
+      // pedido creado con éxito → bloquear el redirect al carrito
+      orderPlacedRef.current = true;
       clearCart();
 
       if (!whatsappOrderPhone) {

@@ -21,6 +21,7 @@ const fadeUp = {
 };
 
 export default function SuccessClientPage({ order }: Props) {
+  const isWhatsAppOrder = order.channel === 'whatsapp';
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   // FASE 4.4: purchase con dedupe por transaction_id (recargas de la página no
@@ -71,7 +72,9 @@ export default function SuccessClientPage({ order }: Props) {
             ¡Gracias por tu compra!
           </motion.h1>
           <motion.p variants={fadeUp} className="mt-3 text-[15px] text-slate-500">
-            Tu pedido ha sido confirmado y se está procesando.
+            {isWhatsAppOrder
+              ? '¡Recibimos tu pedido! Escríbenos por WhatsApp para coordinar el pago y el envío.'
+              : 'Tu pedido ha sido confirmado y se está procesando.'}
           </motion.p>
           <motion.div variants={fadeUp} className="mt-5 inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-full">
             <Package size={14} className="text-navy/60" />
@@ -105,19 +108,22 @@ export default function SuccessClientPage({ order }: Props) {
         )}
 
         {/* FASE 3 / MEJORA 1.1: WhatsApp como canal #1 — botón de arranque con
-            mensaje pre-llenado para recibir actualizaciones del pedido. */}
+            mensaje pre-llenado para recibir actualizaciones del pedido.
+            Cuando el pedido es vía WhatsApp, el copy se enfoca en coordinar el pago y envío. */}
         {order.paymentMethod !== 'Cashea' && (
           <motion.a
             variants={fadeUp}
             href={`${MUNDOTECH_SOCIAL.whatsapp}?text=${encodeURIComponent(
-              `Hola MundoTech 👋 Acabo de hacer el pedido #${String(order.orderNumber).padStart(4, '0')}. Quiero recibir las actualizaciones de mi pedido por WhatsApp.`
+              isWhatsAppOrder
+                ? `Hola MundoTech 👋 Acabo de hacer el pedido #${String(order.orderNumber).padStart(4, '0')}. Quiero coordinar el pago y el envío.`
+                : `Hola MundoTech 👋 Acabo de hacer el pedido #${String(order.orderNumber).padStart(4, '0')}. Quiero recibir las actualizaciones de mi pedido por WhatsApp.`
             )}`}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-6 flex items-center justify-center gap-2 bg-[#25D366] text-white font-bold text-sm sm:text-base h-14 rounded-2xl shadow-soft hover:brightness-95 active:scale-[0.98] transition-all"
           >
             <MessageCircle size={18} />
-            Recibir actualizaciones por WhatsApp
+            {isWhatsAppOrder ? 'Coordinar mi pago por WhatsApp' : 'Recibir actualizaciones por WhatsApp'}
           </motion.a>
         )}
 
@@ -128,15 +134,23 @@ export default function SuccessClientPage({ order }: Props) {
           </motion.div>
         ) : null}
 
-        {/* Próximos pasos */}
+        {/* Próximos pasos — condicional según canal */}
         <motion.div
           variants={fadeUp}
           className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3"
         >
           {[
-            { icon: Mail,    title: 'Pago en revisión',      sub: 'Verificaremos tu comprobante pronto' },
-            { icon: Package, title: 'Preparando tu pedido',  sub: 'Te avisaremos cuando esté listo'     },
-            { icon: Home,    title: 'Rastrea tu pedido',     sub: 'Consulta el estado en tu cuenta'     },
+            ...(isWhatsAppOrder
+              ? [
+                  { icon: MessageCircle, title: 'Coordina por WhatsApp', sub: 'Te ayudamos a completar el pago' },
+                  { icon: Package,       title: 'Preparamos tu pedido',  sub: 'Lo alistamos al confirmar el pago' },
+                  { icon: Home,          title: 'Te mantenemos al tanto', sub: 'Recibirás novedades por WhatsApp' },
+                ]
+              : [
+                  { icon: Mail,    title: 'Pago en revisión',     sub: 'Verificaremos tu comprobante pronto' },
+                  { icon: Package, title: 'Preparando tu pedido', sub: 'Te avisaremos cuando esté listo'     },
+                  { icon: Home,    title: 'Rastrea tu pedido',    sub: 'Consulta el estado en tu cuenta'     },
+                ]),
           ].map((step) => (
             <div key={step.title} className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-4 text-center">
               <div className="mx-auto w-10 h-10 rounded-xl bg-brand-yellowSft text-navy flex items-center justify-center mb-2.5">
