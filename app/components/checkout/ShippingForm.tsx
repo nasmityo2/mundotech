@@ -410,8 +410,23 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
             autoComplete="tel"
             placeholder="0412-1234567"
             {...register('phoneNumber', {
-              required: 'Requerido',
-              validate: (v) => isValidVePhone(v) || 'Ingresa un número venezolano válido (ej. 0412-1234567).',
+              required: 'Ingresa tu número de celular.',
+              validate: (v) => {
+                const raw = (v ?? '').trim();
+                if (!raw) return 'Ingresa tu número de celular.';
+                if (/[a-zA-Z]/.test(raw)) return 'El teléfono no puede contener letras, solo números.';
+                if (/[^\d\s()+-]/.test(raw)) return 'El teléfono solo puede contener números.';
+                const digits = normalizeVePhone(raw); // convierte 58… → 0… y quita separadores
+                if (digits.length !== 11) {
+                  return digits.length < 11
+                    ? `El teléfono debe tener 11 dígitos; te faltan ${11 - digits.length}. Ej: 0412-1234567.`
+                    : `El teléfono debe tener 11 dígitos; tiene ${digits.length}. Ej: 0412-1234567.`;
+                }
+                if (!VE_PHONE_PREFIXES.includes(digits.slice(0, 4))) {
+                  return 'El código de operadora no es válido (ej. 0412, 0414, 0416, 0424, 0426…).';
+                }
+                return true;
+              },
             })}
             invalid={!!errors.phoneNumber}
           />
