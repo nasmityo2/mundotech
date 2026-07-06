@@ -39,6 +39,8 @@ interface PaymentFormProps {
    */
   binancePayId?: string;
   binanceQrUrl?: string;
+  /** Modo WhatsApp: solo requiere método de pago, sin referencia ni comprobante. */
+  whatsappMode?: boolean;
 }
 
 /** Límites espejo de /api/checkout/upload-proof para fallar temprano en cliente. */
@@ -47,7 +49,7 @@ const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 const selectCls =
   'block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy';
 
-const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, binancePayId = '', binanceQrUrl = '' }: PaymentFormProps) => {
+const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, binancePayId = '', binanceQrUrl = '', whatsappMode = false }: PaymentFormProps) => {
   const [selected,        setSelected]        = useState<PaymentMethod | null>(initialData?.paymentMethod ?? null);
   const [copiedField,     setCopiedField]      = useState<string | null>(null);
   const [bank,            setBank]             = useState(initialData?.bank && initialData.bank !== 'Binance' ? initialData.bank : '');
@@ -114,6 +116,11 @@ const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, b
   const validate = (): boolean => {
     const e: typeof errors = {};
     if (!selected) e.paymentMethod = 'Selecciona un método de pago.';
+    if (whatsappMode) {
+      // WhatsApp: solo requiere método seleccionado — no exige ref ni comprobante.
+      setErrors(e);
+      return Object.keys(e).length === 0;
+    }
     if (selected === 'cashea') {
       setErrors(e);
       return Object.keys(e).length === 0;
@@ -138,6 +145,19 @@ const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, b
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate() || !selected) return;
+    if (whatsappMode) {
+      // WhatsApp: envía método seleccionado sin referencia ni comprobante.
+      onPaymentSubmit({
+        paymentMethod: selected,
+        bank: selected === 'pagomovil' || selected === 'transferencia' ? bank : '',
+        holderIdNumber: '',
+        holderPhone: '',
+        referenceNumber: '',
+        proofFile: null,
+        proofPreviewUrl: '',
+      });
+      return;
+    }
     if (selected === 'cashea') {
       onPaymentSubmit({
         paymentMethod: 'cashea',
@@ -196,7 +216,11 @@ const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, b
     <form onSubmit={handleSubmit} className="space-y-7">
       <div>
         <h2 className="text-xl font-semibold text-navy tracking-tight">Método de pago</h2>
-        <p className="text-sm text-slate-500 mt-1">Selecciona cómo vas a pagar y sube tu comprobante.</p>
+        <p className="text-sm text-slate-500 mt-1">
+          {whatsappMode
+            ? 'Selecciona cómo vas a pagar. No necesitas subir comprobante ahora — lo coordinas por WhatsApp.'
+            : 'Selecciona cómo vas a pagar y sube tu comprobante.'}
+        </p>
       </div>
 
       {/* ── Cards de método ── */}

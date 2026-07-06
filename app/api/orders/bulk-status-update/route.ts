@@ -91,7 +91,12 @@ export async function POST(request: Request) {
       });
 
       for (const order of cancellable) {
-        await applyOrderCancellationEffectsInTransaction(tx, order);
+        await applyOrderCancellationEffectsInTransaction(tx, {
+          id: order.id,
+          status: order.status,
+          items: order.items,
+          stockDeducted: (order as { stockDeducted?: boolean | null }).stockDeducted ?? true,
+        });
       }
 
       cancelledOrders = cancellable.map((o) => ({

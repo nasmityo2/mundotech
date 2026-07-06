@@ -140,8 +140,14 @@ export async function DELETE(
   // Eliminar un pedido cuyo stock seguía reservado debe devolver las unidades al
   // inventario y revertir el cupón (PRD-190) ANTES de borrar el registro —
   // el delete en cascada de CouponRedemption no decrementa usedCount por sí solo.
+  // Solo restaura stock si stockDeducted !== false (pedidos WhatsApp no descuentan).
   await prisma.$transaction(async (tx) => {
-    await applyOrderCancellationEffectsInTransaction(tx, order);
+    await applyOrderCancellationEffectsInTransaction(tx, {
+      id: order.id,
+      status: order.status,
+      items: order.items,
+      stockDeducted: (order as { stockDeducted?: boolean | null }).stockDeducted ?? true,
+    });
     await tx.order.delete({ where: { id } });
   });
 

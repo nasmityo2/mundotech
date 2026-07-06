@@ -258,10 +258,17 @@ function OrdersPageContent() {
       mobileLabel: 'Estado',
       align: 'center',
       cell: o => (
-        <span
-          className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${statusConfig[o.status] ?? 'bg-gray-100 text-gray-700'}`}
-        >
-          {o.status}
+        <span className="inline-flex items-center gap-1.5 flex-wrap">
+          <span
+            className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${statusConfig[o.status] ?? 'bg-gray-100 text-gray-700'}`}
+          >
+            {o.status}
+          </span>
+          {o.channel === 'whatsapp' && (
+            <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 border border-green-200">
+              WhatsApp
+            </span>
+          )}
         </span>
       ),
     },

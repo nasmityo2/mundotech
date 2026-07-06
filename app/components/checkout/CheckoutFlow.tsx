@@ -32,9 +32,15 @@ interface CheckoutFlowProps {
   binanceQrUrl?: string;
   /** MEJORA 2.3: estimados de envío (Admin → Configuración) — R1, sin hardcode. */
   shippingEstimates?: ShippingEstimates;
+  /** Modo WhatsApp: si es true, el checkout recopila datos mínimos y redirige a WhatsApp. */
+  whatsappMode?: boolean;
+  /** Número de WhatsApp para pedidos (desde readSettings). */
+  whatsappOrderPhone?: string;
+  /** Nombre de la tienda para el mensaje de WhatsApp. */
+  storeName?: string;
 }
 
-const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, binanceQrUrl, shippingEstimates }: CheckoutFlowProps) => {
+const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, binanceQrUrl, shippingEstimates, whatsappMode = false, whatsappOrderPhone = '', storeName = 'MundoTech' }: CheckoutFlowProps) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection]     = useState<1 | -1>(1);
   const [shippingData, setShippingData] = useState<ShippingFormData | null>(null);
@@ -141,7 +147,14 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
     switch (currentStep) {
       // initialData: al volver desde un paso posterior el formulario se
       // remonta (AnimatePresence) — sin esto el usuario perdía lo escrito.
-      case 0: return <ShippingForm onFormSubmit={handleShippingSubmit} initialData={shippingData} estimates={shippingEstimates} />;
+      case 0: return (
+        <ShippingForm
+          onFormSubmit={handleShippingSubmit}
+          initialData={shippingData}
+          estimates={shippingEstimates}
+          whatsappMode={whatsappMode}
+        />
+      );
       case 1: return (
         <PaymentForm
           onPaymentSubmit={handlePaymentSubmit}
@@ -150,9 +163,18 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
           transferencia={transferencia}
           binancePayId={binancePayId}
           binanceQrUrl={binanceQrUrl}
+          whatsappMode={whatsappMode}
         />
       );
-      case 2: return <ReviewStep shippingData={shippingData} paymentData={paymentData} />;
+      case 2: return (
+        <ReviewStep
+          shippingData={shippingData}
+          paymentData={paymentData}
+          whatsappMode={whatsappMode}
+          whatsappOrderPhone={whatsappOrderPhone}
+          storeName={storeName}
+        />
+      );
       default: return null;
     }
   };

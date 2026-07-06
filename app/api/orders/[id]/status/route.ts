@@ -98,7 +98,12 @@ export async function PUT(
 
     updated = await prisma.$transaction(async (tx) => {
       if (orderWithItems) {
-        await applyOrderCancellationEffectsInTransaction(tx, orderWithItems);
+        await applyOrderCancellationEffectsInTransaction(tx, {
+          id: orderWithItems.id,
+          status: orderWithItems.status,
+          items: orderWithItems.items,
+          stockDeducted: (orderWithItems as { stockDeducted?: boolean | null }).stockDeducted ?? true,
+        });
       }
       return tx.order.update({
         where: { id: orderId },

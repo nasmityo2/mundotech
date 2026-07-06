@@ -20,6 +20,7 @@ import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { verifySameOrigin } from '@/lib/security';
 import { d, dn } from '@/lib/decimal';
+import { CHECKOUT_MODE } from '@/lib/checkout-mode';
 import { buildOrderListWhere, buildOrderSearchWhere } from '@/lib/orders/order-list-filters';
 import { computeTabCounts, parseOrderTab } from '@/lib/orders/order-tabs';
 import {
@@ -182,6 +183,9 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
+    // Forzar el canal desde el servidor — no confiar en el cliente.
+    const channel = CHECKOUT_MODE === 'whatsapp' ? 'whatsapp' : 'web';
+    body.channel = channel;
     const parsed = checkoutSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -195,21 +199,31 @@ export async function POST(request: Request) {
     // FASE 4.1: los invitados deben dejar datos de contacto reales — sin ellos
     // no hay forma de verificar el pago ni de coordinar la entrega.
     if (isGuest) {
-      const guestEmail = parsed.data.customerEmail?.trim().toLowerCase();
       const guestPhone = parsed.data.customerPhone?.trim();
-      const guestIdNumber = parsed.data.customerIdNumber?.trim();
-      if (!guestEmail || !guestPhone || !guestIdNumber) {
-        return NextResponse.json(
-          { message: 'Para comprar como invitado necesitamos tu correo, teléfono y cédula.' },
-          { status: 400 }
-        );
-      }
-      // Rate limit adicional por email: un mismo invitado no puede spamear pedidos.
-      if (await rateLimit(`orders:post:guest:${guestEmail}`, { limit: 5, windowMs: 60_000 })) {
-        return NextResponse.json(
-          { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
-          { status: 429 }
-        );
+      if (channel === 'whatsapp') {
+        // WhatsApp: solo exige teléfono (el nombre ya lo exige el schema).
+        if (!guestPhone) {
+          return NextResponse.json(
+            { message: 'Para comprar por WhatsApp necesitamos tu nombre y teléfono.' },
+            { status: 400 }
+          );
+        }
+      } else {
+        const guestEmail = parsed.data.customerEmail?.trim().toLowerCase();
+        const guestIdNumber = parsed.data.customerIdNumber?.trim();
+        if (!guestEmail || !guestPhone || !guestIdNumber) {
+          return NextResponse.json(
+            { message: 'Para comprar como invitado necesitamos tu correo, teléfono y cédula.' },
+            { status: 400 }
+          );
+        }
+        // Rate limit adicional por email: un mismo invitado no puede spamear pedidos.
+        if (await rateLimit(`orders:post:guest:${guestEmail}`, { limit: 5, windowMs: 60_000 })) {
+          return NextResponse.json(
+            { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
+            { status: 429 }
+          );
+        }
       }
     }
 
@@ -244,7 +258,8 @@ export async function POST(request: Request) {
       if (duplicate) return { order: duplicate, reused: true };
 
       const created = await executeCheckoutInTransaction(tx, safeData, {
-        orderStatus: isBinanceManual ? 'Pendiente verificación Binance' : 'Pendiente',
+        orderStatus: channel === 'whatsapp' ? 'Pendiente' : (isBinanceManual ? 'Pendiente verificación Binance' : 'Pendiente'),
+        deductStock: channel !== 'whatsapp',
       });
       return { order: created, reused: false };
     });

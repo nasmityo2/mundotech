@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { readSettings } from '@/lib/data-store';
 import { readShippingEstimates } from '@/lib/shipping-estimates-db';
+import { isWhatsAppCheckout } from '@/lib/checkout-mode';
 import CheckoutFlow from '@/app/components/checkout/CheckoutFlow';
 
 // Fuerza renderizado dinámico (por-request) para que readSettings()
@@ -32,6 +33,9 @@ export default async function CheckoutPage() {
       binancePayId={settings.binancePayId}
       binanceQrUrl={settings.binanceQrUrl}
       shippingEstimates={shippingEstimates}
+      whatsappMode={isWhatsAppCheckout}
+      whatsappOrderPhone={settings.whatsappOrderPhone}
+      storeName={settings.storeName}
     />
   );
 }

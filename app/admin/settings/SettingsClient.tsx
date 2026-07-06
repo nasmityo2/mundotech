@@ -492,6 +492,20 @@ export default function SettingsClient({
           )}
         </SectionCard>
 
+        <SectionCard title="WhatsApp para pedidos" icon={Wallet}>
+          <div className="p-3 bg-green-50 rounded-lg text-xs text-green-700 font-medium">
+            Número de teléfono al que se enviarán los pedidos creados por WhatsApp.
+            Formato internacional sin espacios, ej. 584121471338.
+          </div>
+          <Field
+            label="Número de WhatsApp para pedidos"
+            value={settings.whatsappOrderPhone ?? ''}
+            onChange={v => set(['whatsappOrderPhone'], v)}
+            type="tel"
+            placeholder="584121471338"
+          />
+        </SectionCard>
+
         {/* PRD-027/130: Binance Pay configurable sin redeploy */}
         <SectionCard title="Binance Pay" icon={Wallet}>
           <div className="p-3 bg-amber-50 rounded-lg text-xs text-amber-700 font-medium">

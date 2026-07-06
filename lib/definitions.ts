@@ -172,6 +172,9 @@ export interface ShippingDetails {
   country:  string;
 }
 
+/** Canal de origen del pedido para el sistema de checkout. */
+export type OrderChannel = 'web' | 'whatsapp';
+
 /** Tipo de pedido normalizado para toda la UI — compatible con el modelo Prisma Order. */
 export interface Order {
   id:              string;
@@ -210,6 +213,8 @@ export interface Order {
   /** Motivo de rechazo del pago, si aplica. */
   paymentRejectionReason?:   string | null;
   notes?:          string | null;
+  channel?:        OrderChannel | null;
+  stockDeducted?:  boolean | null;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -288,6 +293,8 @@ export function prismaOrderToOrder(o: {
   shippingCountry: string;
   exchangeRateUsdBs?: DecimalLike | null;
   notes?: string | null;
+  channel?: string | null;
+  stockDeducted?: boolean | null;
   items: { id: string; productId: string; productName: string; quantity: number; price: DecimalLike; imageUrl?: string | null }[];
 }): Order {
   return {
@@ -320,6 +327,8 @@ export function prismaOrderToOrder(o: {
     paymentVerifiedBy:        o.paymentVerifiedBy ?? null,
     paymentRejectionReason:   o.paymentRejectionReason ?? null,
     notes:           o.notes,
+    channel:         (o.channel as OrderChannel | null) ?? 'web',
+    stockDeducted:   o.stockDeducted ?? true,
     shippingDetails: {
       address:  o.shippingAddress,
       city:     o.shippingCity,

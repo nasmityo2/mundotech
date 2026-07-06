@@ -6,7 +6,8 @@ import { prismaOrderToOrder, type Order, type OrderStatus } from '@/lib/definiti
 import { requireAdminAction } from '@/lib/api-auth';
 import { orderPathSegment } from '@/lib/order-ref';
 import { sendPaymentValidatedEmail, sendPaymentRejectedEmail } from '@/lib/resend';
-import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order';
+import { applyOrderCancellationEffectsInTransaction, deductOrderStockInTransaction } from '@/lib/checkout-order';
+import { CheckoutError } from '@/lib/checkout-error';
 
 function firstNameFromCustomerName(displayName: string): string {
   const t = displayName.trim();
@@ -72,6 +73,100 @@ export async function validateOrderPayment(orderId: string): Promise<ValidateOrd
     };
   }
 
+  // PRD-WhatsApp: si el pedido tiene stockDeducted === false, descuenta el stock
+  // dentro de la misma transacción. Si algún producto ya no tiene suficiente stock,
+  // se bloquea la confirmación y se informa qué producto falta.
+  const orderInfo = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { stockDeducted: true, items: { select: { productId: true, quantity: true } } },
+  });
+
+  const needsStockDeduction = orderInfo && orderInfo.stockDeducted === false;
+
+  if (needsStockDeduction) {
+    // Envolver en transacción: descontar stock + actualizar estado atómicamente.
+    const updated = await prisma.$transaction(async (tx) => {
+      try {
+        // Cargar nombres de productos para mensaje de error
+        const productIds = [...new Set(orderInfo.items.map((i) => i.productId))];
+        const products = await tx.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, name: true },
+        });
+        const productMap = new Map(products.map((p) => [p.id, p]));
+
+        await deductOrderStockInTransaction(tx, orderInfo.items, productMap);
+      } catch (err) {
+        if (err instanceof CheckoutError) {
+          // Stock insuficiente — abortar y devolver error
+          throw err;
+        }
+        throw err;
+      }
+
+      const txnTransition = await tx.order.updateMany({
+        where: { id: orderId, status: 'Pendiente' satisfies OrderStatus },
+        data: {
+          status: 'En Proceso' satisfies OrderStatus,
+          paidAt: new Date(),
+          paymentVerifiedBy: adminEmail,
+          paymentRejectionReason: null,
+          stockDeducted: true,
+        },
+      });
+
+      if (txnTransition.count === 0) return null;
+
+      return tx.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: true,
+          customer: { select: { email: true, name: true } },
+        },
+      });
+    });
+
+    if (!updated) {
+      const current = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
+      if (current?.status === ('En Proceso' satisfies OrderStatus)) {
+        const already = await loadFullOrder(orderId);
+        return {
+          success: true,
+          message: 'El pago ya estaba validado.',
+          order: prismaOrderToOrder(already!),
+        };
+      }
+      return {
+        success: false,
+        message: 'El pedido cambió de estado mientras se validaba. Recarga e intenta de nuevo.',
+      };
+    }
+
+    const recipientEmail =
+      updated.customerEmail?.trim() || updated.customer?.email?.trim() || '';
+    const displayNameForEmail =
+      updated.customerName?.trim() || updated.customer?.name?.trim() || '';
+
+    await sendPaymentValidatedEmail(
+      recipientEmail,
+      firstNameFromCustomerName(displayNameForEmail),
+      String(updated.orderNumber).padStart(4, '0'),
+      updated.id
+    );
+
+    revalidatePath('/admin/orders');
+    revalidatePath(`/admin/orders/${orderId}`);
+    revalidatePath('/account/orders');
+    revalidatePath(`/account/orders/${orderPathSegment(updated.orderNumber)}`);
+
+    return {
+      success: true,
+      message: 'Pago marcado como verificado y cliente notificado cuando hay correo válido.',
+      order: prismaOrderToOrder(updated),
+    };
+  }
+
+  // Para pedidos normales (stockDeducted === true): comportamiento actual.
   const transition = await prisma.order.updateMany({
     where: { id: orderId, status: 'Pendiente' satisfies OrderStatus },
     data: { status: 'En Proceso' satisfies OrderStatus, paidAt: new Date(), paymentVerifiedBy: adminEmail, paymentRejectionReason: null },
@@ -154,6 +249,7 @@ export async function rejectOrderPayment(
     select: {
       id: true,
       status: true,
+      stockDeducted: true,
       items: { select: { productId: true, quantity: true } },
     },
   });
@@ -186,11 +282,12 @@ export async function rejectOrderPayment(
     });
     if (transition.count === 0) return null;
 
-    // Estados rechazables siempre tenían stock reservado → restaurar + cupón.
+    // Pasar stockDeducted para que solo restaure si el stock fue descontado.
     await applyOrderCancellationEffectsInTransaction(tx, {
       id: orderId,
       status: existing.status,
       items: existing.items,
+      stockDeducted: existing.stockDeducted ?? true,
     });
 
     return tx.order.findUnique({

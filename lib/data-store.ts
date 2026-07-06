@@ -36,6 +36,8 @@ export const storeSettingsSchema = z.object({
   // Etiqueta de envío: tamaño de la HOJA de impresión en mm. Default térmica 4×6".
   labelWidthMm:  z.coerce.number().min(40).max(300).default(100),
   labelHeightMm: z.coerce.number().min(40).max(400).default(150),
+  /// Número de WhatsApp para pedidos en modo WhatsApp (formato internacional, ej. 584121471338).
+  whatsappOrderPhone: z.string().optional().default(''),
 });
 
 export type StoreSettings = z.infer<typeof storeSettingsSchema>;
@@ -71,6 +73,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   binanceQrUrl: '',
   labelWidthMm: 100,
   labelHeightMm: 150,
+  whatsappOrderPhone: '',
 };
 
 /** ¿Hay datos de pago reales configurados? (false = BD vacía → DEFAULT_SETTINGS).

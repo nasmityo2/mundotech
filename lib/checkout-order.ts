@@ -54,15 +54,17 @@ export const checkoutSchema = z
         message: 'El comprobante de pago debe provenir del almacenamiento autorizado.',
       }),
     couponCode: z.string().trim().max(40).optional().nullable(),
+    channel: z.enum(['web', 'whatsapp']).optional().default('web'),
     items: z
       .array(orderItemSchema)
       .min(1, 'El pedido debe tener al menos un producto.')
       .max(50, 'El pedido supera el número máximo de líneas permitidas.'),
   })
   .superRefine((data, ctx) => {
+    // WhatsApp channel: no exige referencia ni comprobante (se coordina por WhatsApp).
+    if (data.channel === 'whatsapp') return;
     // Cashea se coordina por WhatsApp: no exige referencia ni comprobante aquí.
     if (data.paymentMethod === 'Cashea') return;
-
     // Los demás métodos son de confirmación manual: el cliente paga por su cuenta
     // y debe aportar referencia + comprobante. La validación vive también en el
     // servidor para que un POST directo a /api/orders no pueda omitirlos.
@@ -93,6 +95,8 @@ export type CheckoutInput = z.infer<typeof checkoutSchema>;
 export type CheckoutExecuteOptions = {
   /** Estado inicial del pedido (ej. verificación Binance). */
   orderStatus?: OrderStatus;
+  /** Si false, no descuenta stock (modo WhatsApp). Default true. */
+  deductStock?: boolean;
 };
 
 /**
@@ -159,10 +163,12 @@ export async function executeCheckoutInTransaction(
     paymentReference,
     paymentProofUrl,
     couponCode,
+    channel,
     items,
   } = input;
 
   const orderStatus: OrderStatus = options?.orderStatus ?? 'Pendiente';
+  const deductStock = options?.deductStock ?? true;
 
   const productIds = [...new Set(items.map((i) => i.productId))];
   // PRD-025: se incluye isActive en la consulta para detectar productos
@@ -202,7 +208,9 @@ export async function executeCheckoutInTransaction(
         404
       );
     }
-    if (dbProduct.stock < totalQty) {
+    // Solo validar stock si vamos a descontar (modo full).
+    // En modo WhatsApp el stock se descuenta al confirmar el pago.
+    if (deductStock && dbProduct.stock < totalQty) {
       throw new CheckoutError(
         `Stock insuficiente para "${dbProduct.name}". ` +
           `Solicitado: ${totalQty}, disponible: ${dbProduct.stock}.`,
@@ -284,6 +292,8 @@ export async function executeCheckoutInTransaction(
       customerPhone: customerPhone ?? null,
       customerIdNumber: customerIdNumber ?? null,
       total: finalTotal,
+      channel: channel ?? 'web',
+      stockDeducted: deductStock,
       couponCode: appliedCouponCode,
       couponDiscount: couponDiscountBs > 0 ? couponDiscountBs : null,
       exchangeRateUsdBs: rate,
@@ -340,27 +350,51 @@ export async function executeCheckoutInTransaction(
     }
   }
 
-  // Decremento atómico por producto usando la cantidad TOTAL agregada, una sola
-  // vez por productId (no por línea), con guard `stock >= cantidad` para evitar
-  // condiciones de carrera con otros checkouts concurrentes.
-  // (PRD-068: el modo deferStockDeduction fue eliminado — era código muerto;
-  // Binance también descuenta stock aquí, en el checkout.)
+  // Solo descontar stock si deductStock es true (modo full).
+  // En modo WhatsApp el stock se descuenta al confirmar el pago (validateOrderPayment).
+  if (deductStock) {
+    await deductOrderStockInTransaction(tx, items, productMap);
+  }
+
+  return newOrder;
+}
+
+/**
+ * Descuenta el stock atómicamente por producto, con guard `stock >= cantidad`
+ * para evitar condiciones de carrera con otros checkouts concurrentes.
+ * Lanza CheckoutError 409 si no hay stock suficiente de algún producto.
+ */
+export async function deductOrderStockInTransaction(
+  tx: Prisma.TransactionClient,
+  items: { productId: string; quantity: number }[],
+  productMap?: Map<string, { name: string }>,
+): Promise<void> {
+  // Cantidad TOTAL solicitada por producto (un mismo productId puede venir en
+  // varias líneas; hay que sumarlas antes de comparar contra el stock).
+  const quantityByProduct = new Map<string, number>();
+  for (const item of items) {
+    quantityByProduct.set(
+      item.productId,
+      (quantityByProduct.get(item.productId) ?? 0) + item.quantity
+    );
+  }
+
   for (const [productId, totalQty] of quantityByProduct) {
     const result = await tx.product.updateMany({
       where: { id: productId, stock: { gte: totalQty } },
       data: { stock: { decrement: totalQty } },
     });
     if (result.count === 0) {
-      const p = productMap.get(productId)!;
+      const p = productMap?.get(productId);
       throw new CheckoutError(
-        `Stock insuficiente para "${p.name}" al confirmar la compra. ` +
-          `Otro pedido puede haber reservado las últimas unidades.`,
+        p
+          ? `Stock insuficiente para "${p.name}" al confirmar la compra. ` +
+            `Otro pedido puede haber reservado las últimas unidades.`
+          : `Stock insuficiente para el producto "${productId}" al confirmar la compra.`,
         409
       );
     }
   }
-
-  return newOrder;
 }
 
 /**
@@ -402,9 +436,11 @@ export async function restoreOrderStockInTransaction(
  */
 export async function applyOrderCancellationEffectsInTransaction(
   tx: Prisma.TransactionClient,
-  order: { id: string; status: OrderStatus | string; items: { productId: string; quantity: number }[] }
+  order: { id: string; status: OrderStatus | string; items: { productId: string; quantity: number }[]; stockDeducted?: boolean | null }
 ): Promise<void> {
-  if (shouldRestoreStockOnCancel(order.status, 'Cancelado')) {
+  // Solo restaurar stock si el pedido lo tenía descontado (stockDeducted !== false).
+  // Pedidos WhatsApp (stockDeducted=false) nunca descontaron stock, no restaurar.
+  if (shouldRestoreStockOnCancel(order.status, 'Cancelado') && order.stockDeducted !== false) {
     await restoreOrderStockInTransaction(tx, order.items);
   }
   await revertCouponRedemptionInTransaction(tx, order.id);

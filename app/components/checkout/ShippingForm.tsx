@@ -27,6 +27,8 @@ export type ShippingFormData = {
   zoomOfficeName?: string;
   zoomOfficeAddress?: string;
   zoomOfficeCity?: string;
+  /** Dirección completa de envío (solo en modo WhatsApp). */
+  fullAddress?: string;
 };
 
 interface ShippingFormProps {
@@ -35,9 +37,11 @@ interface ShippingFormProps {
   initialData?: ShippingFormData | null;
   /** MEJORA 2.3: estimados de envío editables desde el admin (R1). */
   estimates?: ShippingEstimates;
+  /** Modo WhatsApp: oculta cédula y email, añade campo de dirección. */
+  whatsappMode?: boolean;
 }
 
-const ShippingForm = ({ onFormSubmit, initialData, estimates }: ShippingFormProps) => {
+const ShippingForm = ({ onFormSubmit, initialData, estimates, whatsappMode = false }: ShippingFormProps) => {
   const { data: session } = useSession();
   const {
     register, handleSubmit, formState: { errors }, watch, setValue,
@@ -307,15 +311,17 @@ const ShippingForm = ({ onFormSubmit, initialData, estimates }: ShippingFormProp
         <Field id="lastName" label="Apellido" error={errors.lastName?.message}>
           <Input id="lastName" autoComplete="family-name" {...register('lastName', { required: 'Requerido' })} invalid={!!errors.lastName} />
         </Field>
-        <Field id="idNumber" label="Cédula de identidad" error={errors.idNumber?.message}>
-          <Input
-            id="idNumber"
-            placeholder="V-12345678"
-            autoComplete="off"
-            {...register('idNumber', { required: 'Requerido' })}
-            invalid={!!errors.idNumber}
-          />
-        </Field>
+        {!whatsappMode && (
+          <Field id="idNumber" label="Cédula de identidad" error={errors.idNumber?.message}>
+            <Input
+              id="idNumber"
+              placeholder="V-12345678"
+              autoComplete="off"
+              {...register('idNumber', { required: 'Requerido' })}
+              invalid={!!errors.idNumber}
+            />
+          </Field>
+        )}
         <Field id="phoneNumber" label="Número de celular" error={errors.phoneNumber?.message}>
           <Input
             id="phoneNumber"
@@ -327,27 +333,46 @@ const ShippingForm = ({ onFormSubmit, initialData, estimates }: ShippingFormProp
             invalid={!!errors.phoneNumber}
           />
         </Field>
-        <Field
-          id="email"
-          label="Correo electrónico"
-          error={errors.email?.message}
-          className="sm:col-span-2"
-        >
-          <Input
+        {whatsappMode ? (
+          <Field
+            id="fullAddress"
+            label="Dirección de envío completa"
+            error={errors.fullAddress?.message}
+            className="sm:col-span-2"
+          >
+            <textarea
+              id="fullAddress"
+              rows={3}
+              placeholder="Escribe tu dirección completa para el envío (estado, ciudad, calle, casa/apto, referencias)"
+              {...register('fullAddress', { required: 'La dirección de envío es requerida.' })}
+              className={`block w-full min-h-[48px] px-3.5 py-2.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy resize-y ${
+                errors.fullAddress ? 'border-rose-400 bg-rose-50' : ''
+              }`}
+            />
+          </Field>
+        ) : (
+          <Field
             id="email"
-            type="email"
-            autoComplete="email"
-            placeholder="Correo electrónico"
-            {...register('email', {
-              required: 'Requerido para enviarte la confirmación del pedido',
-              pattern: {
-                value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                message: 'Correo no válido',
-              },
-            })}
-            invalid={!!errors.email}
-          />
-        </Field>
+            label="Correo electrónico"
+            error={errors.email?.message}
+            className="sm:col-span-2"
+          >
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              placeholder="Correo electrónico"
+              {...register('email', {
+                required: 'Requerido para enviarte la confirmación del pedido',
+                pattern: {
+                  value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                  message: 'Correo no válido',
+                },
+              })}
+              invalid={!!errors.email}
+            />
+          </Field>
+        )}
       </div>
 
       {/* Solo para MRW: estado y oficina */}

@@ -221,8 +221,15 @@ export default function AdminOrderDetailPage() {
             </h1>
             <p className="text-xs text-gray-500 mt-1">{formatDateTime(order.createdAt)}</p>
           </div>
-          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0 ${statusConfig[order.status] ?? 'bg-gray-100 text-gray-700'}`}>
-            {order.status}
+          <span className="inline-flex items-center gap-1.5">
+            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${statusConfig[order.status] ?? 'bg-gray-100 text-gray-700'}`}>
+              {order.status}
+            </span>
+            {order.channel === 'whatsapp' && (
+              <span className="inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 border border-green-200">
+                WhatsApp
+              </span>
+            )}
           </span>
         </div>
 

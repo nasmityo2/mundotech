@@ -16,6 +16,12 @@ import { stashLoginRedirectForPathname } from '@/lib/auth-path';
 interface ReviewStepProps {
   shippingData: ShippingFormData | null;
   paymentData: PaymentFormData | null;
+  /** Modo WhatsApp: redirige a WhatsApp tras crear el pedido. */
+  whatsappMode?: boolean;
+  /** Número de WhatsApp configurado para pedidos. */
+  whatsappOrderPhone?: string;
+  /** Nombre de la tienda para el mensaje. */
+  storeName?: string;
 }
 
 /** Equivalente referencial en bolívares (PRD-022). El monto autoritativo en Bs lo congela el servidor con la tasa de BD. */
@@ -26,7 +32,7 @@ function formatBsApprox(amountUsd: number, rate: number): string {
   }).format(amountUsd * rate)}`;
 }
 
-const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
+const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappOrderPhone = '' }: ReviewStepProps) => {
   const { data: session } = useSession();
   const { cart, clearCart, getCartTotal, isCartLoading } = useCart();
   const { rate: exchangeRate } = useExchangeRate();
@@ -114,6 +120,40 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
     return data.url;
   };
 
+  const buildAddress = (): string => {
+    if (whatsappMode) {
+      return shippingData?.fullAddress?.trim() || 'Por definir';
+    }
+    if (shippingData?.shippingMethod === 'tienda') {
+      return 'Retiro en tienda';
+    }
+    if (shippingData?.shippingMethod === 'zoom' && zoomOffice) {
+      return `Oficina ZOOM ${zoomOffice.name}${zoomOffice.address ? ` — ${zoomOffice.address}` : ''}`;
+    }
+    return 'Retiro en Oficina MRW';
+  };
+
+  const buildCity = (): string => {
+    if (whatsappMode) return 'N/A';
+    if (shippingData?.shippingMethod === 'mrw') return shippingData.mrwOffice ?? '';
+    if (shippingData?.shippingMethod === 'zoom' && zoomOffice) return zoomOffice.city || zoomOffice.name;
+    return 'Barquisimeto';
+  };
+
+  const buildState = (): string => {
+    if (whatsappMode) return 'N/A';
+    if (shippingData?.shippingMethod === 'mrw') return shippingData.mrwState ?? '';
+    if (shippingData?.shippingMethod === 'zoom' && zoomOffice) return shippingData.zoomState ?? 'Lara';
+    return 'Lara';
+  };
+
+  const getShippingMethodLabel = (): string => {
+    if (shippingData?.shippingMethod === 'tienda') return 'Retiro en tienda';
+    if (shippingData?.shippingMethod === 'mrw') return 'MRW';
+    if (shippingData?.shippingMethod === 'zoom') return 'ZOOM';
+    return 'No especificado';
+  };
+
   const handleConfirmOrder = async () => {
     if (submittingRef.current) return;
     if (!shippingData || !paymentData) {
@@ -127,7 +167,8 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
     setSessionExpired(false);
 
     try {
-      const proofUrl = await uploadProofIfNeeded();
+      // WhatsApp: no subir comprobante
+      const proofUrl = whatsappMode ? null : await uploadProofIfNeeded();
 
       // El servidor recalcula precios/total desde BD e ignora cualquier monto
       // del cliente; para retiro en tienda también resuelve la dirección desde
@@ -137,25 +178,12 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
         customerName: `${shippingData.firstName} ${shippingData.lastName}`,
         customerEmail: shippingData.email?.trim() || session?.user?.email?.trim() || null,
         customerPhone: shippingData.phoneNumber,
-        customerIdNumber: shippingData.idNumber,
+        customerIdNumber: whatsappMode ? null : shippingData.idNumber,
         shippingMethod: shippingData.shippingMethod,
         shippingDetails: {
-          address:
-            shippingData.shippingMethod === 'tienda'
-              ? 'Retiro en tienda'
-              : shippingData.shippingMethod === 'zoom' && zoomOffice
-                ? `Oficina ZOOM ${zoomOffice.name}${zoomOffice.address ? ` — ${zoomOffice.address}` : ''}`
-                : 'Retiro en Oficina MRW',
-          city: shippingData.shippingMethod === 'mrw'
-            ? (shippingData.mrwOffice ?? '')
-            : shippingData.shippingMethod === 'zoom' && zoomOffice
-              ? (zoomOffice.city || zoomOffice.name)
-              : 'Barquisimeto',
-          state: shippingData.shippingMethod === 'mrw'
-            ? (shippingData.mrwState ?? '')
-            : shippingData.shippingMethod === 'zoom' && zoomOffice
-              ? (shippingData.zoomState ?? 'Lara')
-              : 'Lara',
+          address: buildAddress(),
+          city: buildCity(),
+          state: buildState(),
           zipCode: 'N/A',
           country: 'Venezuela',
         },
@@ -168,9 +196,9 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
                 ? 'Cashea'
                 : 'Transferencia Bancaria',
         paymentBank: paymentData.bank || null,
-        paymentHolderIdNumber: paymentData.holderIdNumber || null,
-        paymentHolderPhone: paymentData.holderPhone || null,
-        paymentReference: paymentData.referenceNumber || null,
+        paymentHolderIdNumber: null,
+        paymentHolderPhone: null,
+        paymentReference: null,
         paymentProofUrl: proofUrl,
         couponCode: appliedCoupon || null,
         items: cart.map((item) => ({
@@ -188,6 +216,7 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
 
       const body = (await response.json().catch(() => ({}))) as {
         id?: string;
+        orderNumber?: number;
         message?: string;
         error?: string;
         errors?: unknown;
@@ -210,6 +239,45 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
       // PRD-180: el carrito abandonado se marca RECOVERED en el servidor
       // (POST /api/orders) — aquí ya no se invoca ninguna Server Action pública.
       clearCart();
+
+      if (whatsappMode) {
+        if (!whatsappOrderPhone) {
+          // Sin número configurado: redirigir a success con aviso
+          router.push(`/checkout/success?orderId=${body.id}`);
+          return;
+        }
+
+        // Construir mensaje y redirigir a WhatsApp
+        const { buildWhatsAppOrderMessage, buildWhatsAppOrderUrl } = await import('@/lib/whatsapp-order');
+        const orderRef = String(body.orderNumber ?? body.id).padStart(4, '0');
+        const waMessage = buildWhatsAppOrderMessage({
+          orderRef,
+          customerName: `${shippingData.firstName} ${shippingData.lastName}`,
+          phone: shippingData.phoneNumber,
+          address: buildAddress(),
+          shippingCompany: getShippingMethodLabel(),
+          paymentMethod:
+            paymentData.paymentMethod === 'pagomovil'
+              ? 'Pago Móvil'
+              : paymentData.paymentMethod === 'binancepay'
+                ? 'Binance Pay'
+                : paymentData.paymentMethod === 'cashea'
+                  ? 'Cashea'
+                  : 'Transferencia Bancaria',
+          items: cart.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            priceUsd: item.price,
+          })),
+          totalUsd: Math.max(0, subtotal - discountUsd),
+          rate: exchangeRate,
+        });
+
+        const waUrl = buildWhatsAppOrderUrl(whatsappOrderPhone, waMessage);
+        // eslint-disable-next-line react-hooks/immutability
+        window.location.href = waUrl;
+        return;
+      }
 
       router.push(`/checkout/success?orderId=${body.id}`);
     } catch (err) {
@@ -542,8 +610,8 @@ const ReviewStep = ({ shippingData, paymentData }: ReviewStepProps) => {
           </>
         ) : (
           <>
-            Confirmar pedido — {formatCurrency(total)}
-            {exchangeRate > 0 ? ` (≈ ${formatBsApprox(total, exchangeRate)})` : ''}
+            {whatsappMode ? 'Enviar pedido por WhatsApp' : `Confirmar pedido — ${formatCurrency(total)}`}
+            {!whatsappMode && exchangeRate > 0 ? ` (≈ ${formatBsApprox(total, exchangeRate)})` : ''}
           </>
         )}
       </button>

@@ -241,6 +241,11 @@ model Order {
   /// FASE 4.5: fecha del email de solicitud de reseña. Null = aún no enviado;
   /// evita reenvíos (un solo toque, sin incentivo).
   reviewRequestSentAt    DateTime?
+  /// Canal de origen del pedido: "web" (checkout completo) o "whatsapp" (modo WhatsApp).
+  channel                String            @default("web")
+  /// true = stock descontado al crear el pedido (comportamiento actual para checkout
+  /// completo). false = stock pendiente de descontar (pedidos WhatsApp).
+  stockDeducted          Boolean           @default(true)
   couponRedemption       CouponRedemption?
   customer               User?             @relation(fields: [customerId], references: [id])
   items                  OrderItem[]
