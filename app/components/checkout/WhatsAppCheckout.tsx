@@ -1,0 +1,428 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { useSession } from 'next-auth/react';
+import { Loader2, CheckCircle2, Lock, ShieldCheck } from 'lucide-react';
+import { useCart } from '@/context/CartContext';
+import { useExchangeRate } from '@/context/ExchangeRateContext';
+import ShippingForm, { type ShippingFormData, type ShippingFormHandle } from '@/app/components/checkout/ShippingForm';
+import PaymentForm, { type PaymentFormHandle } from '@/app/components/checkout/PaymentForm';
+import { formatCurrency } from '@/lib/utils';
+import type { ShippingEstimates } from '@/lib/shipping-estimates';
+import type { StoreSettings } from '@/lib/data-store';
+
+interface WhatsAppCheckoutProps {
+  pagoMovil: StoreSettings['pagoMovil'];
+  transferencia: StoreSettings['transferencia'];
+  supportPhone?: string;
+  binancePayId?: string;
+  binanceQrUrl?: string;
+  shippingEstimates?: ShippingEstimates;
+  whatsappOrderPhone?: string;
+  storeName?: string;
+}
+
+function buildAddress(shippingData: ShippingFormData): string {
+  if (shippingData.shippingMethod === 'tienda') return 'Retiro en tienda';
+  if (shippingData.shippingMethod === 'zoom') return 'Oficina ZOOM';
+  return 'Retiro en Oficina MRW';
+}
+
+function buildCity(shippingData: ShippingFormData): string {
+  if (shippingData.shippingMethod === 'mrw') return shippingData.mrwOffice ?? '';
+  if (shippingData.shippingMethod === 'zoom') return shippingData.zoomOfficeName ?? shippingData.zoomOfficeCity ?? '';
+  return 'Barquisimeto';
+}
+
+function buildState(shippingData: ShippingFormData): string {
+  if (shippingData.shippingMethod === 'mrw') return shippingData.mrwState ?? '';
+  if (shippingData.shippingMethod === 'zoom') return shippingData.zoomState ?? 'Lara';
+  return 'Lara';
+}
+
+function getShippingMethodLabel(shippingData: ShippingFormData): string {
+  if (shippingData.shippingMethod === 'tienda') return 'Retiro en tienda';
+  if (shippingData.shippingMethod === 'mrw') return 'MRW';
+  if (shippingData.shippingMethod === 'zoom') return 'ZOOM';
+  return 'No especificado';
+}
+
+const WhatsAppCheckout = ({
+  pagoMovil,
+  transferencia,
+  supportPhone,
+  binancePayId,
+  binanceQrUrl,
+  shippingEstimates,
+  whatsappOrderPhone = '',
+  storeName = 'MundoTech',
+}: WhatsAppCheckoutProps) => {
+  const { data: session } = useSession();
+  const { cart, clearCart, getCartTotal, isCartLoading, refreshCart } = useCart();
+  const { rate: exchangeRate } = useExchangeRate();
+  const router = useRouter();
+
+  const shippingRef = useRef<ShippingFormHandle>(null);
+  const paymentRef = useRef<PaymentFormHandle>(null);
+
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [completed, setCompleted] = useState(false);
+  const [waUrl, setWaUrl] = useState<string | null>(null);
+  // RUN-05: guard síncrono de reentrada
+  const submittingRef = useRef(false);
+
+  const subtotal = getCartTotal();
+  const total = subtotal;
+
+  // Al montar: refrescar carrito; si queda vacío, redirigir
+  useEffect(() => {
+    void refreshCart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!isCartLoading && cart.length === 0 && !completed) {
+      router.replace('/cart');
+    }
+  }, [isCartLoading, cart.length, completed, router]);
+
+  const handleRealizarCompra = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      // 1. Obtener datos de envío
+      const shipping = await shippingRef.current?.submit();
+      if (!shipping) {
+        submittingRef.current = false;
+        setIsProcessing(false);
+        // Hacer scroll al formulario de envío para que el usuario vea los errores
+        const shippingEl = document.getElementById('whatsapp-shipping-form');
+        if (shippingEl) {
+          shippingEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+
+      // 2. Obtener datos de pago
+      const payment = paymentRef.current?.submit();
+      if (!payment) {
+        submittingRef.current = false;
+        setIsProcessing(false);
+        return;
+      }
+
+      // 3. Construir payload del pedido (misma lógica que ReviewStep.handleConfirmOrder en modo WhatsApp)
+      const orderPayload = {
+        customerId: session?.user?.id || 'guest',
+        customerName: `${shipping.firstName} ${shipping.lastName}`,
+        customerEmail: shipping.email?.trim() || session?.user?.email?.trim() || null,
+        customerPhone: shipping.phoneNumber,
+        customerIdNumber: shipping.idNumber,
+        shippingMethod: shipping.shippingMethod,
+        shippingDetails: {
+          address: buildAddress(shipping),
+          city: buildCity(shipping),
+          state: buildState(shipping),
+          zipCode: 'N/A',
+          country: 'Venezuela',
+        },
+        paymentMethod:
+          payment.paymentMethod === 'pagomovil'
+            ? 'Pago Móvil'
+            : payment.paymentMethod === 'binancepay'
+              ? 'Binance Pay'
+              : payment.paymentMethod === 'cashea'
+                ? 'Cashea'
+                : 'Transferencia Bancaria',
+        paymentBank: payment.bank || null,
+        paymentHolderIdNumber: null,
+        paymentHolderPhone: null,
+        paymentReference: null,
+        paymentProofUrl: null,
+        couponCode: null,
+        items: cart.map((item) => ({
+          productId: item.id,
+          quantity: item.quantity,
+          imageUrl: item.image || item.images?.[0] || '',
+        })),
+      };
+
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderPayload),
+      });
+
+      const body = (await response.json().catch(() => ({}))) as {
+        id?: string;
+        orderNumber?: number;
+        message?: string;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError('Tu sesión expiró mientras completabas el pedido. Inicia sesión de nuevo.');
+          submittingRef.current = false;
+          setIsProcessing(false);
+          return;
+        }
+        const apiMsg = body.message ?? body.error ?? 'Error al crear el pedido.';
+        console.error('[whatsapp-checkout] API error:', response.status, body);
+        throw new Error(apiMsg);
+      }
+
+      clearCart();
+
+      if (!whatsappOrderPhone) {
+        // Sin número configurado: redirigir a success
+        router.push(`/checkout/success?orderId=${body.id}`);
+        return;
+      }
+
+      // Construir mensaje de WhatsApp
+      const { buildWhatsAppOrderMessage, buildWhatsAppOrderUrl } = await import('@/lib/whatsapp-order');
+      const orderRef = String(body.orderNumber ?? body.id).padStart(4, '0');
+      const waShippingText =
+        shipping.shippingMethod === 'mrw'
+          ? `Oficina MRW ${shipping.mrwOffice ?? ''}${shipping.mrwState ? `, ${shipping.mrwState}` : ''}`.trim()
+          : buildAddress(shipping);
+      const waMessage = buildWhatsAppOrderMessage({
+        orderRef,
+        customerName: `${shipping.firstName} ${shipping.lastName}`,
+        idNumber: shipping.idNumber,
+        phone: shipping.phoneNumber,
+        address: waShippingText,
+        shippingCompany: getShippingMethodLabel(shipping),
+        paymentMethod:
+          payment.paymentMethod === 'pagomovil'
+            ? 'Pago Móvil'
+            : payment.paymentMethod === 'binancepay'
+              ? 'Binance Pay'
+              : payment.paymentMethod === 'cashea'
+                ? 'Cashea'
+                : 'Transferencia Bancaria',
+        items: cart.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          priceUsd: item.price,
+        })),
+        totalUsd: total,
+        rate: exchangeRate,
+      });
+
+      const url = buildWhatsAppOrderUrl(whatsappOrderPhone, waMessage);
+      setWaUrl(url);
+      setCompleted(true);
+
+      // Auto-redirect a WhatsApp después de 1.5s
+      setTimeout(() => {
+        window.location.href = url;
+      }, 1500);
+    } catch (err) {
+      console.error('[whatsapp-checkout] handleRealizarCompra:', err);
+      if (err instanceof TypeError) {
+        setError('Sin conexión con la tienda. Revisa tu internet e intenta de nuevo.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Hubo un problema. Por favor, inténtalo de nuevo.');
+      }
+      submittingRef.current = false;
+      setIsProcessing(false);
+    }
+  };
+
+  // Pantalla de éxito
+  if (completed) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4 py-16">
+        <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-5">
+          <CheckCircle2 size={36} />
+        </div>
+        <h2 className="text-2xl font-bold text-navy mb-2">¡Pedido completado!</h2>
+        <p className="text-slate-500 max-w-md mb-6">
+          Te estamos redirigiendo a WhatsApp para coordinar tu pago…
+        </p>
+        <Loader2 size={24} className="animate-spin text-navy mb-6" />
+        {waUrl && (
+          <a
+            href={waUrl}
+            className="inline-flex items-center gap-2 bg-green-500 text-white font-semibold text-sm min-h-[52px] px-8 rounded-2xl hover:bg-green-600 active:scale-[0.98] shadow-soft hover:shadow-card transition-all"
+          >
+            Abrir WhatsApp
+          </a>
+        )}
+        <p className="text-xs text-slate-400 mt-4 max-w-sm">
+          Si no se abre automáticamente, haz clic en el botón de arriba para escribirnos.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pb-10 sm:pb-12 w-full max-w-full">
+      {/* Encabezado */}
+      <div className="-mx-4 sm:-mx-6 lg:-mx-8 w-[calc(100%+2rem)] sm:w-[calc(100%+3rem)] lg:w-[calc(100%+4rem)] section-band-navy mb-5 sm:mb-6 rounded-none sm:rounded-2xl overflow-hidden">
+        <div className="circuit-bg" aria-hidden />
+        <div className="relative px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+          <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+            Finalizar <span className="text-brand-yellow">compra</span>
+          </p>
+          <h1 className="mt-1 text-xl sm:text-2xl font-bold text-white tracking-tight">
+            {storeName} — Pedido por WhatsApp
+          </h1>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 sm:gap-6 lg:gap-8 items-start">
+        {/* Columna principal */}
+        <div className="lg:col-span-2 space-y-5 sm:space-y-6 order-2 lg:order-1">
+          <div className="card-elevated p-4 sm:p-6 lg:p-8">
+            <h2 className="text-xl font-semibold text-navy tracking-tight mb-6">Finalizar compra</h2>
+
+            {/* Sección de envío */}
+            <div id="whatsapp-shipping-form">
+              <ShippingForm
+                embedded
+                ref={shippingRef}
+                whatsappMode
+                onFormSubmit={() => {}}
+                initialData={null}
+                estimates={shippingEstimates}
+              />
+            </div>
+
+            {/* Separador */}
+            <div className="border-t border-slate-200 my-8" />
+
+            {/* Sección de pago */}
+            <PaymentForm
+              embedded
+              ref={paymentRef}
+              whatsappMode
+              onPaymentSubmit={() => {}}
+              pagoMovil={pagoMovil}
+              transferencia={transferencia}
+              binancePayId={binancePayId}
+              binanceQrUrl={binanceQrUrl}
+            />
+
+            {/* Separador */}
+            <div className="border-t border-slate-200 my-8" />
+
+            {/* Botón principal */}
+            {error && (
+              <div className="rounded-xl bg-rose-50 border border-rose-100 px-4 py-3 mb-4">
+                <p className="text-rose-700 text-sm">{error}</p>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleRealizarCompra}
+              disabled={isProcessing || cart.length === 0}
+              className="inline-flex w-full items-center justify-center gap-2 bg-brand-yellow text-navy font-bold text-base min-h-[56px] rounded-2xl hover:bg-[#FFE03A] active:scale-[0.98] shadow-soft hover:shadow-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" /> Enviando pedido…
+                </>
+              ) : (
+                'Realizar compra'
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* ── Resumen del pedido ── */}
+        <aside className="lg:col-span-1 order-1 lg:order-2">
+          <div className="lg:sticky lg:top-[96px] space-y-4">
+            <div className="card-elevated overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100">
+                <h2 className="text-base font-semibold text-navy">Tu pedido</h2>
+              </div>
+
+              <ul className="px-5 py-4 space-y-3 max-h-[260px] overflow-y-auto scrollbar-hide">
+                {isCartLoading ? (
+                  <li className="text-sm text-slate-500">Cargando…</li>
+                ) : cart.length === 0 ? (
+                  <li className="text-sm text-slate-500">Sin productos.</li>
+                ) : (
+                  cart.map((item) => (
+                    <li key={item.id} className="flex items-center gap-3">
+                      <div className="relative h-12 w-12 flex-shrink-0 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
+                        <Image
+                          src={item.image || item.images?.[0] || '/placeholder-product.png'}
+                          alt={item.name}
+                          fill
+                          sizes="48px"
+                          className="object-contain p-1.5"
+                        />
+                        <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-navy text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                          {item.quantity}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-navy line-clamp-1">{item.name}</p>
+                        <p className="text-[11px] text-slate-500 nums">{formatCurrency(item.price)}</p>
+                      </div>
+                      <p className="text-sm font-semibold text-navy nums whitespace-nowrap">
+                        {formatCurrency(item.price * item.quantity)}
+                      </p>
+                    </li>
+                  ))
+                )}
+              </ul>
+
+              <div className="px-5 py-4 bg-surface-muted border-t border-border space-y-2 text-sm">
+                <div className="flex justify-between text-slate-500">
+                  <span>Subtotal</span>
+                  <span className="text-navy font-medium nums">{formatCurrency(subtotal)}</span>
+                </div>
+                <div className="border-t border-slate-200 pt-3 mt-2 flex items-end justify-between">
+                  <span className="text-base font-semibold text-navy">Total</span>
+                  <span className="text-2xl font-bold text-navy nums tracking-tight">
+                    {formatCurrency(total)}
+                  </span>
+                </div>
+                {exchangeRate > 0 && (
+                  <p className="text-right text-[12px] text-slate-500 nums">
+                    ≈ Bs. {new Intl.NumberFormat('es-VE', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }).format(total * exchangeRate)}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Trust */}
+            <div className="card-elevated p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                <Lock size={16} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-navy">Compra protegida</p>
+                <p className="text-[11px] text-slate-500">Datos cifrados · No compartimos tu información.</p>
+              </div>
+            </div>
+
+            {supportPhone ? (
+              <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 text-center">
+                <ShieldCheck size={11} className="text-emerald-500 flex-shrink-0" />
+                ¿Dudas con tu pago? Escríbenos al {supportPhone} y te acompañamos.
+              </div>
+            ) : null}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+};
+
+export default WhatsAppCheckout;

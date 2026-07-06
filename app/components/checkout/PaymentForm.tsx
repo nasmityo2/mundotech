@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, Building, ChevronRight, Copy, Check, UploadCloud, X, Wallet } from 'lucide-react';
 import { Field } from '@/components/ui/Field';
@@ -26,6 +26,10 @@ export type PaymentFormData = {
   proofPreviewUrl:    string;
 };
 
+export type PaymentFormHandle = {
+  submit: () => PaymentFormData | null;
+};
+
 interface PaymentFormProps {
   onPaymentSubmit: (data: PaymentFormData) => void;
   /** Datos ya capturados: al volver desde Revisión el formulario se remonta y sin esto se perdía todo. */
@@ -41,6 +45,8 @@ interface PaymentFormProps {
   binanceQrUrl?: string;
   /** Modo WhatsApp: solo requiere método de pago, sin referencia ni comprobante. */
   whatsappMode?: boolean;
+  /** Si es true, oculta el botón "Revisar pedido" (modo embebido). */
+  embedded?: boolean;
 }
 
 /** Límites espejo de /api/checkout/upload-proof para fallar temprano en cliente. */
@@ -49,7 +55,7 @@ const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 const selectCls =
   'block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy';
 
-const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, binancePayId = '', binanceQrUrl = '', whatsappMode = false }: PaymentFormProps) => {
+const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPaymentSubmit, initialData, pagoMovil, transferencia, binancePayId = '', binanceQrUrl = '', whatsappMode = false, embedded = false }, ref) => {
   const [selected,        setSelected]        = useState<PaymentMethod | null>(initialData?.paymentMethod ?? null);
   const [copiedField,     setCopiedField]      = useState<string | null>(null);
   const [bank,            setBank]             = useState(initialData?.bank && initialData.bank !== 'Binance' ? initialData.bank : '');
@@ -113,6 +119,55 @@ const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, b
     });
   }, []);
 
+  const buildPaymentData = (): PaymentFormData => {
+    if (whatsappMode) {
+      return {
+        paymentMethod: selected!,
+        bank: selected === 'pagomovil' || selected === 'transferencia' ? bank : '',
+        holderIdNumber: '',
+        holderPhone: '',
+        referenceNumber: '',
+        proofFile: null,
+        proofPreviewUrl: '',
+      };
+    }
+    if (selected === 'cashea') {
+      return {
+        paymentMethod: 'cashea',
+        bank: '',
+        holderIdNumber: '',
+        holderPhone: '',
+        referenceNumber: '',
+        proofFile: null,
+        proofPreviewUrl: '',
+      };
+    }
+    if (selected === 'binancepay') {
+      return {
+        paymentMethod: 'binancepay',
+        bank: 'Binance',
+        holderIdNumber: '',
+        holderPhone: '',
+        referenceNumber,
+        proofFile,
+        proofPreviewUrl,
+      };
+    }
+    return {
+      paymentMethod: selected!,
+      bank,
+      holderIdNumber,
+      holderPhone,
+      referenceNumber,
+      proofFile,
+      proofPreviewUrl,
+    };
+  };
+
+  useImperativeHandle(ref, () => ({
+    submit: () => (validate() && selected) ? buildPaymentData() : null,
+  }));
+
   const validate = (): boolean => {
     const e: typeof errors = {};
     if (!selected) e.paymentMethod = 'Selecciona un método de pago.';
@@ -145,52 +200,7 @@ const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, b
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate() || !selected) return;
-    if (whatsappMode) {
-      // WhatsApp: envía método seleccionado sin referencia ni comprobante.
-      onPaymentSubmit({
-        paymentMethod: selected,
-        bank: selected === 'pagomovil' || selected === 'transferencia' ? bank : '',
-        holderIdNumber: '',
-        holderPhone: '',
-        referenceNumber: '',
-        proofFile: null,
-        proofPreviewUrl: '',
-      });
-      return;
-    }
-    if (selected === 'cashea') {
-      onPaymentSubmit({
-        paymentMethod: 'cashea',
-        bank: '',
-        holderIdNumber: '',
-        holderPhone: '',
-        referenceNumber: '',
-        proofFile: null,
-        proofPreviewUrl: '',
-      });
-      return;
-    }
-    if (selected === 'binancepay') {
-      onPaymentSubmit({
-        paymentMethod: 'binancepay',
-        bank: 'Binance',
-        holderIdNumber: '',
-        holderPhone: '',
-        referenceNumber,
-        proofFile,
-        proofPreviewUrl,
-      });
-      return;
-    }
-    onPaymentSubmit({
-      paymentMethod: selected,
-      bank,
-      holderIdNumber,
-      holderPhone,
-      referenceNumber,
-      proofFile,
-      proofPreviewUrl,
-    });
+    onPaymentSubmit(buildPaymentData());
   };
 
   const isBankManual = selected === 'pagomovil' || selected === 'transferencia';
@@ -600,20 +610,23 @@ const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, b
         </motion.div>
       )}
 
-      <div
-        className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 bg-white/95 backdrop-blur-sm border-t border-slate-100 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-0 sm:border-0 sm:bg-transparent sm:backdrop-blur-none"
-        style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
-      >
-        <button
-          type="submit"
-          disabled={!selected}
-          className="inline-flex w-full items-center justify-center gap-2 bg-brand-yellow text-navy font-bold text-sm min-h-[52px] rounded-2xl hover:bg-[#FFE03A] active:scale-[0.98] shadow-soft hover:shadow-card transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+      {!embedded && (
+        <div
+          className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 bg-white/95 backdrop-blur-sm border-t border-slate-100 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-0 sm:border-0 sm:bg-transparent sm:backdrop-blur-none"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
         >
-          Revisar pedido <ChevronRight size={16} />
-        </button>
-      </div>
+          <button
+            type="submit"
+            disabled={!selected}
+            className="inline-flex w-full items-center justify-center gap-2 bg-brand-yellow text-navy font-bold text-sm min-h-[52px] rounded-2xl hover:bg-[#FFE03A] active:scale-[0.98] shadow-soft hover:shadow-card transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Revisar pedido <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
     </form>
   );
-};
+});
 
+PaymentForm.displayName = 'PaymentForm';
 export default PaymentForm;

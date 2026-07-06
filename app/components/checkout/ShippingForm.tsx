@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { useSession } from 'next-auth/react';
 import { Store, Building2, ChevronRight, BookUser, Check, LogIn } from 'lucide-react';
@@ -29,6 +29,10 @@ export type ShippingFormData = {
   zoomOfficeCity?: string;
 };
 
+export type ShippingFormHandle = {
+  submit: () => Promise<ShippingFormData | null>;
+};
+
 interface ShippingFormProps {
   onFormSubmit: (data: ShippingFormData) => void;
   /** Datos ya capturados: al volver desde el paso de pago el formulario se remonta y sin esto se perdía lo escrito. */
@@ -37,9 +41,11 @@ interface ShippingFormProps {
   estimates?: ShippingEstimates;
   /** Modo WhatsApp: oculta cédula y email, añade campo de dirección. */
   whatsappMode?: boolean;
+  /** Si es true, oculta el botón "Continuar al pago" (modo embebido). */
+  embedded?: boolean;
 }
 
-const ShippingForm = ({ onFormSubmit, initialData, estimates, whatsappMode = false }: ShippingFormProps) => {
+const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onFormSubmit, initialData, estimates, whatsappMode = false, embedded = false }, ref) => {
   const { data: session } = useSession();
   const {
     register, handleSubmit, formState: { errors }, watch, setValue,
@@ -128,6 +134,12 @@ const ShippingForm = ({ onFormSubmit, initialData, estimates, whatsappMode = fal
         shippingMethod === 'mrw' ? selectedMrwState : shippingMethod === 'zoom' ? selectedZoomState : null,
       )
     : '';
+
+  useImperativeHandle(ref, () => ({
+    submit: () => new Promise<ShippingFormData | null>((resolve) => {
+      handleSubmit((data) => resolve(data), () => resolve(null))();
+    }),
+  }));
 
   const onSubmit: SubmitHandler<ShippingFormData> = (data) => onFormSubmit(data);
 
@@ -417,19 +429,22 @@ const ShippingForm = ({ onFormSubmit, initialData, estimates, whatsappMode = fal
         </div>
       )}
 
-      <div
-        className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 bg-white/95 backdrop-blur-sm border-t border-slate-100 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-0 sm:border-0 sm:bg-transparent sm:backdrop-blur-none"
-        style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
-      >
-        <button
-          type="submit"
-          className="inline-flex w-full items-center justify-center gap-2 bg-brand-yellow text-navy font-bold text-sm min-h-[52px] rounded-2xl hover:bg-[#FFE03A] active:scale-[0.98] shadow-soft hover:shadow-card transition-all"
+      {!embedded && (
+        <div
+          className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 bg-white/95 backdrop-blur-sm border-t border-slate-100 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-0 sm:border-0 sm:bg-transparent sm:backdrop-blur-none"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
         >
-          Continuar al pago <ChevronRight size={16} />
-        </button>
-      </div>
+          <button
+            type="submit"
+            className="inline-flex w-full items-center justify-center gap-2 bg-brand-yellow text-navy font-bold text-sm min-h-[52px] rounded-2xl hover:bg-[#FFE03A] active:scale-[0.98] shadow-soft hover:shadow-card transition-all"
+          >
+            Continuar al pago <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
     </form>
   );
-};
+});
 
+ShippingForm.displayName = 'ShippingForm';
 export default ShippingForm;
