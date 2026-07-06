@@ -438,7 +438,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
                 {paymentLabel}
               </dd>
             </div>
-            {isBankManual && (
+            {isBankManual && !whatsappMode && (
               <>
                 <div className="flex justify-between gap-3">
                   <dt className="text-slate-500">Banco</dt>
@@ -458,7 +458,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
                 </div>
               </>
             )}
-            {paymentData?.paymentMethod === 'binancepay' && (
+            {paymentData?.paymentMethod === 'binancepay' && !whatsappMode && (
               <>
                 <div className="flex justify-between gap-3">
                   <dt className="text-slate-500">Order ID Binance</dt>
@@ -476,7 +476,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
               </p>
             )}
           </dl>
-          {paymentData?.proofPreviewUrl ? (
+          {!whatsappMode && paymentData?.proofPreviewUrl ? (
             <div className="mt-3">
               <p className="text-[11px] text-slate-500 mb-1.5">Captura adjunta</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}

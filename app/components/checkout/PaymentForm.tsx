@@ -308,6 +308,13 @@ const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, b
         )}
       </AnimatePresence>
 
+      {whatsappMode && isBankManual && (
+        <p className="text-[12px] text-slate-600 leading-relaxed rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5">
+          Realiza el pago a estos datos. Al confirmar el pedido, te llevaremos a WhatsApp para
+          coordinar y enviar tu comprobante. No necesitas subirlo aquí.
+        </p>
+      )}
+
       <AnimatePresence mode="wait">
         {selected === 'binancepay' && (
           <motion.div
@@ -353,12 +360,13 @@ const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, b
                 </div>
               ) : null}
               <p className="text-[12px] text-slate-600 mt-3 leading-relaxed">
-                Envía el monto del pedido desde Binance a la cuenta indicada. Luego completa los datos abajo: el{' '}
-                <strong>Order ID</strong> que muestra Binance y una <strong>captura</strong> del pago. MundoTech
-                verificará el movimiento antes de preparar el envío.
+                {whatsappMode
+                  ? 'Envía el monto del pedido desde Binance a la cuenta indicada. Al confirmar, coordinamos el pago y nos envías el Order ID y la captura por WhatsApp.'
+                  : (<>Envía el monto del pedido desde Binance a la cuenta indicada. Luego completa los datos abajo: el <strong>Order ID</strong> que muestra Binance y una <strong>captura</strong> del pago. MundoTech verificará el movimiento antes de preparar el envío.</>)}
               </p>
             </div>
-            <div className="border-t border-amber-200/60 pt-4 space-y-4">
+            {!whatsappMode && (
+              <div className="border-t border-amber-200/60 pt-4 space-y-4">
               <Field
                 id="binanceReference"
                 label="Order ID / referencia en Binance"
@@ -428,6 +436,7 @@ const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, b
                 )}
               </div>
             </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -456,7 +465,7 @@ const PaymentForm = ({ onPaymentSubmit, initialData, pagoMovil, transferencia, b
       </AnimatePresence>
 
       {/* ── Datos del comprobante ── */}
-      {isBankManual && (
+      {isBankManual && !whatsappMode && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
