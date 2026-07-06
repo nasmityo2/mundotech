@@ -27,25 +27,30 @@ interface WhatsAppCheckoutProps {
 
 function buildAddress(shippingData: ShippingFormData): string {
   if (shippingData.shippingMethod === 'tienda') return 'Retiro en tienda';
-  if (shippingData.shippingMethod === 'zoom') return 'Oficina ZOOM';
+  if (shippingData.shippingMethod === 'zoom') {
+    const name = shippingData.zoomOfficeName?.trim();
+    const addr = shippingData.zoomOfficeAddress?.trim();
+    const base = name ? `Oficina ZOOM — ${name}` : 'Oficina ZOOM';
+    return addr ? `${base} (${addr})` : base;
+  }
   return 'Retiro en Oficina MRW';
 }
 
 function buildCity(shippingData: ShippingFormData): string {
   if (shippingData.shippingMethod === 'mrw') return shippingData.mrwOffice ?? '';
   if (shippingData.shippingMethod === 'zoom') {
-    const name = shippingData.zoomOfficeName;
-    const city = shippingData.zoomOfficeCity;
-    if (name || city) return name ?? city ?? '';
-    // Respaldo defensivo: resolver desde zoomOffices si los campos vienen vacíos
+    const city = shippingData.zoomOfficeCity?.trim();
+    if (city) return city;
+    // Respaldo defensivo desde zoomOffices
     if (shippingData.zoomState && shippingData.zoomOfficeIndex) {
       try {
         const offices = (zoomOffices as Record<string, ZoomOffice[]>)[shippingData.zoomState];
         const office = offices?.[Number(shippingData.zoomOfficeIndex)];
-        if (office) return office.name ?? office.city ?? '';
+        if (office?.city) return office.city;
       } catch { /* fallback */ }
     }
-    return 'Barquisimeto';
+    // Último recurso para no violar city.min(1) del checkoutSchema
+    return shippingData.zoomState || 'Venezuela';
   }
   return 'Barquisimeto';
 }
@@ -233,7 +238,9 @@ const WhatsAppCheckout = ({
       const waShippingText =
         shipping.shippingMethod === 'mrw'
           ? `Oficina MRW ${shipping.mrwOffice ?? ''}${shipping.mrwState ? `, ${shipping.mrwState}` : ''}`.trim()
-          : buildAddress(shipping);
+          : shipping.shippingMethod === 'zoom'
+            ? `${buildAddress(shipping)}, ${buildCity(shipping)}, ${buildState(shipping)}`.replace(/,\s*,/g, ',').trim()
+            : buildAddress(shipping);
       const waMessage = buildWhatsAppOrderMessage({
         orderRef,
         customerName: `${shipping.firstName} ${shipping.lastName}`,

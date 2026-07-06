@@ -246,7 +246,9 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
         const waShippingText =
           shippingData.shippingMethod === 'mrw'
             ? `Oficina MRW ${shippingData.mrwOffice ?? ''}${shippingData.mrwState ? `, ${shippingData.mrwState}` : ''}`.trim()
-            : buildAddress();
+            : shippingData.shippingMethod === 'zoom'
+              ? `${buildAddress()}, ${buildCity()}, ${buildState()}`.replace(/,\s*,/g, ',').trim()
+              : buildAddress();
         const waMessage = buildWhatsAppOrderMessage({
           orderRef,
           customerName: `${shippingData.firstName} ${shippingData.lastName}`,
