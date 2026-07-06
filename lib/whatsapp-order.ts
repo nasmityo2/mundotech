@@ -5,6 +5,7 @@ export function normalizeWaPhone(phone: string): string {
 export function buildWhatsAppOrderMessage(input: {
   orderRef: string;
   customerName: string;
+  idNumber?: string;
   phone: string;
   address: string;
   shippingCompany: string;
@@ -17,9 +18,10 @@ export function buildWhatsAppOrderMessage(input: {
   lines.push(`🛒 *Nuevo pedido MundoTech #${input.orderRef}*`);
   lines.push('');
   lines.push(`👤 *Cliente:* ${input.customerName}`);
+  if (input.idNumber?.trim()) lines.push(`🪪 *Cédula:* ${input.idNumber.trim()}`);
   lines.push(`📞 *Teléfono:* ${input.phone}`);
-  lines.push(`📍 *Dirección:* ${input.address}`);
   lines.push(`🚚 *Empresa de envío:* ${input.shippingCompany}`);
+  lines.push(`📍 *Entrega:* ${input.address}`);
   lines.push(`💳 *Método de pago:* ${input.paymentMethod}`);
   lines.push('');
   lines.push('*Productos:*');

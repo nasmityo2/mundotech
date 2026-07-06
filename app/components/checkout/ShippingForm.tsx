@@ -27,8 +27,6 @@ export type ShippingFormData = {
   zoomOfficeName?: string;
   zoomOfficeAddress?: string;
   zoomOfficeCity?: string;
-  /** Dirección completa de envío (solo en modo WhatsApp). */
-  fullAddress?: string;
 };
 
 interface ShippingFormProps {
@@ -311,17 +309,15 @@ const ShippingForm = ({ onFormSubmit, initialData, estimates, whatsappMode = fal
         <Field id="lastName" label="Apellido" error={errors.lastName?.message}>
           <Input id="lastName" autoComplete="family-name" {...register('lastName', { required: 'Requerido' })} invalid={!!errors.lastName} />
         </Field>
-        {!whatsappMode && (
-          <Field id="idNumber" label="Cédula de identidad" error={errors.idNumber?.message}>
-            <Input
-              id="idNumber"
-              placeholder="V-12345678"
-              autoComplete="off"
-              {...register('idNumber', { required: 'Requerido' })}
-              invalid={!!errors.idNumber}
-            />
-          </Field>
-        )}
+        <Field id="idNumber" label="Cédula de identidad" error={errors.idNumber?.message}>
+          <Input
+            id="idNumber"
+            placeholder="V-12345678"
+            autoComplete="off"
+            {...register('idNumber', { required: 'Requerido' })}
+            invalid={!!errors.idNumber}
+          />
+        </Field>
         <Field id="phoneNumber" label="Número de celular" error={errors.phoneNumber?.message}>
           <Input
             id="phoneNumber"
@@ -333,24 +329,7 @@ const ShippingForm = ({ onFormSubmit, initialData, estimates, whatsappMode = fal
             invalid={!!errors.phoneNumber}
           />
         </Field>
-        {whatsappMode ? (
-          <Field
-            id="fullAddress"
-            label="Dirección de envío completa"
-            error={errors.fullAddress?.message}
-            className="sm:col-span-2"
-          >
-            <textarea
-              id="fullAddress"
-              rows={3}
-              placeholder="Escribe tu dirección completa para el envío (estado, ciudad, calle, casa/apto, referencias)"
-              {...register('fullAddress', { required: 'La dirección de envío es requerida.' })}
-              className={`block w-full min-h-[48px] px-3.5 py-2.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy resize-y ${
-                errors.fullAddress ? 'border-rose-400 bg-rose-50' : ''
-              }`}
-            />
-          </Field>
-        ) : (
+        {!whatsappMode && (
           <Field
             id="email"
             label="Correo electrónico"

@@ -121,12 +121,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
   };
 
   const buildAddress = (): string => {
-    if (whatsappMode) {
-      return shippingData?.fullAddress?.trim() || 'Por definir';
-    }
-    if (shippingData?.shippingMethod === 'tienda') {
-      return 'Retiro en tienda';
-    }
+    if (shippingData?.shippingMethod === 'tienda') return 'Retiro en tienda';
     if (shippingData?.shippingMethod === 'zoom' && zoomOffice) {
       return `Oficina ZOOM ${zoomOffice.name}${zoomOffice.address ? ` — ${zoomOffice.address}` : ''}`;
     }
@@ -134,14 +129,12 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
   };
 
   const buildCity = (): string => {
-    if (whatsappMode) return 'N/A';
     if (shippingData?.shippingMethod === 'mrw') return shippingData.mrwOffice ?? '';
     if (shippingData?.shippingMethod === 'zoom' && zoomOffice) return zoomOffice.city || zoomOffice.name;
     return 'Barquisimeto';
   };
 
   const buildState = (): string => {
-    if (whatsappMode) return 'N/A';
     if (shippingData?.shippingMethod === 'mrw') return shippingData.mrwState ?? '';
     if (shippingData?.shippingMethod === 'zoom' && zoomOffice) return shippingData.zoomState ?? 'Lara';
     return 'Lara';
@@ -178,7 +171,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
         customerName: `${shippingData.firstName} ${shippingData.lastName}`,
         customerEmail: shippingData.email?.trim() || session?.user?.email?.trim() || null,
         customerPhone: shippingData.phoneNumber,
-        customerIdNumber: whatsappMode ? null : shippingData.idNumber,
+        customerIdNumber: shippingData.idNumber,
         shippingMethod: shippingData.shippingMethod,
         shippingDetails: {
           address: buildAddress(),
@@ -250,11 +243,16 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
         // Construir mensaje y redirigir a WhatsApp
         const { buildWhatsAppOrderMessage, buildWhatsAppOrderUrl } = await import('@/lib/whatsapp-order');
         const orderRef = String(body.orderNumber ?? body.id).padStart(4, '0');
+        const waShippingText =
+          shippingData.shippingMethod === 'mrw'
+            ? `Oficina MRW ${shippingData.mrwOffice ?? ''}${shippingData.mrwState ? `, ${shippingData.mrwState}` : ''}`.trim()
+            : buildAddress();
         const waMessage = buildWhatsAppOrderMessage({
           orderRef,
           customerName: `${shippingData.firstName} ${shippingData.lastName}`,
+          idNumber: shippingData.idNumber,
           phone: shippingData.phoneNumber,
-          address: buildAddress(),
+          address: waShippingText,
           shippingCompany: getShippingMethodLabel(),
           paymentMethod:
             paymentData.paymentMethod === 'pagomovil'
