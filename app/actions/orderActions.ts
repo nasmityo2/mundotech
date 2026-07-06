@@ -85,8 +85,9 @@ export async function validateOrderPayment(orderId: string): Promise<ValidateOrd
 
   if (needsStockDeduction) {
     // Envolver en transacción: descontar stock + actualizar estado atómicamente.
-    const updated = await prisma.$transaction(async (tx) => {
-      try {
+    let updated: Awaited<ReturnType<typeof loadFullOrder>>;
+    try {
+      updated = await prisma.$transaction(async (tx) => {
         // Cargar nombres de productos para mensaje de error
         const productIds = [...new Set(orderInfo.items.map((i) => i.productId))];
         const products = await tx.product.findMany({
@@ -96,35 +97,34 @@ export async function validateOrderPayment(orderId: string): Promise<ValidateOrd
         const productMap = new Map(products.map((p) => [p.id, p]));
 
         await deductOrderStockInTransaction(tx, orderInfo.items, productMap);
-      } catch (err) {
-        if (err instanceof CheckoutError) {
-          // Stock insuficiente — abortar y devolver error
-          throw err;
-        }
-        throw err;
+
+        const txnTransition = await tx.order.updateMany({
+          where: { id: orderId, status: 'Pendiente' satisfies OrderStatus },
+          data: {
+            status: 'En Proceso' satisfies OrderStatus,
+            paidAt: new Date(),
+            paymentVerifiedBy: adminEmail,
+            paymentRejectionReason: null,
+            stockDeducted: true,
+          },
+        });
+
+        if (txnTransition.count === 0) return null;
+
+        return tx.order.findUnique({
+          where: { id: orderId },
+          include: {
+            items: true,
+            customer: { select: { email: true, name: true } },
+          },
+        });
+      });
+    } catch (err) {
+      if (err instanceof CheckoutError) {
+        return { success: false, message: err.message };
       }
-
-      const txnTransition = await tx.order.updateMany({
-        where: { id: orderId, status: 'Pendiente' satisfies OrderStatus },
-        data: {
-          status: 'En Proceso' satisfies OrderStatus,
-          paidAt: new Date(),
-          paymentVerifiedBy: adminEmail,
-          paymentRejectionReason: null,
-          stockDeducted: true,
-        },
-      });
-
-      if (txnTransition.count === 0) return null;
-
-      return tx.order.findUnique({
-        where: { id: orderId },
-        include: {
-          items: true,
-          customer: { select: { email: true, name: true } },
-        },
-      });
-    });
+      throw err;
+    }
 
     if (!updated) {
       const current = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
