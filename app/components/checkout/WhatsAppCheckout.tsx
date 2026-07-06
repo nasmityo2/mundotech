@@ -121,6 +121,13 @@ const WhatsAppCheckout = ({
     }
   }, [isCartLoading, cart.length, completed, router]);
 
+  // Scroll al tope al mostrar la pantalla de éxito
+  useEffect(() => {
+    if (completed && typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }, [completed]);
+
   const handleRealizarCompra = async () => {
     if (submittingRef.current) return;
     submittingRef.current = true;

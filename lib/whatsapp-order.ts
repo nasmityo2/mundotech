@@ -15,14 +15,14 @@ export function buildWhatsAppOrderMessage(input: {
   rate: number;
 }): string {
   const lines: string[] = [];
-  lines.push(`🛒 *Nuevo pedido MundoTech #${input.orderRef}*`);
+  lines.push(`\u{1F6D2} *Nuevo pedido MundoTech #${input.orderRef}*`);
   lines.push('');
-  lines.push(`👤 *Cliente:* ${input.customerName}`);
-  if (input.idNumber?.trim()) lines.push(`🪪 *Cédula:* ${input.idNumber.trim()}`);
-  lines.push(`📞 *Teléfono:* ${input.phone}`);
-  lines.push(`🚚 *Empresa de envío:* ${input.shippingCompany}`);
-  lines.push(`📍 *Entrega:* ${input.address}`);
-  lines.push(`💳 *Método de pago:* ${input.paymentMethod}`);
+  lines.push(`\u{1F464} *Cliente:* ${input.customerName}`);
+  if (input.idNumber?.trim()) lines.push(`\u{1F194} *Cédula:* ${input.idNumber.trim()}`);
+  lines.push(`\u{1F4DE} *Teléfono:* ${input.phone}`);
+  lines.push(`\u{1F69A} *Empresa de envío:* ${input.shippingCompany}`);
+  lines.push(`\u{1F4CD} *Entrega:* ${input.address}`);
+  lines.push(`\u{1F4B3} *Método de pago:* ${input.paymentMethod}`);
   lines.push('');
   lines.push('*Productos:*');
   for (const item of input.items) {
@@ -30,9 +30,9 @@ export function buildWhatsAppOrderMessage(input: {
   }
   lines.push('');
   const totalBs = input.totalUsd * input.rate;
-  lines.push(`💰 *Total:* $${input.totalUsd.toFixed(2)} ≈ Bs. ${totalBs.toFixed(2)} (tasa: Bs. ${input.rate.toFixed(2)})`);
+  lines.push(`\u{1F4B0} *Total:* $${input.totalUsd.toFixed(2)} ≈ Bs. ${totalBs.toFixed(2)} (tasa: Bs. ${input.rate.toFixed(2)})`);
   lines.push('');
-  lines.push('✅ *Pendiente de confirmación por MundoTech*');
+  lines.push('\u{2705} *Pendiente de confirmación por MundoTech*');
   return lines.join('\n');
 }
 
