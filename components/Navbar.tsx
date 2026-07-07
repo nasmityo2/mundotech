@@ -110,10 +110,10 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
           }`}
         >
           <div className="container mx-auto px-3 sm:px-6 lg:px-8 max-w-[1400px]">
-            <div className="flex items-center h-[60px] sm:h-[72px] gap-2 sm:gap-5">
+            <div className="flex items-center h-[60px] sm:h-[72px] gap-2 sm:gap-5 overflow-x-clip">
 
               {/* Hamburguesa + Logo */}
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                 <button
                   type="button"
                   onClick={openDrawer}
@@ -124,7 +124,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                 </button>
 
                 {/* PERF-04: sin priority — la imagen LCP es el hero, no el logo. */}
-                <Logo variant="light" size="md" className="ml-0.5 sm:ml-1" />
+                <Logo variant="light" size="md" className="h-9 w-auto sm:h-12 ml-0.5 sm:ml-1" />
 
                 <button
                   type="button"
@@ -276,7 +276,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                 <button
                   type="button"
                   onClick={onCartClick}
-                  className={`relative flex items-center gap-1.5 sm:gap-2 min-h-[44px] px-2.5 sm:pl-3 sm:pr-4 ml-0.5 sm:ml-1
+                  className={`relative flex items-center gap-1.5 sm:gap-2 min-h-[44px] px-2 sm:pl-3 sm:pr-4 ml-0 sm:ml-1
                              bg-navy text-white text-sm font-semibold rounded-full
                              hover:bg-navy-700 active:bg-navy-800 shadow-soft hover:shadow-card transition-all
                              ${itemAdded ? 'animate-cart-pop motion-reduce:animate-none' : ''}`}
