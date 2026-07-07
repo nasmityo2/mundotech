@@ -241,13 +241,6 @@
     overflow-x: hidden;
   }
 
-  /* Logo auto: light por defecto; dark dentro de superficies navy */
-  [data-logo-surface='dark'] .logo-auto-light {
-    display: none;
-  }
-  [data-logo-surface='dark'] .logo-auto-dark {
-    display: inline-flex !important;
-  }
 }
 
 /* ── Tarjetas elevadas (retail: Amazon / Target) ─────────────────────────── */

@@ -4,14 +4,11 @@ import { cn } from '@/lib/utils';
 
 export type LogoVariant = 'light' | 'dark' | 'auto';
 
-const SRC = {
-  light: '/logo-light.png',
-  dark: '/logo-dark.png',
-} as const;
+const SRC = '/logo-light.png';
 
 const SIZES = {
   sm: { width: 120, height: 30, className: 'h-7 w-auto' },
-  md: { width: 148, height: 36, className: 'h-9 w-auto' },
+  md: { width: 148, height: 36, className: 'h-9 w-auto sm:h-10' },
   lg: { width: 180, height: 44, className: 'h-11 w-auto' },
 } as const;
 
@@ -30,7 +27,7 @@ export interface LogoProps {
  * y variant="dark" en bandas navy (footer, auth, hero).
  */
 export default function Logo({
-  variant = 'light',
+  variant: _variant,
   size = 'md',
   className,
   href = '/',
@@ -38,9 +35,9 @@ export default function Logo({
 }: LogoProps) {
   const dims = SIZES[size];
 
-  const img = (v: 'light' | 'dark', extra?: string) => (
+  const img = (extra?: string) => (
     <Image
-      src={SRC[v]}
+      src={SRC}
       alt="MundoTech — Conectados Contigo"
       width={dims.width}
       height={dims.height}
@@ -49,18 +46,8 @@ export default function Logo({
     />
   );
 
-  const content =
-    variant === 'auto' ? (
-      <span className="inline-flex items-center">
-        <span className="logo-auto-light">{img('light')}</span>
-        <span className="logo-auto-dark hidden">{img('dark')}</span>
-      </span>
-    ) : (
-      img(variant)
-    );
-
   if (href === false) {
-    return <span className="inline-flex items-center">{content}</span>;
+    return <span className="inline-flex items-center">{img()}</span>;
   }
 
   return (
@@ -69,7 +56,7 @@ export default function Logo({
       className="inline-flex items-center min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2 rounded-lg"
       aria-label="MundoTech — Ir al inicio"
     >
-      {content}
+      {img()}
     </Link>
   );
 }
