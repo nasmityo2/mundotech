@@ -6,10 +6,12 @@ export type LogoVariant = 'light' | 'dark' | 'auto';
 
 const SRC = '/logo-light.png';
 
+// Real aspect ratio of trimmed logo PNG: 440 × 136 ≈ 3.24 : 1
+const RATIO = 440 / 136;
 const SIZES = {
-  sm: { width: 120, height: 30, className: 'h-7 w-auto' },
-  md: { width: 148, height: 36, className: 'h-9 w-auto sm:h-10' },
-  lg: { width: 180, height: 44, className: 'h-11 w-auto' },
+  sm: { width: Math.round(40 * RATIO), height: 40, className: 'h-9 w-auto' },
+  md: { width: Math.round(48 * RATIO), height: 48, className: 'h-11 w-auto sm:h-12' },
+  lg: { width: Math.round(56 * RATIO), height: 56, className: 'h-14 w-auto' },
 } as const;
 
 export interface LogoProps {
@@ -42,7 +44,7 @@ export default function Logo({
       width={dims.width}
       height={dims.height}
       priority={priority}
-      className={cn(dims.className, extra, className)}
+      className={cn('object-contain', dims.className, extra, className)}
     />
   );
 

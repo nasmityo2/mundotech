@@ -1,5 +1,7 @@
 'use client';
 
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+
 interface Props {
   url: string;
   alt: string;
@@ -13,8 +15,6 @@ interface Props {
  * inicial de la página de producto.
  */
 export default function ZoomLightbox({ url, alt, zoomed, onZoomChange }: Props) {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { TransformWrapper, TransformComponent } = require('react-zoom-pan-pinch');
 
   return (
     <TransformWrapper
