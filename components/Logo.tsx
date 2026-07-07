@@ -9,12 +9,17 @@ const SRC: Record<'light' | 'dark', string> = {
   dark:  '/logo-dark.png',
 };
 
-// Real aspect ratio of centered logo PNG: 510 × 206 ≈ 2.48 : 1
-const RATIO = 510 / 206;
+// Per-variant aspect ratios from processed PNGs:
+//   logo-light.png (MUNDO negro, para fondo claro)   478×133 → 3.5940
+//   logo-dark.png  (MUNDO blanco, para fondo navy)   480×151 → 3.1788
+const RATIO: Record<'light' | 'dark', number> = {
+  light: 478 / 133,   // ≈ 3.5940
+  dark:  480 / 151,   // ≈ 3.1788
+};
 const SIZES = {
-  sm: { width: Math.round(40 * RATIO), height: 40, className: 'h-9 w-auto' },
-  md: { width: Math.round(48 * RATIO), height: 48, className: 'h-11 w-auto sm:h-12' },
-  lg: { width: Math.round(56 * RATIO), height: 56, className: 'h-14 w-auto' },
+  sm: { height: 40, className: 'h-9 w-auto' },
+  md: { height: 48, className: 'h-11 w-auto sm:h-12' },
+  lg: { height: 56, className: 'h-14 w-auto' },
 } as const;
 
 export interface LogoProps {
@@ -39,14 +44,17 @@ export default function Logo({
   priority = false,
 }: LogoProps) {
   // 'auto' aún no tiene soporte CSS en el proyecto → trátalo como 'light'
-  const src = SRC[variant === 'dark' ? 'dark' : 'light'];
+  const resolvedVariant = variant === 'dark' ? 'dark' : 'light';
+  const src = SRC[resolvedVariant];
   const dims = SIZES[size];
+  const ratio = RATIO[resolvedVariant];
+  const width = Math.round(dims.height * ratio);
 
   const img = (extra?: string) => (
     <Image
       src={src}
       alt="MundoTech — Conectados Contigo"
-      width={dims.width}
+      width={width}
       height={dims.height}
       priority={priority}
       className={cn('object-contain', dims.className, extra, className)}

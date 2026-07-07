@@ -124,7 +124,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                 </button>
 
                 {/* PERF-04: sin priority — la imagen LCP es el hero, no el logo. */}
-                <Logo variant="light" size="md" className="h-9 w-auto sm:h-12 ml-0.5 sm:ml-1" />
+                <Logo variant="light" size="md" className="h-7 w-auto sm:h-12 ml-0.5 sm:ml-1" />
 
                 <button
                   type="button"
