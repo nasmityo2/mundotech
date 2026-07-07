@@ -33,9 +33,9 @@ describe('DEFAULT_SETTINGS (PRD-101)', () => {
 });
 
 describe('storeSettingsSchema', () => {
-  it('rechaza guardar settings con datos bancarios vacíos (el admin no puede persistir placeholders)', () => {
+  it('acepta settings con TODOS los datos bancarios vacíos (estado tienda recién instalada)', () => {
     const result = storeSettingsSchema.safeParse(DEFAULT_SETTINGS);
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it('acepta settings completos', () => {
@@ -50,5 +50,21 @@ describe('storeSettingsSchema', () => {
       },
     });
     expect(result.success).toBe(true);
+  });
+
+  it('rechaza Pago Móvil llenado a medias (todo-o-nada)', () => {
+    const result = storeSettingsSchema.safeParse({
+      ...DEFAULT_SETTINGS,
+      pagoMovil: { bank: 'Banesco', phone: '', idNumber: '' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza Transferencia llenada a medias (todo-o-nada)', () => {
+    const result = storeSettingsSchema.safeParse({
+      ...DEFAULT_SETTINGS,
+      transferencia: { bank: 'Mercantil', accountNumber: '', accountHolder: '', rif: '' },
+    });
+    expect(result.success).toBe(false);
   });
 });

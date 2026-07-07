@@ -4,10 +4,13 @@ import { cn } from '@/lib/utils';
 
 export type LogoVariant = 'light' | 'dark' | 'auto';
 
-const SRC = '/logo-light.png';
+const SRC: Record<'light' | 'dark', string> = {
+  light: '/logo-light.png',
+  dark:  '/logo-dark.png',
+};
 
-// Real aspect ratio of trimmed logo PNG: 440 × 136 ≈ 3.24 : 1
-const RATIO = 440 / 136;
+// Real aspect ratio of centered logo PNG: 510 × 206 ≈ 2.48 : 1
+const RATIO = 510 / 206;
 const SIZES = {
   sm: { width: Math.round(40 * RATIO), height: 40, className: 'h-9 w-auto' },
   md: { width: Math.round(48 * RATIO), height: 48, className: 'h-11 w-auto sm:h-12' },
@@ -29,17 +32,19 @@ export interface LogoProps {
  * y variant="dark" en bandas navy (footer, auth, hero).
  */
 export default function Logo({
-  variant: _variant,
+  variant = 'light',
   size = 'md',
   className,
   href = '/',
   priority = false,
 }: LogoProps) {
+  // 'auto' aún no tiene soporte CSS en el proyecto → trátalo como 'light'
+  const src = SRC[variant === 'dark' ? 'dark' : 'light'];
   const dims = SIZES[size];
 
   const img = (extra?: string) => (
     <Image
-      src={SRC}
+      src={src}
       alt="MundoTech — Conectados Contigo"
       width={dims.width}
       height={dims.height}

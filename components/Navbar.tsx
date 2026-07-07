@@ -113,7 +113,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
             <div className="flex items-center h-[60px] sm:h-[72px] gap-2 sm:gap-5">
 
               {/* Hamburguesa + Logo */}
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                 <button
                   type="button"
                   onClick={openDrawer}
@@ -124,7 +124,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                 </button>
 
                 {/* PERF-04: sin priority — la imagen LCP es el hero, no el logo. */}
-                <Logo variant="light" size="md" />
+                <Logo variant="light" size="md" className="ml-0.5 sm:ml-1" />
 
                 <button
                   type="button"
