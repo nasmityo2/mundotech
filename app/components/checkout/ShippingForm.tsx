@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/Input';
 import { getSavedAddresses } from '@/app/actions/addressActions';
 import type { SavedAddress, ShippingMethod } from '@/lib/definitions';
 import { estimateFor, type ShippingEstimates } from '@/lib/shipping-estimates';
+import OfficeSelect from '@/app/components/checkout/OfficeSelect';
+import type { OfficeOption } from '@/app/components/checkout/OfficeSelect';
 
 export type ShippingFormData = {
   firstName:   string;
@@ -251,27 +253,10 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
     ? (zoomOffices as Record<string, ZoomOffice[]>)[selectedZoomState] ?? []
     : [];
 
-  // Zoom: etiqueta para el <select>
-  const zoomOptionLabel = (o: ZoomOffice): string => {
-    if (o.address?.trim()) {
-      return `${o.name} · ${o.address} · ${o.city}`;
-    }
-    return `${o.name} · ${o.city}`;
-  };
-
   // Tealca: las oficinas filtradas por estado seleccionado
   const tealcaOfficesForState: TealcaOffice[] = selectedTealcaState
     ? (tealcaOffices as Record<string, TealcaOffice[]>)[selectedTealcaState] ?? []
     : [];
-
-  // Tealca: etiqueta para el <select>
-  const tealcaOptionLabel = (o: TealcaOffice): string => {
-    const parts = [o.name];
-    if (o.address?.trim()) parts.push(o.address);
-    if (o.city?.trim()) parts.push(o.city);
-    const base = parts.join(' · ');
-    return o.code ? `${base} (cód. ${o.code})` : base;
-  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-7">
@@ -533,18 +518,23 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
             </select>
           </Field>
           <Field id="mrwOffice" label="Oficina MRW" error={errors.mrwOffice?.message}>
-            <select
-              id="mrwOffice"
-              disabled={!selectedMrwState}
-              {...register('mrwOffice', { required: 'Selecciona una oficina' })}
-              className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              <option value="">Selecciona…</option>
-              {selectedMrwState &&
-                (mrwOffices as Record<string, string[]>)[selectedMrwState]?.map((o) => (
-                  <option key={o} value={o}>{o}</option>
-                ))}
-            </select>
+            {(() => {
+              const mrwOptions: OfficeOption[] = selectedMrwState
+                ? ((mrwOffices as Record<string, string[]>)[selectedMrwState] ?? []).map((nombre) => ({ name: nombre }))
+                : [];
+              return (
+                <OfficeSelect
+                  options={mrwOptions}
+                  selectedIndex={(() => {
+                    const i = mrwOptions.findIndex((o) => o.name === watch('mrwOffice'));
+                    return i >= 0 ? i : null;
+                  })()}
+                  disabled={!selectedMrwState}
+                  error={!!errors.mrwOffice}
+                  onSelect={(_, o) => setValue('mrwOffice', o.name, { shouldValidate: true })}
+                />
+              );
+            })()}
           </Field>
         </div>
       )}
@@ -565,32 +555,18 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
             </select>
           </Field>
           <Field id="zoomOfficeIndex" label="Oficina ZOOM" error={errors.zoomOfficeIndex?.message}>
-            <select
-              id="zoomOfficeIndex"
+            <OfficeSelect
+              options={zoomOfficesForState}
+              selectedIndex={watch('zoomOfficeIndex') ? Number(watch('zoomOfficeIndex')) : null}
               disabled={!selectedZoomState}
-              {...register('zoomOfficeIndex', { required: 'Selecciona una oficina', onChange: (e) => {
-                const val = e.target.value;
-                if (val === '') {
-                  setValue('zoomOfficeName', '');
-                  setValue('zoomOfficeAddress', '');
-                  setValue('zoomOfficeCity', '');
-                } else {
-                  const idx = Number(val);
-                  const office = zoomOfficesForState[idx];
-                  if (office) {
-                    setValue('zoomOfficeName', office.name);
-                    setValue('zoomOfficeAddress', office.address ?? '');
-                    setValue('zoomOfficeCity', office.city);
-                  }
-                }
-              }})}
-              className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              <option value="">Selecciona…</option>
-              {zoomOfficesForState.map((o, idx) => (
-                <option key={idx} value={String(idx)}>{zoomOptionLabel(o)}</option>
-              ))}
-            </select>
+              error={!!errors.zoomOfficeIndex}
+              onSelect={(idx, o) => {
+                setValue('zoomOfficeIndex', String(idx), { shouldValidate: true });
+                setValue('zoomOfficeName', o.name);
+                setValue('zoomOfficeAddress', o.address ?? '');
+                setValue('zoomOfficeCity', o.city);
+              }}
+            />
           </Field>
         </div>
       )}
@@ -611,32 +587,18 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
             </select>
           </Field>
           <Field id="tealcaOfficeIndex" label="Oficina TEALCA" error={errors.tealcaOfficeIndex?.message}>
-            <select
-              id="tealcaOfficeIndex"
+            <OfficeSelect
+              options={tealcaOfficesForState}
+              selectedIndex={watch('tealcaOfficeIndex') ? Number(watch('tealcaOfficeIndex')) : null}
               disabled={!selectedTealcaState}
-              {...register('tealcaOfficeIndex', { required: 'Selecciona una oficina', onChange: (e) => {
-                const val = e.target.value;
-                if (val === '') {
-                  setValue('tealcaOfficeName', '');
-                  setValue('tealcaOfficeAddress', '');
-                  setValue('tealcaOfficeCity', '');
-                } else {
-                  const idx = Number(val);
-                  const office = tealcaOfficesForState[idx];
-                  if (office) {
-                    setValue('tealcaOfficeName', office.name);
-                    setValue('tealcaOfficeAddress', office.address ?? '');
-                    setValue('tealcaOfficeCity', office.city);
-                  }
-                }
-              }})}
-              className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              <option value="">Selecciona…</option>
-              {tealcaOfficesForState.map((o, idx) => (
-                <option key={idx} value={String(idx)}>{tealcaOptionLabel(o)}</option>
-              ))}
-            </select>
+              error={!!errors.tealcaOfficeIndex}
+              onSelect={(idx, o) => {
+                setValue('tealcaOfficeIndex', String(idx), { shouldValidate: true });
+                setValue('tealcaOfficeName', o.name);
+                setValue('tealcaOfficeAddress', o.address ?? '');
+                setValue('tealcaOfficeCity', o.city ?? '');
+              }}
+            />
           </Field>
         </div>
       )}

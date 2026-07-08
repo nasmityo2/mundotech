@@ -10,6 +10,8 @@ import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
 import { tealcaOffices, type TealcaOffice } from '@/lib/tealca-offices';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import type { SavedAddress, SavedAddressInput, ShippingMethod } from '@/lib/definitions';
+import OfficeSelect from '@/app/components/checkout/OfficeSelect';
+import type { OfficeOption } from '@/app/components/checkout/OfficeSelect';
 
 type FormValues = {
   alias:           string;
@@ -248,18 +250,23 @@ export default function AddressFormModal({
                 </select>
               </Field>
               <Field id="mrwOffice" label="Oficina MRW" error={errors.mrwOffice?.message}>
-                <select
-                  id="mrwOffice"
-                  disabled={!selectedState}
-                  {...register('mrwOffice', { required: method === 'mrw' ? 'Selecciona una oficina.' : false })}
-                  className={`${selectCls} disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <option value="">Selecciona…</option>
-                  {selectedState &&
-                    (mrwOffices as Record<string, string[]>)[selectedState]?.map((o) => (
-                      <option key={o} value={o}>{o}</option>
-                    ))}
-                </select>
+                {(() => {
+                  const mrwOptions: OfficeOption[] = selectedState
+                    ? ((mrwOffices as Record<string, string[]>)[selectedState] ?? []).map((nombre) => ({ name: nombre }))
+                    : [];
+                  return (
+                    <OfficeSelect
+                      options={mrwOptions}
+                      selectedIndex={(() => {
+                        const i = mrwOptions.findIndex((o) => o.name === watch('mrwOffice'));
+                        return i >= 0 ? i : null;
+                      })()}
+                      disabled={!selectedState}
+                      error={!!errors.mrwOffice}
+                      onSelect={(_, o) => setValue('mrwOffice', o.name)}
+                    />
+                  );
+                })()}
               </Field>
             </div>
           )}
@@ -280,21 +287,20 @@ export default function AddressFormModal({
                 </select>
               </Field>
               <Field id="zoomOfficeIndex" label="Oficina ZOOM" error={errors.zoomOfficeIndex?.message}>
-                <select
-                  id="zoomOfficeIndex"
-                  disabled={!selectedState}
-                  {...register('zoomOfficeIndex', { required: method === 'zoom' ? 'Selecciona una oficina.' : false })}
-                  className={`${selectCls} disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <option value="">Selecciona…</option>
-                  {selectedState &&
-                    (zoomOffices as Record<string, ZoomOffice[]>)[selectedState]?.map((o, idx) => {
-                      const label = o.address?.trim()
-                        ? `${o.name} · ${o.address} · ${o.city}`
-                        : `${o.name} · ${o.city}`;
-                      return <option key={idx} value={String(idx)}>{label}</option>;
-                    })}
-                </select>
+                {(() => {
+                  const zoomOptions: ZoomOffice[] = selectedState
+                    ? (zoomOffices as Record<string, ZoomOffice[]>)[selectedState] ?? []
+                    : [];
+                  return (
+                    <OfficeSelect
+                      options={zoomOptions}
+                      selectedIndex={watch('zoomOfficeIndex') ? Number(watch('zoomOfficeIndex')) : null}
+                      disabled={!selectedState}
+                      error={!!errors.zoomOfficeIndex}
+                      onSelect={(idx) => setValue('zoomOfficeIndex', String(idx))}
+                    />
+                  );
+                })()}
               </Field>
             </div>
           )}
@@ -315,19 +321,20 @@ export default function AddressFormModal({
                 </select>
               </Field>
               <Field id="tealcaOfficeIndex" label="Oficina TEALCA" error={errors.tealcaOfficeIndex?.message}>
-                <select
-                  id="tealcaOfficeIndex"
-                  disabled={!selectedState}
-                  {...register('tealcaOfficeIndex', { required: method === 'tealca' ? 'Selecciona una oficina.' : false })}
-                  className={`${selectCls} disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  <option value="">Selecciona…</option>
-                  {selectedState &&
-                    (tealcaOffices as Record<string, TealcaOffice[]>)[selectedState]?.map((o, idx) => {
-                      const label = `${o.name} · ${o.city}${o.code ? ` (cód. ${o.code})` : ''}`;
-                      return <option key={idx} value={String(idx)}>{label}</option>;
-                    })}
-                </select>
+                {(() => {
+                  const tealcaOptions: TealcaOffice[] = selectedState
+                    ? (tealcaOffices as Record<string, TealcaOffice[]>)[selectedState] ?? []
+                    : [];
+                  return (
+                    <OfficeSelect
+                      options={tealcaOptions}
+                      selectedIndex={watch('tealcaOfficeIndex') ? Number(watch('tealcaOfficeIndex')) : null}
+                      disabled={!selectedState}
+                      error={!!errors.tealcaOfficeIndex}
+                      onSelect={(idx) => setValue('tealcaOfficeIndex', String(idx))}
+                    />
+                  );
+                })()}
               </Field>
             </div>
           )}
