@@ -24,7 +24,9 @@ export const shippingEstimatesSchema = z.object({
   mrw: z.string().max(200).optional().default(''),
   /** Nota general para ZOOM (fallback si el estado no tiene override). */
   zoom: z.string().max(200).optional().default(''),
-  /** Overrides por estado (aplican a MRW y ZOOM). */
+  /** Nota general para TEALCA (fallback si el estado no tiene override). */
+  tealca: z.string().max(200).optional().default(''),
+  /** Overrides por estado (aplican a MRW, ZOOM y TEALCA). */
   states: z.array(stateEstimateSchema).max(30).optional().default([]),
 });
 
@@ -34,13 +36,14 @@ export const DEFAULT_SHIPPING_ESTIMATES: ShippingEstimates = {
   tienda: '',
   mrw: '',
   zoom: '',
+  tealca: '',
   states: [],
 };
 
 /** Nota a mostrar para un método + estado (override por estado > nota del método). */
 export function estimateFor(
   estimates: ShippingEstimates,
-  method: 'tienda' | 'mrw' | 'zoom',
+  method: 'tienda' | 'mrw' | 'zoom' | 'tealca',
   state?: string | null,
 ): string {
   if (method === 'tienda') return estimates.tienda.trim();

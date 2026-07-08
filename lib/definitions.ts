@@ -221,7 +221,7 @@ export interface Order {
 // LIBRO DE DIRECCIONES
 // ─────────────────────────────────────────────────────────────
 
-export type ShippingMethod = 'tienda' | 'mrw' | 'zoom';
+export type ShippingMethod = 'tienda' | 'mrw' | 'zoom' | 'tealca';
 
 export interface SavedAddress {
   id:             string;

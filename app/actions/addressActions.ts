@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import type { SavedAddress, SavedAddressInput, ShippingMethod } from '@/lib/definitions';
 import { mrwOffices } from '@/lib/mrw-offices';
 import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
+import { tealcaOffices, type TealcaOffice } from '@/lib/tealca-offices';
 
 interface ActionResult {
   success: boolean;
@@ -42,6 +43,21 @@ function validateZoomSelection(data: SavedAddressInput): string | null {
   const name = data.mrwOffice?.trim() ?? '';
   if (!offices.some((o) => o.name === name)) {
     return 'La oficina ZOOM seleccionada no corresponde a ese estado.';
+  }
+  return null;
+}
+
+/**
+ * Valida estado y oficina TEALCA contra la lista blanca de lib/tealca-offices.ts.
+ * Devuelve un mensaje de error o null si es válido.
+ */
+function validateTealcaSelection(data: SavedAddressInput): string | null {
+  if (data.shippingMethod !== 'tealca') return null;
+  const offices = (tealcaOffices as Record<string, TealcaOffice[]>)[data.mrwState?.trim() ?? ''];
+  if (!offices) return 'El estado TEALCA seleccionado no es válido.';
+  const name = data.mrwOffice?.trim() ?? '';
+  if (!offices.some((o) => o.name === name)) {
+    return 'La oficina TEALCA seleccionada no corresponde a ese estado.';
   }
   return null;
 }
@@ -115,24 +131,22 @@ export async function createSavedAddress(
   if (!data.lastName?.trim()) return { success: false, message: 'El apellido es requerido.' };
   if (!data.idNumber?.trim()) return { success: false, message: 'La cédula es requerida.' };
   if (!data.phoneNumber?.trim()) return { success: false, message: 'El teléfono es requerido.' };
-  const isCarrierMethod = data.shippingMethod === 'mrw' || data.shippingMethod === 'zoom';
+  const isCarrierMethod = data.shippingMethod === 'mrw' || data.shippingMethod === 'zoom' || data.shippingMethod === 'tealca';
 
   if (isCarrierMethod && !data.mrwState?.trim()) {
-    return {
-      success: false,
-      message: data.shippingMethod === 'mrw' ? 'Selecciona un estado para MRW.' : 'Selecciona un estado para ZOOM.',
-    };
+    const label = { mrw: 'MRW', zoom: 'ZOOM', tealca: 'TEALCA' }[data.shippingMethod] ?? '';
+    return { success: false, message: `Selecciona un estado para ${label}.` };
   }
   if (isCarrierMethod && !data.mrwOffice?.trim()) {
-    return {
-      success: false,
-      message: data.shippingMethod === 'mrw' ? 'Selecciona una oficina MRW.' : 'Selecciona una oficina ZOOM.',
-    };
+    const label = { mrw: 'MRW', zoom: 'ZOOM', tealca: 'TEALCA' }[data.shippingMethod] ?? '';
+    return { success: false, message: `Selecciona una oficina ${label}.` };
   }
   const mrwError = validateMrwSelection(data);
   if (mrwError) return { success: false, message: mrwError };
   const zoomError = validateZoomSelection(data);
   if (zoomError) return { success: false, message: zoomError };
+  const tealcaError = validateTealcaSelection(data);
+  if (tealcaError) return { success: false, message: tealcaError };
 
   try {
     const count = await prisma.savedAddress.count({ where: { userId } });
@@ -163,9 +177,8 @@ export async function createSavedAddress(
         shippingMethod: data.shippingMethod,
         mrwState:       isCarrierMethod ? (data.mrwState?.trim() ?? null) : null,
         mrwOffice:      isCarrierMethod ? (data.mrwOffice?.trim() ?? null) : null,
-        officeAddress:  data.shippingMethod === 'zoom' ? (data.officeAddress?.trim() || null) : null,
-        officeCity:     data.shippingMethod === 'zoom' ? (data.officeCity?.trim()    || null) : null,
-        isDefault:      makeDefault,
+        officeAddress:  (data.shippingMethod === 'zoom' || data.shippingMethod === 'tealca') ? (data.officeAddress?.trim() || null) : null,
+        officeCity:     (data.shippingMethod === 'zoom' || data.shippingMethod === 'tealca') ? (data.officeCity?.trim()    || null) : null,
       },
     });
 
@@ -192,24 +205,22 @@ export async function updateSavedAddress(
   if (!data.idNumber?.trim()) return { success: false, message: 'La cédula es requerida.' };
   if (!data.phoneNumber?.trim()) return { success: false, message: 'El teléfono es requerido.' };
 
-  const isCarrierMethod = data.shippingMethod === 'mrw' || data.shippingMethod === 'zoom';
+  const isCarrierMethod = data.shippingMethod === 'mrw' || data.shippingMethod === 'zoom' || data.shippingMethod === 'tealca';
 
   if (isCarrierMethod && !data.mrwState?.trim()) {
-    return {
-      success: false,
-      message: data.shippingMethod === 'mrw' ? 'Selecciona un estado para MRW.' : 'Selecciona un estado para ZOOM.',
-    };
+    const label = { mrw: 'MRW', zoom: 'ZOOM', tealca: 'TEALCA' }[data.shippingMethod] ?? '';
+    return { success: false, message: `Selecciona un estado para ${label}.` };
   }
   if (isCarrierMethod && !data.mrwOffice?.trim()) {
-    return {
-      success: false,
-      message: data.shippingMethod === 'mrw' ? 'Selecciona una oficina MRW.' : 'Selecciona una oficina ZOOM.',
-    };
+    const label = { mrw: 'MRW', zoom: 'ZOOM', tealca: 'TEALCA' }[data.shippingMethod] ?? '';
+    return { success: false, message: `Selecciona una oficina ${label}.` };
   }
   const mrwError = validateMrwSelection(data);
   if (mrwError) return { success: false, message: mrwError };
   const zoomError = validateZoomSelection(data);
   if (zoomError) return { success: false, message: zoomError };
+  const tealcaError = validateTealcaSelection(data);
+  if (tealcaError) return { success: false, message: tealcaError };
 
   try {
     const existing = await prisma.savedAddress.findUnique({ where: { id } });
@@ -235,8 +246,8 @@ export async function updateSavedAddress(
         shippingMethod: data.shippingMethod,
         mrwState:       isCarrierMethod ? (data.mrwState?.trim() ?? null) : null,
         mrwOffice:      isCarrierMethod ? (data.mrwOffice?.trim() ?? null) : null,
-        officeAddress:  data.shippingMethod === 'zoom' ? (data.officeAddress?.trim() || null) : null,
-        officeCity:     data.shippingMethod === 'zoom' ? (data.officeCity?.trim()    || null) : null,
+        officeAddress:  (data.shippingMethod === 'zoom' || data.shippingMethod === 'tealca') ? (data.officeAddress?.trim() || null) : null,
+        officeCity:     (data.shippingMethod === 'zoom' || data.shippingMethod === 'tealca') ? (data.officeCity?.trim()    || null) : null,
         isDefault:      data.isDefault ?? existing.isDefault,
       },
     });

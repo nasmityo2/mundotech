@@ -7,6 +7,7 @@ import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 import { mrwOffices } from '@/lib/mrw-offices';
 import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
+import { tealcaOffices, type TealcaOffice } from '@/lib/tealca-offices';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import type { SavedAddress, SavedAddressInput, ShippingMethod } from '@/lib/definitions';
 
@@ -20,6 +21,7 @@ type FormValues = {
   mrwState:        string;
   mrwOffice:       string;
   zoomOfficeIndex: string;
+  tealcaOfficeIndex: string;
   isDefault:       boolean;
 };
 
@@ -50,6 +52,15 @@ export default function AddressFormModal({
     return '';
   })();
 
+  const initialTealcaIndex = (() => {
+    if (editAddress?.shippingMethod === 'tealca' && editAddress.mrwState && editAddress.mrwOffice) {
+      const offices = (tealcaOffices as Record<string, TealcaOffice[]>)[editAddress.mrwState] ?? [];
+      const idx = offices.findIndex((o) => o.name === editAddress.mrwOffice);
+      return idx >= 0 ? String(idx) : '';
+    }
+    return '';
+  })();
+
   const { register, handleSubmit, watch, setValue, formState: { errors } } =
     useForm<FormValues>({
       defaultValues: {
@@ -62,6 +73,7 @@ export default function AddressFormModal({
         mrwState:        editAddress?.mrwState       ?? '',
         mrwOffice:       editAddress?.mrwOffice      ?? '',
         zoomOfficeIndex: initialZoomIndex,
+        tealcaOfficeIndex: initialTealcaIndex,
         isDefault:       editAddress?.isDefault      ?? false,
       },
     });
@@ -78,6 +90,8 @@ export default function AddressFormModal({
     }
     if (method === 'zoom') {
       setValue('zoomOfficeIndex', '');
+    } else if (method === 'tealca') {
+      setValue('tealcaOfficeIndex', '');
     } else {
       setValue('mrwOffice', '');
     }
@@ -105,6 +119,15 @@ export default function AddressFormModal({
     if (values.shippingMethod === 'zoom') {
       const offices = (zoomOffices as Record<string, ZoomOffice[]>)[values.mrwState] ?? [];
       const office = values.zoomOfficeIndex !== '' ? offices[Number(values.zoomOfficeIndex)] : undefined;
+      if (office) {
+        officeLabel   = office.name;
+        officeState   = values.mrwState || null;
+        officeAddr    = office.address || null;
+        officeCityVal = office.city || null;
+      }
+    } else if (values.shippingMethod === 'tealca') {
+      const offices = (tealcaOffices as Record<string, TealcaOffice[]>)[values.mrwState] ?? [];
+      const office = values.tealcaOfficeIndex !== '' ? offices[Number(values.tealcaOfficeIndex)] : undefined;
       if (office) {
         officeLabel   = office.name;
         officeState   = values.mrwState || null;
@@ -172,6 +195,7 @@ export default function AddressFormModal({
                 { id: 'tienda', icon: Store,     label: 'Retirar en tienda' },
                 { id: 'mrw',    icon: Building2, label: 'Retiro MRW'        },
                 { id: 'zoom',   icon: Truck,     label: 'Retiro ZOOM'       },
+                { id: 'tealca', icon: Truck,     label: 'Retiro TEALCA'     },
               ] as const).map((opt) => {
                 const active = method === opt.id;
                 return (
@@ -193,6 +217,7 @@ export default function AddressFormModal({
                         setValue('mrwState', '');
                         setValue('mrwOffice', '');
                         setValue('zoomOfficeIndex', '');
+                        setValue('tealcaOfficeIndex', '');
                       }}
                     />
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
@@ -267,6 +292,39 @@ export default function AddressFormModal({
                       const label = o.address?.trim()
                         ? `${o.name} · ${o.address} · ${o.city}`
                         : `${o.name} · ${o.city}`;
+                      return <option key={idx} value={String(idx)}>{label}</option>;
+                    })}
+                </select>
+              </Field>
+            </div>
+          )}
+
+          {/* TEALCA: estado y oficina */}
+          {method === 'tealca' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field id="mrwState" label="Estado" error={errors.mrwState?.message}>
+                <select
+                  id="mrwState"
+                  {...register('mrwState', { required: method === 'tealca' ? 'Selecciona un estado.' : false })}
+                  className={selectCls}
+                >
+                  <option value="">Selecciona…</option>
+                  {Object.keys(tealcaOffices).sort().map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field id="tealcaOfficeIndex" label="Oficina TEALCA" error={errors.tealcaOfficeIndex?.message}>
+                <select
+                  id="tealcaOfficeIndex"
+                  disabled={!selectedState}
+                  {...register('tealcaOfficeIndex', { required: method === 'tealca' ? 'Selecciona una oficina.' : false })}
+                  className={`${selectCls} disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  <option value="">Selecciona…</option>
+                  {selectedState &&
+                    (tealcaOffices as Record<string, TealcaOffice[]>)[selectedState]?.map((o, idx) => {
+                      const label = `${o.name} · ${o.city}${o.code ? ` (cód. ${o.code})` : ''}`;
                       return <option key={idx} value={String(idx)}>{label}</option>;
                     })}
                 </select>

@@ -30,7 +30,7 @@ export const checkoutSchema = z
      * PRD-128: cómo retira el cliente. Para 'tienda' el servidor reemplaza la
      * dirección por la configurada en readSettings() (nunca el copy del cliente).
      */
-    shippingMethod: z.enum(['tienda', 'mrw', 'zoom']).optional().nullable(),
+    shippingMethod: z.enum(['tienda', 'mrw', 'zoom', 'tealca']).optional().nullable(),
     shippingDetails: z.object({
       address: z.string().min(1),
       city: z.string().min(1),

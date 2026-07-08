@@ -13,6 +13,7 @@ import { formatCurrency } from '@/lib/utils';
 import type { ShippingEstimates } from '@/lib/shipping-estimates';
 import type { StoreSettings } from '@/lib/data-store';
 import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
+import { tealcaOffices, type TealcaOffice } from '@/lib/tealca-offices';
 
 interface WhatsAppCheckoutProps {
   pagoMovil: StoreSettings['pagoMovil'];
@@ -33,6 +34,12 @@ function buildAddress(shippingData: ShippingFormData): string {
     const base = name ? `Oficina ZOOM — ${name}` : 'Oficina ZOOM';
     return addr ? `${base} (${addr})` : base;
   }
+  if (shippingData.shippingMethod === 'tealca') {
+    const name = shippingData.tealcaOfficeName?.trim();
+    const addr = shippingData.tealcaOfficeAddress?.trim();
+    const base = name ? `Oficina TEALCA — ${name}` : 'Oficina TEALCA';
+    return addr ? `${base} (${addr})` : base;
+  }
   return 'Retiro en Oficina MRW';
 }
 
@@ -49,8 +56,19 @@ function buildCity(shippingData: ShippingFormData): string {
         if (office?.city) return office.city;
       } catch { /* fallback */ }
     }
-    // Último recurso para no violar city.min(1) del checkoutSchema
     return shippingData.zoomState || 'Venezuela';
+  }
+  if (shippingData.shippingMethod === 'tealca') {
+    const city = shippingData.tealcaOfficeCity?.trim();
+    if (city) return city;
+    if (shippingData.tealcaState && shippingData.tealcaOfficeIndex) {
+      try {
+        const offices = (tealcaOffices as Record<string, TealcaOffice[]>)[shippingData.tealcaState];
+        const office = offices?.[Number(shippingData.tealcaOfficeIndex)];
+        if (office?.city) return office.city;
+      } catch { /* fallback */ }
+    }
+    return shippingData.tealcaState || 'Venezuela';
   }
   return 'Barquisimeto';
 }
@@ -59,7 +77,6 @@ function buildState(shippingData: ShippingFormData): string {
   if (shippingData.shippingMethod === 'mrw') return shippingData.mrwState ?? '';
   if (shippingData.shippingMethod === 'zoom') {
     if (shippingData.zoomState) return shippingData.zoomState;
-    // Respaldo defensivo
     if (shippingData.zoomOfficeIndex) {
       try {
         const stateKey = Object.keys(zoomOffices).find((s) =>
@@ -74,6 +91,22 @@ function buildState(shippingData: ShippingFormData): string {
     }
     return 'Lara';
   }
+  if (shippingData.shippingMethod === 'tealca') {
+    if (shippingData.tealcaState) return shippingData.tealcaState;
+    if (shippingData.tealcaOfficeIndex) {
+      try {
+        const stateKey = Object.keys(tealcaOffices).find((s) =>
+          (tealcaOffices as Record<string, TealcaOffice[]>)[s].some(
+            (o: TealcaOffice) =>
+              o.name === shippingData.tealcaOfficeName ||
+              o.city === shippingData.tealcaOfficeCity,
+          ),
+        );
+        if (stateKey) return stateKey;
+      } catch { /* fallback */ }
+    }
+    return 'Lara';
+  }
   return 'Lara';
 }
 
@@ -81,6 +114,7 @@ function getShippingMethodLabel(shippingData: ShippingFormData): string {
   if (shippingData.shippingMethod === 'tienda') return 'Retiro en tienda';
   if (shippingData.shippingMethod === 'mrw') return 'MRW';
   if (shippingData.shippingMethod === 'zoom') return 'ZOOM';
+  if (shippingData.shippingMethod === 'tealca') return 'TEALCA';
   return 'No especificado';
 }
 

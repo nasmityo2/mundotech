@@ -7,6 +7,7 @@ import { Store, Building2, ChevronRight, BookUser, Check, LogIn } from 'lucide-r
 import Link from 'next/link';
 import { mrwOffices } from '@/lib/mrw-offices';
 import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
+import { tealcaOffices, type TealcaOffice } from '@/lib/tealca-offices';
 import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 import { getSavedAddresses } from '@/app/actions/addressActions';
@@ -28,6 +29,11 @@ export type ShippingFormData = {
   zoomOfficeName?: string;
   zoomOfficeAddress?: string;
   zoomOfficeCity?: string;
+  tealcaState?: string;
+  tealcaOfficeIndex?: string;
+  tealcaOfficeName?: string;
+  tealcaOfficeAddress?: string;
+  tealcaOfficeCity?: string;
 };
 
 // ── Helpers de validación venezolana ──
@@ -153,6 +159,11 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
       setValue('zoomOfficeName', '');
       setValue('zoomOfficeAddress', '');
       setValue('zoomOfficeCity', '');
+      setValue('tealcaState', '');
+      setValue('tealcaOfficeIndex', '');
+      setValue('tealcaOfficeName', '');
+      setValue('tealcaOfficeAddress', '');
+      setValue('tealcaOfficeCity', '');
     } else if (addr.shippingMethod === 'zoom') {
       setValue('mrwState', '');
       setValue('mrwOffice', '');
@@ -167,6 +178,30 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
       } else {
         setValue('zoomOfficeIndex', '');
       }
+      setValue('tealcaState', '');
+      setValue('tealcaOfficeIndex', '');
+      setValue('tealcaOfficeName', '');
+      setValue('tealcaOfficeAddress', '');
+      setValue('tealcaOfficeCity', '');
+    } else if (addr.shippingMethod === 'tealca') {
+      setValue('mrwState', '');
+      setValue('mrwOffice', '');
+      setValue('tealcaState', addr.mrwState ?? '');
+      setValue('tealcaOfficeName',    addr.mrwOffice ?? '');
+      setValue('tealcaOfficeAddress', addr.officeAddress ?? '');
+      setValue('tealcaOfficeCity',    addr.officeCity ?? '');
+      if (addr.mrwState && addr.mrwOffice) {
+        const offices = (tealcaOffices as Record<string, TealcaOffice[]>)[addr.mrwState] ?? [];
+        const idx = offices.findIndex(o => o.name === addr.mrwOffice);
+        setValue('tealcaOfficeIndex', idx >= 0 ? String(idx) : '');
+      } else {
+        setValue('tealcaOfficeIndex', '');
+      }
+      setValue('zoomState', '');
+      setValue('zoomOfficeIndex', '');
+      setValue('zoomOfficeName', '');
+      setValue('zoomOfficeAddress', '');
+      setValue('zoomOfficeCity', '');
     } else {
       setValue('mrwState',  '');
       setValue('mrwOffice', '');
@@ -175,6 +210,11 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
       setValue('zoomOfficeName', '');
       setValue('zoomOfficeAddress', '');
       setValue('zoomOfficeCity', '');
+      setValue('tealcaState', '');
+      setValue('tealcaOfficeIndex', '');
+      setValue('tealcaOfficeName', '');
+      setValue('tealcaOfficeAddress', '');
+      setValue('tealcaOfficeCity', '');
     }
     setSelectedAddrId(addr.id);
     setShowAddrPicker(false);
@@ -183,13 +223,14 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
   const shippingMethod = watch('shippingMethod');
   const selectedMrwState  = watch('mrwState');
   const selectedZoomState = watch('zoomState');
+  const selectedTealcaState = watch('tealcaState');
 
   // MEJORA 2.3: estimado a mostrar bajo la selección de método/estado.
   const estimateNote = estimates
     ? estimateFor(
         estimates,
         shippingMethod,
-        shippingMethod === 'mrw' ? selectedMrwState : shippingMethod === 'zoom' ? selectedZoomState : null,
+        shippingMethod === 'mrw' ? selectedMrwState : shippingMethod === 'zoom' ? selectedZoomState : shippingMethod === 'tealca' ? selectedTealcaState : null,
       )
     : '';
 
@@ -216,6 +257,17 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
       return `${o.name} · ${o.address} · ${o.city}`;
     }
     return `${o.name} · ${o.city}`;
+  };
+
+  // Tealca: las oficinas filtradas por estado seleccionado
+  const tealcaOfficesForState: TealcaOffice[] = selectedTealcaState
+    ? (tealcaOffices as Record<string, TealcaOffice[]>)[selectedTealcaState] ?? []
+    : [];
+
+  // Tealca: etiqueta para el <select>
+  const tealcaOptionLabel = (o: TealcaOffice): string => {
+    const base = `${o.name} · ${o.city}`;
+    return o.code ? `${base} (cód. ${o.code})` : base;
   };
 
   return (
@@ -295,7 +347,7 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
                             {addr.firstName} {addr.lastName} · {addr.phoneNumber}
                             {addr.shippingMethod === 'mrw' && addr.mrwOffice
                               ? ` · ${addr.mrwOffice}, ${addr.mrwState}`
-                              : addr.shippingMethod === 'zoom' && addr.mrwOffice
+                              : (addr.shippingMethod === 'zoom' || addr.shippingMethod === 'tealca') && addr.mrwOffice
                                 ? ` · ${addr.mrwOffice}, ${addr.mrwState}`
                                 : ' · Retiro en tienda'}
                           </p>
@@ -319,6 +371,7 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
           { id: 'tienda' as const, icon: Store,     label: 'Retirar en tienda', sub: 'Recoge tu pedido en nuestra tienda física' },
           { id: 'mrw' as const,    icon: Building2, label: 'Envío nacional',        sub: 'Retira en la oficina de MRW más cercana'      },
           { id: 'zoom' as const,   icon: Building2, label: 'Envío ZOOM',        sub: 'Retira en la oficina de ZOOM más cercana'      },
+          { id: 'tealca' as const, icon: Building2, label: 'Envío TEALCA',      sub: 'Retira en la oficina de TEALCA más cercana'    },
         ]).map((opt) => {
           const active = shippingMethod === opt.id;
           return (
@@ -344,6 +397,11 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
                   setValue('zoomOfficeName', '');
                   setValue('zoomOfficeAddress', '');
                   setValue('zoomOfficeCity', '');
+                  setValue('tealcaState', '');
+                  setValue('tealcaOfficeIndex', '');
+                  setValue('tealcaOfficeName', '');
+                  setValue('tealcaOfficeAddress', '');
+                  setValue('tealcaOfficeCity', '');
                 }}
               />
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
@@ -528,6 +586,52 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
               <option value="">Selecciona…</option>
               {zoomOfficesForState.map((o, idx) => (
                 <option key={idx} value={String(idx)}>{zoomOptionLabel(o)}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      )}
+
+      {/* Solo para TEALCA: estado y oficina */}
+      {shippingMethod === 'tealca' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <Field id="tealcaState" label="Estado" error={errors.tealcaState?.message}>
+            <select
+              id="tealcaState"
+              {...register('tealcaState', { required: 'Selecciona un estado' })}
+              className={inputCls}
+            >
+              <option value="">Selecciona…</option>
+              {Object.keys(tealcaOffices).sort().map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </Field>
+          <Field id="tealcaOfficeIndex" label="Oficina TEALCA" error={errors.tealcaOfficeIndex?.message}>
+            <select
+              id="tealcaOfficeIndex"
+              disabled={!selectedTealcaState}
+              {...register('tealcaOfficeIndex', { required: 'Selecciona una oficina', onChange: (e) => {
+                const val = e.target.value;
+                if (val === '') {
+                  setValue('tealcaOfficeName', '');
+                  setValue('tealcaOfficeAddress', '');
+                  setValue('tealcaOfficeCity', '');
+                } else {
+                  const idx = Number(val);
+                  const office = tealcaOfficesForState[idx];
+                  if (office) {
+                    setValue('tealcaOfficeName', office.name);
+                    setValue('tealcaOfficeAddress', office.address ?? '');
+                    setValue('tealcaOfficeCity', office.city);
+                  }
+                }
+              }})}
+              className={`${inputCls} disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              <option value="">Selecciona…</option>
+              {tealcaOfficesForState.map((o, idx) => (
+                <option key={idx} value={String(idx)}>{tealcaOptionLabel(o)}</option>
               ))}
             </select>
           </Field>

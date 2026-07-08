@@ -22,7 +22,8 @@ export default function AddressCard({
 }: AddressCardProps) {
   const isMrw   = address.shippingMethod === 'mrw';
   const isZoom  = address.shippingMethod === 'zoom';
-  const Icon    = isMrw ? Building2 : isZoom ? Truck : Store;
+  const isTealca = address.shippingMethod === 'tealca';
+  const Icon    = isMrw ? Building2 : (isZoom || isTealca) ? Truck : Store;
 
   return (
     <div
@@ -47,7 +48,7 @@ export default function AddressCard({
         <div className="min-w-0">
           <p className="text-sm font-bold text-navy leading-tight">{address.alias}</p>
           <p className="text-[12px] text-slate-500 mt-0.5">
-            {isMrw ? 'Retiro MRW' : isZoom ? 'Retiro ZOOM' : 'Retiro en tienda'}
+            {isMrw ? 'Retiro MRW' : isZoom ? 'Retiro ZOOM' : isTealca ? 'Retiro TEALCA' : 'Retiro en tienda'}
           </p>
         </div>
       </div>
@@ -77,6 +78,14 @@ export default function AddressCard({
         {isZoom && address.mrwState && (
           <div>
             <dt className="text-[11px] text-slate-400 font-medium">Oficina ZOOM</dt>
+            <dd className="text-navy line-clamp-1">
+              {address.mrwOffice}{address.mrwState ? `, ${address.mrwState}` : ''}
+            </dd>
+          </div>
+        )}
+        {isTealca && address.mrwState && (
+          <div>
+            <dt className="text-[11px] text-slate-400 font-medium">Oficina TEALCA</dt>
             <dd className="text-navy line-clamp-1">
               {address.mrwOffice}{address.mrwState ? `, ${address.mrwState}` : ''}
             </dd>

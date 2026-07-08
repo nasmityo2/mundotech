@@ -63,14 +63,17 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
   const isStorePickup = pickupAddress.startsWith('Retiro en tienda');
   const isMrwPickup = pickupAddress.startsWith('Retiro en Oficina MRW');
   const isZoomPickup = pickupAddress.startsWith('Retiro en Oficina ZOOM');
+  const isTealcaPickup = pickupAddress.startsWith('Retiro en Oficina TEALCA');
   const deliveryTitle = isStorePickup
     ? 'Retiro en tienda'
     : isMrwPickup
       ? 'Retiro en oficina MRW'
       : isZoomPickup
         ? 'Retiro en oficina ZOOM'
-        : 'Envío';
-  const DeliveryIcon = isStorePickup ? Store : isMrwPickup ? Building2 : isZoomPickup ? Truck : Truck;
+        : isTealcaPickup
+          ? 'Retiro en oficina TEALCA'
+          : 'Envío';
+  const DeliveryIcon = isStorePickup ? Store : isMrwPickup ? Building2 : isZoomPickup || isTealcaPickup ? Truck : Truck;
   const isCasheaPending =
     order.paymentMethod === 'Cashea' &&
     !order.paidAt &&

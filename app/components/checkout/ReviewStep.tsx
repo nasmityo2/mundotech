@@ -8,6 +8,7 @@ import { Loader2, CheckCircle2, Store, Building2, Truck, CreditCard, Tag, X, Log
 import { useCart } from '@/context/CartContext';
 import { useExchangeRate } from '@/context/ExchangeRateContext';
 import { zoomOffices } from '@/lib/zoom-offices';
+import { tealcaOffices, type TealcaOffice } from '@/lib/tealca-offices';
 import { ShippingFormData } from './ShippingForm';
 import { PaymentFormData } from './PaymentForm';
 import { formatCurrency } from '@/lib/utils';
@@ -125,18 +126,23 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
     if (shippingData?.shippingMethod === 'zoom' && zoomOffice) {
       return `Oficina ZOOM ${zoomOffice.name}${zoomOffice.address ? ` — ${zoomOffice.address}` : ''}`;
     }
+    if (shippingData?.shippingMethod === 'tealca' && tealcaOffice) {
+      return `Retiro en Oficina TEALCA ${tealcaOffice.name}${tealcaOffice.address ? ` — ${tealcaOffice.address}` : ''}`;
+    }
     return 'Retiro en Oficina MRW';
   };
 
   const buildCity = (): string => {
     if (shippingData?.shippingMethod === 'mrw') return shippingData.mrwOffice ?? '';
     if (shippingData?.shippingMethod === 'zoom' && zoomOffice) return zoomOffice.city || zoomOffice.name;
+    if (shippingData?.shippingMethod === 'tealca' && tealcaOffice) return tealcaOffice.city || tealcaOffice.name;
     return 'Barquisimeto';
   };
 
   const buildState = (): string => {
     if (shippingData?.shippingMethod === 'mrw') return shippingData.mrwState ?? '';
     if (shippingData?.shippingMethod === 'zoom' && zoomOffice) return shippingData.zoomState ?? 'Lara';
+    if (shippingData?.shippingMethod === 'tealca' && tealcaOffice) return shippingData.tealcaState ?? 'Lara';
     return 'Lara';
   };
 
@@ -144,6 +150,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
     if (shippingData?.shippingMethod === 'tienda') return 'Retiro en tienda';
     if (shippingData?.shippingMethod === 'mrw') return 'MRW';
     if (shippingData?.shippingMethod === 'zoom') return 'ZOOM';
+    if (shippingData?.shippingMethod === 'tealca') return 'TEALCA';
     return 'No especificado';
   };
 
@@ -248,7 +255,9 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
             ? `Oficina MRW ${shippingData.mrwOffice ?? ''}${shippingData.mrwState ? `, ${shippingData.mrwState}` : ''}`.trim()
             : shippingData.shippingMethod === 'zoom'
               ? `${buildAddress()}, ${buildCity()}, ${buildState()}`.replace(/,\s*,/g, ',').trim()
-              : buildAddress();
+              : shippingData.shippingMethod === 'tealca'
+                ? `${buildAddress()}, ${buildCity()}, ${buildState()}`.replace(/,\s*,/g, ',').trim()
+                : buildAddress();
         const waMessage = buildWhatsAppOrderMessage({
           orderRef,
           customerName: `${shippingData.firstName} ${shippingData.lastName}`,
@@ -326,7 +335,28 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
     return null;
   })();
 
-  const ShippingIcon = shippingData?.shippingMethod === 'tienda' ? Store : shippingData?.shippingMethod === 'zoom' ? Truck : Building2;
+  const tealcaOffice = (() => {
+    if (shippingData?.shippingMethod !== 'tealca') return null;
+    if (
+      shippingData.tealcaState &&
+      shippingData.tealcaOfficeIndex !== undefined &&
+      shippingData.tealcaOfficeIndex !== ''
+    ) {
+      const offices = (tealcaOffices as Record<string, TealcaOffice[]>)[shippingData.tealcaState];
+      const office = offices?.[Number(shippingData.tealcaOfficeIndex)];
+      if (office) return office;
+    }
+    if (shippingData.tealcaOfficeName || shippingData.tealcaOfficeAddress || shippingData.tealcaOfficeCity) {
+      return {
+        name:    shippingData.tealcaOfficeName ?? '',
+        address: shippingData.tealcaOfficeAddress ?? '',
+        city:    shippingData.tealcaOfficeCity ?? '',
+      } as TealcaOffice;
+    }
+    return null;
+  })();
+
+  const ShippingIcon = shippingData?.shippingMethod === 'tienda' ? Store : shippingData?.shippingMethod === 'zoom' || shippingData?.shippingMethod === 'tealca' ? Truck : Building2;
 
   const isBankManual =
     paymentData?.paymentMethod === 'pagomovil' ||
@@ -388,7 +418,9 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
                 ? 'Retiro en tienda'
                 : shippingData?.shippingMethod === 'zoom'
                   ? 'Retiro ZOOM'
-                  : 'Retiro MRW'}
+                  : shippingData?.shippingMethod === 'tealca'
+                    ? 'Retiro TEALCA'
+                    : 'Retiro MRW'}
             </h3>
           </div>
           <dl className="text-sm space-y-1.5">
@@ -421,6 +453,16 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
                   {zoomOffice.name}
                   {zoomOffice.address ? ` — ${zoomOffice.address}` : ''}
                   {zoomOffice.city ? ` · ${zoomOffice.city}` : ''}, {shippingData.zoomState}
+                </dd>
+              </div>
+            )}
+            {shippingData?.shippingMethod === 'tealca' && tealcaOffice && (
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-500">Oficina</dt>
+                <dd className="text-navy text-right">
+                  {tealcaOffice.name}
+                  {tealcaOffice.address ? ` — ${tealcaOffice.address}` : ''}
+                  {tealcaOffice.city ? ` · ${tealcaOffice.city}` : ''}, {shippingData.tealcaState}
                 </dd>
               </div>
             )}

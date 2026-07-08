@@ -427,6 +427,12 @@ export default function SettingsClient({
             onChange={v => setEstimates(p => ({ ...p, zoom: v }))}
             placeholder="2–5 días hábiles · lo pagas al recibir en la oficina"
           />
+          <Field
+            label="TEALCA (nota general)"
+            value={estimates.tealca}
+            onChange={v => setEstimates(p => ({ ...p, tealca: v }))}
+            placeholder="2–5 días hábiles · lo pagas al recibir en la oficina"
+          />
 
           <div className="pt-2 border-t border-gray-100">
             <p className="text-sm font-medium text-gray-700 mb-2">Excepciones por estado (opcional)</p>
