@@ -1,15 +1,17 @@
-// Emojis construidos en runtime desde su code point (números puros): así el
-// minificador NO los colapsa a glifos literales y no se corrompen al servirse.
+// Emojis generados en runtime desde UTF-8 percent-encoded (solo ASCII en el
+// fuente). Así el minificador NO los pliega a glifos literales y es imposible
+// que se corrompan a "�" al buildear/servir. decodeURIComponent los vuelve
+// emoji real en el navegador; luego encodeURIComponent(message) los re-codifica.
 const EMOJI = {
-  cart:   String.fromCodePoint(0x1F6D2), // 🛒
-  person: String.fromCodePoint(0x1F464), // 👤
-  id:     String.fromCodePoint(0x1F194), // 🆔
-  phone:  String.fromCodePoint(0x1F4DE), // 📞
-  truck:  String.fromCodePoint(0x1F69A), // 🚚
-  pin:    String.fromCodePoint(0x1F4CD), // 📍
-  card:   String.fromCodePoint(0x1F4B3), // 💳
-  money:  String.fromCodePoint(0x1F4B0), // 💰
-  check:  String.fromCodePoint(0x2705),  // ✅
+  cart:   decodeURIComponent('%F0%9F%9B%92'), // 🛒
+  person: decodeURIComponent('%F0%9F%91%A4'), // 👤
+  id:     decodeURIComponent('%F0%9F%86%94'), // 🆔
+  phone:  decodeURIComponent('%F0%9F%93%9E'), // 📞
+  truck:  decodeURIComponent('%F0%9F%9A%9A'), // 🚚
+  pin:    decodeURIComponent('%F0%9F%93%8D'), // 📍
+  card:   decodeURIComponent('%F0%9F%92%B3'), // 💳
+  money:  decodeURIComponent('%F0%9F%92%B0'), // 💰
+  check:  decodeURIComponent('%E2%9C%85'),    // ✅
 } as const;
 
 export function normalizeWaPhone(phone: string): string {
