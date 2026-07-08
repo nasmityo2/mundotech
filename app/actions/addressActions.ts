@@ -134,11 +134,11 @@ export async function createSavedAddress(
   const isCarrierMethod = data.shippingMethod === 'mrw' || data.shippingMethod === 'zoom' || data.shippingMethod === 'tealca';
 
   if (isCarrierMethod && !data.mrwState?.trim()) {
-    const label = { mrw: 'MRW', zoom: 'ZOOM', tealca: 'TEALCA' }[data.shippingMethod] ?? '';
+    const label = { tienda: '', mrw: 'MRW', zoom: 'ZOOM', tealca: 'TEALCA' }[data.shippingMethod] ?? '';
     return { success: false, message: `Selecciona un estado para ${label}.` };
   }
   if (isCarrierMethod && !data.mrwOffice?.trim()) {
-    const label = { mrw: 'MRW', zoom: 'ZOOM', tealca: 'TEALCA' }[data.shippingMethod] ?? '';
+    const label = { tienda: '', mrw: 'MRW', zoom: 'ZOOM', tealca: 'TEALCA' }[data.shippingMethod] ?? '';
     return { success: false, message: `Selecciona una oficina ${label}.` };
   }
   const mrwError = validateMrwSelection(data);
@@ -208,11 +208,11 @@ export async function updateSavedAddress(
   const isCarrierMethod = data.shippingMethod === 'mrw' || data.shippingMethod === 'zoom' || data.shippingMethod === 'tealca';
 
   if (isCarrierMethod && !data.mrwState?.trim()) {
-    const label = { mrw: 'MRW', zoom: 'ZOOM', tealca: 'TEALCA' }[data.shippingMethod] ?? '';
+    const label = { tienda: '', mrw: 'MRW', zoom: 'ZOOM', tealca: 'TEALCA' }[data.shippingMethod] ?? '';
     return { success: false, message: `Selecciona un estado para ${label}.` };
   }
   if (isCarrierMethod && !data.mrwOffice?.trim()) {
-    const label = { mrw: 'MRW', zoom: 'ZOOM', tealca: 'TEALCA' }[data.shippingMethod] ?? '';
+    const label = { tienda: '', mrw: 'MRW', zoom: 'ZOOM', tealca: 'TEALCA' }[data.shippingMethod] ?? '';
     return { success: false, message: `Selecciona una oficina ${label}.` };
   }
   const mrwError = validateMrwSelection(data);
