@@ -266,7 +266,10 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
 
   // Tealca: etiqueta para el <select>
   const tealcaOptionLabel = (o: TealcaOffice): string => {
-    const base = `${o.name} · ${o.city}`;
+    const parts = [o.name];
+    if (o.address?.trim()) parts.push(o.address);
+    if (o.city?.trim()) parts.push(o.city);
+    const base = parts.join(' · ');
     return o.code ? `${base} (cód. ${o.code})` : base;
   };
 
