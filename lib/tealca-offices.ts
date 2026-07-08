@@ -2,6 +2,19 @@
  * Lista blanca oficial de oficinas TEALCA por estado (paralela a lib/zoom-offices.ts).
  * Fuente: scraping del directorio público de Tealca (tealca.com/oficinas/).
  * Generado por scripts/scrape-tealca.ts.
+ *
+ * Auditoría 2026-07-08 (ver docs/tealca-audit.md):
+ * - Se agregaron 9 oficinas confirmadas contra tealca.com (6 en Distrito Capital,
+ *   3 en Miranda), descubiertas siguiendo los enlaces "Otras Oficinas Cercanas"
+ *   de cada página de detalle (el sitio no expone sitemap indexado ni endpoint
+ *   AJAX accesible desde este entorno).
+ * - Se reclasificaron 3 oficinas de Distrito Capital → Miranda porque su propio
+ *   campo "Dirección" en tealca.com declara literalmente "Estado Miranda"
+ *   (Boleíta, El Rosal – Chacao, Filas De Mariches), aunque cuelgan del slug
+ *   padre /oficinas/d-capital/.
+ * - NO se completó una reconstrucción exhaustiva de los 23 estados (ver
+ *   limitaciones en docs/tealca-audit.md). Aragua, Zulia y Anzoátegui ya habían
+ *   sido verificados manualmente por el usuario antes de esta auditoría.
  */
 
 export interface TealcaOffice {
@@ -349,13 +362,6 @@ export const tealcaOffices: Record<string, TealcaOffice[]> = {
       url: "https://www.tealca.com/oficinas/d-capital/altamira"
     },
     {
-      name: "Boleíta",
-      code: "1114",
-      city: "Caracas",
-      address: "Av. Principal de Boleíta Sur, entre 4ta. y 3ra. Transversal, Quinta La Campiña, Boleíta, Parroquia Leoncio Martínez, Municipio Sucre, Estado Miranda.",
-      url: "https://www.tealca.com/oficinas/d-capital/boleita"
-    },
-    {
       name: "Catia",
       code: "1125",
       city: "Caracas",
@@ -393,27 +399,58 @@ export const tealcaOffices: Record<string, TealcaOffice[]> = {
       url: "https://www.tealca.com/oficinas/d-capital/el-paraiso"
     },
     {
-      name: "El Rosal – Chacao",
-      code: "1137",
-      city: "Caracas",
-      address: "Chacao, Av. Libertador, Edif EXA, PB, Local 10, Urb. El Retiro, Municipio Chacao,, Estado Miranda.",
-      url: "https://www.tealca.com/oficinas/d-capital/el-rosal-chacao",
-      instagram: "@tealcaelrosal.ccct"
-    },
-    {
-      name: "Filas De Mariches",
-      code: "1132",
-      city: "Caracas",
-      address: "Carretera Petare Santa Lucía, Km. 9, Local N° 3, PB, Sector El Limoncito, Urb. Hacienda La Candelaria, Parroquia Filas de Mariche, Municipio Sucre, Estado Miranda.",
-      url: "https://www.tealca.com/oficinas/d-capital/filas-de-mariches",
-      instagram: "@tealca1132filasdemariche"
-    },
-    {
       name: "Junquito",
       code: "1141",
       city: "El Junquito",
       address: "Gran Caracas, D.Capital, El Junquito",
       url: "https://www.tealca.com/oficinas/d-capital/junquito"
+    },
+    {
+      name: "Sabana Grande",
+      code: "1102",
+      city: "Caracas",
+      address: "Av. Los Jabillos, entre Av. Francisco Solano López y Calle Las Flores, Galpón N° 6, Sabana Grande, Parroquia El Recreo, Municipio Libertador, Caracas, Distrito Capital.",
+      url: "https://www.tealca.com/oficinas/d-capital/sabana-grande",
+      instagram: "@tealca_sabanagrande"
+    },
+    {
+      name: "La Candelaria",
+      code: "1128",
+      city: "Caracas",
+      address: "Av. Fuerzas Armadas, Esq. Socorro, Edif. Residencias Dorado, PB, Local 2, Parroquia Altagracia, Municipio Libertador, Caracas, Distrito Capital.",
+      url: "https://www.tealca.com/oficinas/d-capital/la-candelaria",
+      instagram: "@tealca_lacandelaria"
+    },
+    {
+      name: "Los Palos Grandes",
+      code: "1127",
+      city: "Caracas",
+      address: "Urb. Los Palos Grandes, 4ta avenida entre 2da y 3era transversal, edificio los eucaliptos PB local B, Gran Caracas, D.Capital, Caracas, Código Postal 0",
+      url: "https://www.tealca.com/oficinas/d-capital/los-palos-grandes",
+      instagram: "@tealcalospalosgrandes"
+    },
+    {
+      name: "Los Caobos",
+      code: "1131",
+      city: "Caracas",
+      address: "Transversal Colón entre Av. Principal de Maripérez y Montevideo, Edif. Tirrenia Pub, Local C, Parroquia El Recreo, Urbanización Los Caobos, Municipio Libertador, Caracas, Distrito Capital.",
+      url: "https://www.tealca.com/oficinas/d-capital/los-caobos",
+      instagram: "@tealcaloscaobos_1131"
+    },
+    {
+      name: "Los Chaguaramos",
+      code: "AA",
+      city: "Caracas",
+      address: "Urb. Los Chaguaramos, Edif. Llaeco, Torre A, PB, Local A-3, Ciudad Universitaria con Calle Codazzi, Parroquia San Pedro, Municipio Libertador, Caracas, Distrito Capital.",
+      url: "https://www.tealca.com/oficinas/d-capital/oficina-comercial-la-california",
+      instagram: "@tealcachaguaramos"
+    },
+    {
+      name: "San Martín",
+      code: "1119",
+      city: "Caracas",
+      address: "Av Jose Angel Lamas, Calle Sevilla, Edificio Indaragua, Piso PB Local B2 Urb San Martin , Gran Caracas, D.Capital, Caracas, Municipio Libertador, Código Postal 1020",
+      url: "https://www.tealca.com/oficinas/d-capital/san-martin-2"
     },
   ],
   "Falcón": [
@@ -599,12 +636,35 @@ export const tealcaOffices: Record<string, TealcaOffice[]> = {
   ],
   "Miranda": [
     {
+      name: "Boleíta",
+      code: "1114",
+      city: "Caracas",
+      address: "Av. Principal de Boleíta Sur, entre 4ta. y 3ra. Transversal, Quinta La Campiña, Boleíta, Parroquia Leoncio Martínez, Municipio Sucre, Estado Miranda.",
+      url: "https://www.tealca.com/oficinas/d-capital/boleita"
+    },
+    {
       name: "Charallave",
       code: "1501",
       city: "Charallave",
       address: "Carretera Charallave-Cúa, Km. 1, C.C. Industrial Franfil, PB, Local 2, Parroquia Charallave, Municipio Cristóbal Rojas, Charallave, Estado Miranda.",
       url: "https://www.tealca.com/oficinas/charallave/charallave",
       instagram: "@tealcacharallave"
+    },
+    {
+      name: "El Rosal – Chacao",
+      code: "1137",
+      city: "Caracas",
+      address: "Chacao, Av. Libertador, Edif EXA, PB, Local 10, Urb. El Retiro, Municipio Chacao,, Estado Miranda.",
+      url: "https://www.tealca.com/oficinas/d-capital/el-rosal-chacao",
+      instagram: "@tealcaelrosal.ccct"
+    },
+    {
+      name: "Filas De Mariches",
+      code: "1132",
+      city: "Caracas",
+      address: "Carretera Petare Santa Lucía, Km. 9, Local N° 3, PB, Sector El Limoncito, Urb. Hacienda La Candelaria, Parroquia Filas de Mariche, Municipio Sucre, Estado Miranda.",
+      url: "https://www.tealca.com/oficinas/d-capital/filas-de-mariches",
+      instagram: "@tealca1132filasdemariche"
     },
     {
       name: "Guarenas",
@@ -630,11 +690,33 @@ export const tealcaOffices: Record<string, TealcaOffice[]> = {
       url: "https://www.tealca.com/oficinas/higuerote/higuerote-2"
     },
     {
+      name: "La Trinidad",
+      code: "1110",
+      city: "Caracas",
+      address: "Calle San Sebastián, C.C. Baruta, Nivel PB, Local 9, Urb. Charallavito, Gran Caracas, Estado Miranda.",
+      url: "https://www.tealca.com/oficinas/d-capital/la-trinidad"
+    },
+    {
       name: "Los Teques",
       code: "1405B",
       city: "Los Teques",
       address: "VEN - República Bolivariana de Venezuela, Gran Caracas, Miranda, Los Teques, Av. Pedro Russo Ferrer, Sector El Tambor, \"CENTRO COMERCIAL LOS TEQUES\" LOCAL PB-C-2, Codigo Postal 1201",
       url: "https://www.tealca.com/oficinas/los-teques/los-teques"
+    },
+    {
+      name: "Montecristo",
+      code: "1114B",
+      city: "Caracas",
+      address: "Urb. Montecristo, Av. Primera de Montecristo, entre 3ra. y 4ta. Transv. Qta. Laura, PB, Parroquia Leoncio Martínez, Municipio Sucre, Gran Caracas, Estado Miranda.",
+      url: "https://www.tealca.com/oficinas/d-capital/montecristo"
+    },
+    {
+      name: "Prados Del Este",
+      code: "1133",
+      city: "Caracas",
+      address: "Sector Prados del Este, Av. Río Paragua, C.C. La Pirámide, PB, Local 5-C, Municipio Baruta, Gran Caracas, Estado Miranda.",
+      url: "https://www.tealca.com/oficinas/d-capital/prados-del-este",
+      instagram: "@tealca1133padrosdeleste"
     },
     {
       name: "San Antonio De Los Altos",
