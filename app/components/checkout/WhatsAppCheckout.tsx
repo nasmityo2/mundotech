@@ -320,6 +320,13 @@ const WhatsAppCheckout = ({
         rate: exchangeRate,
       });
 
+      if (waMessage.includes('\uFFFD')) {
+        console.error('[whatsapp-checkout] WhatsApp message contains replacement character before redirect', {
+          orderRef,
+          waMessage,
+        });
+      }
+
       const url = buildWhatsAppOrderUrl(whatsappOrderPhone, waMessage);
       setWaUrl(url);
       setCompleted(true);

@@ -321,6 +321,13 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
           rate: exchangeRate,
         });
 
+        if (waMessage.includes('\uFFFD')) {
+          console.error('[checkout] WhatsApp message contains replacement character before redirect', {
+            orderRef,
+            waMessage,
+          });
+        }
+
         const waUrl = buildWhatsAppOrderUrl(whatsappOrderPhone, waMessage);
         // eslint-disable-next-line react-hooks/immutability
         window.location.href = waUrl;
