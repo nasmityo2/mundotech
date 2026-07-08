@@ -114,7 +114,7 @@ interface ShippingFormProps {
 const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onFormSubmit, initialData, estimates, whatsappMode = false, embedded = false }, ref) => {
   const { data: session } = useSession();
   const {
-    register, handleSubmit, formState: { errors }, watch, setValue,
+    register, handleSubmit, formState: { errors }, watch, setValue, setError, clearErrors,
   } = useForm<ShippingFormData>({
     defaultValues: initialData
       ? { ...initialData, idType: extractIdType(initialData.idNumber), idNumber: extractIdDigits(initialData.idNumber) }
@@ -251,13 +251,53 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
       )
     : '';
 
+  // ─── Validación de estado/oficina según método de envío ───
+  function validateShippingFields(data: ShippingFormData): boolean {
+    let valid = true;
+    if (data.shippingMethod === 'mrw') {
+      if (!data.mrwState) {
+        setError('mrwState', { type: 'manual', message: 'Selecciona un estado' });
+        valid = false;
+      }
+      if (!data.mrwOfficeManual?.trim() && !data.mrwOffice?.trim()) {
+        setError('mrwOffice', { type: 'manual', message: 'Selecciona o escribe una oficina MRW' });
+        valid = false;
+      }
+    } else if (data.shippingMethod === 'zoom') {
+      if (!data.zoomState) {
+        setError('zoomState', { type: 'manual', message: 'Selecciona un estado' });
+        valid = false;
+      }
+      if (!data.zoomOfficeManual?.trim() && !data.zoomOfficeIndex) {
+        setError('zoomOfficeIndex', { type: 'manual', message: 'Selecciona o escribe una oficina ZOOM' });
+        valid = false;
+      }
+    } else if (data.shippingMethod === 'tealca') {
+      if (!data.tealcaState) {
+        setError('tealcaState', { type: 'manual', message: 'Selecciona un estado' });
+        valid = false;
+      }
+      if (!data.tealcaOfficeManual?.trim() && !data.tealcaOfficeIndex) {
+        setError('tealcaOfficeIndex', { type: 'manual', message: 'Selecciona o escribe una oficina TEALCA' });
+        valid = false;
+      }
+    }
+    return valid;
+  }
+
   useImperativeHandle(ref, () => ({
     submit: () => new Promise<ShippingFormData | null>((resolve) => {
-      handleSubmit((data) => resolve(finalizeShipping(data)), () => resolve(null))();
+      handleSubmit((data) => {
+        if (!validateShippingFields(data)) { resolve(null); return; }
+        resolve(finalizeShipping(data));
+      }, () => resolve(null))();
     }),
   }));
 
-  const onSubmit: SubmitHandler<ShippingFormData> = (data) => onFormSubmit(finalizeShipping(data));
+  const onSubmit: SubmitHandler<ShippingFormData> = (data) => {
+    if (!validateShippingFields(data)) return;
+    onFormSubmit(finalizeShipping(data));
+  };
 
   const selectedAddr = savedAddresses.find((a) => a.id === selectedAddrId);
 
@@ -531,6 +571,7 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
               })()}
               error={!!errors.mrwState}
               onSelect={(_, o) => {
+                clearErrors('mrwState');
                 setValue('mrwState', o.name, { shouldValidate: true });
                 setValue('mrwOffice', '');
                 setMrwManual(false);
@@ -550,6 +591,13 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
                     className="block w-full min-h-[80px] px-3.5 py-2.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy resize-none"
                     placeholder="Describe la dirección de tu oficina MRW (ciudad, urbanización, punto de referencia…)"
                   />
+                  <button
+                    type="button"
+                    onClick={() => { clearErrors('mrwOffice'); setMrwManual(false); setValue('mrwOfficeManual', ''); }}
+                    className="mt-2 text-xs font-medium text-slate-500 hover:text-navy underline underline-offset-2 transition-colors"
+                  >
+                    Volver a la lista de oficinas
+                  </button>
                 </Field>
               );
             }
@@ -568,6 +616,7 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
                   disabled={!selectedMrwState}
                   error={!!errors.mrwOffice}
                   onSelect={(idx, o) => {
+                    clearErrors('mrwOffice');
                     if (idx === mrwOptionsWithManual.length - 1) {
                       setMrwManual(true);
                       setValue('mrwOffice', '');
@@ -594,6 +643,7 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
               })()}
               error={!!errors.zoomState}
               onSelect={(_, o) => {
+                clearErrors('zoomState');
                 setValue('zoomState', o.name, { shouldValidate: true });
                 setValue('zoomOfficeIndex', '');
                 setValue('zoomOfficeName', '');
@@ -616,6 +666,13 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
                     className="block w-full min-h-[80px] px-3.5 py-2.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy resize-none"
                     placeholder="Describe la dirección de tu oficina ZOOM (ciudad, urbanización, punto de referencia…)"
                   />
+                  <button
+                    type="button"
+                    onClick={() => { clearErrors('zoomOfficeIndex'); setZoomManual(false); setValue('zoomOfficeManual', ''); }}
+                    className="mt-2 text-xs font-medium text-slate-500 hover:text-navy underline underline-offset-2 transition-colors"
+                  >
+                    Volver a la lista de oficinas
+                  </button>
                 </Field>
               );
             }
@@ -628,6 +685,7 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
                   disabled={!selectedZoomState}
                   error={!!errors.zoomOfficeIndex}
                   onSelect={(idx, o) => {
+                    clearErrors('zoomOfficeIndex');
                     if (idx === zoomOptionsWithManual.length - 1) {
                       setZoomManual(true);
                       setValue('zoomOfficeIndex', '');
@@ -660,6 +718,7 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
               })()}
               error={!!errors.tealcaState}
               onSelect={(_, o) => {
+                clearErrors('tealcaState');
                 setValue('tealcaState', o.name, { shouldValidate: true });
                 setValue('tealcaOfficeIndex', '');
                 setValue('tealcaOfficeName', '');
@@ -682,6 +741,13 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
                     className="block w-full min-h-[80px] px-3.5 py-2.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy resize-none"
                     placeholder="Describe la dirección de tu oficina TEALCA (ciudad, urbanización, punto de referencia…)"
                   />
+                  <button
+                    type="button"
+                    onClick={() => { clearErrors('tealcaOfficeIndex'); setTealcaManual(false); setValue('tealcaOfficeManual', ''); }}
+                    className="mt-2 text-xs font-medium text-slate-500 hover:text-navy underline underline-offset-2 transition-colors"
+                  >
+                    Volver a la lista de oficinas
+                  </button>
                 </Field>
               );
             }
@@ -694,6 +760,7 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
                   disabled={!selectedTealcaState}
                   error={!!errors.tealcaOfficeIndex}
                   onSelect={(idx, o) => {
+                    clearErrors('tealcaOfficeIndex');
                     if (idx === tealcaOptionsWithManual.length - 1) {
                       setTealcaManual(true);
                       setValue('tealcaOfficeIndex', '');
@@ -717,7 +784,7 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
       {!embedded && (
         <div
           className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 bg-white/95 backdrop-blur-sm border-t border-slate-100 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-0 sm:border-0 sm:bg-transparent sm:backdrop-blur-none"
-          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         >
           <button
             type="submit"

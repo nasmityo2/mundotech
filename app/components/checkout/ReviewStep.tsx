@@ -125,31 +125,31 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
     if (shippingData?.shippingMethod === 'tienda') return 'Retiro en tienda';
     if (shippingData?.shippingMethod === 'mrw') {
       if (shippingData.mrwOfficeManual?.trim()) {
-        return `Oficina MRW — ${shippingData.mrwOfficeManual.trim()}`;
+        return `MRW — ${shippingData.mrwOfficeManual.trim()}`;
       }
       const name = shippingData.mrwOffice?.trim();
-      const base = name ? `Oficina MRW — ${name}` : 'Oficina MRW';
+      const base = name ? `MRW — ${name}` : 'MRW';
       return base;
     }
     if (shippingData?.shippingMethod === 'zoom') {
       if (shippingData.zoomOfficeManual?.trim()) {
-        return `Oficina ZOOM — ${shippingData.zoomOfficeManual.trim()}`;
+        return `ZOOM — ${shippingData.zoomOfficeManual.trim()}`;
       }
       if (zoomOffice) {
-        return `Oficina ZOOM ${zoomOffice.name}${zoomOffice.address ? ` — ${zoomOffice.address}` : ''}`;
+        return `ZOOM — ${zoomOffice.name}${zoomOffice.address ? ` (${zoomOffice.address})` : ''}`;
       }
-      return 'Oficina ZOOM';
+      return 'ZOOM';
     }
     if (shippingData?.shippingMethod === 'tealca') {
       if (shippingData.tealcaOfficeManual?.trim()) {
-        return `Oficina TEALCA — ${shippingData.tealcaOfficeManual.trim()}`;
+        return `TEALCA — ${shippingData.tealcaOfficeManual.trim()}`;
       }
       if (tealcaOffice) {
-        return `Retiro en Oficina TEALCA ${tealcaOffice.name}${tealcaOffice.address ? ` — ${tealcaOffice.address}` : ''}`;
+        return `TEALCA — ${tealcaOffice.name}${tealcaOffice.address ? ` (${tealcaOffice.address})` : ''}`;
       }
-      return 'Oficina TEALCA';
+      return 'TEALCA';
     }
-    return 'Oficina MRW';
+    return 'MRW';
   };
 
   const buildCity = (): string => {
@@ -481,27 +481,36 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-500">Oficina</dt>
                 <dd className="text-navy text-right">
-                  {shippingData.mrwOffice}, {shippingData.mrwState}
+                  {shippingData.mrwOfficeManual?.trim()
+                    ? `${shippingData.mrwOfficeManual.trim()}, ${shippingData.mrwState}`
+                    : `${shippingData.mrwOffice}, ${shippingData.mrwState}`
+                  }
                 </dd>
               </div>
             )}
-            {shippingData?.shippingMethod === 'zoom' && zoomOffice && (
+            {shippingData?.shippingMethod === 'zoom' && (zoomOffice || shippingData.zoomOfficeManual?.trim()) && (
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-500">Oficina</dt>
                 <dd className="text-navy text-right">
-                  {zoomOffice.name}
-                  {zoomOffice.address ? ` — ${zoomOffice.address}` : ''}
-                  {zoomOffice.city ? ` · ${zoomOffice.city}` : ''}, {shippingData.zoomState}
+                  {shippingData.zoomOfficeManual?.trim()
+                    ? `${shippingData.zoomOfficeManual.trim()}, ${shippingData.zoomState}`
+                    : zoomOffice
+                      ? `${zoomOffice.name}${zoomOffice.address ? ` — ${zoomOffice.address}` : ''}${zoomOffice.city ? ` · ${zoomOffice.city}` : ''}, ${shippingData.zoomState}`
+                      : shippingData.zoomState
+                  }
                 </dd>
               </div>
             )}
-            {shippingData?.shippingMethod === 'tealca' && tealcaOffice && (
+            {shippingData?.shippingMethod === 'tealca' && (tealcaOffice || shippingData.tealcaOfficeManual?.trim()) && (
               <div className="flex justify-between gap-3">
                 <dt className="text-slate-500">Oficina</dt>
                 <dd className="text-navy text-right">
-                  {tealcaOffice.name}
-                  {tealcaOffice.address ? ` — ${tealcaOffice.address}` : ''}
-                  {tealcaOffice.city ? ` · ${tealcaOffice.city}` : ''}, {shippingData.tealcaState}
+                  {shippingData.tealcaOfficeManual?.trim()
+                    ? `${shippingData.tealcaOfficeManual.trim()}, ${shippingData.tealcaState}`
+                    : tealcaOffice
+                      ? `${tealcaOffice.name}${tealcaOffice.address ? ` — ${tealcaOffice.address}` : ''}${tealcaOffice.city ? ` · ${tealcaOffice.city}` : ''}, ${shippingData.tealcaState}`
+                      : shippingData.tealcaState
+                  }
                 </dd>
               </div>
             )}
@@ -677,7 +686,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
 
       <div
         className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 bg-white/95 backdrop-blur-sm border-t border-slate-100 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-0 sm:border-0 sm:bg-transparent sm:backdrop-blur-none"
-        style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
       <button
         type="button"

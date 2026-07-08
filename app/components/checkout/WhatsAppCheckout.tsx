@@ -30,31 +30,31 @@ function buildAddress(shippingData: ShippingFormData): string {
   if (shippingData.shippingMethod === 'tienda') return 'Retiro en tienda';
   if (shippingData.shippingMethod === 'mrw') {
     if (shippingData.mrwOfficeManual?.trim()) {
-      return `Oficina MRW — ${shippingData.mrwOfficeManual.trim()}`;
+      return `MRW — ${shippingData.mrwOfficeManual.trim()}`;
     }
     const name = shippingData.mrwOffice?.trim();
-    const base = name ? `Oficina MRW — ${name}` : 'Oficina MRW';
+    const base = name ? `MRW — ${name}` : 'MRW';
     return base;
   }
   if (shippingData.shippingMethod === 'zoom') {
     if (shippingData.zoomOfficeManual?.trim()) {
-      return `Oficina ZOOM — ${shippingData.zoomOfficeManual.trim()}`;
+      return `ZOOM — ${shippingData.zoomOfficeManual.trim()}`;
     }
     const name = shippingData.zoomOfficeName?.trim();
     const addr = shippingData.zoomOfficeAddress?.trim();
-    const base = name ? `Oficina ZOOM — ${name}` : 'Oficina ZOOM';
+    const base = name ? `ZOOM — ${name}` : 'ZOOM';
     return addr ? `${base} (${addr})` : base;
   }
   if (shippingData.shippingMethod === 'tealca') {
     if (shippingData.tealcaOfficeManual?.trim()) {
-      return `Oficina TEALCA — ${shippingData.tealcaOfficeManual.trim()}`;
+      return `TEALCA — ${shippingData.tealcaOfficeManual.trim()}`;
     }
     const name = shippingData.tealcaOfficeName?.trim();
     const addr = shippingData.tealcaOfficeAddress?.trim();
-    const base = name ? `Oficina TEALCA — ${name}` : 'Oficina TEALCA';
+    const base = name ? `TEALCA — ${name}` : 'TEALCA';
     return addr ? `${base} (${addr})` : base;
   }
-  return 'Oficina MRW';
+  return 'MRW';
 }
 
 function buildCity(shippingData: ShippingFormData): string {
