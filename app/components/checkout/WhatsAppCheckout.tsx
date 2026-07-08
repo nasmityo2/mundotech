@@ -28,24 +28,42 @@ interface WhatsAppCheckoutProps {
 
 function buildAddress(shippingData: ShippingFormData): string {
   if (shippingData.shippingMethod === 'tienda') return 'Retiro en tienda';
+  if (shippingData.shippingMethod === 'mrw') {
+    if (shippingData.mrwOfficeManual?.trim()) {
+      return `Oficina MRW — ${shippingData.mrwOfficeManual.trim()}`;
+    }
+    const name = shippingData.mrwOffice?.trim();
+    const base = name ? `Oficina MRW — ${name}` : 'Oficina MRW';
+    return base;
+  }
   if (shippingData.shippingMethod === 'zoom') {
+    if (shippingData.zoomOfficeManual?.trim()) {
+      return `Oficina ZOOM — ${shippingData.zoomOfficeManual.trim()}`;
+    }
     const name = shippingData.zoomOfficeName?.trim();
     const addr = shippingData.zoomOfficeAddress?.trim();
     const base = name ? `Oficina ZOOM — ${name}` : 'Oficina ZOOM';
     return addr ? `${base} (${addr})` : base;
   }
   if (shippingData.shippingMethod === 'tealca') {
+    if (shippingData.tealcaOfficeManual?.trim()) {
+      return `Oficina TEALCA — ${shippingData.tealcaOfficeManual.trim()}`;
+    }
     const name = shippingData.tealcaOfficeName?.trim();
     const addr = shippingData.tealcaOfficeAddress?.trim();
     const base = name ? `Oficina TEALCA — ${name}` : 'Oficina TEALCA';
     return addr ? `${base} (${addr})` : base;
   }
-  return 'Retiro en Oficina MRW';
+  return 'Oficina MRW';
 }
 
 function buildCity(shippingData: ShippingFormData): string {
-  if (shippingData.shippingMethod === 'mrw') return shippingData.mrwOffice ?? '';
+  if (shippingData.shippingMethod === 'mrw') {
+    if (shippingData.mrwOfficeManual?.trim()) return shippingData.mrwState ?? shippingData.mrwOfficeManual.trim();
+    return shippingData.mrwOffice ?? '';
+  }
   if (shippingData.shippingMethod === 'zoom') {
+    if (shippingData.zoomOfficeManual?.trim()) return shippingData.zoomState ?? shippingData.zoomOfficeManual.trim();
     const city = shippingData.zoomOfficeCity?.trim();
     if (city) return city;
     // Respaldo defensivo desde zoomOffices
@@ -59,6 +77,7 @@ function buildCity(shippingData: ShippingFormData): string {
     return shippingData.zoomState || 'Venezuela';
   }
   if (shippingData.shippingMethod === 'tealca') {
+    if (shippingData.tealcaOfficeManual?.trim()) return shippingData.tealcaState ?? shippingData.tealcaOfficeManual.trim();
     const city = shippingData.tealcaOfficeCity?.trim();
     if (city) return city;
     if (shippingData.tealcaState && shippingData.tealcaOfficeIndex) {
@@ -76,6 +95,7 @@ function buildCity(shippingData: ShippingFormData): string {
 function buildState(shippingData: ShippingFormData): string {
   if (shippingData.shippingMethod === 'mrw') return shippingData.mrwState ?? '';
   if (shippingData.shippingMethod === 'zoom') {
+    if (shippingData.zoomOfficeManual?.trim()) return shippingData.zoomState ?? 'Lara';
     if (shippingData.zoomState) return shippingData.zoomState;
     if (shippingData.zoomOfficeIndex) {
       try {
@@ -92,6 +112,7 @@ function buildState(shippingData: ShippingFormData): string {
     return 'Lara';
   }
   if (shippingData.shippingMethod === 'tealca') {
+    if (shippingData.tealcaOfficeManual?.trim()) return shippingData.tealcaState ?? 'Lara';
     if (shippingData.tealcaState) return shippingData.tealcaState;
     if (shippingData.tealcaOfficeIndex) {
       try {
@@ -271,7 +292,7 @@ const WhatsAppCheckout = ({
       const orderRef = String(body.orderNumber ?? body.id).padStart(4, '0');
       const waShippingText =
         shipping.shippingMethod === 'mrw'
-          ? `Oficina MRW ${shipping.mrwOffice ?? ''}${shipping.mrwState ? `, ${shipping.mrwState}` : ''}`.trim()
+          ? `${buildAddress(shipping)}${shipping.mrwState ? `, ${shipping.mrwState}` : ''}`.trim()
           : shipping.shippingMethod === 'zoom'
             ? `${buildAddress(shipping)}, ${buildCity(shipping)}, ${buildState(shipping)}`.replace(/,\s*,/g, ',').trim()
             : buildAddress(shipping);

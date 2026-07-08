@@ -26,16 +26,19 @@ export type ShippingFormData = {
   shippingMethod: ShippingMethod;
   mrwState?:  string;
   mrwOffice?: string;
+  mrwOfficeManual?: string;
   zoomState?: string;
   zoomOfficeIndex?: string;
   zoomOfficeName?: string;
   zoomOfficeAddress?: string;
   zoomOfficeCity?: string;
+  zoomOfficeManual?: string;
   tealcaState?: string;
   tealcaOfficeIndex?: string;
   tealcaOfficeName?: string;
   tealcaOfficeAddress?: string;
   tealcaOfficeCity?: string;
+  tealcaOfficeManual?: string;
 };
 
 // ── Helpers de validación venezolana ──
@@ -117,6 +120,18 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
       ? { ...initialData, idType: extractIdType(initialData.idNumber), idNumber: extractIdDigits(initialData.idNumber) }
       : { shippingMethod: 'tienda', email: '', idType: 'V' },
   });
+
+  const [mrwManual, setMrwManual] = useState(false);
+  const [zoomManual, setZoomManual] = useState(false);
+  const [tealcaManual, setTealcaManual] = useState(false);
+
+  const MANUAL_OFFICE: OfficeOption = { name: 'Mi oficina no está en la lista', address: 'Escribir dirección manualmente' };
+
+  const mrwStateOptions: OfficeOption[] = Object.keys(mrwOffices).sort().map(s => ({ name: s }));
+  const zoomStateOptions: OfficeOption[] = Object.keys(zoomOffices).sort().map(s => ({ name: s }));
+  const tealcaStateOptions: OfficeOption[] = Object.keys(tealcaOffices).sort().map(s => ({ name: s }));
+
+  const idTypeOptions: OfficeOption[] = VE_ID_TYPES.map(t => ({ name: t.label }));
 
   const [savedAddresses, setSavedAddresses]   = useState<SavedAddress[]>([]);
   const [selectedAddrId, setSelectedAddrId]   = useState<string | null>(null);
@@ -243,8 +258,6 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
   }));
 
   const onSubmit: SubmitHandler<ShippingFormData> = (data) => onFormSubmit(finalizeShipping(data));
-
-  const inputCls = "block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy";
 
   const selectedAddr = savedAddresses.find((a) => a.id === selectedAddrId);
 
@@ -428,15 +441,19 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
         {/* Cédula / RIF con selector de tipo de documento */}
         <Field id="idNumber" label="Cédula / RIF" error={errors.idNumber?.message}>
           <div className="flex gap-0">
-            <select
-              {...register('idType')}
-              className="block min-h-[48px] px-2 text-sm bg-slate-50/70 border border-slate-200 border-r-0 rounded-l-xl text-navy focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy"
-              aria-label="Tipo de documento"
-            >
-              {VE_ID_TYPES.map((t) => (
-                <option key={t.v} value={t.v}>{t.v}</option>
-              ))}
-            </select>
+            <OfficeSelect
+              options={idTypeOptions}
+              selectedIndex={(() => {
+                const i = idTypeOptions.findIndex(o => o.name.startsWith(watch('idType')));
+                return i >= 0 ? i : null;
+              })()}
+              buttonClassName="w-24 rounded-r-none border-r-0 rounded-l-xl"
+              renderButtonLabel={(o) => o.name.charAt(0)}
+              onSelect={(_, o) => {
+                const letter = o.name.charAt(0);
+                setValue('idType', letter, { shouldValidate: true });
+              }}
+            />
             <Input
               id="idNumber"
               placeholder="12345678"
@@ -506,36 +523,62 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
       {shippingMethod === 'mrw' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <Field id="mrwState" label="Estado" error={errors.mrwState?.message}>
-            <select
-              id="mrwState"
-              {...register('mrwState', { required: 'Selecciona un estado' })}
-              className={inputCls}
-            >
-              <option value="">Selecciona…</option>
-              {Object.keys(mrwOffices).sort().map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            <OfficeSelect
+              options={mrwStateOptions}
+              selectedIndex={(() => {
+                const i = mrwStateOptions.findIndex(o => o.name === watch('mrwState'));
+                return i >= 0 ? i : null;
+              })()}
+              error={!!errors.mrwState}
+              onSelect={(_, o) => {
+                setValue('mrwState', o.name, { shouldValidate: true });
+                setValue('mrwOffice', '');
+                setMrwManual(false);
+                setValue('mrwOfficeManual', '');
+              }}
+            />
           </Field>
-          <Field id="mrwOffice" label="Oficina MRW" error={errors.mrwOffice?.message}>
-            {(() => {
-              const mrwOptions: OfficeOption[] = selectedMrwState
-                ? ((mrwOffices as Record<string, string[]>)[selectedMrwState] ?? []).map((nombre) => ({ name: nombre }))
-                : [];
+          {(() => {
+            if (mrwManual) {
               return (
+                <Field id="mrwOfficeManual" label="Dirección de oficina MRW" error={errors.mrwOfficeManual?.message}>
+                  <textarea
+                    {...register('mrwOfficeManual', {
+                      required: mrwManual ? 'Describe la dirección de tu oficina MRW' : false,
+                      minLength: mrwManual ? { value: 10, message: 'Escribe al menos 10 caracteres' } : undefined,
+                    })}
+                    className="block w-full min-h-[80px] px-3.5 py-2.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy resize-none"
+                    placeholder="Describe la dirección de tu oficina MRW (ciudad, urbanización, punto de referencia…)"
+                  />
+                </Field>
+              );
+            }
+            const mrwOptions: OfficeOption[] = selectedMrwState
+              ? ((mrwOffices as Record<string, string[]>)[selectedMrwState] ?? []).map((nombre) => ({ name: nombre }))
+              : [];
+            const mrwOptionsWithManual = [...mrwOptions, MANUAL_OFFICE];
+            return (
+              <Field id="mrwOffice" label="Oficina MRW" error={errors.mrwOffice?.message}>
                 <OfficeSelect
-                  options={mrwOptions}
+                  options={mrwOptionsWithManual}
                   selectedIndex={(() => {
-                    const i = mrwOptions.findIndex((o) => o.name === watch('mrwOffice'));
+                    const i = mrwOptionsWithManual.findIndex((o) => o.name === watch('mrwOffice'));
                     return i >= 0 ? i : null;
                   })()}
                   disabled={!selectedMrwState}
                   error={!!errors.mrwOffice}
-                  onSelect={(_, o) => setValue('mrwOffice', o.name, { shouldValidate: true })}
+                  onSelect={(idx, o) => {
+                    if (idx === mrwOptionsWithManual.length - 1) {
+                      setMrwManual(true);
+                      setValue('mrwOffice', '');
+                    } else {
+                      setValue('mrwOffice', o.name, { shouldValidate: true });
+                    }
+                  }}
                 />
-              );
-            })()}
-          </Field>
+              </Field>
+            );
+          })()}
         </div>
       )}
 
@@ -543,31 +586,65 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
       {shippingMethod === 'zoom' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <Field id="zoomState" label="Estado" error={errors.zoomState?.message}>
-            <select
-              id="zoomState"
-              {...register('zoomState', { required: 'Selecciona un estado' })}
-              className={inputCls}
-            >
-              <option value="">Selecciona…</option>
-              {Object.keys(zoomOffices).sort().map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </Field>
-          <Field id="zoomOfficeIndex" label="Oficina ZOOM" error={errors.zoomOfficeIndex?.message}>
             <OfficeSelect
-              options={zoomOfficesForState}
-              selectedIndex={watch('zoomOfficeIndex') ? Number(watch('zoomOfficeIndex')) : null}
-              disabled={!selectedZoomState}
-              error={!!errors.zoomOfficeIndex}
-              onSelect={(idx, o) => {
-                setValue('zoomOfficeIndex', String(idx), { shouldValidate: true });
-                setValue('zoomOfficeName', o.name);
-                setValue('zoomOfficeAddress', o.address ?? '');
-                setValue('zoomOfficeCity', o.city);
+              options={zoomStateOptions}
+              selectedIndex={(() => {
+                const i = zoomStateOptions.findIndex(o => o.name === watch('zoomState'));
+                return i >= 0 ? i : null;
+              })()}
+              error={!!errors.zoomState}
+              onSelect={(_, o) => {
+                setValue('zoomState', o.name, { shouldValidate: true });
+                setValue('zoomOfficeIndex', '');
+                setValue('zoomOfficeName', '');
+                setValue('zoomOfficeAddress', '');
+                setValue('zoomOfficeCity', '');
+                setZoomManual(false);
+                setValue('zoomOfficeManual', '');
               }}
             />
           </Field>
+          {(() => {
+            if (zoomManual) {
+              return (
+                <Field id="zoomOfficeManual" label="Dirección de oficina ZOOM" error={errors.zoomOfficeManual?.message}>
+                  <textarea
+                    {...register('zoomOfficeManual', {
+                      required: zoomManual ? 'Describe la dirección de tu oficina ZOOM' : false,
+                      minLength: zoomManual ? { value: 10, message: 'Escribe al menos 10 caracteres' } : undefined,
+                    })}
+                    className="block w-full min-h-[80px] px-3.5 py-2.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy resize-none"
+                    placeholder="Describe la dirección de tu oficina ZOOM (ciudad, urbanización, punto de referencia…)"
+                  />
+                </Field>
+              );
+            }
+            const zoomOptionsWithManual = [...zoomOfficesForState, MANUAL_OFFICE];
+            return (
+              <Field id="zoomOfficeIndex" label="Oficina ZOOM" error={errors.zoomOfficeIndex?.message}>
+                <OfficeSelect
+                  options={zoomOptionsWithManual}
+                  selectedIndex={watch('zoomOfficeIndex') ? Number(watch('zoomOfficeIndex')) : null}
+                  disabled={!selectedZoomState}
+                  error={!!errors.zoomOfficeIndex}
+                  onSelect={(idx, o) => {
+                    if (idx === zoomOptionsWithManual.length - 1) {
+                      setZoomManual(true);
+                      setValue('zoomOfficeIndex', '');
+                      setValue('zoomOfficeName', '');
+                      setValue('zoomOfficeAddress', '');
+                      setValue('zoomOfficeCity', '');
+                    } else {
+                      setValue('zoomOfficeIndex', String(idx), { shouldValidate: true });
+                      setValue('zoomOfficeName', o.name);
+                      setValue('zoomOfficeAddress', o.address ?? '');
+                      setValue('zoomOfficeCity', o.city ?? '');
+                    }
+                  }}
+                />
+              </Field>
+            );
+          })()}
         </div>
       )}
 
@@ -575,31 +652,65 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
       {shippingMethod === 'tealca' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <Field id="tealcaState" label="Estado" error={errors.tealcaState?.message}>
-            <select
-              id="tealcaState"
-              {...register('tealcaState', { required: 'Selecciona un estado' })}
-              className={inputCls}
-            >
-              <option value="">Selecciona…</option>
-              {Object.keys(tealcaOffices).sort().map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </Field>
-          <Field id="tealcaOfficeIndex" label="Oficina TEALCA" error={errors.tealcaOfficeIndex?.message}>
             <OfficeSelect
-              options={tealcaOfficesForState}
-              selectedIndex={watch('tealcaOfficeIndex') ? Number(watch('tealcaOfficeIndex')) : null}
-              disabled={!selectedTealcaState}
-              error={!!errors.tealcaOfficeIndex}
-              onSelect={(idx, o) => {
-                setValue('tealcaOfficeIndex', String(idx), { shouldValidate: true });
-                setValue('tealcaOfficeName', o.name);
-                setValue('tealcaOfficeAddress', o.address ?? '');
-                setValue('tealcaOfficeCity', o.city ?? '');
+              options={tealcaStateOptions}
+              selectedIndex={(() => {
+                const i = tealcaStateOptions.findIndex(o => o.name === watch('tealcaState'));
+                return i >= 0 ? i : null;
+              })()}
+              error={!!errors.tealcaState}
+              onSelect={(_, o) => {
+                setValue('tealcaState', o.name, { shouldValidate: true });
+                setValue('tealcaOfficeIndex', '');
+                setValue('tealcaOfficeName', '');
+                setValue('tealcaOfficeAddress', '');
+                setValue('tealcaOfficeCity', '');
+                setTealcaManual(false);
+                setValue('tealcaOfficeManual', '');
               }}
             />
           </Field>
+          {(() => {
+            if (tealcaManual) {
+              return (
+                <Field id="tealcaOfficeManual" label="Dirección de oficina TEALCA" error={errors.tealcaOfficeManual?.message}>
+                  <textarea
+                    {...register('tealcaOfficeManual', {
+                      required: tealcaManual ? 'Describe la dirección de tu oficina TEALCA' : false,
+                      minLength: tealcaManual ? { value: 10, message: 'Escribe al menos 10 caracteres' } : undefined,
+                    })}
+                    className="block w-full min-h-[80px] px-3.5 py-2.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy resize-none"
+                    placeholder="Describe la dirección de tu oficina TEALCA (ciudad, urbanización, punto de referencia…)"
+                  />
+                </Field>
+              );
+            }
+            const tealcaOptionsWithManual = [...tealcaOfficesForState, MANUAL_OFFICE];
+            return (
+              <Field id="tealcaOfficeIndex" label="Oficina TEALCA" error={errors.tealcaOfficeIndex?.message}>
+                <OfficeSelect
+                  options={tealcaOptionsWithManual}
+                  selectedIndex={watch('tealcaOfficeIndex') ? Number(watch('tealcaOfficeIndex')) : null}
+                  disabled={!selectedTealcaState}
+                  error={!!errors.tealcaOfficeIndex}
+                  onSelect={(idx, o) => {
+                    if (idx === tealcaOptionsWithManual.length - 1) {
+                      setTealcaManual(true);
+                      setValue('tealcaOfficeIndex', '');
+                      setValue('tealcaOfficeName', '');
+                      setValue('tealcaOfficeAddress', '');
+                      setValue('tealcaOfficeCity', '');
+                    } else {
+                      setValue('tealcaOfficeIndex', String(idx), { shouldValidate: true });
+                      setValue('tealcaOfficeName', o.name);
+                      setValue('tealcaOfficeAddress', o.address ?? '');
+                      setValue('tealcaOfficeCity', o.city ?? '');
+                    }
+                  }}
+                />
+              </Field>
+            );
+          })()}
         </div>
       )}
 

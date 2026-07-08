@@ -34,9 +34,6 @@ interface AddressFormModalProps {
   isSubmitting: boolean;
 }
 
-const selectCls =
-  'block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy focus:shadow-ring-navy';
-
 export default function AddressFormModal({
   editAddress,
   onClose,
@@ -82,6 +79,10 @@ export default function AddressFormModal({
 
   const method       = watch('shippingMethod');
   const selectedState = watch('mrwState');
+
+  const mrwStateOptions: OfficeOption[] = Object.keys(mrwOffices).sort().map(s => ({ name: s }));
+  const zoomStateOptions: OfficeOption[] = Object.keys(zoomOffices).sort().map(s => ({ name: s }));
+  const tealcaStateOptions: OfficeOption[] = Object.keys(tealcaOffices).sort().map(s => ({ name: s }));
 
   const didMountRef = useRef(false);
   useEffect(() => {
@@ -238,16 +239,18 @@ export default function AddressFormModal({
           {method === 'mrw' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field id="mrwState" label="Estado" error={errors.mrwState?.message}>
-                <select
-                  id="mrwState"
-                  {...register('mrwState', { required: method === 'mrw' ? 'Selecciona un estado.' : false })}
-                  className={selectCls}
-                >
-                  <option value="">Selecciona…</option>
-                  {Object.keys(mrwOffices).sort().map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+                <OfficeSelect
+                  options={mrwStateOptions}
+                  selectedIndex={(() => {
+                    const i = mrwStateOptions.findIndex(o => o.name === watch('mrwState'));
+                    return i >= 0 ? i : null;
+                  })()}
+                  error={!!errors.mrwState}
+                  onSelect={(_, o) => {
+                    setValue('mrwState', o.name);
+                    setValue('mrwOffice', '');
+                  }}
+                />
               </Field>
               <Field id="mrwOffice" label="Oficina MRW" error={errors.mrwOffice?.message}>
                 {(() => {
@@ -275,16 +278,18 @@ export default function AddressFormModal({
           {method === 'zoom' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field id="mrwState" label="Estado" error={errors.mrwState?.message}>
-                <select
-                  id="mrwState"
-                  {...register('mrwState', { required: method === 'zoom' ? 'Selecciona un estado.' : false })}
-                  className={selectCls}
-                >
-                  <option value="">Selecciona…</option>
-                  {Object.keys(zoomOffices).sort().map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+                <OfficeSelect
+                  options={zoomStateOptions}
+                  selectedIndex={(() => {
+                    const i = zoomStateOptions.findIndex(o => o.name === watch('mrwState'));
+                    return i >= 0 ? i : null;
+                  })()}
+                  error={!!errors.mrwState}
+                  onSelect={(_, o) => {
+                    setValue('mrwState', o.name);
+                    setValue('zoomOfficeIndex', '');
+                  }}
+                />
               </Field>
               <Field id="zoomOfficeIndex" label="Oficina ZOOM" error={errors.zoomOfficeIndex?.message}>
                 {(() => {
@@ -309,16 +314,18 @@ export default function AddressFormModal({
           {method === 'tealca' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field id="mrwState" label="Estado" error={errors.mrwState?.message}>
-                <select
-                  id="mrwState"
-                  {...register('mrwState', { required: method === 'tealca' ? 'Selecciona un estado.' : false })}
-                  className={selectCls}
-                >
-                  <option value="">Selecciona…</option>
-                  {Object.keys(tealcaOffices).sort().map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+                <OfficeSelect
+                  options={tealcaStateOptions}
+                  selectedIndex={(() => {
+                    const i = tealcaStateOptions.findIndex(o => o.name === watch('mrwState'));
+                    return i >= 0 ? i : null;
+                  })()}
+                  error={!!errors.mrwState}
+                  onSelect={(_, o) => {
+                    setValue('mrwState', o.name);
+                    setValue('tealcaOfficeIndex', '');
+                  }}
+                />
               </Field>
               <Field id="tealcaOfficeIndex" label="Oficina TEALCA" error={errors.tealcaOfficeIndex?.message}>
                 {(() => {

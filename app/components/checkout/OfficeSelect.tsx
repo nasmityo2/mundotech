@@ -19,6 +19,10 @@ interface OfficeSelectProps {
   disabled?: boolean;
   error?: boolean;
   placeholder?: string;
+  /** Clase adicional para el botón (útil para ancho compacto). */
+  buttonClassName?: string;
+  /** Render personalizado del texto del botón (sin cambiar el panel). */
+  renderButtonLabel?: (option: OfficeOption) => string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -45,6 +49,8 @@ export default function OfficeSelect({
   disabled = false,
   error = false,
   placeholder = 'Selecciona…',
+  buttonClassName,
+  renderButtonLabel,
 }: OfficeSelectProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -129,7 +135,8 @@ export default function OfficeSelect({
         aria-haspopup="listbox"
         onClick={() => !disabled && setOpen((v) => !v)}
         onKeyDown={handleKeyDown}
-        className={`flex w-full items-center justify-between gap-2 min-h-[48px] px-3.5 text-base rounded-xl border transition-colors text-left
+        className={`flex items-center justify-between gap-1 min-h-[48px] px-3.5 text-base rounded-xl border transition-colors text-left
+          ${buttonClassName ?? 'w-full'}
           ${disabled
             ? 'opacity-60 cursor-not-allowed bg-slate-50/70 border-slate-200 text-navy'
             : error
@@ -138,7 +145,9 @@ export default function OfficeSelect({
           }`}
       >
         <span className="flex-1 truncate">
-          {selected ? summaryLabel(selected) : <span className="text-slate-400">{placeholder}</span>}
+          {selected
+            ? <span>{renderButtonLabel ? renderButtonLabel(selected) : summaryLabel(selected)}</span>
+            : <span className="text-slate-400">{placeholder}</span>}
         </span>
         <ChevronDown
           size={16}

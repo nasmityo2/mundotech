@@ -123,26 +123,65 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
 
   const buildAddress = (): string => {
     if (shippingData?.shippingMethod === 'tienda') return 'Retiro en tienda';
-    if (shippingData?.shippingMethod === 'zoom' && zoomOffice) {
-      return `Oficina ZOOM ${zoomOffice.name}${zoomOffice.address ? ` — ${zoomOffice.address}` : ''}`;
+    if (shippingData?.shippingMethod === 'mrw') {
+      if (shippingData.mrwOfficeManual?.trim()) {
+        return `Oficina MRW — ${shippingData.mrwOfficeManual.trim()}`;
+      }
+      const name = shippingData.mrwOffice?.trim();
+      const base = name ? `Oficina MRW — ${name}` : 'Oficina MRW';
+      return base;
     }
-    if (shippingData?.shippingMethod === 'tealca' && tealcaOffice) {
-      return `Retiro en Oficina TEALCA ${tealcaOffice.name}${tealcaOffice.address ? ` — ${tealcaOffice.address}` : ''}`;
+    if (shippingData?.shippingMethod === 'zoom') {
+      if (shippingData.zoomOfficeManual?.trim()) {
+        return `Oficina ZOOM — ${shippingData.zoomOfficeManual.trim()}`;
+      }
+      if (zoomOffice) {
+        return `Oficina ZOOM ${zoomOffice.name}${zoomOffice.address ? ` — ${zoomOffice.address}` : ''}`;
+      }
+      return 'Oficina ZOOM';
     }
-    return 'Retiro en Oficina MRW';
+    if (shippingData?.shippingMethod === 'tealca') {
+      if (shippingData.tealcaOfficeManual?.trim()) {
+        return `Oficina TEALCA — ${shippingData.tealcaOfficeManual.trim()}`;
+      }
+      if (tealcaOffice) {
+        return `Retiro en Oficina TEALCA ${tealcaOffice.name}${tealcaOffice.address ? ` — ${tealcaOffice.address}` : ''}`;
+      }
+      return 'Oficina TEALCA';
+    }
+    return 'Oficina MRW';
   };
 
   const buildCity = (): string => {
-    if (shippingData?.shippingMethod === 'mrw') return shippingData.mrwOffice ?? '';
-    if (shippingData?.shippingMethod === 'zoom' && zoomOffice) return zoomOffice.city || zoomOffice.name;
-    if (shippingData?.shippingMethod === 'tealca' && tealcaOffice) return tealcaOffice.city || tealcaOffice.name;
+    if (shippingData?.shippingMethod === 'mrw') {
+      if (shippingData.mrwOfficeManual?.trim()) return shippingData.mrwState ?? shippingData.mrwOfficeManual.trim();
+      return shippingData.mrwOffice ?? '';
+    }
+    if (shippingData?.shippingMethod === 'zoom') {
+      if (shippingData.zoomOfficeManual?.trim()) return shippingData.zoomState ?? shippingData.zoomOfficeManual.trim();
+      if (zoomOffice) return zoomOffice.city || zoomOffice.name;
+      return shippingData.zoomState ?? 'Barquisimeto';
+    }
+    if (shippingData?.shippingMethod === 'tealca') {
+      if (shippingData.tealcaOfficeManual?.trim()) return shippingData.tealcaState ?? shippingData.tealcaOfficeManual.trim();
+      if (tealcaOffice) return tealcaOffice.city || tealcaOffice.name;
+      return shippingData.tealcaState ?? 'Barquisimeto';
+    }
     return 'Barquisimeto';
   };
 
   const buildState = (): string => {
     if (shippingData?.shippingMethod === 'mrw') return shippingData.mrwState ?? '';
-    if (shippingData?.shippingMethod === 'zoom' && zoomOffice) return shippingData.zoomState ?? 'Lara';
-    if (shippingData?.shippingMethod === 'tealca' && tealcaOffice) return shippingData.tealcaState ?? 'Lara';
+    if (shippingData?.shippingMethod === 'zoom') {
+      if (shippingData.zoomOfficeManual?.trim()) return shippingData.zoomState ?? 'Lara';
+      if (zoomOffice) return shippingData.zoomState ?? 'Lara';
+      return 'Lara';
+    }
+    if (shippingData?.shippingMethod === 'tealca') {
+      if (shippingData.tealcaOfficeManual?.trim()) return shippingData.tealcaState ?? 'Lara';
+      if (tealcaOffice) return shippingData.tealcaState ?? 'Lara';
+      return 'Lara';
+    }
     return 'Lara';
   };
 
@@ -252,7 +291,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
         const orderRef = String(body.orderNumber ?? body.id).padStart(4, '0');
         const waShippingText =
           shippingData.shippingMethod === 'mrw'
-            ? `Oficina MRW ${shippingData.mrwOffice ?? ''}${shippingData.mrwState ? `, ${shippingData.mrwState}` : ''}`.trim()
+            ? `${buildAddress()}, ${buildState()}`.replace(/,\s*,/g, ',').trim()
             : shippingData.shippingMethod === 'zoom'
               ? `${buildAddress()}, ${buildCity()}, ${buildState()}`.replace(/,\s*,/g, ',').trim()
               : shippingData.shippingMethod === 'tealca'
