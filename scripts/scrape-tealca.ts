@@ -108,9 +108,6 @@ export interface TealcaOffice {
   code: string;
   city: string;
   address: string;
-  url: string;
-  email?: string;
-  instagram?: string;
 }
 
 function sleep(ms = 400): Promise<void> {
@@ -146,6 +143,21 @@ function cleanText(text: string): string {
     .replace(/&amp;/g, '&')
     .replace(/\u00A0/g, ' ')
     .trim();
+}
+
+/** Valida que un texto sea un código Tealca real:
+ *  - No vacío
+ *  - No contiene "Detalles", "Contacto", "Código" ni otros encabezados
+ *  - Es alfanumérico corto (máx 6 caracteres), opcionalmente con un sufijo
+ *    tipo "B", "C", etc. Ej: 2901, J7917, 8511B, 3208B, 5113B, CC, DD
+ */
+function isValidTealcaCode(val: string): boolean {
+  if (!val) return false;
+  if (val.includes('Detalles') || val.includes('Contacto') || val.includes('Código') || val.includes('Ciudad')) return false;
+  if (val.length > 8) return false; // codes are short
+  // Must match pattern: optional letter prefix, digits, optional single letter suffix
+  // e.g. 2901, J2911, 8511B, CC, DD, GG, RR, AA
+  return /^[A-Za-z]?\d{1,4}[A-Za-z]?$|^[A-Za-z]{2}$/.test(val);
 }
 
 /** Descubre los slugs de estado desde el HTML del index */
@@ -310,7 +322,7 @@ async function fetchOfficeDetail(url: string): Promise<{
     const m = txt.match(/C[oó]digo:\s*(.+)/i);
     if (m) {
       const val = cleanText(m[1]);
-      if (val && val !== '' && val.length < 30 && !val.includes('Detalles')) {
+      if (isValidTealcaCode(val)) {
         code = val;
       }
     }
@@ -322,7 +334,7 @@ async function fetchOfficeDetail(url: string): Promise<{
     );
     if (codeMatch) {
       const val = cleanText(codeMatch[1]);
-      if (val && val.length < 30 && !val.includes('Detalles')) {
+      if (isValidTealcaCode(val)) {
         code = val;
       }
     }
@@ -483,10 +495,7 @@ async function main() {
         code: detail.code,
         city: detail.city,
         address: detail.address,
-        url: url,
       };
-      if (detail.email) office.email = detail.email;
-      if (detail.instagram) office.instagram = detail.instagram;
 
       if (!grouped[stateKey]) grouped[stateKey] = [];
       grouped[stateKey].push(office);
@@ -573,9 +582,6 @@ async function main() {
       fields.push(`      code: ${JSON.stringify(o.code)}`);
       fields.push(`      city: ${JSON.stringify(o.city)}`);
       fields.push(`      address: ${JSON.stringify(o.address)}`);
-      fields.push(`      url: ${JSON.stringify(o.url)}`);
-      if (o.email) fields.push(`      email: ${JSON.stringify(o.email)}`);
-      if (o.instagram) fields.push(`      instagram: ${JSON.stringify(o.instagram)}`);
 
       outputLines.push('    {');
       outputLines.push(fields.join(',\n'));
