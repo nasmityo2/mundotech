@@ -62,15 +62,18 @@ describe('whatsapp-order', () => {
     expect(decoded).not.toContain('�');
   });
 
-  it('la URL final es wa.me con text ya codificado y sin doble encode', () => {
+  it('la URL final es api.whatsapp.com/send con text codificado y sin doble encode', () => {
     const url = buildWhatsAppOrderUrl('+58 412-147-1338', sample);
 
-    expect(url.startsWith('https://wa.me/584121471338?text=')).toBe(true);
+    expect(url.startsWith('https://api.whatsapp.com/send?phone=584121471338&text=')).toBe(true);
+    expect(url).toContain('&text=');
+    expect(url).toContain('%F0%9F%9B%92'); // 🛒 pre-encoded
     expect(url).not.toContain('�');
-    expect(url).not.toContain('%25F0'); // signo de doble encode (% -> %25)
+    expect(url).not.toContain('%EF%BF%BD');
+    expect(url).not.toContain('%25'); // sin doble encode
 
     // El text del deep link vuelve a emojis reales
-    const text = url.split('?text=')[1];
+    const text = url.split('&text=')[1];
     expect(decodeURIComponent(text)).toContain('🛒 *Nuevo pedido MundoTech #0026*');
   });
 

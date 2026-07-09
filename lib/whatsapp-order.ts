@@ -87,8 +87,10 @@ export function buildWhatsAppOrderText(input: WhatsAppOrderInput): string {
     .join('');
 }
 
-// URL final. Se arma manualmente porque el text YA está percent-encoded:
-// NO uses URL/URLSearchParams aquí, porque re-codificarían los % (doble encode).
+// URL final para api.whatsapp.com/send. Se arma manualmente porque el text YA
+// está percent-encoded: NO uses URL/URLSearchParams aquí, porque re-codificarían
+// los % (doble encode). Usamos api.whatsapp.com en vez de wa.me porque wa.me
+// corrompe los emojis en el redirect 302.
 export function buildWhatsAppOrderUrl(phone: string, input: WhatsAppOrderInput): string {
   const normalizedPhone = normalizeWaPhone(phone);
 
@@ -96,5 +98,5 @@ export function buildWhatsAppOrderUrl(phone: string, input: WhatsAppOrderInput):
     throw new Error('WhatsApp order phone is required');
   }
 
-  return `https://wa.me/${normalizedPhone}?text=${buildWhatsAppOrderText(input)}`;
+  return `https://api.whatsapp.com/send?phone=${normalizedPhone}&text=${buildWhatsAppOrderText(input)}`;
 }
