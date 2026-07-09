@@ -1,28 +1,25 @@
-/** Carácter de reemplazo Unicode (�) usado como canario de detección de
- * corrupción de encoding. Se construye vía escape para no tener glifos
- * literales en el fuente. */
-const REPLACEMENT_CHARACTER = '\uFFFD';
-
-/** Emojis definidos como escapes Unicode ASCII-safe (\u{...}). Ni emojis
- * literales, ni decodeURIComponent. El runtime los produce correctamente y
- * encodeURIComponent los codifica como UTF-8 percent-encoded. */
-const EMOJI = {
-  cart:   '\u{1F6D2}',
-  person: '\u{1F464}',
-  id:     '\u{1FAAA}',
-  phone:  '\u{1F4F1}',
-  truck:  '\u{1F69A}',
-  pin:    '\u{1F4CD}',
-  card:   '\u{1F4B3}',
-  money:  '\u{1F4B0}',
-  pending:'\u{23F3}',
+// Secuencias UTF-8 de cada emoji, YA percent-encoded. Son ASCII puro en el
+// fuente: el minificador no puede plegarlas a glifos, y se insertan tal cual en
+// la URL (sin encodeURIComponent). Así es imposible que se corrompan a "�"
+// durante build/serve, sin importar el charset del bundle o del servidor.
+const EMOJI_ENC = {
+  cart:    '%F0%9F%9B%92', // 🛒
+  person:  '%F0%9F%91%A4', // 👤
+  id:      '%F0%9F%86%94', // 🆔
+  phone:   '%F0%9F%93%9E', // 📞
+  truck:   '%F0%9F%9A%9A', // 🚚
+  pin:     '%F0%9F%93%8D', // 📍
+  card:    '%F0%9F%92%B3', // 💳
+  money:   '%F0%9F%92%B0', // 💰
+  pending: '%E2%9C%85',    // ✅
 } as const;
 
-export function normalizeWaPhone(phone: string): string {
-  return (phone || '').replace(/\D/g, '');
-}
+type EmojiKey = keyof typeof EMOJI_ENC;
 
-export function buildWhatsAppOrderMessage(input: {
+// Un segmento del mensaje: texto plano, o un marcador de emoji.
+type WaSegment = { text: string } | { emoji: EmojiKey };
+
+export type WhatsAppOrderInput = {
   orderRef: string;
   customerName: string;
   idNumber?: string;
@@ -33,57 +30,71 @@ export function buildWhatsAppOrderMessage(input: {
   items: { name: string; quantity: number; priceUsd: number }[];
   totalUsd: number;
   rate: number;
-}): string {
-  const lines: string[] = [];
+};
 
-  lines.push(`${EMOJI.cart} *Nuevo pedido MundoTech #${input.orderRef}*`);
-  lines.push('');
-  lines.push(`${EMOJI.person} *Cliente:* ${input.customerName}`);
-  if (input.idNumber?.trim()) {
-    lines.push(`${EMOJI.id} *Cédula:* ${input.idNumber.trim()}`);
-  }
-  lines.push(`${EMOJI.phone} *Teléfono:* ${input.phone}`);
-  lines.push(`${EMOJI.truck} *Empresa de envío:* ${input.shippingCompany}`);
-  lines.push(`${EMOJI.pin} *Entrega:* ${input.address}`);
-  lines.push(`${EMOJI.card} *Método de pago:* ${input.paymentMethod}`);
-  lines.push('');
-  lines.push('*Productos:*');
-  for (const item of input.items) {
-    lines.push(`  • ${item.quantity}× ${item.name} — $${item.priceUsd.toFixed(2)}`);
-  }
-  lines.push('');
-  const totalBs = input.totalUsd * input.rate;
-  lines.push(`${EMOJI.money} *Total:* $${input.totalUsd.toFixed(2)} ≈ Bs. ${totalBs.toFixed(2)} (tasa: Bs. ${input.rate.toFixed(2)})`);
-  lines.push('');
-  lines.push(`${EMOJI.pending} *Pendiente de confirmación por MundoTech*`);
-
-  const message = lines.join('\n');
-
-  if (message.includes(REPLACEMENT_CHARACTER)) {
-    console.error('[whatsapp-order] Message contains Unicode replacement character before URL encoding', {
-      orderRef: input.orderRef,
-      message,
-    });
-  }
-
-  return message;
+export function normalizeWaPhone(phone: string): string {
+  return (phone || '').replace(/\D/g, '');
 }
 
-export function buildWhatsAppOrderUrl(phone: string, message: string): string {
+// Construye el mensaje como lista de segmentos. Los emojis son marcadores, NUNCA
+// glifos, así que este código fuente es ASCII puro salvo por acentos/símbolos
+// BMP del texto (que sí sobreviven correctamente al build).
+function buildOrderSegments(input: WhatsAppOrderInput): WaSegment[] {
+  const seg: WaSegment[] = [];
+
+  const t = (text: string) => seg.push({ text });
+  const e = (emoji: EmojiKey) => seg.push({ emoji });
+  const nl = () => t('\n');
+
+  e('cart'); t(` *Nuevo pedido MundoTech #${input.orderRef}*`); nl(); nl();
+  e('person'); t(` *Cliente:* ${input.customerName}`); nl();
+  if (input.idNumber?.trim()) { e('id'); t(` *Cédula:* ${input.idNumber.trim()}`); nl(); }
+  e('phone'); t(` *Teléfono:* ${input.phone}`); nl();
+  e('truck'); t(` *Empresa de envío:* ${input.shippingCompany}`); nl();
+  e('pin'); t(` *Entrega:* ${input.address}`); nl();
+  e('card'); t(` *Método de pago:* ${input.paymentMethod}`); nl(); nl();
+
+  t('*Productos:*'); nl();
+  for (const item of input.items) {
+    t(`  • ${item.quantity}× ${item.name} — $${item.priceUsd.toFixed(2)}`); nl();
+  }
+  nl();
+
+  const totalBs = input.totalUsd * input.rate;
+  e('money');
+  t(` *Total:* $${input.totalUsd.toFixed(2)} ≈ Bs. ${totalBs.toFixed(2)} (tasa: Bs. ${input.rate.toFixed(2)})`);
+  nl(); nl();
+
+  e('pending'); t(' *Pendiente de confirmación por MundoTech*');
+
+  return seg;
+}
+
+// Mensaje legible (con emojis reales vía decodeURIComponent sobre ASCII). Solo
+// para logging/analytics; NO se usa para construir la URL.
+export function buildWhatsAppOrderMessage(input: WhatsAppOrderInput): string {
+  return buildOrderSegments(input)
+    .map((s) => ('text' in s ? s.text : decodeURIComponent(EMOJI_ENC[s.emoji])))
+    .join('');
+}
+
+// Texto para el parámetro ?text= de wa.me, YA percent-encoded y 100% ASCII.
+// - El texto plano se codifica con encodeURIComponent en runtime.
+// - Los emojis se insertan como sus secuencias %XX literales (sin re-encodear).
+export function buildWhatsAppOrderText(input: WhatsAppOrderInput): string {
+  return buildOrderSegments(input)
+    .map((s) => ('text' in s ? encodeURIComponent(s.text) : EMOJI_ENC[s.emoji]))
+    .join('');
+}
+
+// URL final. Se arma manualmente porque el text YA está percent-encoded:
+// NO uses URL/URLSearchParams aquí, porque re-codificarían los % (doble encode).
+export function buildWhatsAppOrderUrl(phone: string, input: WhatsAppOrderInput): string {
   const normalizedPhone = normalizeWaPhone(phone);
 
   if (!normalizedPhone) {
     throw new Error('WhatsApp order phone is required');
   }
 
-  if (message.includes(REPLACEMENT_CHARACTER)) {
-    console.error('[whatsapp-order] Refusing to silently encode corrupted WhatsApp message', {
-      normalizedPhone,
-      message,
-    });
-  }
-
-  const url = new URL(`https://wa.me/${normalizedPhone}`);
-  url.searchParams.set('text', message);
-  return url.toString();
+  return `https://wa.me/${normalizedPhone}?text=${buildWhatsAppOrderText(input)}`;
 }

@@ -287,7 +287,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
         }
 
         // Construir mensaje y redirigir a WhatsApp
-        const { buildWhatsAppOrderMessage, buildWhatsAppOrderUrl } = await import('@/lib/whatsapp-order');
+        const { buildWhatsAppOrderUrl } = await import('@/lib/whatsapp-order');
         const orderRef = String(body.orderNumber ?? body.id).padStart(4, '0');
         const waShippingText =
           shippingData.shippingMethod === 'mrw'
@@ -297,7 +297,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
               : shippingData.shippingMethod === 'tealca'
                 ? `${buildAddress()}, ${buildCity()}, ${buildState()}`.replace(/,\s*,/g, ',').trim()
                 : buildAddress();
-        const waMessage = buildWhatsAppOrderMessage({
+        const waInput = {
           orderRef,
           customerName: `${shippingData.firstName} ${shippingData.lastName}`,
           idNumber: shippingData.idNumber,
@@ -319,16 +319,8 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
           })),
           totalUsd: Math.max(0, subtotal - discountUsd),
           rate: exchangeRate,
-        });
-
-        if (waMessage.includes('\uFFFD')) {
-          console.error('[checkout] WhatsApp message contains replacement character before redirect', {
-            orderRef,
-            waMessage,
-          });
-        }
-
-        const waUrl = buildWhatsAppOrderUrl(whatsappOrderPhone, waMessage);
+        };
+        const waUrl = buildWhatsAppOrderUrl(whatsappOrderPhone, waInput);
         // eslint-disable-next-line react-hooks/immutability
         window.location.href = waUrl;
         return;
