@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkoutSchema } from '@/lib/checkout-order';
 
-const R2_HOST = 'cdn.mundotech.test';
-const LEGIT_PROOF = `https://${R2_HOST}/proofs/abc.webp`;
-
 function validCheckoutBody(overrides: Record<string, unknown> = {}) {
   return {
     customerName: 'Cliente Test',
@@ -15,15 +12,15 @@ function validCheckoutBody(overrides: Record<string, unknown> = {}) {
     },
     paymentMethod: 'Pago Móvil',
     paymentReference: 'REF-12345',
-    paymentProofUrl: LEGIT_PROOF,
+    paymentUploadToken: 'valid-token-xxx',
     items: [{ productId: 'prod-1', quantity: 1 }],
     ...overrides,
   };
 }
 
-describe('checkoutSchema paymentProofUrl (PRD-007)', () => {
+describe('checkoutSchema (SESIÓN 04/05 CORREGIDO)', () => {
   beforeEach(() => {
-    vi.stubEnv('R2_PUBLIC_BASE_URL', `https://${R2_HOST}`);
+    vi.stubEnv('R2_PUBLIC_BASE_URL', 'https://cdn.mundotech.test');
     vi.stubEnv('NEXT_PUBLIC_R2_PUBLIC_BASE_URL', '');
   });
 
@@ -31,36 +28,77 @@ describe('checkoutSchema paymentProofUrl (PRD-007)', () => {
     vi.unstubAllEnvs();
   });
 
-  it('acepta comprobante legítimo de R2', () => {
+  it('acepta checkout válido con paymentUploadToken', () => {
     const parsed = checkoutSchema.safeParse(validCheckoutBody());
     expect(parsed.success).toBe(true);
   });
 
-  it('rechaza URL maliciosa antes de validar otros campos de negocio', () => {
+  it('rechaza paymentUploadToken vacío para método manual', () => {
     const parsed = checkoutSchema.safeParse(
-      validCheckoutBody({ paymentProofUrl: 'https://evil.com/proof.jpg' }),
+      validCheckoutBody({ paymentUploadToken: null }),
     );
     expect(parsed.success).toBe(false);
     if (!parsed.success) {
-      const messages = parsed.error.issues.map((i) => i.message);
-      expect(messages).toContain(
-        'El comprobante de pago debe provenir del almacenamiento autorizado.',
-      );
+      expect(
+        parsed.error.issues.some((i) => i.path.includes('paymentUploadToken')),
+      ).toBe(true);
     }
   });
 
-  it('rechaza javascript: y data:', () => {
-    for (const bad of ['javascript:alert(1)', 'data:text/html,x']) {
-      const parsed = checkoutSchema.safeParse(validCheckoutBody({ paymentProofUrl: bad }));
-      expect(parsed.success).toBe(false);
-    }
+  it('no exige paymentUploadToken para WhatsApp', () => {
+    const parsed = checkoutSchema.safeParse(
+      validCheckoutBody({ paymentUploadToken: null, channel: 'whatsapp' }),
+    );
+    expect(parsed.success).toBe(true);
   });
 
-  it('exige comprobante cuando el método lo requiere', () => {
-    const parsed = checkoutSchema.safeParse(validCheckoutBody({ paymentProofUrl: null }));
+  it('no exige paymentUploadToken para Cashea', () => {
+    const parsed = checkoutSchema.safeParse(
+      validCheckoutBody({
+        paymentUploadToken: null,
+        paymentMethod: 'Cashea',
+      }),
+    );
+    expect(parsed.success).toBe(true);
+  });
+
+  it('no acepta paymentProofUrl en el schema público', () => {
+    const parsed = checkoutSchema.safeParse(
+      validCheckoutBody({
+        paymentProofUrl: 'https://evil.com/proof.jpg',
+        paymentUploadToken: 'token',
+      }),
+    );
+    // paymentProofUrl no es parte del schema, así que se ignora.
+    // El checkout debe funcionar porque paymentUploadToken es válido.
+    expect(parsed.success).toBe(true);
+  });
+
+  it('no acepta paymentProofKey en el schema público', () => {
+    const parsed = checkoutSchema.safeParse(
+      validCheckoutBody({
+        paymentProofKey: 'proofs/abc.webp',
+        paymentUploadToken: 'token',
+      }),
+    );
+    // paymentProofKey no es parte del schema, así que se ignora.
+    expect(parsed.success).toBe(true);
+  });
+
+  it('exige paymentUploadToken para Binance Pay', () => {
+    const parsed = checkoutSchema.safeParse(
+      validCheckoutBody({
+        paymentUploadToken: null,
+        paymentMethod: 'Binance Pay',
+      }),
+    );
     expect(parsed.success).toBe(false);
     if (!parsed.success) {
-      expect(parsed.error.issues.some((i) => i.path.includes('paymentProofUrl'))).toBe(true);
+      expect(
+        parsed.error.issues.some(
+          (i) => i.path.includes('paymentUploadToken') && i.message.includes('Binance'),
+        ),
+      ).toBe(true);
     }
   });
 });

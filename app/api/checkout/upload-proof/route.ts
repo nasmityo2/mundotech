@@ -6,7 +6,7 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { verifySameOrigin, hashToken } from '@/lib/security';
 import { detectImageMimeFromBuffer, isAllowedProofMime } from '@/lib/detect-image-mime';
 import { processImageWithFallback } from '@/lib/image-processing';
-import { uploadPrivateProof } from '@/lib/r2';
+import { uploadPrivateProof, deletePrivateProof } from '@/lib/r2';
 import { v4 as uuidv4 } from 'uuid';
 
 /** sharp usa módulos nativos; no compatible con Edge. */
@@ -19,11 +19,13 @@ const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
  *
  * Sube un comprobante de pago al bucket privado de R2.
  * Requiere header `x-checkout-upload-token` obtenido previamente de
- * /api/checkout/upload-session. El token se reclama de forma atómica
+ * /api/checkout/upload-session. El token se reclama PENDING → UPLOADING
  * para evitar dos subidas concurrentes con el mismo token.
  *
- * Tras una subida exitosa, el token queda con objectKey persistido
- * pero aún PENDING (se vincula al pedido en el checkout).
+ * Tras una subida exitosa, el registro vuelve a PENDING con objectKey
+ * persistido (se vincula al pedido en el checkout).
+ *
+ * La respuesta NO expone proofKey: el token ya identifica el registro.
  */
 export async function POST(request: Request) {
   // Mitigación CSRF (formularios cross-site con cookies de sesión)
@@ -31,7 +33,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
   }
 
-  // SESIÓN 05: exigir token de upload
   const rawToken = request.headers.get('x-checkout-upload-token');
   if (!rawToken?.trim()) {
     return NextResponse.json(
@@ -42,36 +43,11 @@ export async function POST(request: Request) {
 
   const tokenHash = hashToken(rawToken.trim());
 
-  // Reclamar token de forma atómica: solo PENDING, no expirado.
-  // updateMany con condiciones garantiza que dos requests concurrentes
-  // no puedan reclamar el mismo token (una ganará, la otra count === 0).
-  const now = new Date();
-  const claim = await prisma.paymentUpload.updateMany({
-    where: {
-      tokenHash,
-      status: 'PENDING',
-      expiresAt: { gt: now },
-      objectKey: null, // aún no usado
-    },
-    data: {
-      // Marcamos temporalmente para evitar doble uso; el objectKey se setea tras upload.
-      // Usamos un status intermedio no: simplemente bloqueamos por objectKey=null en where.
-    },
-  });
-
-  if (claim.count === 0) {
-    return NextResponse.json(
-      { error: 'Token inválido, expirado o ya utilizado. Obtén uno nuevo en /api/checkout/upload-session.' },
-      { status: 409 },
-    );
-  }
-
-  // FASE 4.1 (MEJORA 1.2): los invitados también suben comprobante — la sesión
-  // deja de ser obligatoria. Defensas que se mantienen: verifySameOrigin (arriba),
-  // rate limit (más estricto para invitados), magic bytes y re-encode con sharp.
+  // Cargar sesión ANTES del claim (no cambia estado hasta que todo esté listo)
   const session = await getServerSession(authOptions);
   const isGuest = !session?.user?.id;
 
+  // Rate limit ANTES del claim
   const limitKey = isGuest
     ? `upload-proof:ip:${getClientIp(request)}`
     : `upload-proof:${session!.user!.id}`;
@@ -81,11 +57,17 @@ export async function POST(request: Request) {
   if (await rateLimit(limitKey, limitCfg)) {
     return NextResponse.json(
       { error: 'Demasiadas solicitudes de subida. Espera unos minutos.' },
-      { status: 429 }
+      { status: 429 },
     );
   }
 
+  // Variables de control para cleanup
+  let claimed = false;
+  let uploadedKey: string | null = null;
+  let finalized = false;
+
   try {
+    // Leer y validar el archivo ANTES del claim
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
 
@@ -100,60 +82,117 @@ export async function POST(request: Request) {
     if (file.size > MAX_BYTES) {
       return NextResponse.json(
         { error: `La imagen supera el máximo permitido (${MAX_BYTES / (1024 * 1024)} MB).` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Verificación de magic bytes — la única fuente confiable del tipo real del archivo.
-    // El Content-Type del cliente y la extensión del nombre pueden ser falsificados.
+    // Verificación de magic bytes
     const detectedMime = detectImageMimeFromBuffer(buffer);
     if (!detectedMime || !isAllowedProofMime(detectedMime)) {
       return NextResponse.json(
         { error: 'Tipo de archivo no permitido. Usa una imagen JPG, PNG o WEBP.' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const { buffer: processed, contentType, ext, width, height } = await processImageWithFallback(
-      buffer,
-      { maxWidth: 1600 },
-    );
+    const { buffer: processed, contentType, ext, width, height } =
+      await processImageWithFallback(buffer, { maxWidth: 1600 });
 
-    // SESIÓN 04: subir al bucket privado. No exponer URL pública.
-    const proofKey = `proofs/${uuidv4()}.${ext}`;
-    try {
-      await uploadPrivateProof({ buffer: processed, key: proofKey, contentType });
-    } catch (r2Err) {
-      console.error('[upload-proof] Fallo R2, revirtiendo claim del token:', r2Err);
-      // Revertir el claim: el token vuelve a estar disponible para retry
-      await prisma.paymentUpload.update({
-        where: { tokenHash },
-        data: { objectKey: null },
-      });
-      return NextResponse.json(
-        { error: 'No pudimos guardar el comprobante. Intenta de nuevo.' },
-        { status: 500 }
-      );
-    }
-
-    // Persistir objectKey en el registro (sigue PENDING hasta el checkout)
-    await prisma.paymentUpload.update({
-      where: { tokenHash },
-      data: { objectKey: proofKey },
+    // ── RECLAMAR TOKEN: PENDING → UPLOADING ────────────────────
+    const claim = await prisma.paymentUpload.updateMany({
+      where: {
+        tokenHash,
+        status: 'PENDING',
+        expiresAt: { gt: new Date() },
+        objectKey: null,
+        orderId: null,
+      },
+      data: {
+        status: 'UPLOADING',
+      },
     });
 
+    if (claim.count !== 1) {
+      return NextResponse.json(
+        {
+          error:
+            'Token inválido, expirado, ya utilizado o con una subida en proceso.',
+        },
+        { status: 409 },
+      );
+    }
+
+    claimed = true;
+
+    // ── SUBIR A R2 ─────────────────────────────────────────────
+    const proofKey = `proofs/${uuidv4()}.${ext}`;
+
+    await uploadPrivateProof({
+      buffer: processed,
+      key: proofKey,
+      contentType,
+    });
+
+    uploadedKey = proofKey;
+
+    // ── FINALIZAR: UPLOADING → PENDING (con objectKey) ─────────
+    const finalizedUpload = await prisma.paymentUpload.updateMany({
+      where: {
+        tokenHash,
+        status: 'UPLOADING',
+        objectKey: null,
+        orderId: null,
+      },
+      data: {
+        status: 'PENDING',
+        objectKey: proofKey,
+      },
+    });
+
+    if (finalizedUpload.count !== 1) {
+      throw new Error(
+        '[upload-proof] No se pudo finalizar el registro del comprobante.',
+      );
+    }
+
+    finalized = true;
+
     return NextResponse.json(
-      { proofKey, width, height },
+      { uploaded: true, width, height },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (err) {
     console.error('[upload-proof]', err);
     return NextResponse.json(
       { error: 'No pudimos subir el comprobante. Intenta con otra imagen o más tarde.' },
-      { status: 500 }
+      { status: 500 },
     );
+  } finally {
+    // Cleanup: si el token fue reclamado pero no finalizado
+    if (claimed && !finalized) {
+      try {
+        if (uploadedKey) {
+          await deletePrivateProof(uploadedKey).catch(() => {
+            /* best-effort */
+          });
+        }
+
+        await prisma.paymentUpload.updateMany({
+          where: {
+            tokenHash,
+            status: 'UPLOADING',
+          },
+          data: {
+            status: 'PENDING',
+            objectKey: null,
+          },
+        });
+      } catch (cleanupErr) {
+        console.error('[upload-proof] Fallo en cleanup del token:', cleanupErr);
+      }
+    }
   }
 }

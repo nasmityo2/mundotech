@@ -243,7 +243,6 @@ const WhatsAppCheckout = ({
         paymentHolderIdNumber: null,
         paymentHolderPhone: null,
         paymentReference: null,
-        paymentProofUrl: null,
         couponCode: null,
         items: cart.map((item) => ({
           productId: item.id,

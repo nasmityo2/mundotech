@@ -9,13 +9,13 @@ const BATCH_LIMIT = 100;
 /**
  * GET /api/cron/purge-payment-uploads
  *
- * SESIÓN 05: limpia registros PaymentUpload PENDING cuyo expiresAt ya venció.
+ * SESIÓN 05 (CORREGIDO): limpia registros PaymentUpload PENDING cuyo expiresAt ya venció.
  * Por cada uno:
- *   1. Reclama atómicamente con updateMany condicional (evita duplicados entre
- *      corridas concurrentes del cron).
+ *   1. Reclama atómicamente PENDING → DELETING con updateMany condicional.
  *   2. Si tiene objectKey, lo borra del bucket privado R2.
  *   3. Marca DELETED.
- * Si R2 falla, conserva el estado PENDING (reintentable) y registra solo el ID.
+ * Si R2 falla, revierte DELETING → PENDING para reintento.
+ * Si no hay objectKey, marca DELETED directamente.
  *
  * Protección: Authorization: Bearer <CRON_SECRET>
  */
@@ -35,51 +35,81 @@ export async function GET(request: Request): Promise<NextResponse> {
   let attempted = 0;
 
   try {
+    const now = new Date();
     const expired = await prisma.paymentUpload.findMany({
       where: {
         status: 'PENDING',
-        expiresAt: { lte: new Date() },
+        expiresAt: { lte: now },
       },
       take: BATCH_LIMIT,
       orderBy: { expiresAt: 'asc' },
-      select: { id: true, objectKey: true, tokenHash: true },
+      select: { id: true, objectKey: true },
     });
 
     attempted = expired.length;
 
     for (const record of expired) {
-      // Reclamo atómico: solo PENDING y misma id
+      // Reclamo atómico: PENDING → DELETING
       const claim = await prisma.paymentUpload.updateMany({
         where: {
           id: record.id,
           status: 'PENDING',
+          expiresAt: { lte: now },
         },
         data: {
-          // Marcamos transitoriamente para evitar que otra corrida lo procese.
-          // No cambiamos status aún; tras R2 exitoso iremos a DELETED.
-          // Usamos un campo no-status como candado: aquí usamos updatedAt.
+          status: 'DELETING',
         },
       });
-      if (claim.count === 0) continue; // otra corrida lo tomó
+
+      if (claim.count !== 1) {
+        continue; // otra corrida lo tomó
+      }
 
       if (record.objectKey) {
         try {
           await deletePrivateProof(record.objectKey);
         } catch (r2Err) {
+          const errorName =
+            r2Err instanceof Error ? r2Err.name : 'UnknownError';
           console.error(
-            '[cron/purge-payment-uploads] Fallo R2 para PaymentUpload.id=%s, se conserva PENDING reintentable',
+            '[cron/purge-payment-uploads] Fallo R2, revirtiendo a PENDING. PaymentUpload.id=%s errorName=%s',
             record.id,
-            r2Err,
+            errorName,
           );
           r2Errors++;
-          continue; // conserva estado PENDING para reintento
+
+          // Revertir: DELETING → PENDING para reintento futuro
+          await prisma.paymentUpload.updateMany({
+            where: {
+              id: record.id,
+              status: 'DELETING',
+            },
+            data: {
+              status: 'PENDING',
+            },
+          });
+          continue;
         }
       }
 
-      await prisma.paymentUpload.update({
-        where: { id: record.id },
-        data: { status: 'DELETED' },
+      // Marcar DELETED
+      const deleted = await prisma.paymentUpload.updateMany({
+        where: {
+          id: record.id,
+          status: 'DELETING',
+        },
+        data: {
+          status: 'DELETED',
+        },
       });
+
+      if (deleted.count !== 1) {
+        console.error(
+          '[cron/purge-payment-uploads] No se pudo marcar DELETED. PaymentUpload.id=%s',
+          record.id,
+        );
+        continue;
+      }
 
       purged++;
     }

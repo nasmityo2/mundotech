@@ -15,6 +15,7 @@
     "deploy:vps": "bash scripts/deploy-vps.sh",
     "db:seed:reviews": "tsx scripts/seed-reviews.ts",
     "db:migrate:images": "tsx scripts/migrate-legacy-images-to-r2.ts",
+    "test:r2-private": "node scripts/verify-private-r2.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {

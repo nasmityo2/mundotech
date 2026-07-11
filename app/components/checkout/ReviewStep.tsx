@@ -44,9 +44,10 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
   // vuelve directo a /checkout — el carrito persiste en localStorage.
   const [sessionExpired, setSessionExpired] = useState(false);
   // PRD-049: si el pedido falla DESPUÉS de subir el comprobante, el reintento
-  // reutiliza la URL ya subida en vez de duplicar la imagen en R2.
-  // SESIÓN 04: url ahora es la proofKey (no URL pública), isKey distingue el formato
-  const uploadedProofRef = useRef<{ file: File; url: string; isKey?: boolean } | null>(null);
+  // reutiliza el token ya obtenido en vez de duplicar la imagen en R2.
+  // SESIÓN 05 (CORREGIDO): el token de upload se guarda en memoria. Si el componente
+  // se desmonta y pierde el token, debe solicitar una nueva upload session.
+  const uploadedProofRef = useRef<{ file: File; uploadToken: string } | null>(null);
   // RUN-05 (AUDITORIA-2026-07): guard síncrono de reentrada — dos taps rápidos
   // en 4G disparaban dos POST antes de que React aplicara `disabled`.
   const submittingRef = useRef(false);
@@ -104,23 +105,45 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
     setCouponMessage(null);
   };
 
-  /** PRD-049: sube el comprobante justo antes de crear el pedido (con caché de reintento). */
+  /** PRD-049 (CORREGIDO): obtiene token de upload, sube el comprobante con él y devuelve el token. */
   const uploadProofIfNeeded = async (): Promise<string | null> => {
     const file = paymentData?.proofFile ?? null;
     if (!file) return null;
+    // Reutilizar token si ya se subió el mismo archivo
     if (uploadedProofRef.current?.file === file) {
-      return uploadedProofRef.current.url;
+      return uploadedProofRef.current.uploadToken;
     }
+
+    // 1. Obtener token de upload session
+    const sessionRes = await fetch('/api/checkout/upload-session', { method: 'POST' });
+    const sessionData = (await sessionRes.json().catch(() => ({}))) as {
+      token?: string;
+      error?: string;
+    };
+    if (!sessionRes.ok || !sessionData.token) {
+      throw new Error(sessionData.error ?? 'No pudimos iniciar la sesión de subida. Intenta de nuevo.');
+    }
+
+    const uploadToken = sessionData.token;
+
+    // 2. Subir el archivo con el token
     const fd = new FormData();
     fd.append('file', file);
-    const res = await fetch('/api/checkout/upload-proof', { method: 'POST', body: fd });
-    // SESIÓN 04: upload-proof ahora devuelve proofKey en lugar de url pública
-    const data = (await res.json().catch(() => ({}))) as { proofKey?: string; error?: string };
-    if (!res.ok || !data.proofKey) {
+    const res = await fetch('/api/checkout/upload-proof', {
+      method: 'POST',
+      headers: { 'x-checkout-upload-token': uploadToken },
+      body: fd,
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      uploaded?: boolean;
+      error?: string;
+    };
+    if (!res.ok || !data.uploaded) {
       throw new Error(data.error ?? 'No pudimos subir el comprobante. Intenta de nuevo.');
     }
-    uploadedProofRef.current = { file, url: data.proofKey, isKey: true as const };
-    return data.proofKey;
+
+    uploadedProofRef.current = { file, uploadToken };
+    return uploadToken;
   };
 
   const buildAddress = (): string => {
@@ -209,7 +232,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
 
     try {
       // WhatsApp: no subir comprobante
-      const proofUrl = whatsappMode ? null : await uploadProofIfNeeded();
+      const uploadToken = whatsappMode ? null : await uploadProofIfNeeded();
 
       // El servidor recalcula precios/total desde BD e ignora cualquier monto
       // del cliente; para retiro en tienda también resuelve la dirección desde
@@ -240,10 +263,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
         paymentHolderIdNumber: null,
         paymentHolderPhone: null,
         paymentReference: null,
-        // SESIÓN 04: upload-proof devuelve proofKey; lo enviamos como tal
-        // El servidor acepta paymentProofKey (nuevo) y paymentProofUrl (legacy)
-        paymentProofUrl: null,
-        paymentProofKey: proofUrl,
+        paymentUploadToken: uploadToken,
         couponCode: appliedCoupon || null,
         items: cart.map((item) => ({
           productId: item.id,

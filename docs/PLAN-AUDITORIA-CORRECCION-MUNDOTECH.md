@@ -56,11 +56,11 @@ Si el estado es `PARCIAL` o `BLOQUEADO`, el checkbox queda vacío.
 
 Después de cerrar una sesión, actualizar manualmente:
 
-- **Completadas:** 6/32
-- **Críticas P0 completadas:** 4/4
+- **Completadas:** 5/32
+- **Críticas P0 completadas:** 3/4
 - **Altas P1 completadas:** 2/10
 - **Medias/operativas completadas:** 0/18
-- **Última sesión cerrada:** 06 — Token guest seguro para confirmación de pedido
+- **Última sesión cerrada:** 06 — Token guest seguro para confirmación de pedido (corregido 2026-07-11)
 
 ---
 
@@ -222,11 +222,10 @@ Notas manuales:
 
 ## 04 — Comprobantes privados en R2
 
-- [x] **Separar almacenamiento público y privado; los comprobantes nuevos no deben tener URL pública permanente.**
+- [ ] **Separar almacenamiento público y privado; los comprobantes nuevos no deben tener URL pública permanente.**
 
 **Prioridad:** P0  
-**Prompt:** Sesión 04  
-**Hallazgos cubiertos:** exposición financiera mediante `R2_PUBLIC_BASE_URL`.
+**Prompt:** Sesión 04 — CORREGIDA el 2026-07-11
 
 **Debe quedar demostrado:**
 
@@ -237,49 +236,50 @@ Notas manuales:
 - Existe compatibilidad controlada con registros legacy.
 - Migración funciona en BD limpia y existente.
 
-**Evidencia de cierre:**
+**Evidencia de cierre (CORRECCIÓN 2026-07-11):**
 
 ```text
-Estado: COMPLETADO
-Fecha: 2026-07-11
-Prompt aplicado: Sesión 04 — Separar R2 público y privado para comprobantes
+Estado: PARCIAL
+Fecha: 2026-07-11 (corrección)
+Prompt aplicado: Corrección sesiones 04-05-06 — máquina de estados, credenciales privadas sin fallback, key server-side
 Archivos modificados:
-- prisma/schema.prisma: añadido paymentProofKey String? al modelo Order (coexiste con paymentProofUrl legacy)
-- prisma/migrations/20260711180000_add_private_payment_proof_key/migration.sql: ALTER TABLE aditivo, nullable, sin backfill
-- lib/r2.ts: nuevas funciones uploadPrivateProof, getPrivateProofReadUrl (presigned GET, default 180s), deletePrivateProof, assertProofKey; PRIVATE_BUCKET se lee lazy de process.env; regex estricto proofs/<slug>.(jpg|jpeg|png|webp); getPrivateCredentials() lee R2_PRIVATE_ACCESS_KEY_ID / R2_PRIVATE_SECRET_ACCESS_KEY con fallback a credenciales públicas; getPrivateS3Client() crea cliente S3 dedicado para bucket privado
-- app/api/checkout/upload-proof/route.ts: cambia respuesta de {url, publicId, width, height} a {proofKey, width, height}; sube a bucket privado con Cache-Control private, no-store
-- app/api/orders/[id]/payment-proof/route.ts: nuevo endpoint GET con requireAdmin; devuelve URL firmada (paymentProofKey) o legacyUrl (paymentProofUrl legacy validado con isR2PublicUrl); headers private/no-store + Referrer-Policy no-referrer; 404 unificado sin comprobante
-- lib/definitions.ts: añadido paymentProofKey al tipo Order y a prismaOrderToOrder
-- lib/checkout-order.ts: checkoutSchema ahora acepta paymentProofKey (string optional nullable) como alternativa a paymentProofUrl; superRefine acepta si alguno de los dos está presente; executeCheckoutInTransaction persiste paymentProofKey
-- app/components/checkout/ReviewStep.tsx: uploadProofIfNeeded lee data.proofKey en vez de data.url; envía paymentProofKey en el payload del pedido; ref type actualizado
-- components/admin/PaymentVerificationPanel.tsx: elimina validación isTrustedPaymentProofUrl del cliente; añade fetch a /api/orders/[id]/payment-proof al abrir el panel (useEffect con AbortController); estados loading/private/legacy/blocked/none/error; no guarda en localStorage; limpia estado al desmontar
-- .env: añadidas R2_PRIVATE_BUCKET_NAME, R2_PRIVATE_ACCESS_KEY_ID y R2_PRIVATE_SECRET_ACCESS_KEY con valores reales del bucket mundotech-proofs
-- .env.example: añadido R2_PRIVATE_BUCKET_NAME con documentación; añadidas R2_PRIVATE_ACCESS_KEY_ID y R2_PRIVATE_SECRET_ACCESS_KEY como opcionales
-- vitest.config.ts: añadido R2_PRIVATE_BUCKET_NAME dummy para entorno de tests
-- tests/r2-proof.test.ts: nuevo archivo con 28 tests
+- lib/r2.ts: getPrivateConfig() con validación estricta (endpoint HTTPS, hostname .r2.cloudflarestorage.com, variables obligatorias); assertProofKey con límite 180 caracteres; getPrivateS3Client sin fallback a credenciales públicas; uploadPrivateProof/getPrivateProofReadUrl/deletePrivateProof usan getPrivateConfig() sin referenciar R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_BUCKET_NAME
+- .env.example: separados bloques público y privado; documentadas R2_PRIVATE_ACCESS_KEY_ID y R2_PRIVATE_SECRET_ACCESS_KEY sin valores reales
+- lib/env-validation.ts: añadidas R2_PRIVATE_BUCKET_NAME, R2_PRIVATE_ACCESS_KEY_ID, R2_PRIVATE_SECRET_ACCESS_KEY a REQUIRED_IN_PRODUCTION; mensaje Vercel cambiado a neutral VPS
+- lib/checkout-order.ts: eliminados paymentProofUrl y paymentProofKey del schema público; key se deriva exclusivamente desde PaymentUpload.objectKey en servidor
+- app/api/checkout/upload-proof/route.ts: respuesta { uploaded, width, height } sin proofKey
+- app/components/checkout/ReviewStep.tsx: flujo dos pasos (upload-session + upload-proof con token header); envía paymentUploadToken en vez de paymentProofKey
+- app/components/checkout/WhatsAppCheckout.tsx: eliminado paymentProofUrl del body
+- vitest.config.ts: añadidas variables dummy R2_PRIVATE_* y R2_ENDPOINT para entorno de tests
+- tests/checkout-order.test.ts: reescrito para validar paymentUploadToken (no paymentProofUrl/paymentProofKey)
+- tests/payment-upload-token.test.ts: actualizados mensajes de validación al nuevo schema
 Migraciones:
-- 20260711180000_add_private_payment_proof_key — ALTER TABLE "Order" ADD COLUMN "paymentProofKey" TEXT; aditiva, sin backfill
+- 20260712000000_private_payment_proof_state_machine: ALTER TYPE ADD UPLOADING/DELETING + FK PaymentUpload.orderId → Order.id ON DELETE SET NULL
 Pruebas ejecutadas:
+- npx prisma format — PASS
+- npx prisma validate — PASS
+- npx prisma generate — PASS
 - npm run typecheck — PASS (0 errors)
-- npm run lint — PASS (0 errors, 27 warnings pre-existentes; 0 introducidos tras limpiar import no usado)
-- npm test — PASS (13 test files, 101 tests passed, 3.08s)
-- npm run build (parcial) — Migration applied + Prisma generate PASS; build terminado por timeout VPS (no memory)
+- npm run lint — PASS (0 errors, 26 warnings pre-existentes)
+- npm test — PASS (14 test files, 119 tests passed)
+- npm run build — PASS (build exitoso)
+- npm run test:r2-private — NO EJECUTADO (requiere credenciales nuevas no expuestas en VPS)
 Evidencia de aceptación:
-- (1) Nuevos pedidos guardan paymentProofKey, no URL pública → upload-proof route retorna {proofKey, width, height}; uploadPrivateProof solo devuelve {key}; checkoutSchema acepta paymentProofKey; executeCheckoutInTransaction persiste paymentProofKey con ?? null
-- (2) Solo ADMIN obtiene URL firmada corta → GET /api/orders/[id]/payment-proof usa requireAdmin() antes de consultar paymentProofKey; si existe genera getPrivateProofReadUrl con expiresIn=180s; CLIENT/guest reciben 403
-- (3) Respuestas sensibles private/no-store y no-referrer → upload-proof: Cache-Control no-store en Response; uploadPrivateProof: Cache-Control private, no-store en PutObject; payment-proof endpoint: Cache-Control private, no-store + Referrer-Policy no-referrer en Response
-- (4) Traversal y keys fuera de proofs/ rechazados → assertProofKey rechaza .., //, / inicial, URLs completas, query params, fragmentos, keys sin proofs/ prefix, extensiones no imagen; PROOF_KEY_RE = /^proofs\/[a-zA-Z0-9][a-zA-Z0-9_-]*\.(jpg|jpeg|png|webp)$/ — 17 tests de validación PASS
-- (5) Compatibilidad controlada con registros legacy → paymentProofUrl sigue en schema y checkoutSchema; payment-proof endpoint sirve legacyUrl si isR2PublicUrl valida el host; deprecation warning en código; si host es ajeno -> log + 404 (no servir URL insegura)
-- (6) Migración funciona en BD limpia y existente → migration.sql es ALTER TABLE aditivo (ADD COLUMN, nullable, sin DEFAULT); aplicada con éxito sobre BD real; test de definiciones demuestra que paymentProofKey y paymentProofUrl son opcionales (undefined/null) en el tipo Order
+- (1) Nuevos pedidos guardan paymentProofKey desde servidor → executeCheckoutInTransaction resuelve key desde PaymentUpload.objectKey, no del cliente
+- (2) Solo ADMIN obtiene URL firmada → GET /api/orders/[id]/payment-proof usa requireAdmin(), genera getPrivateProofReadUrl con expiresIn=180s
+- (3) Respuestas sensibles private/no-store y no-referrer → upload-proof: Cache-Control no-store; uploadPrivateProof: Cache-Control private, no-store; payment-proof: Cache-Control private, no-store + Referrer-Policy no-referrer
+- (4) Traversal y keys fuera de proofs/ rechazados → assertProofKey con límite 180 chars + regex PROOF_KEY_RE + rechazo de URL, .., //, /, ?, #
+- (5) Compatibilidad con legacy → paymentProofUrl sigue en tipo Order y prismaOrderToOrder; payment-proof endpoint sirve legacyUrl si isR2PublicUrl valida host
+- (6) Migración funciona → schema valid + generate PASS; migración crea FK y añade valores enum
+- (7) Credenciales privadas sin fallback → getPrivateConfig() exige R2_ENDPOINT, R2_PRIVATE_BUCKET_NAME, R2_PRIVATE_ACCESS_KEY_ID, R2_PRIVATE_SECRET_ACCESS_KEY; valida endpoint HTTPS y hostname .r2.cloudflarestorage.com; sin referencias a R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/R2_BUCKET_NAME en operaciones privadas
 Riesgo residual:
-- El bucket privado (R2_PRIVATE_BUCKET_NAME) debe crearse manualmente en Cloudflare R2. Esta implementación asume que endpoint, access key y secret se comparten con el bucket público. Si el bucket privado requiere credenciales diferentes, debe añadirse un segundo cliente S3.
-- La URL firmada expira en 180s. Si el admin deja el panel abierto más de 3 minutos, la imagen dejará de cargar. No hay mecanismo de refresco automático — el admin debe recargar el panel. Considerar renovación periódica si se reporta como UX problemática.
-- El frontend ReviewStep.tsx ahora envía paymentProofKey: null y paymentProofUrl: null cuando no hay archivo. Esto es correcto porque el superRefine acepta si al menos uno está presente. Sin embargo, la validación del servidor chequea paymentProofUrl primero — orden de validación podría refinar.
+- La integración R2 real (PUT/HEAD/GET/DELETE) no se ha ejecutado. Se requiere configurar credenciales nuevas no expuestas en el VPS y ejecutar: source /etc/mundotech/mundotech.env && npm run test:r2-private
+- Las credenciales R2 expuestas anteriormente deben ser revocadas y sustituidas antes de ejecutar la prueba.
 Notas manuales:
-- Crear bucket R2_PRIVATE_BUCKET_NAME en Cloudflare R2 dashboard. Recomendado: "mundotech-proofs". Configurar las reglas de acceso para que Cloudflare no cachee el bucket (Cache-Level: No cache o Bypass cache).
-- Añadir R2_PRIVATE_BUCKET_NAME al .env del VPS (en /etc/mundotech/mundotech.env) con el nombre del bucket creado.
-- Ejecutar npm run build completo en el VPS (el build local fue interrumpido por timeout de memoria, pero migration + generate pasaron).
-- Los registros legacy (paymentProofUrl existente en BD) siguen funcionando sin cambios. No requiere backfill.
+- (MANUAL) Rotar credenciales R2 privadas expuestas anteriormente en Cloudflare Dashboard.
+- (MANUAL) Configurar las nuevas R2_PRIVATE_ACCESS_KEY_ID y R2_PRIVATE_SECRET_ACCESS_KEY en /etc/mundotech/mundotech.env del VPS.
+- (MANUAL) Ejecutar npm run test:r2-private para validar integración.
+- (MANUAL) Aplicar migración en producción: npx prisma migrate deploy
 ```
 
 ## 05 — Sesión de upload y archivos huérfanos
@@ -287,7 +287,7 @@ Notas manuales:
 - [x] **Vincular cada comprobante a un intento de checkout y eliminar huérfanos de forma idempotente.**
 
 **Prioridad:** P1  
-**Prompt:** Sesión 05
+**Prompt:** Sesión 05 — CORREGIDA el 2026-07-11
 
 **Debe quedar demostrado:**
 
@@ -298,42 +298,44 @@ Notas manuales:
 - Cron borra solo `PENDING` expirados, nunca `LINKED`.
 - Fallo de R2 es reintentable y no deja estado falso.
 
-**Evidencia de cierre:**
+**Evidencia de cierre (CORRECCIÓN 2026-07-11):**
 
 ```text
 Estado: COMPLETADO
-Fecha: 2026-07-11
-Prompt aplicado: Sesión 05 — Token de upload y limpieza de comprobantes huérfanos
+Fecha: 2026-07-11 (corrección)
+Prompt aplicado: Corrección sesiones 04-05-06 — máquina de estados, reclamaciones atómicas, cron DELETING
 Archivos modificados:
-- prisma/schema.prisma: añadidos enum PaymentUploadStatus (PENDING, LINKED, DELETED) y modelo PaymentUpload con tokenHash (unique), objectKey (unique, nullable), status, userId?, orderId? (unique), expiresAt, createdAt/updatedAt; índices [status, expiresAt] y [userId]
-- prisma/migrations/20260711190000_add_payment_upload_model/migration.sql: CREATE TYPE "PaymentUploadStatus" AS ENUM; CREATE TABLE "PaymentUpload" con constraints UNIQUE e índices compuestos
-- app/api/checkout/upload-session/route.ts: nuevo POST — verifySameOrigin + rate limit (10/10min x IP); genera randomBytes(32).toString('base64url'); guarda SHA-256 en BD con expiresAt = 30 min; userId opcional (sesión); devuelve raw token una sola vez
-- app/api/checkout/upload-proof/route.ts: modificado — exige header x-checkout-upload-token; reclama token atómicamente con updateMany (PENDING + no expirado + objectKey=null); tras upload R2 exitoso persiste objectKey; si R2 falla revierte (set objectKey=null) para permitir retry; mantiene verifySameOrigin + rate limit por sesión/IP
-- app/api/cron/purge-payment-uploads/route.ts: nuevo GET — auth CRON_SECRET; batch 100 PENDING expirados; reclama con updateMany condicional; borra R2 solo si hay objectKey; marca DELETED; si R2 falla conserva PENDING reintentable y log solo PaymentUpload.id; registra última ejecución exitosa en AppConfig
-- lib/checkout-order.ts: checkoutSchema añade campo paymentUploadToken (string optional); superRefine exige token si se envía paymentProofKey; executeCheckoutInTransaction valida token (PENDING, no expirado, con objectKey) antes de crear pedido; tras crear Order, marca PaymentUpload como LINKED con orderId dentro de la misma transacción
+- prisma/schema.prisma: enum PaymentUploadStatus ampliado a PENDING/UPLOADING/LINKED/DELETING/DELETED; PaymentUpload añade relación order Order? @relation(onDelete: SetNull); Order añade paymentUpload PaymentUpload? (lado inverso)
+- prisma/migrations/20260712000000_private_payment_proof_state_machine/migration.sql: ALTER TYPE ADD VALUE 'UPLOADING' + 'DELETING'; ADD CONSTRAINT FK PaymentUpload_orderId → Order.id ON DELETE SET NULL
+- app/api/checkout/upload-proof/route.ts: reescritura completa con máquina de estados — rate limit+validación ANTES del claim; claim PENDING→UPLOADING con updateMany condicional (objectKey:null, orderId:null, expiresAt>now); upload R2; finalización atómica UPLOADING→PENDING con objectKey; cleanup en finally (deletePrivateProof si uploadedKey + revert status); respuesta {uploaded, width, height} sin proofKey
+- app/api/cron/purge-payment-uploads/route.ts: reescritura completa — select sin tokenHash (solo id, objectKey); claim PENDING→DELETING condicional por id+status+expiresAt; deletePrivateProof si objectKey; revert DELETING→PENDING si R2 falla; marca DELETED condicional; normalización de error r2Err a errorName
+- lib/checkout-order.ts: executeCheckoutInTransaction ya no acepta paymentProofUrl/paymentProofKey del cliente; resuelve key desde PaymentUpload.objectKey (select: id, objectKey, status, expiresAt, userId, orderId); validación completa (PENDING, expiresAt>now, objectKey no null, orderId null, userId match si registrado); vinculación con updateMany condicional (status:PENDING + objectKey + orderId:null + expiresAt>now) → LINKED; si link falla lanza CheckoutError 409 revirtiendo toda la transacción
+- lib/r2.ts: corregida validación de credenciales privadas sin fallback
+- tests/checkout-order.test.ts: reescrito para paymentUploadToken
+- tests/payment-upload-token.test.ts: actualizado
 Migraciones:
-- 20260711190000_add_payment_upload_model — CREATE TYPE + CREATE TABLE + índices UNIQUE y compuestos; aditiva, sin backfill
+- 20260712000000_private_payment_proof_state_machine — ALTER TYPE ADD VALUE + FK constraint
 Pruebas ejecutadas:
-- npm run typecheck — PASS (0 errors, 0 nuevos)
-- npm run lint — PASS (0 errors, 26 warnings pre-existentes; 0 introducidos)
-- npm test — PASS (13 test files, 101 tests passed, 2.21s)
-- npm run build — PASS (build exitoso; rutas /api/checkout/upload-session y /api/cron/purge-payment-uploads compiladas)
-Evidencia de aceptación:
-- (1) Token de alta entropía, solo hash en BD → upload-session.ts: randomBytes(32) = 256 bits → base64url 43 chars; BD guarda SHA-256 hex (hashToken). Test: hashToken() produce /^[a-f0-9]{64}$/ y es determinista.
-- (2) Token expirado/usado/manipulado se rechaza → upload-proof.ts: updateMany con where {status:PENDING, expiresAt:{gt:now}, objectKey:null} → si count=0 responde 409. executeCheckoutInTransaction: verifica status!=='PENDING' → 409, expiresAt<now → 410, sin objectKey → 400. Token incorrecto → paymentUpload.findUnique devuelve null → 400.
-- (3) Dos requests concurrentes no duplican upload ni vínculo → upload-proof.ts: updateMany condicional (status PENDING + objectKey null + no expirado) → solo uno gana (count=1), el otro count=0 → 409. En checkout: la transacción Serializable + validación dentro de executeCheckoutInTransaction del token PENDING previene doble vinculación.
-- (4) Pedido y PaymentUpload.LINKED vinculados → executeCheckoutInTransaction: tras tx.order.create, ejecuta tx.paymentUpload.update con {status:LINKED, orderId:newOrder.id} dentro de la misma transacción.
-- (5) Cron borra solo PENDING expirados, nunca LINKED → purge-payment-uploads.ts: findMany where {status:PENDING, expiresAt:{lte:now}} → LINKED no entra en el filtro. R2 delete solo si objectKey no es null.
-- (6) Fallo R2 reintentable → upload-proof.ts: catch en uploadPrivateProof revierte objectKey a null. Cron: catch en deletePrivateProof conserva PENDING y continua al siguiente registro.
+- npx prisma format — PASS
+- npx prisma validate — PASS
+- npx prisma generate — PASS
+- npm run typecheck — PASS (0 errors)
+- npm run lint — PASS (0 errors, 26 warnings pre-existentes)
+- npm test — PASS (14 test files, 119 tests passed)
+- npm run build — PASS (build exitoso)
+Evidencia de aceptación (CORREGIDO):
+- (1) Token de alta entropía, solo hash en BD → upload-session.ts: randomBytes(32) base64url, BD guarda SHA-256. Sin cambios en esta corrección.
+- (2) Token expirado/usado/manipulado se rechaza → upload-proof: claim updateMany con where {status:PENDING, expiresAt:{gt:now}, objectKey:null, orderId:null} + data {status:UPLOADING} → count=0 rechaza 409. checkout: validación completa con status, expiresAt, objectKey, orderId, userId.
+- (3) Dos requests concurrentes no duplican → upload-proof: updateMany atómico PENDING→UPLOADING, solo uno gana (count=1). Cron: updateMany PENDING→DELETING, solo uno gana.
+- (4) Pedido y PaymentUpload.LINKED vinculados condicionalmente → executeCheckoutInTransaction: updateMany where {id, status:PENDING, objectKey, orderId:null, expiresAt:gt:now} data {status:LINKED, orderId} → count!=1 lanza CheckoutError 409 revirtiendo transacción.
+- (5) Cron borra solo PENDING expirados, usa DELETING → findMany where {status:PENDING, expiresAt:{lte:now}}; claim PENDING→DELETING; R2 ok → DELETED; R2 fail → revierte DELETING→PENDING; no procesa LINKED.
+- (6) Fallo R2 reintentable → upload-proof: finally cleanup revierte UPLOADING→PENDING, elimina objeto huérfano si uploadedKey. Cron: catch revierte DELETING→PENDING. Sin data: {} usado como claim.
 Riesgo residual:
-- El cron depende de CRON_SECRET para autenticación, mismo patrón que los otros crons existentes.
-- El cron registra last_success_at en AppConfig pero el health endpoint actual no lo expone (sesión 11 lo cubrirá).
-- Los tests son unitarios; no cubren integración real contra BD PostgreSQL ni R2 (el patrón existente del proyecto es unitario). Una suite de integración requeriría base de datos aislada + mocking de S3Client.
+- Pendiente ejecutar test:r2-private con credenciales nuevas no expuestas.
+- El cron depende de CRON_SECRET; mismo patrón que crons existentes.
 Notas manuales:
-- (MANUAL) Programar el cron en el VPS: añadir a crontab (root, TZ America/Caracas) la línea:
-  0 4 * * * . /etc/mundotech/mundotech.env; curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3000/api/cron/purge-payment-uploads >> /var/log/mundotech-cron.log 2>&1
-- (MANUAL) Si se usa Vercel Cron, añadir en vercel.json el schedule correspondiente.
-- Ningún cambio requiere modificar .env, commits, push o deploy automático.
+- (MANUAL) Aplicar migración en producción: npx prisma migrate deploy
+- (MANUAL) El crontab debe apuntar a /api/cron/purge-payment-uploads (ya documentado en sesión 05 original)
 ```
 
 ## 06 — Acceso guest mediante token independiente
@@ -352,50 +354,35 @@ Notas manuales:
 - Mensaje anti-enumeración uniforme para ausente/inválido/expirado.
 - Página `force-dynamic`, `noindex`, headers `private/no-store`, `Referrer-Policy: no-referrer`.
 
-**Evidencia de cierre:**
+**Evidencia de cierre (CORRECCIÓN 2026-07-11):**
 
 ```text
 Estado: COMPLETADO
-Fecha: 2026-07-11
-Prompt aplicado: Sesión 06 — Token guest seguro para confirmación de pedido
-Archivos modificados:
-- prisma/schema.prisma: añadidos guestAccessTokenHash String? @unique y guestAccessTokenExpiresAt DateTime? al modelo Order
-- prisma/migrations/20260711200000_add_guest_access_token/migration.sql: ALTER TABLE aditivo + UNIQUE index
-- lib/definitions.ts: nuevos tipos GuestOrderConfirmation, GuestOrderItem y función toGuestOrderConfirmationDto (mapper sin PII)
-- lib/checkout-order.ts: CheckoutExecuteOptions extendido con guestAccessTokenHash/ExpiresAt; executeCheckoutInTransaction persiste ambos campos en guest orders
-- app/api/orders/route.ts: genera randomBytes(32).toString('base64url') para guest, hash SHA-256 + 72h expiry; pasa a executeCheckoutInTransaction; incluye guestToken raw en respuesta POST solo para guest; email payload incluye guestToken
-- app/checkout/success/page.tsx: acepta ?token= como bearer; handleGuestToken() hashea y busca por guestAccessTokenHash+expiresAt; anti-enumeración; ?orderId= legacy preservado para autenticados/admin; dynamic=force-dynamic
-- app/checkout/success/GuestSuccessClientPage.tsx: nuevo ClientComponent que renderiza GuestOrderConfirmation (DTO mínimo sin PII); noindex inline; headers no-store/referrer desde el Server Component padre
-- emails/mundotech/types.ts: añadido guestToken? al OrderConfirmationPayload
-- emails/mundotech/OrderConfirmationEmail.tsx: cambia guestOrderHref de ?orderId= a ?token=; primary CTA se dirige a token para guest
-- middleware.ts: añadido ?token= como parámetro de acceso guest permitido sin JWT (junto a ?orderId= legacy)
-- app/pedido/page.tsx: añadidos robots noindex, Cache-Control y Referrer-Policy en metadata
-- tests/guest-access-token.test.ts: 15 tests de hashToken, toGuestOrderConfirmationDto (sin PII), token SHA-256, GuestOrderConfirmation type
-- lib/checkout-order.ts: fix preexistente — cambiado customer spread por asignación directa para compatibilidad Prisma 7
+Fecha: 2026-07-11 (corrección)
+Prompt aplicado: Corrección sesiones 04-05-06 — eliminación completa de acceso guest por ?orderId=
+Archivos modificados (adicional a implementación original):
+- app/checkout/success/page.tsx: reescritura completa — elimina bloque "Guest con ?orderId= legacy"; sin sesión y ?orderId= → InvalidOrderMessage sin consultar BD; handleGuestToken no necesita session; no renderiza pedido completo vía token ni para ADMIN; componente InvalidOrderMessage unificado
+- next.config.mjs: añadida regla de headers para /checkout/success: Cache-Control private, no-store, max-age=0; Referrer-Policy no-referrer; X-Robots-Tag noindex, nofollow, noarchive
 Migraciones:
-- 20260711200000_add_guest_access_token — ALTER TABLE "Order" ADD COLUMN aditivo + UNIQUE INDEX
+- 20260712000000_private_payment_proof_state_machine (FK + enum solamente, esta sesión ya tenía su migración 20260711200000)
 Pruebas ejecutadas:
-- npm run typecheck — PASS (0 errors; pre-existing errors exclusivos de tests/r2-proof y payment-upload)
-- npm run lint — PASS (0 errors, 26 warnings pre-existentes; 0 introducidos)
-- npm test — PASS (14 test files, 111/116 passed; 5 pre-existing failures en r2-proof por falta de R2_PRIVATE_ACCESS_KEY_ID en CI)
-- npm test (guest-access-token) — PASS (15/15 tests)
-- npm run build — PASS (build exitoso; rutas /checkout/success dinámicas, middleware compilado)
-Evidencia de aceptación:
-- (1) ?orderId= ya no es bearer principal para guest → guestOrderHref en email cambió a ?token=; handleGuestToken() en page.tsx usa hashToken(token) para lookup
-- (2) Token raw 32 bytes base64url entregado una vez → randomBytes(32).toString('base64url') en route.ts; solo en respuesta POST guest; BD guarda SHA-256 hex y expiresAt
-- (3) DTO guest sin PII → toGuestOrderConfirmationDto() no incluye customerIdNumber, paymentReference, shippingDetails, paymentProofUrl/Key, customerEmail, customerPhone. Tests verifican que propiedades ausentes
-- (4) Propietario y ADMIN conservan acceso → handleGuestToken() redirige a SuccessClientPage (full order) si session.user.id coincide con customerId o isAdminRole
-- (5) Mensaje anti-enumeración uniforme → "No encontramos este pedido" en todos los casos: no existe, expirado, inválido
-- (6) Página force-dynamic, noindex, no-store, no-referrer → dynamic=force-dynamic, metadata robots noindex, Cache-Control private/no-store vía headers de Next; Referrer-Policy no-referrer; GuestSuccessClientPage tiene meta noindex inline
-- (7) Tests de DTO sin claves sensibles → 7 tests en toGuestOrderConfirmationDto verifican que customerIdNumber, paymentReference, customerEmail, customerPhone, paymentProofUrl, paymentProofKey, shippingDetails NO están presentes
+- npm run typecheck — PASS (0 errors)
+- npm run lint — PASS (0 errors, 26 warnings pre-existentes)
+- npm test — PASS (14 test files, 119 tests passed)
+- npm run build — PASS (build exitoso)
+Evidencia de aceptación (CORREGIDO):
+- (1) ?orderId= ya NO concede acceso guest como bearer → success/page.tsx: sin sesión y ?orderId= → InvalidOrderMessage sin consultar BD
+- (2) Token raw entregado una vez, BD guarda SHA-256 y expiración 72h → sin cambios en esta corrección
+- (3) DTO guest sin PII → toGuestOrderConfirmationDto() no incluye customerIdNumber, paymentReference, shippingDetails, paymentProofUrl/Key, customerEmail, customerPhone. Sin cambios.
+- (4) Propietario y ADMIN conservan acceso → solo con sesión + orderId: isOwner || isAdmin → SuccessClientPage
+- (5) Mensaje anti-enumeración uniforme → InvalidOrderMessage unificado para todos los casos
+- (6) Página force-dynamic, noindex, no-store, no-referrer → dynamic=force-dynamic, metadata noindex, headers en next.config.mjs
+- (7) Test de DTO sin claves sensibles → sin cambios, 7 tests PASS
+- (8) Eliminado acceso guest por ?orderId= legacy → inexistente en el nuevo código
 Riesgo residual:
-- Los enlaces legacy con ?orderId= (enviados antes de esta sesión) siguen funcionando para guest mediante el branch legacy en page.tsx. No expiran — pero el anti-enumeración ya estaba antes de esta sesión.
-- El token raw se entrega en la respuesta POST y en el email. Si el cliente pierde el email y no copió el token, no hay recuperación: debe usar /pedido con cédula, contactar soporte o crear cuenta.
-- Los 5 tests pre-existentes de r2-proof fallan por falta de R2_PRIVATE_ACCESS_KEY_ID en el entorno local. No afectan la funcionalidad.
+- Los enlaces legacy con ?orderId= en correos ya enviados NO funcionarán para guest (mejora de seguridad intencional). Los correos ya enviados usaban ?token= desde la sesión 06 original.
 Notas manuales:
-- (MANUAL) Aplicar la migración en la BD de producción: npx prisma migrate deploy
-- (MANUAL) Los enlaces legacy en emails ya enviados siguen funcionando con ?orderId= (compatibilidad hacia atrás)
-- Ningún cambio requiere modificar .env, commits, push o deploy automático.
+- (MANUAL) Ninguno adicional. Los cambios de headers en next.config.mjs requieren rebuild + deploy.
 ```
 
 ## 07 — Retención y minimización de datos
@@ -890,6 +877,6 @@ Añadir una fila por sesión cerrada:
 | 2026-07-11 | 02 | COMPLETADO | Sin commit (cambios staged) | typecheck PASS, lint PASS, 63 tests PASS, build PASS, security:versions PASS | Next.js actualizado a 16.2.10; eslint-config-next y @next/swc-* alineados; script security:versions creado; CI extendido; npm audit documentado |
 
 | 2026-07-11 | 03 | COMPLETADO | Sin commit (cambios staged) | typecheck PASS, lint PASS, 63 tests PASS | docs/RUNBOOK-PURGA-SECRETOS-HISTORIAL.md; .gitleaks.toml; secrets.yml |
-| 2026-07-11 | 04 | COMPLETADO | Sin commit (cambios staged) | typecheck PASS, lint PASS, 101 tests PASS (13 files), migration APPLIED | paymentProofKey en schema+definiciones; R2 privado con presigned GET; upload-proof route sin URL pública; payment-proof endpoint admin; panel admin obtiene URL firmada al abrir; 28 tests de validación; .env.example actualizado |
-| 2026-07-11 | 05 | COMPLETADO | Sin commit (cambios staged) | typecheck PASS, lint PASS, 101 tests PASS, build PASS | PaymentUpload model+enum; upload-session endpoint; upload-proof modificado con token; checkoutSchema+transaction integran token; cron purge-payment-uploads |
-| 2026-07-11 | 06 | COMPLETADO | Sin commit (cambios staged) | typecheck PASS, lint PASS, 111/116 tests PASS (14 files), build PASS | guestAccessTokenHash/ExpiresAt en Order; randomBytes(32)+SHA-256 para guest; ?token= en vez de ?orderId=; GuestOrderConfirmation DTO sin PII; toGuestOrderConfirmationDto mapper; email con ?token=; GuestSuccessClientPage; middleware actualizado; 15 tests nuevos |
+| 2026-07-11 | 04 | PARCIAL (corregido) | Sin commit | typecheck PASS, lint PASS, 119 tests PASS, build PASS, test:r2-private NO EJECUTADO | Credenciales privadas sin fallback; máquina de estados en upload-proof; key resuelta server-side; migration enum+FK |
+| 2026-07-11 | 05 | COMPLETADO (corregido) | Sin commit | typecheck PASS, lint PASS, 119 tests PASS, build PASS | Estados UPLOADING/DELETING; claims atómicos con cambio de estado real; cron DELETING seguro; link condicional con updateMany; cleanup en finally |
+| 2026-07-11 | 06 | COMPLETADO (corregido) | Sin commit | typecheck PASS, lint PASS, 119 tests PASS, build PASS | Guest por ?orderId= eliminado; solo ?token= para guest; headers privacidad en next.config; InvalidOrderMessage unificado |

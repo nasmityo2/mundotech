@@ -12,7 +12,7 @@ import {
   COUPON_GENERIC_INVALID_REASON,
 } from '@/lib/coupons';
 import { hashToken } from '@/lib/security';
-import { isTrustedPaymentProofUrl } from '@/lib/payment-proof';
+import { assertProofKey } from '@/lib/r2';
 
 export const orderItemSchema = z.object({
   productId: z.string().min(1),
@@ -44,20 +44,13 @@ export const checkoutSchema = z
     paymentHolderIdNumber: z.string().optional().nullable(),
     paymentHolderPhone: z.string().optional().nullable(),
     paymentReference: z.string().optional().nullable(),
-    paymentProofUrl: z
-      .string()
-      .optional()
-      .nullable()
-      .refine((val) => !val?.trim() || z.string().url().safeParse(val.trim()).success, {
-        message: 'Comprobante inválido',
-      })
-      .refine((val) => !val?.trim() || isTrustedPaymentProofUrl(val.trim()), {
-        message: 'El comprobante de pago debe provenir del almacenamiento autorizado.',
-      }),
-    /** SESIÓN 04: key del objeto en bucket privado (alternativa a paymentProofUrl). */
-    paymentProofKey: z.string().optional().nullable(),
     /** SESIÓN 05: token de upload obtenido de /api/checkout/upload-session. */
-    paymentUploadToken: z.string().min(1, 'Token de subida requerido.').trim().optional().nullable(),
+    paymentUploadToken: z
+      .string()
+      .trim()
+      .min(1, 'Token de subida requerido.')
+      .optional()
+      .nullable(),
     couponCode: z.string().trim().max(40).optional().nullable(),
     channel: z.enum(['web', 'whatsapp']).optional().default('web'),
     items: z
@@ -84,21 +77,14 @@ export const checkoutSchema = z
         path: ['paymentReference'],
       });
     }
-    // SESIÓN 04: aceptar paymentProofKey como alternativa a paymentProofUrl
-    if (!data.paymentProofUrl?.trim() && !data.paymentProofKey?.trim()) {
+    // SESIÓN 04/05 (CORREGIDO): exigir token de upload para métodos manuales.
+    // El servidor deriva la key exclusivamente desde PaymentUpload.objectKey.
+    if (!data.paymentUploadToken?.trim()) {
       ctx.addIssue({
         code: 'custom',
         message: isBinance
           ? 'Sube la captura de pantalla del pago en Binance.'
-          : 'Sube el comprobante (captura) del pago.',
-        path: ['paymentProofUrl'],
-      });
-    }
-    // SESIÓN 05: exigir token de upload si se envía paymentProofKey
-    if (data.paymentProofKey?.trim() && !data.paymentUploadToken?.trim()) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Token de subida requerido. Obtén uno en la página de pago.',
+          : 'Sube el comprobante de pago.',
         path: ['paymentUploadToken'],
       });
     }
@@ -179,8 +165,6 @@ export async function executeCheckoutInTransaction(
     paymentHolderIdNumber,
     paymentHolderPhone,
     paymentReference,
-    paymentProofUrl,
-    paymentProofKey,
     paymentUploadToken,
     couponCode,
     channel,
@@ -246,27 +230,70 @@ export async function executeCheckoutInTransaction(
     }
   }
 
-  // SESIÓN 05: validar y vincular token de upload si se proporcionó
+  // SESIÓN 05 (CORREGIDO): validar token de upload y resolver la key desde PaymentUpload.objectKey.
+  // El cliente no puede elegir paymentProofKey; la key se deriva exclusivamente en el servidor.
+  let resolvedPaymentUploadId: string | null = null;
+  let resolvedPaymentProofKey: string | null = null;
+
+  const isRegisteredUser = customerId && customerId !== 'guest';
+
   if (paymentUploadToken?.trim()) {
-    const tokenHash = hashToken(paymentUploadToken.trim());
+    const uploadTokenHash = hashToken(paymentUploadToken.trim());
+
     const uploadRecord = await tx.paymentUpload.findUnique({
-      where: { tokenHash },
+      where: {
+        tokenHash: uploadTokenHash,
+      },
+      select: {
+        id: true,
+        objectKey: true,
+        status: true,
+        expiresAt: true,
+        userId: true,
+        orderId: true,
+      },
     });
+
     if (!uploadRecord) {
       throw new CheckoutError('Token de subida inválido.', 400);
     }
+
     if (uploadRecord.status !== 'PENDING') {
-      throw new CheckoutError('Token de subida ya utilizado.', 409);
-    }
-    if (uploadRecord.expiresAt < new Date()) {
-      throw new CheckoutError('Token de subida expirado. Obtén uno nuevo.', 410);
-    }
-    if (!uploadRecord.objectKey) {
       throw new CheckoutError(
-        'El comprobante no se ha subido. Sube el comprobante antes de confirmar el pedido.',
-        400,
+        'El comprobante está siendo procesado o ya fue utilizado.',
+        409,
       );
     }
+
+    if (uploadRecord.expiresAt <= new Date()) {
+      throw new CheckoutError(
+        'La sesión de subida expiró. Sube nuevamente el comprobante.',
+        410,
+      );
+    }
+
+    if (!uploadRecord.objectKey || uploadRecord.orderId) {
+      throw new CheckoutError(
+        'El comprobante no está disponible para este pedido.',
+        409,
+      );
+    }
+
+    if (
+      isRegisteredUser &&
+      uploadRecord.userId &&
+      uploadRecord.userId !== customerId
+    ) {
+      throw new CheckoutError(
+        'El comprobante no pertenece a esta sesión.',
+        403,
+      );
+    }
+
+    assertProofKey(uploadRecord.objectKey);
+
+    resolvedPaymentUploadId = uploadRecord.id;
+    resolvedPaymentProofKey = uploadRecord.objectKey;
   }
 
   const rate = await loadExchangeRateUsdBsFromTx(tx);
@@ -287,8 +314,6 @@ export async function executeCheckoutInTransaction(
   }
   const serverTotal = totalCents / 100;
   subtotalUsd = roundMoney2(subtotalUsd);
-
-  const isRegisteredUser = customerId && customerId !== 'guest';
 
   let resolvedCustomerEmail = customerEmail?.trim() || null;
   if (isRegisteredUser && !resolvedCustomerEmail) {
@@ -353,8 +378,8 @@ export async function executeCheckoutInTransaction(
       paymentHolderIdNumber: paymentHolderIdNumber ?? null,
       paymentHolderPhone: paymentHolderPhone ?? null,
       paymentReference: paymentReference ?? null,
-      paymentProofUrl: paymentProofUrl ?? null,
-      paymentProofKey: paymentProofKey ?? null,
+      paymentProofUrl: null,
+      paymentProofKey: resolvedPaymentProofKey,
       // SESIÓN 06: token de acceso guest (solo para pedidos sin cuenta)
       guestAccessTokenHash: effectiveAccessTokenHash,
       guestAccessTokenExpiresAt: effectiveAccessTokenExpiresAt,
@@ -380,16 +405,29 @@ export async function executeCheckoutInTransaction(
     include: { items: true },
   });
 
-  // SESIÓN 05: vincular el PaymentUpload al pedido (LINKED) dentro de la misma transacción
-  if (paymentUploadToken?.trim()) {
-    const tokenHashInner = hashToken(paymentUploadToken.trim());
-    await tx.paymentUpload.update({
-      where: { tokenHash: tokenHashInner },
+  // SESIÓN 05 (CORREGIDO): vincular PaymentUpload al pedido (LINKED) con updateMany condicional.
+  // Si el update falla (ya fue usado por otro pedido), revierte toda la transacción.
+  if (resolvedPaymentUploadId) {
+    const linked = await tx.paymentUpload.updateMany({
+      where: {
+        id: resolvedPaymentUploadId,
+        status: 'PENDING',
+        objectKey: resolvedPaymentProofKey,
+        orderId: null,
+        expiresAt: { gt: new Date() },
+      },
       data: {
         status: 'LINKED',
         orderId: newOrder.id,
       },
     });
+
+    if (linked.count !== 1) {
+      throw new CheckoutError(
+        'El comprobante ya fue utilizado por otro pedido.',
+        409,
+      );
+    }
   }
 
   // Canje atómico del cupón (incrementa usedCount respetando maxUses) tras crear

@@ -34,9 +34,66 @@ function assertR2Env(): void {
   }
 }
 
-/** Requerido solo para comprobantes privados — no bloquea assets públicos. */
-function getPrivateBucket(): string | undefined {
-  return process.env.R2_PRIVATE_BUCKET_NAME?.trim();
+type PrivateR2Config = {
+  endpoint: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+};
+
+function getPrivateConfig(): PrivateR2Config {
+  const endpoint = process.env.R2_ENDPOINT?.trim();
+  const bucket = process.env.R2_PRIVATE_BUCKET_NAME?.trim();
+  const accessKeyId = process.env.R2_PRIVATE_ACCESS_KEY_ID?.trim();
+  const secretAccessKey =
+    process.env.R2_PRIVATE_SECRET_ACCESS_KEY?.trim();
+
+  const missing: string[] = [];
+
+  if (!endpoint) missing.push('R2_ENDPOINT');
+  if (!bucket) missing.push('R2_PRIVATE_BUCKET_NAME');
+  if (!accessKeyId) missing.push('R2_PRIVATE_ACCESS_KEY_ID');
+  if (!secretAccessKey) missing.push('R2_PRIVATE_SECRET_ACCESS_KEY');
+
+  if (missing.length > 0) {
+    throw new Error(
+      `[r2-private] Faltan variables requeridas: ${missing.join(', ')}.`,
+    );
+  }
+
+  // TypeScript no estrecha los tipos a través del array `missing`.
+  // Tras el early return, todas las variables son definitivamente string.
+  const resolvedEndpoint = endpoint!;
+  const resolvedBucket = bucket!;
+  const resolvedAccessKeyId = accessKeyId!;
+  const resolvedSecretAccessKey = secretAccessKey!;
+
+  let parsedEndpoint: URL;
+
+  try {
+    parsedEndpoint = new URL(resolvedEndpoint);
+  } catch {
+    throw new Error('[r2-private] R2_ENDPOINT no es una URL válida.');
+  }
+
+  if (parsedEndpoint.protocol !== 'https:') {
+    throw new Error('[r2-private] R2_ENDPOINT debe usar HTTPS.');
+  }
+
+  if (
+    !parsedEndpoint.hostname.endsWith('.r2.cloudflarestorage.com')
+  ) {
+    throw new Error(
+      '[r2-private] R2_ENDPOINT no pertenece a un endpoint S3 válido de Cloudflare R2.',
+    );
+  }
+
+  return {
+    endpoint: parsedEndpoint.origin,
+    bucket: resolvedBucket,
+    accessKeyId: resolvedAccessKeyId,
+    secretAccessKey: resolvedSecretAccessKey,
+  };
 }
 
 function getConfig() {
@@ -70,29 +127,21 @@ export const R2_PUBLIC_BASE_URL = (process.env.R2_PUBLIC_BASE_URL ?? '').replace
 
 let privateS3Client: S3Client | null = null;
 
-function assertPrivateCredentials(): { accessKeyId: string; secretAccessKey: string } {
-  const key = process.env.R2_PRIVATE_ACCESS_KEY_ID?.trim();
-  const secret = process.env.R2_PRIVATE_SECRET_ACCESS_KEY?.trim();
-  if (!key || !secret) {
-    throw new Error(
-      '[r2] Faltan R2_PRIVATE_ACCESS_KEY_ID y/o R2_PRIVATE_SECRET_ACCESS_KEY. ' +
-        'Configúralas con las credenciales S3 del bucket privado.',
-    );
-  }
-  return { accessKeyId: key, secretAccessKey: secret };
-}
-
 function getPrivateS3Client(): S3Client {
   if (!privateS3Client) {
-    const endpoint = process.env.R2_ENDPOINT?.trim() || '';
-    const creds = assertPrivateCredentials();
+    const config = getPrivateConfig();
+
     privateS3Client = new S3Client({
       region: 'auto',
-      endpoint,
-      credentials: creds,
+      endpoint: config.endpoint,
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+      },
       forcePathStyle: true,
     });
   }
+
   return privateS3Client;
 }
 
@@ -188,17 +237,6 @@ export function keyFromR2PublicUrl(url: string): string | null {
 // OPERACIONES CON BUCKET PRIVADO (comprobantes de pago)
 // ─────────────────────────────────────────────────────────────
 
-function assertPrivateBucket(): string {
-  const bucket = getPrivateBucket();
-  if (!bucket) {
-    throw new Error(
-      '[r2] Falta R2_PRIVATE_BUCKET_NAME. Configúralo con el nombre del bucket privado ' +
-        'para comprobantes de pago.',
-    );
-  }
-  return bucket;
-}
-
 /** Patrón de clave válida para comprobante privado: proofs/<uuid o slug seguro>.(jpg|jpeg|png|webp) */
 const PROOF_KEY_RE = /^proofs\/[a-zA-Z0-9][a-zA-Z0-9_-]*\.(jpg|jpeg|png|webp)$/;
 
@@ -211,6 +249,9 @@ const PROOF_KEY_RE = /^proofs\/[a-zA-Z0-9][a-zA-Z0-9_-]*\.(jpg|jpeg|png|webp)$/;
 export function assertProofKey(key: string): void {
   if (!key || typeof key !== 'string') {
     throw new Error('[r2] La clave del comprobante es requerida.');
+  }
+  if (key.length > 180) {
+    throw new Error('[r2-private] La clave del comprobante es demasiado larga.');
   }
   // Rechazar URLs completas
   if (key.startsWith('https://') || key.startsWith('http://')) {
@@ -251,7 +292,7 @@ export async function uploadPrivateProof({
   contentType: string;
 }): Promise<{ key: string }> {
   assertProofKey(key);
-  const bucket = assertPrivateBucket();
+  const { bucket } = getPrivateConfig();
   const client = getPrivateS3Client();
   await client.send(
     new PutObjectCommand({
@@ -274,7 +315,7 @@ export async function getPrivateProofReadUrl(
   expiresInSeconds = 180,
 ): Promise<string> {
   assertProofKey(key);
-  const bucket = assertPrivateBucket();
+  const { bucket } = getPrivateConfig();
   const client = getPrivateS3Client();
   const command = new GetObjectCommand({ Bucket: bucket, Key: key });
   return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
@@ -285,7 +326,7 @@ export async function getPrivateProofReadUrl(
  */
 export async function deletePrivateProof(key: string): Promise<void> {
   assertProofKey(key);
-  const bucket = assertPrivateBucket();
+  const { bucket } = getPrivateConfig();
   const client = getPrivateS3Client();
   await client.send(
     new DeleteObjectCommand({

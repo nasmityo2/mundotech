@@ -25,6 +25,9 @@ const REQUIRED_IN_PRODUCTION = [
   'R2_SECRET_ACCESS_KEY',
   'R2_BUCKET_NAME',
   'R2_PUBLIC_BASE_URL',
+  'R2_PRIVATE_BUCKET_NAME',
+  'R2_PRIVATE_ACCESS_KEY_ID',
+  'R2_PRIVATE_SECRET_ACCESS_KEY',
 ] as const;
 
 /** PRD-060: valores admitidos para DEPLOYMENT_ENV (extracción segura de IP). */
@@ -62,7 +65,7 @@ export function validateEnv(): void {
   if (missingProd.length > 0) {
     const msg = `[env] Variables requeridas en producción ausentes: ${missingProd.join(', ')}.`;
     if (isProduction) {
-      throw new Error(`${msg} Revisa .env.example y la configuración del proyecto en Vercel.`);
+      throw new Error(`${msg} Revisa .env.example y el EnvironmentFile del entorno de producción.`);
     }
     console.warn(msg);
   }

@@ -14,6 +14,9 @@ export default defineConfig({
       NEXTAUTH_URL: 'http://localhost:3000',
       CRON_SECRET: 'vitest-cron-secret',
       R2_PRIVATE_BUCKET_NAME: 'vitest-proofs',
+      R2_PRIVATE_ACCESS_KEY_ID: 'vitest-access-key-id',
+      R2_PRIVATE_SECRET_ACCESS_KEY: 'vitest-secret-access-key',
+      R2_ENDPOINT: 'https://vitest.r2.cloudflarestorage.com',
     },
   },
   resolve: {
