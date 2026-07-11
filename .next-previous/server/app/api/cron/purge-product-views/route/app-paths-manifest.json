@@ -1,3 +1,0 @@
-{
-  "/api/cron/purge-product-views/route": "app/api/cron/purge-product-views/route.js"
-}

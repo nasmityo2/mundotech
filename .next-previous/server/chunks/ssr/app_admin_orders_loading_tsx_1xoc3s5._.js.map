@@ -1,1 +1,0 @@
-{"version":3,"sources":["../../../../app/admin/orders/loading.tsx"],"sourcesContent":["export { default } from '@/app/admin/loading';\n"],"names":[],"mappings":"wCAAA,IAAA,EAAA,EAAA,CAAA,CAAA"}
