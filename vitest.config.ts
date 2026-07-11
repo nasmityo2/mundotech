@@ -13,6 +13,7 @@ export default defineConfig({
       NEXTAUTH_SECRET: 'vitest-secret',
       NEXTAUTH_URL: 'http://localhost:3000',
       CRON_SECRET: 'vitest-cron-secret',
+      R2_PRIVATE_BUCKET_NAME: 'vitest-proofs',
     },
   },
   resolve: {

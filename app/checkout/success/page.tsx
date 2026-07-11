@@ -7,10 +7,13 @@ export const metadata: Metadata = {
   title: 'Pedido confirmado',
   robots: { index: false, follow: false },
 };
+
 import { isAdminRole } from '@/lib/is-admin-role';
-import { Order, OrderItem, prismaOrderToOrder } from '@/lib/definitions';
+import { Order, OrderItem, prismaOrderToOrder, toGuestOrderConfirmationDto } from '@/lib/definitions';
 import { prisma } from '@/lib/prisma';
+import { hashToken } from '@/lib/security';
 import SuccessClientPage from './SuccessClientPage';
+import GuestSuccessClientPage from './GuestSuccessClientPage';
 
 export interface EnrichedOrderItem extends OrderItem {
   imageUrl?: string;
@@ -19,6 +22,8 @@ export interface EnrichedOrderItem extends OrderItem {
 export interface EnrichedOrder extends Omit<Order, 'items'> {
   items: EnrichedOrderItem[];
 }
+
+export const dynamic = 'force-dynamic';
 
 async function getEnrichedOrder(orderId: string): Promise<EnrichedOrder | null> {
   const row = await prisma.order.findUnique({
@@ -40,21 +45,30 @@ async function getEnrichedOrder(orderId: string): Promise<EnrichedOrder | null> 
 export default async function SuccessPageWrapper({
   searchParams,
 }: {
-  searchParams: Promise<{ orderId?: string }>;
+  searchParams: Promise<{ orderId?: string; token?: string }>;
 }) {
-  const [session, { orderId }] = await Promise.all([
+  const [session, params] = await Promise.all([
     getServerSession(authOptions),
     searchParams,
   ]);
 
+  const { orderId, token } = params;
+
+  // SESIÓN 06: ?token= reemplaza ?orderId= para guest.
+  // Si hay token, se resuelve por hash; si hay orderId, se resuelve por ID directo.
+  if (token) {
+    return handleGuestToken(token, session);
+  }
+
   if (!orderId) {
     return (
       <div className="text-center py-20 text-red-500">
-        Error: No se proporcionó un ID de pedido.
+        Error: No se proporcionó un enlace válido de pedido.
       </div>
     );
   }
 
+  // ?orderId= legacy: usado por autenticados y admin (el email guest ya no envía ?orderId=).
   const order = await getEnrichedOrder(orderId);
 
   if (!order) {
@@ -66,20 +80,23 @@ export default async function SuccessPageWrapper({
     );
   }
 
-  /*
-   * PRD-207/249/250: acceso guest read-only cuando llega ?orderId={cuid}.
-   * El cuid actúa como bearer token no adivinable; quien recibió el email
-   * de confirmación (con ese link) es el único que puede acceder.
-   * NO se acepta acceso por orderNumber secuencial.
-   *
-   * PRD-001 (defense-in-depth para usuarios autenticados): si hay sesión,
-   * se valida propiedad del pedido. Anti-enumeración: mismo mensaje para
-   * "no existe" y "no es tuyo" para usuarios autenticados con orderId ajeno.
-   * El admin puede abrirlo para soporte post-venta.
-   */
   if (!session?.user?.id) {
-    // Guest: el cuid ya fue validado — renderizar vista de sólo lectura.
-    return <SuccessClientPage order={order} />;
+    // Guest con ?orderId= legacy (enlaces antiguos) — permitir con DTO seguro.
+    // Buscar el pedido de nuevo para obtener el DTO mínimo.
+    const guestRow = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+    if (!guestRow) {
+      return (
+        <div className="text-center py-20 text-red-500">
+          No encontramos este pedido. Si crees que es un error, contáctanos
+          con tu número de pedido.
+        </div>
+      );
+    }
+    const guestDto = toGuestOrderConfirmationDto(guestRow);
+    return <GuestSuccessClientPage order={guestDto} />;
   }
 
   const isOwner = order.customerId === session.user.id;
@@ -95,4 +112,62 @@ export default async function SuccessPageWrapper({
   }
 
   return <SuccessClientPage order={order} />;
+}
+
+/**
+ * SESIÓN 06: maneja acceso guest mediante token.
+ * Hash → lookup por guestAccessTokenHash + expiresAt > now.
+ * Anti-enumeración: mismo mensaje para ausente/inválido/expirado/ajeno.
+ * Renderiza GuestSuccessClientPage con DTO mínimo.
+ */
+async function handleGuestToken(token: string, session: unknown) {
+  // Si hay sesión, intentar acceso por token (compatibilidad para usuarios
+  // que abren el enlace estando logueados).
+  if (session && (session as { user?: { id?: string } }).user?.id) {
+    // Usuario autenticado que usa token: buscar el pedido por hash, validar propiedad.
+    const tokenHash = hashToken(token);
+    const row = await prisma.order.findUnique({
+      where: { guestAccessTokenHash: tokenHash },
+      include: { items: true },
+    });
+    if (row && row.guestAccessTokenExpiresAt && row.guestAccessTokenExpiresAt > new Date()) {
+      const order = prismaOrderToOrder(row);
+      const enrichedItems: EnrichedOrderItem[] = order.items.map(item => ({
+        ...item,
+        imageUrl: item.imageUrl || '/placeholder.png',
+      }));
+      const enriched: EnrichedOrder = { ...order, items: enrichedItems };
+      const sessionUser = (session as { user?: { id?: string; role?: string } }).user;
+      const isOwner = enriched.customerId === sessionUser?.id;
+      const isAdmin = isAdminRole(sessionUser?.role);
+      if (isOwner || isAdmin) {
+        return <SuccessClientPage order={enriched} />;
+      }
+    }
+    // Si no es propietario/admin del pedido resuelto por token, intentar con session normal
+  }
+
+  // Guest (sin sesión o token ajeno): flujo estándar con DTO mínimo
+  const tokenHash = hashToken(token);
+  const row = await prisma.order.findUnique({
+    where: { guestAccessTokenHash: tokenHash },
+    include: { items: true },
+  });
+
+  // Anti-enumeración: mismo mensaje para ausente, expirado o inválido
+  if (
+    !row ||
+    !row.guestAccessTokenExpiresAt ||
+    row.guestAccessTokenExpiresAt <= new Date()
+  ) {
+    return (
+      <div className="text-center py-20 text-red-500">
+        No encontramos este pedido. Si crees que es un error, contáctanos
+        con tu número de pedido.
+      </div>
+    );
+  }
+
+  const guestDto = toGuestOrderConfirmationDto(row);
+  return <GuestSuccessClientPage order={guestDto} />;
 }

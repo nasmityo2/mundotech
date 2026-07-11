@@ -41,10 +41,11 @@ const cardTableStyle: React.CSSProperties = {
 export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
   const base = emailSiteBaseUrl().replace(/\/$/, '');
   const orderHref = `${base}/account/orders/${orderPathSegment(payload.orderNumber)}`;
-  // PRD-207 / PRD-250: guest o sesión distinta → el link de cuenta requiere login.
-  // Incluimos un enlace alternativo usando el cuid del pedido como token de capacidad.
-  // DEPENDENCIA-02: /checkout/success debe aceptar acceso sin sesión con ?orderId={cuid}.
-  const guestOrderHref = `${base}/checkout/success?orderId=${encodeURIComponent(payload.id)}`;
+  // SESIÓN 06: guest usa token hasheado en vez de cuid como bearer público.
+  const guestTokenRaw = payload.guestToken;
+  const guestOrderHref = guestTokenRaw
+    ? `${base}/checkout/success?token=${encodeURIComponent(guestTokenRaw)}`
+    : `${base}/checkout/success?orderId=${encodeURIComponent(payload.id)}`;
   const padded = paddedOrderNo(payload.orderNumber);
 
   const formattedDate = new Intl.DateTimeFormat('es-VE', {
@@ -393,21 +394,38 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
         </Text>
       </Section>
 
-      <PrimaryCta href={orderHref} label="Ver detalles del pedido" fullWidth />
+      <PrimaryCta
+        href={guestTokenRaw ? guestOrderHref : orderHref}
+        label="Ver detalles del pedido"
+        fullWidth
+      />
 
-      {/* PRD-207 / PRD-250: enlace alternativo para invitados o sesión distinta.
-          DEPENDENCIA-02: /checkout/success debe aceptar acceso sin sesión con ?orderId={cuid}. */}
-      <Section style={{ padding: '4px 28px 0', fontFamily: fontSans, textAlign: 'center' }}>
-        <Text style={{ margin: 0, fontSize: 12, color: MT.textMuted, lineHeight: 1.6 }}>
-          ¿Compraste sin cuenta o en otro dispositivo?{' '}
-          <Link
-            href={guestOrderHref}
-            style={{ color: MT.gold, textDecoration: 'underline', fontSize: 12 }}
-          >
-            Ver pedido como invitado
-          </Link>
-        </Text>
-      </Section>
+      {/* Enlace alternativo para usuarios con cuenta o que prefieren login */}
+      {guestTokenRaw ? (
+        <Section style={{ padding: '4px 28px 0', fontFamily: fontSans, textAlign: 'center' }}>
+          <Text style={{ margin: 0, fontSize: 12, color: MT.textMuted, lineHeight: 1.6 }}>
+            ¿Tienes una cuenta?{' '}
+            <Link
+              href={orderHref}
+              style={{ color: MT.gold, textDecoration: 'underline', fontSize: 12 }}
+            >
+              Inicia sesión para ver tu pedido
+            </Link>
+          </Text>
+        </Section>
+      ) : (
+        <Section style={{ padding: '4px 28px 0', fontFamily: fontSans, textAlign: 'center' }}>
+          <Text style={{ margin: 0, fontSize: 12, color: MT.textMuted, lineHeight: 1.6 }}>
+            ¿Compraste sin cuenta o en otro dispositivo?{' '}
+            <Link
+              href={guestOrderHref}
+              style={{ color: MT.gold, textDecoration: 'underline', fontSize: 12 }}
+            >
+              Ver pedido como invitado
+            </Link>
+          </Text>
+        </Section>
+      )}
 
       <Section style={{ padding: '0 24px 28px', fontFamily: fontSans }} />
     </MundoTechShell>

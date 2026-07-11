@@ -197,6 +197,8 @@ export interface Order {
   paymentHolderPhone?:       string | null;
   paymentReference?:         string | null;
   paymentProofUrl?:          string | null;
+  /** SESIÓN 04: key del objeto en bucket privado R2. Null = registro legacy con URL pública. */
+  paymentProofKey?:          string | null;
   trackingNumber?:           string | null;
   trackingCarrier?:          string | null;
   trackingPhotoUrl?:         string | null;
@@ -254,6 +256,30 @@ export interface SavedAddressInput {
   isDefault?:     boolean;
 }
 
+/** SESIÓN 06: DTO mínimo de confirmación de pedido para invitados.
+ *  NO incluye cédula, referencia, dirección, comprobante, email completo ni teléfono completo. */
+export interface GuestOrderConfirmation {
+  /** ID público del pedido (cuid) — necesario para enlaces de cuenta post-creación. */
+  id: string;
+  orderNumber: number;
+  createdAt: string;
+  items: GuestOrderItem[];
+  total: number;
+  /** null = legado en USD. Si presente, total y precios de ítems están en Bs. */
+  exchangeRateUsdBs?: number | null;
+  status: string;
+  paymentMethod: string;
+  /** Canal de origen: 'web' | 'whatsapp'. */
+  channel?: string | null;
+}
+
+export interface GuestOrderItem {
+  productName: string;
+  quantity: number;
+  price: number;
+  imageUrl?: string;
+}
+
 import { d, dn } from '@/lib/decimal';
 
 type DecimalLike = { toNumber(): number } | number;
@@ -276,6 +302,7 @@ export function prismaOrderToOrder(o: {
   paymentHolderPhone?: string | null;
   paymentReference?: string | null;
   paymentProofUrl?: string | null;
+  paymentProofKey?: string | null;
   trackingNumber?: string | null;
   trackingCarrier?: string | null;
   trackingPhotoUrl?: string | null;
@@ -316,6 +343,7 @@ export function prismaOrderToOrder(o: {
     paymentHolderPhone:       o.paymentHolderPhone,
     paymentReference:         o.paymentReference,
     paymentProofUrl:          o.paymentProofUrl,
+    paymentProofKey:          o.paymentProofKey ?? null,
     trackingNumber:           o.trackingNumber  ?? null,
     trackingCarrier:          o.trackingCarrier ?? null,
     trackingPhotoUrl:         o.trackingPhotoUrl ?? null,
@@ -339,6 +367,39 @@ export function prismaOrderToOrder(o: {
     items: o.items.map(i => ({
       id:          i.id,
       productId:   i.productId,
+      productName: i.productName,
+      quantity:    i.quantity,
+      price:       d(i.price),
+      imageUrl:    i.imageUrl ?? undefined,
+    })),
+  };
+}
+
+/** SESIÓN 06: mapea un pedido Prisma al DTO mínimo de confirmación guest.
+ *  Solo expone datos necesarios para la pantalla de éxito post-checkout.
+ *  NO serializa: customerIdNumber, paymentReference, shippingDetails,
+ *  paymentProofUrl, paymentProofKey, customerEmail, customerPhone. */
+export function toGuestOrderConfirmationDto(o: {
+  id: string;
+  orderNumber: number;
+  createdAt: Date;
+  total: DecimalLike;
+  status: string;
+  paymentMethod: string;
+  exchangeRateUsdBs?: DecimalLike | null;
+  channel?: string | null;
+  items: { productName: string; quantity: number; price: DecimalLike; imageUrl?: string | null }[];
+}): GuestOrderConfirmation {
+  return {
+    id:              o.id,
+    orderNumber:     o.orderNumber,
+    createdAt:       o.createdAt.toISOString(),
+    total:           d(o.total),
+    exchangeRateUsdBs: dn(o.exchangeRateUsdBs),
+    status:          o.status,
+    paymentMethod:   o.paymentMethod,
+    channel:         o.channel ?? null,
+    items: o.items.map(i => ({
       productName: i.productName,
       quantity:    i.quantity,
       price:       d(i.price),

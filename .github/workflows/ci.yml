@@ -25,6 +25,9 @@ jobs:
           # postinstall ejecuta `prisma generate` (no necesita BD)
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
 
+      - name: Verificar versiones de seguridad
+        run: npm run security:versions
+
       - name: ESLint
         run: npm run lint
 
@@ -71,6 +74,9 @@ jobs:
 
       - name: Instalar dependencias
         run: npm ci
+
+      - name: Verificar versiones de seguridad
+        run: npm run security:versions
 
       - name: Aplicar migraciones a BD limpia (PRD-004)
         run: npx prisma migrate deploy

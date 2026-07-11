@@ -1,8 +1,10 @@
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 import { slugify } from '@/lib/slugify';
 
@@ -30,6 +32,11 @@ function assertR2Env(): void {
         'Configura R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME y R2_PUBLIC_BASE_URL.',
     );
   }
+}
+
+/** Requerido solo para comprobantes privados — no bloquea assets públicos. */
+function getPrivateBucket(): string | undefined {
+  return process.env.R2_PRIVATE_BUCKET_NAME?.trim();
 }
 
 function getConfig() {
@@ -60,6 +67,34 @@ function getS3Client(): S3Client {
 
 export const R2_BUCKET = process.env.R2_BUCKET_NAME ?? '';
 export const R2_PUBLIC_BASE_URL = (process.env.R2_PUBLIC_BASE_URL ?? '').replace(/\/$/, '');
+
+let privateS3Client: S3Client | null = null;
+
+function assertPrivateCredentials(): { accessKeyId: string; secretAccessKey: string } {
+  const key = process.env.R2_PRIVATE_ACCESS_KEY_ID?.trim();
+  const secret = process.env.R2_PRIVATE_SECRET_ACCESS_KEY?.trim();
+  if (!key || !secret) {
+    throw new Error(
+      '[r2] Faltan R2_PRIVATE_ACCESS_KEY_ID y/o R2_PRIVATE_SECRET_ACCESS_KEY. ' +
+        'Configúralas con las credenciales S3 del bucket privado.',
+    );
+  }
+  return { accessKeyId: key, secretAccessKey: secret };
+}
+
+function getPrivateS3Client(): S3Client {
+  if (!privateS3Client) {
+    const endpoint = process.env.R2_ENDPOINT?.trim() || '';
+    const creds = assertPrivateCredentials();
+    privateS3Client = new S3Client({
+      region: 'auto',
+      endpoint,
+      credentials: creds,
+      forcePathStyle: true,
+    });
+  }
+  return privateS3Client;
+}
 
 export function buildKey(folder: R2Folder, ext: string, descriptiveName?: string): string {
   assertR2Env();
@@ -147,4 +182,115 @@ export function keyFromR2PublicUrl(url: string): string | null {
   const prefix = `${base}/`;
   if (!url.startsWith(prefix)) return null;
   return url.slice(prefix.length);
+}
+
+// ─────────────────────────────────────────────────────────────
+// OPERACIONES CON BUCKET PRIVADO (comprobantes de pago)
+// ─────────────────────────────────────────────────────────────
+
+function assertPrivateBucket(): string {
+  const bucket = getPrivateBucket();
+  if (!bucket) {
+    throw new Error(
+      '[r2] Falta R2_PRIVATE_BUCKET_NAME. Configúralo con el nombre del bucket privado ' +
+        'para comprobantes de pago.',
+    );
+  }
+  return bucket;
+}
+
+/** Patrón de clave válida para comprobante privado: proofs/<uuid o slug seguro>.(jpg|jpeg|png|webp) */
+const PROOF_KEY_RE = /^proofs\/[a-zA-Z0-9][a-zA-Z0-9_-]*\.(jpg|jpeg|png|webp)$/;
+
+/**
+ * Valida que `key` sea una object key segura para el bucket privado.
+ * Rechaza `..`, `/` extra, query params, URLs completas y cualquier patrón
+ * que pueda usarse para path traversal.
+ * Lanza Error si la key es inválida.
+ */
+export function assertProofKey(key: string): void {
+  if (!key || typeof key !== 'string') {
+    throw new Error('[r2] La clave del comprobante es requerida.');
+  }
+  // Rechazar URLs completas
+  if (key.startsWith('https://') || key.startsWith('http://')) {
+    throw new Error('[r2] La clave no puede ser una URL completa.');
+  }
+  // Rechazar path traversal: .., doble slash, inicio con /
+  if (key.includes('..')) {
+    throw new Error('[r2] La clave contiene ".." (posible path traversal).');
+  }
+  if (key.includes('//')) {
+    throw new Error('[r2] La clave contiene slashes dobles.');
+  }
+  if (key.startsWith('/')) {
+    throw new Error('[r2] La clave no debe comenzar con slash.');
+  }
+  // Rechazar query params o fragmentos
+  if (key.includes('?') || key.includes('#')) {
+    throw new Error('[r2] La clave no debe contener query params ni fragmentos.');
+  }
+  if (!PROOF_KEY_RE.test(key)) {
+    throw new Error(
+      '[r2] Formato de clave inválido. Debe ser proofs/<nombre>.(jpg|jpeg|png|webp)',
+    );
+  }
+}
+
+/**
+ * Sube un comprobante al bucket privado. No devuelve URL pública.
+ * El caller debe persistir la `key` en Order.paymentProofKey.
+ */
+export async function uploadPrivateProof({
+  buffer,
+  key,
+  contentType,
+}: {
+  buffer: Buffer;
+  key: string;
+  contentType: string;
+}): Promise<{ key: string }> {
+  assertProofKey(key);
+  const bucket = assertPrivateBucket();
+  const client = getPrivateS3Client();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+      CacheControl: 'private, no-store',
+    }),
+  );
+  return { key };
+}
+
+/**
+ * Genera una URL prefirmada de lectura con expiración controlada.
+ * Idealmente 180 segundos (valor por defecto) para visualización admin.
+ */
+export async function getPrivateProofReadUrl(
+  key: string,
+  expiresInSeconds = 180,
+): Promise<string> {
+  assertProofKey(key);
+  const bucket = assertPrivateBucket();
+  const client = getPrivateS3Client();
+  const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+  return getSignedUrl(client, command, { expiresIn: expiresInSeconds });
+}
+
+/**
+ * Elimina un comprobante del bucket privado.
+ */
+export async function deletePrivateProof(key: string): Promise<void> {
+  assertProofKey(key);
+  const bucket = assertPrivateBucket();
+  const client = getPrivateS3Client();
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    }),
+  );
 }

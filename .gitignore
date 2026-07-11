@@ -52,3 +52,18 @@ npm-debug.log*
 # Backups de variables de entorno: JAMAS trackear (incidente 14-jun: .env.bak commiteado con credenciales)
 .env.bak*
 .env*.bak*
+
+# Backups y artefactos de Vercel (nunca versionar)
+vercel.json.bak*
+
+# Archivos con credenciales en el nombre
+*credencial*
+*credential*
+
+# Variables de entorno adicionales (nunca versionar .env.* salvo .env.example)
+.env.*
+!.env.example
+
+# Playwright report y test outputs
+playwright-report/
+test-results/

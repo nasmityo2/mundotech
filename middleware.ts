@@ -226,11 +226,14 @@ export async function middleware(req: NextRequest) {
     return withCsp(promoteLoginReturnCookieToRequestHeader(req, nonce));
   }
 
-  // PRD-207/249/250: /checkout/success?orderId={cuid} es acceso de sólo lectura
-  // para invitados. El cuid del pedido actúa como bearer token no adivinable;
-  // el route handler valida que el pedido exista antes de renderizar.
-  // NO se acepta acceso por orderNumber secuencial (anti-enumeración).
-  if (pathname === '/checkout/success' && req.nextUrl.searchParams.has('orderId')) {
+  // PRD-207/249/250 + SESIÓN 06: /checkout/success?orderId={cuid} o ?token={jwt}
+  // es acceso de sólo lectura para invitados. El token guest es un bearer de alta
+  // entropía no adivinable; el route handler valida que el pedido exista antes
+  // de renderizar. NO se acepta acceso por orderNumber secuencial (anti-enumeración).
+  if (
+    pathname === '/checkout/success' &&
+    (req.nextUrl.searchParams.has('orderId') || req.nextUrl.searchParams.has('token'))
+  ) {
     return withCsp(nextWithNonce());
   }
 

@@ -125,6 +125,17 @@ Si la BD ya tenía el schema del baseline anterior, el squash `init` puede reque
 4. **Build seguro:** `npm run deploy:vps` detiene el servicio durante el build para evitar servir chunks a medio compilar.
 5. **Migraciones:** `npx prisma migrate deploy` antes o dentro de `npm run build` (el script `build` ya lo incluye).
 
+### Artefactos locales del deploy
+
+El script [`scripts/deploy-vps.sh`](scripts/deploy-vps.sh) usa directorios `.next-staging/` y `.next-previous/` durante el swap/rollback atómico:
+
+- `.next-staging/` — build de producción en curso (se elimina al terminar).
+- `.next-previous/` — build anterior conservado para rollback automático si el nuevo build no arranca (se sobreescribe en cada deploy).
+
+Estos directorios **nunca se versionan** (`.gitignore` los ignora con `.next-*/`). Pueden existir localmente en el VPS durante la ventana de deploy.
+
+**NO ejecutar `git clean -fdx` en producción:** eliminaría estos directorios y rompería el mecanismo de rollback. Si se necesita limpiar el working tree, usar `git checkout .` o reset selectivo. El borrado en GitHub (ej. `git filter-repo`) no debe ejecutarse directamente contra el build activo en producción.
+
 ### Crons (VPS — no Vercel)
 
 Los tres jobs se invocan con `Authorization: Bearer $CRON_SECRET` desde el crontab de root. Horarios en **America/Caracas**. Documentación operativa completa: [`docs/ENTREGABLE-CRON-BCV-VPS-V2.md`](docs/ENTREGABLE-CRON-BCV-VPS-V2.md).

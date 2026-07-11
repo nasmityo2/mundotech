@@ -215,6 +215,9 @@ model Order {
   paymentHolderPhone     String?
   paymentReference       String?
   paymentProofUrl        String?
+  /// Fase 1 (Sesión 04): key del objeto en el bucket privado R2_PRIVATE_BUCKET_NAME.
+  /// Compatibilidad legacy: coexiste con paymentProofUrl durante una fase.
+  paymentProofKey        String?
   notes                  String?
   shippedAt              DateTime?
   trackingCarrier        String?
@@ -243,6 +246,12 @@ model Order {
   reviewRequestSentAt    DateTime?
   /// Canal de origen del pedido: "web" (checkout completo) o "whatsapp" (modo WhatsApp).
   channel                String            @default("web")
+  /// SESIÓN 06: hash SHA-256 del token de acceso guest. Solo pedidos sin
+  /// cuenta (customerId = null) pueden tenerlo. @unique para lookup eficiente.
+  guestAccessTokenHash      String?           @unique
+  /// SESIÓN 06: fecha de expiración del guestAccessTokenHash. 72 h desde la
+  /// creación. null si el pedido no tiene token (autenticado o legacy).
+  guestAccessTokenExpiresAt DateTime?
   /// true = stock descontado al crear el pedido (comportamiento actual para checkout
   /// completo). false = stock pendiente de descontar (pedidos WhatsApp).
   stockDeducted          Boolean           @default(true)
@@ -490,4 +499,41 @@ enum ReviewStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SESIÓN 05 — Upload de comprobantes con token efímero
+// ─────────────────────────────────────────────────────────────────────────────
+enum PaymentUploadStatus {
+  PENDING
+  LINKED
+  DELETED
+}
+
+/// Token de upload de comprobante de pago. Se genera en /api/checkout/upload-session,
+/// se consume en /api/checkout/upload-proof y se vincula al pedido en el checkout.
+/// Los PENDING expirados se limpian por cron (purge-payment-uploads).
+model PaymentUpload {
+  id        String              @id @default(cuid())
+  /// SHA-256 del token raw (único). El token en claro solo existe en la respuesta
+  /// del endpoint que lo genera y en la request del cliente.
+  tokenHash String             @unique
+  /// Object key en bucket privado R2. Null mientras PENDING (antes del upload).
+  objectKey String?            @unique
+  status    PaymentUploadStatus @default(PENDING)
+  /// User ID opcional para correlación (no es obligatorio para invitados).
+  userId    String?
+  /// Order ID vinculado. Se asigna al crear el pedido (LINKED). Unique: un
+  /// comprobante solo puede vincularse a un pedido.
+  orderId   String?            @unique
+  /// El token expira a los 30 minutos de creado. Después de expiry, el cron
+  /// lo purga (borra R2 y marca DELETED).
+  expiresAt DateTime
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  /// Índice para búsqueda eficiente de expirados (cron de purga).
+  @@index([status, expiresAt])
+  /// Índice para correlación por usuario (opcional).
+  @@index([userId])
 }

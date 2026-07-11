@@ -11,6 +11,12 @@ export const metadata: Metadata = {
   description:
     'Consulta el estado de tu pedido MundoTech con tu número de pedido y cédula. Sin necesidad de cuenta.',
   alternates: { canonical: '/pedido' },
+  robots: { index: false, follow: false },
+  /* SESIÓN 06: no cachear página de pedido que puede contener datos del comprador */
+  other: {
+    'Cache-Control': 'private, no-store',
+    'Referrer-Policy': 'no-referrer',
+  },
 };
 
 export default function PedidoPage() {

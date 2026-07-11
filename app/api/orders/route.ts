@@ -6,7 +6,7 @@ import type { OrderConfirmationPayload } from '@/emails/mundotech/types';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { prismaOrderToOrder } from '@/lib/definitions';
+import { prismaOrderToOrder, toGuestOrderConfirmationDto } from '@/lib/definitions';
 import {
   checkoutSchema,
   executeCheckoutInTransaction,
@@ -20,6 +20,7 @@ import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { verifySameOrigin } from '@/lib/security';
 import { d, dn } from '@/lib/decimal';
+import { hashToken } from '@/lib/security';
 import { CHECKOUT_MODE } from '@/lib/checkout-mode';
 import { buildOrderListWhere, buildOrderSearchWhere } from '@/lib/orders/order-list-filters';
 import { computeTabCounts, parseOrderTab } from '@/lib/orders/order-tabs';
@@ -246,27 +247,58 @@ export async function POST(request: Request) {
 
     const isBinanceManual = safeData.paymentMethod === 'Binance Pay';
 
+    // SESIÓN 06: generar token guest (raw → hash) ANTES de la transacción para
+    // devolverlo al cliente exactamente una vez. El hash se guarda en BD.
+    let guestToken: string | null = null;
+    let guestTokenHash: string | null = null;
+    let guestTokenExpiresAt: Date | null = null;
+    if (isGuest) {
+      const { randomBytes } = await import('crypto');
+      guestToken = randomBytes(32).toString('base64url');
+      guestTokenHash = hashToken(guestToken);
+      guestTokenExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72h
+    }
+
     // PRD-131: reintentos (doble clic, recarga, retry de red) con la misma
     // referencia de pago devuelven el pedido ya creado en vez de duplicarlo.
     // FASE 4.1: para invitados la clave de idempotencia es (email, referencia).
-    const { order, reused } = await runCheckoutTransaction(async (tx) => {
+    // PRD-131: reintentos (doble clic, recarga, retry de red) con la misma
+    // referencia de pago devuelven el pedido ya creado en vez de duplicarlo.
+    // FASE 4.1: para invitados la clave de idempotencia es (email, referencia).
+    const { order: createdOrder, reused } = await runCheckoutTransaction(async (tx) => {
       const duplicate = await findRecentDuplicateOrderInTransaction(tx, {
         customerId: isGuest ? null : (userId as string),
         customerEmail: isGuest ? (safeData.customerEmail?.trim().toLowerCase() ?? null) : null,
         paymentReference: safeData.paymentReference,
       });
-      if (duplicate) return { order: duplicate, reused: true };
+      if (duplicate) return { order: duplicate, reused: true as const };
 
       const created = await executeCheckoutInTransaction(tx, safeData, {
         orderStatus: channel === 'whatsapp' ? 'Pendiente' : (isBinanceManual ? 'Pendiente verificación Binance' : 'Pendiente'),
         deductStock: channel !== 'whatsapp',
+        guestAccessTokenHash: guestTokenHash,
+        guestAccessTokenExpiresAt: guestTokenExpiresAt,
       });
-      return { order: created, reused: false };
+      return { order: created, reused: false as const };
     });
 
     if (reused) {
-      console.warn('[POST /api/orders] Pedido duplicado evitado; se reutiliza:', order.id);
-      return NextResponse.json(prismaOrderToOrder(order), { status: 200 });
+      console.warn('[POST /api/orders] Pedido duplicado evitado; se reutiliza:', createdOrder.id);
+      // No devolver token si el pedido ya existía: el token se generó en el original.
+      return NextResponse.json(prismaOrderToOrder(createdOrder), { status: 200 });
+    }
+
+    // Refetch con tipo completo para evitar el Prisma 7 inference gap
+    const order = await prisma.order.findUnique({
+      where: { id: createdOrder.id },
+      include: { items: true },
+    });
+    if (!order) {
+      console.error('[POST /api/orders] Pedido creado pero no encontrado en BD:', createdOrder.id);
+      return NextResponse.json(
+        { message: 'No pudimos procesar tu pedido en este momento. Intenta de nuevo en unos minutos.' },
+        { status: 500 },
+      );
     }
 
     // PRD-180: marcar el carrito abandonado como recuperado SOLO server-side,
@@ -367,6 +399,8 @@ export async function POST(request: Request) {
         shippingCountry: order.shippingCountry,
         customerPhone: order.customerPhone,
         shippingMethod: order.trackingCarrier ?? null,
+        // SESIÓN 06: token raw para construir enlace de acceso guest en el email
+        guestToken,
       };
 
       // Best-effort: el pedido YA está confirmado en BD; un fallo de Resend
@@ -390,6 +424,11 @@ export async function POST(request: Request) {
       );
     }
 
+    // SESIÓN 06: para invitados devolver DTO mínimo + token raw; para autenticados el Order completo.
+    if (isGuest && guestToken) {
+      const guestDto = toGuestOrderConfirmationDto(order);
+      return NextResponse.json({ ...guestDto, guestToken }, { status: 201 });
+    }
     return NextResponse.json(prismaOrderToOrder(order), { status: 201 });
   } catch (error) {
     console.error('[POST /api/orders]', error);

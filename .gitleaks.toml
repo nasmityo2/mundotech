@@ -1,0 +1,43 @@
+# .gitleaks.toml
+# Configuración de gitleaks para mundotech-ecommerce.
+# Solo se incluyen excepciones concretas para falsos positivos de CI y test.
+# NO se ignora .env completo ni se excluyen archivos con secretos reales.
+
+title = "MundoTech gitleaks config"
+
+# Extensiones de archivo a escanear (vacío = todas)
+[extend]
+# No excluir ningún tipo de archivo por defecto
+
+# Reglas personalizadas: matching para patrones del proyecto
+# (las reglas predeterminadas de gitleaks ya cubren la mayoría de los formatos)
+
+[[rules]]
+id = "mundotech-ci-dummy-secrets"
+description = "Falsos positivos de CI: valores dummy en vitest.config.ts y CI workflow"
+regex = '''(?i)(vitest-secret|ci-secret-no-real|ci-cron-secret|re_ci_dummy|ci@example\.com)'''
+allowlist = [
+  "vitest-secret",
+  "ci-secret-no-real",
+  "ci-cron-secret",
+  "re_ci_dummy",
+  "ci@example.com",
+]
+
+# Allowlist global: solo excepciones concretas y documentadas
+[allowlist]
+description = "Excepciones documentadas para CI y tests"
+
+# Valores dummy de CI definidos en .github/workflows/ci.yml y vitest.config.ts
+paths = [
+  # CI workflow de ejemplo: valores dummy para build de prueba
+  '''^\.github/workflows/ci\.yml$''',
+  # Config de vitest: valores dummy para entorno de test
+  '''^vitest\.config\.ts$''',
+  # Archivo de ejemplo .env.example (no contiene valores reales, solo placeholders)
+  '''^\.env\.example$''',
+  # Scripts de test y verificación
+  '''^scripts/check-security-versions\.mjs$''',
+  # Este mismo archivo de configuración
+  '''^\.gitleaks\.toml$''',
+]

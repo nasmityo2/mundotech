@@ -11,6 +11,7 @@ import {
   COUPON_PER_USER_LIMIT_REASON,
   COUPON_GENERIC_INVALID_REASON,
 } from '@/lib/coupons';
+import { hashToken } from '@/lib/security';
 import { isTrustedPaymentProofUrl } from '@/lib/payment-proof';
 
 export const orderItemSchema = z.object({
@@ -53,6 +54,10 @@ export const checkoutSchema = z
       .refine((val) => !val?.trim() || isTrustedPaymentProofUrl(val.trim()), {
         message: 'El comprobante de pago debe provenir del almacenamiento autorizado.',
       }),
+    /** SESIÓN 04: key del objeto en bucket privado (alternativa a paymentProofUrl). */
+    paymentProofKey: z.string().optional().nullable(),
+    /** SESIÓN 05: token de upload obtenido de /api/checkout/upload-session. */
+    paymentUploadToken: z.string().min(1, 'Token de subida requerido.').trim().optional().nullable(),
     couponCode: z.string().trim().max(40).optional().nullable(),
     channel: z.enum(['web', 'whatsapp']).optional().default('web'),
     items: z
@@ -79,13 +84,22 @@ export const checkoutSchema = z
         path: ['paymentReference'],
       });
     }
-    if (!data.paymentProofUrl?.trim()) {
+    // SESIÓN 04: aceptar paymentProofKey como alternativa a paymentProofUrl
+    if (!data.paymentProofUrl?.trim() && !data.paymentProofKey?.trim()) {
       ctx.addIssue({
         code: 'custom',
         message: isBinance
           ? 'Sube la captura de pantalla del pago en Binance.'
           : 'Sube el comprobante (captura) del pago.',
         path: ['paymentProofUrl'],
+      });
+    }
+    // SESIÓN 05: exigir token de upload si se envía paymentProofKey
+    if (data.paymentProofKey?.trim() && !data.paymentUploadToken?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Token de subida requerido. Obtén uno en la página de pago.',
+        path: ['paymentUploadToken'],
       });
     }
   });
@@ -97,6 +111,10 @@ export type CheckoutExecuteOptions = {
   orderStatus?: OrderStatus;
   /** Si false, no descuenta stock (modo WhatsApp). Default true. */
   deductStock?: boolean;
+  /** SESIÓN 06: hash SHA-256 del token de acceso guest. Solo para pedidos sin cuenta. */
+  guestAccessTokenHash?: string | null;
+  /** SESIÓN 06: fecha de expiración del token guest (72h desde creación). */
+  guestAccessTokenExpiresAt?: Date | null;
 };
 
 /**
@@ -162,10 +180,19 @@ export async function executeCheckoutInTransaction(
     paymentHolderPhone,
     paymentReference,
     paymentProofUrl,
+    paymentProofKey,
+    paymentUploadToken,
     couponCode,
     channel,
     items,
   } = input;
+
+  const isGuestOrder = !customerId || customerId === 'guest';
+  const guestAccessTokenHash = options?.guestAccessTokenHash ?? null;
+  const guestAccessTokenExpiresAt = options?.guestAccessTokenExpiresAt ?? null;
+  // Solo guest orders pueden tener token; si se pasa para usuario registrado, se ignora.
+  const effectiveAccessTokenHash = isGuestOrder ? guestAccessTokenHash : null;
+  const effectiveAccessTokenExpiresAt = isGuestOrder ? guestAccessTokenExpiresAt : null;
 
   const orderStatus: OrderStatus = options?.orderStatus ?? 'Pendiente';
   const deductStock = options?.deductStock ?? true;
@@ -215,6 +242,29 @@ export async function executeCheckoutInTransaction(
         `Stock insuficiente para "${dbProduct.name}". ` +
           `Solicitado: ${totalQty}, disponible: ${dbProduct.stock}.`,
         409
+      );
+    }
+  }
+
+  // SESIÓN 05: validar y vincular token de upload si se proporcionó
+  if (paymentUploadToken?.trim()) {
+    const tokenHash = hashToken(paymentUploadToken.trim());
+    const uploadRecord = await tx.paymentUpload.findUnique({
+      where: { tokenHash },
+    });
+    if (!uploadRecord) {
+      throw new CheckoutError('Token de subida inválido.', 400);
+    }
+    if (uploadRecord.status !== 'PENDING') {
+      throw new CheckoutError('Token de subida ya utilizado.', 409);
+    }
+    if (uploadRecord.expiresAt < new Date()) {
+      throw new CheckoutError('Token de subida expirado. Obtén uno nuevo.', 410);
+    }
+    if (!uploadRecord.objectKey) {
+      throw new CheckoutError(
+        'El comprobante no se ha subido. Sube el comprobante antes de confirmar el pedido.',
+        400,
       );
     }
   }
@@ -286,13 +336,13 @@ export async function executeCheckoutInTransaction(
 
   const newOrder = await tx.order.create({
     data: {
-      ...(isRegisteredUser ? { customer: { connect: { id: customerId } } } : {}),
+      customer: isRegisteredUser ? { connect: { id: customerId } } : undefined,
       customerName,
       customerEmail: resolvedCustomerEmail,
       customerPhone: customerPhone ?? null,
       customerIdNumber: customerIdNumber ?? null,
       total: finalTotal,
-      channel: channel ?? 'web',
+      channel: (channel ?? 'web') as string,
       stockDeducted: deductStock,
       couponCode: appliedCouponCode,
       couponDiscount: couponDiscountBs > 0 ? couponDiscountBs : null,
@@ -304,6 +354,10 @@ export async function executeCheckoutInTransaction(
       paymentHolderPhone: paymentHolderPhone ?? null,
       paymentReference: paymentReference ?? null,
       paymentProofUrl: paymentProofUrl ?? null,
+      paymentProofKey: paymentProofKey ?? null,
+      // SESIÓN 06: token de acceso guest (solo para pedidos sin cuenta)
+      guestAccessTokenHash: effectiveAccessTokenHash,
+      guestAccessTokenExpiresAt: effectiveAccessTokenExpiresAt,
       shippingAddress: shippingDetails.address,
       shippingCity: shippingDetails.city,
       shippingState: shippingDetails.state,
@@ -325,6 +379,18 @@ export async function executeCheckoutInTransaction(
     },
     include: { items: true },
   });
+
+  // SESIÓN 05: vincular el PaymentUpload al pedido (LINKED) dentro de la misma transacción
+  if (paymentUploadToken?.trim()) {
+    const tokenHashInner = hashToken(paymentUploadToken.trim());
+    await tx.paymentUpload.update({
+      where: { tokenHash: tokenHashInner },
+      data: {
+        status: 'LINKED',
+        orderId: newOrder.id,
+      },
+    });
+  }
 
   // Canje atómico del cupón (incrementa usedCount respetando maxUses) tras crear
   // el pedido, dentro de la misma transacción.

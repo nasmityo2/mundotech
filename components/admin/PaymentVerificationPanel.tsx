@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import {
   ShieldCheck, ShieldAlert, CreditCard, ImageOff, XCircle, Loader2, ExternalLink, X,
 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import type { Order } from '@/lib/definitions';
-import { isTrustedPaymentProofUrl } from '@/lib/payment-proof';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import { ApproveBinanceButton } from '@/components/admin/ApproveBinanceButton';
 import { ValidatePaymentAdminButton } from '@/components/admin/ValidatePaymentAdminButton';
@@ -18,6 +17,14 @@ const formatDateTime = (iso: string | null | undefined) => {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
   });
 };
+
+type ProofState =
+  | { type: 'loading' }
+  | { type: 'private'; url: string }
+  | { type: 'legacy'; url: string }
+  | { type: 'blocked' }
+  | { type: 'none' }
+  | { type: 'error'; message: string };
 
 function PaymentDetailRow({
   label,
@@ -45,12 +52,66 @@ export function PaymentVerificationPanel({
   onUpdate: (o: Order) => void;
 }) {
   const [showReject, setShowReject] = useState(false);
+  const [proofState, setProofState] = useState<ProofState>({ type: 'none' });
+  const mountedRef = useRef(false);
 
   const isPendingBinance = order.status === 'Pendiente verificación Binance';
   const isPending = order.status === 'Pendiente';
   const isVerified = !!order.paidAt && ['En Proceso', 'Enviado', 'Entregado'].includes(order.status);
   const isRejected = order.status === 'Cancelado' && !!order.paymentRejectionReason;
   const canAct = isPending || isPendingBinance;
+
+  // SESIÓN 04: solicitar URL del comprobante al abrir el panel (no al cargar la página).
+  // No guarda en localStorage; limpia estado al cerrar (cleanup del effect).
+  useEffect(() => {
+    mountedRef.current = true;
+    // Si no hay ningún comprobante, no hacer fetch
+    if (!order.paymentProofKey && !order.paymentProofUrl) {
+      setProofState({ type: 'none' });
+      return;
+    }
+
+    setProofState({ type: 'loading' });
+
+    const controller = new AbortController();
+
+    fetch(`/api/orders/${order.id}/payment-proof`, {
+      signal: controller.signal,
+      cache: 'no-store',
+    })
+      .then(async (res) => {
+        if (!mountedRef.current) return;
+        if (res.status === 404) {
+          setProofState({ type: 'none' });
+          return;
+        }
+        if (!res.ok) {
+          setProofState({ type: 'error', message: `Error ${res.status}` });
+          return;
+        }
+        const data: { url?: string; expiresIn?: number; legacyUrl?: string } =
+          await res.json();
+        if (!mountedRef.current) return;
+        if (data.url) {
+          setProofState({ type: 'private', url: data.url });
+        } else if (data.legacyUrl) {
+          setProofState({ type: 'legacy', url: data.legacyUrl });
+        } else {
+          setProofState({ type: 'none' });
+        }
+      })
+      .catch((err: unknown) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        if (!mountedRef.current) return;
+        setProofState({ type: 'error', message: 'Error de conexión.' });
+      });
+
+    return () => {
+      mountedRef.current = false;
+      controller.abort();
+      setProofState({ type: 'none' });
+    };
+  }, [order.id, order.paymentProofKey, order.paymentProofUrl]);
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-4">
@@ -84,35 +145,65 @@ export function PaymentVerificationPanel({
         </div>
       </dl>
 
-      {/* Comprobante: solo renderiza si la URL proviene del CDN R2 (upload-proof). */}
+      {/* SESIÓN 04: comprobante servido desde endpoint autenticado o legacy */}
       <div className="mt-3">
-        {order.paymentProofUrl ? (
-          isTrustedPaymentProofUrl(order.paymentProofUrl) ? (
-            <a href={order.paymentProofUrl} target="_blank" rel="noreferrer" className="group block relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={order.paymentProofUrl}
-                alt="Comprobante de pago"
-                className="w-full rounded-xl border border-gray-200 max-h-72 object-contain bg-slate-50"
-              />
-              <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-black/60 rounded-md px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                Ampliar <ExternalLink size={11} />
-              </span>
-            </a>
-          ) : (
-            <div className="flex items-start gap-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs px-3 py-2.5">
-              <ShieldAlert size={14} className="shrink-0 mt-0.5" />
-              <span>
-                El comprobante adjunto apunta a un origen no confiable y fue bloqueado
-                por seguridad. No abras el enlace. Verifica el pago directamente en el
-                banco antes de validar.
-              </span>
-            </div>
-          )
-        ) : (
+        {proofState.type === 'loading' && (
+          <div className="flex items-center gap-2 rounded-xl bg-slate-50 border border-gray-200 text-gray-500 text-xs px-3 py-6 justify-center">
+            <Loader2 size={16} className="animate-spin" />
+            Cargando comprobante…
+          </div>
+        )}
+
+        {proofState.type === 'private' && (
+          <a href={proofState.url} target="_blank" rel="noreferrer" className="group block relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={proofState.url}
+              alt="Comprobante de pago"
+              className="w-full rounded-xl border border-gray-200 max-h-72 object-contain bg-slate-50"
+            />
+            <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-black/60 rounded-md px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              Ampliar <ExternalLink size={11} />
+            </span>
+          </a>
+        )}
+
+        {proofState.type === 'legacy' && (
+          <a href={proofState.url} target="_blank" rel="noreferrer" className="group block relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={proofState.url}
+              alt="Comprobante de pago"
+              className="w-full rounded-xl border border-gray-200 max-h-72 object-contain bg-slate-50"
+            />
+            <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-black/60 rounded-md px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              Ampliar <ExternalLink size={11} />
+            </span>
+          </a>
+        )}
+
+        {proofState.type === 'blocked' && (
+          <div className="flex items-start gap-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs px-3 py-2.5">
+            <ShieldAlert size={14} className="shrink-0 mt-0.5" />
+            <span>
+              El comprobante adjunto apunta a un origen no confiable y fue bloqueado
+              por seguridad. No abras el enlace. Verifica el pago directamente en el
+              banco antes de validar.
+            </span>
+          </div>
+        )}
+
+        {proofState.type === 'none' && (
           <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2.5">
             <ImageOff size={14} className="shrink-0" />
             El cliente no adjuntó comprobante. Verifica el pago manualmente antes de validar.
+          </div>
+        )}
+
+        {proofState.type === 'error' && (
+          <div className="flex items-center gap-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs px-3 py-2.5">
+            <ShieldAlert size={14} className="shrink-0" />
+            No se pudo cargar el comprobante ({proofState.message}).
           </div>
         )}
       </div>

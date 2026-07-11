@@ -45,7 +45,8 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
   const [sessionExpired, setSessionExpired] = useState(false);
   // PRD-049: si el pedido falla DESPUÉS de subir el comprobante, el reintento
   // reutiliza la URL ya subida en vez de duplicar la imagen en R2.
-  const uploadedProofRef = useRef<{ file: File; url: string } | null>(null);
+  // SESIÓN 04: url ahora es la proofKey (no URL pública), isKey distingue el formato
+  const uploadedProofRef = useRef<{ file: File; url: string; isKey?: boolean } | null>(null);
   // RUN-05 (AUDITORIA-2026-07): guard síncrono de reentrada — dos taps rápidos
   // en 4G disparaban dos POST antes de que React aplicara `disabled`.
   const submittingRef = useRef(false);
@@ -113,12 +114,13 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
     const fd = new FormData();
     fd.append('file', file);
     const res = await fetch('/api/checkout/upload-proof', { method: 'POST', body: fd });
-    const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-    if (!res.ok || !data.url) {
+    // SESIÓN 04: upload-proof ahora devuelve proofKey en lugar de url pública
+    const data = (await res.json().catch(() => ({}))) as { proofKey?: string; error?: string };
+    if (!res.ok || !data.proofKey) {
       throw new Error(data.error ?? 'No pudimos subir el comprobante. Intenta de nuevo.');
     }
-    uploadedProofRef.current = { file, url: data.url };
-    return data.url;
+    uploadedProofRef.current = { file, url: data.proofKey, isKey: true as const };
+    return data.proofKey;
   };
 
   const buildAddress = (): string => {
@@ -238,7 +240,10 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
         paymentHolderIdNumber: null,
         paymentHolderPhone: null,
         paymentReference: null,
-        paymentProofUrl: proofUrl,
+        // SESIÓN 04: upload-proof devuelve proofKey; lo enviamos como tal
+        // El servidor acepta paymentProofKey (nuevo) y paymentProofUrl (legacy)
+        paymentProofUrl: null,
+        paymentProofKey: proofUrl,
         couponCode: appliedCoupon || null,
         items: cart.map((item) => ({
           productId: item.id,
