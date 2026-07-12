@@ -20,10 +20,10 @@ const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
  * Sube un comprobante de pago al bucket privado de R2.
  * Requiere header `x-checkout-upload-token` obtenido previamente de
  * /api/checkout/upload-session. El token se reclama PENDING → UPLOADING
- * para evitar dos subidas concurrentes con el mismo token.
+ * y se persiste objectKey en el claim para resistir caídas del proceso.
  *
  * Tras una subida exitosa, el registro vuelve a PENDING con objectKey
- * persistido (se vincula al pedido en el checkout).
+ * (se vincula al pedido en el checkout).
  *
  * La respuesta NO expone proofKey: el token ya identifica el registro.
  */
@@ -101,7 +101,10 @@ export async function POST(request: Request) {
     const { buffer: processed, contentType, ext, width, height } =
       await processImageWithFallback(buffer, { maxWidth: 1600 });
 
-    // ── RECLAMAR TOKEN: PENDING → UPLOADING ────────────────────
+    // ── GENERAR KEY ANTES DEL CLAIM ───────────────────────────
+    const proofKey = `proofs/${uuidv4()}.${ext}`;
+
+    // ── RECLAMAR TOKEN: PENDING → UPLOADING (con objectKey) ──
     const claim = await prisma.paymentUpload.updateMany({
       where: {
         tokenHash,
@@ -112,6 +115,7 @@ export async function POST(request: Request) {
       },
       data: {
         status: 'UPLOADING',
+        objectKey: proofKey,
       },
     });
 
@@ -126,29 +130,25 @@ export async function POST(request: Request) {
     }
 
     claimed = true;
+    uploadedKey = proofKey;
 
     // ── SUBIR A R2 ─────────────────────────────────────────────
-    const proofKey = `proofs/${uuidv4()}.${ext}`;
-
     await uploadPrivateProof({
       buffer: processed,
       key: proofKey,
       contentType,
     });
 
-    uploadedKey = proofKey;
-
-    // ── FINALIZAR: UPLOADING → PENDING (con objectKey) ─────────
+    // ── FINALIZAR: UPLOADING → PENDING (objectKey ya persistido) ──
     const finalizedUpload = await prisma.paymentUpload.updateMany({
       where: {
         tokenHash,
         status: 'UPLOADING',
-        objectKey: null,
+        objectKey: proofKey,
         orderId: null,
       },
       data: {
         status: 'PENDING',
-        objectKey: proofKey,
       },
     });
 
@@ -173,25 +173,37 @@ export async function POST(request: Request) {
   } finally {
     // Cleanup: si el token fue reclamado pero no finalizado
     if (claimed && !finalized) {
-      try {
-        if (uploadedKey) {
-          await deletePrivateProof(uploadedKey).catch(() => {
-            /* best-effort */
-          });
-        }
+      let objectDeleted = !uploadedKey;
 
+      if (uploadedKey) {
+        try {
+          await deletePrivateProof(uploadedKey);
+          objectDeleted = true;
+        } catch (cleanupError) {
+          const errorName =
+            cleanupError instanceof Error
+              ? cleanupError.name
+              : 'UnknownError';
+
+          console.error(
+            '[upload-proof] No se pudo eliminar el objeto incompleto.',
+            { errorName },
+          );
+        }
+      }
+
+      if (objectDeleted) {
         await prisma.paymentUpload.updateMany({
           where: {
             tokenHash,
             status: 'UPLOADING',
+            objectKey: uploadedKey,
           },
           data: {
             status: 'PENDING',
             objectKey: null,
           },
         });
-      } catch (cleanupErr) {
-        console.error('[upload-proof] Fallo en cleanup del token:', cleanupErr);
       }
     }
   }

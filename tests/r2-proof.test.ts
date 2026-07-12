@@ -37,6 +37,37 @@ vi.mock('uuid', () => ({
 }));
 
 // ─────────────────────────────────────────────────────────────
+// Shared helper — sets ALL R2 env vars with dummy values
+// ─────────────────────────────────────────────────────────────
+function stubPrivateR2TestEnv(): void {
+  vi.stubEnv(
+    'R2_ENDPOINT',
+    'https://vitest-account.r2.cloudflarestorage.com',
+  );
+  vi.stubEnv('R2_PRIVATE_BUCKET_NAME', 'vitest-proofs');
+  vi.stubEnv(
+    'R2_PRIVATE_ACCESS_KEY_ID',
+    'vitest-private-access-key',
+  );
+  vi.stubEnv(
+    'R2_PRIVATE_SECRET_ACCESS_KEY',
+    'vitest-private-secret-key',
+  );
+
+  vi.stubEnv('R2_ACCESS_KEY_ID', 'vitest-public-access-key');
+  vi.stubEnv('R2_SECRET_ACCESS_KEY', 'vitest-public-secret-key');
+  vi.stubEnv('R2_BUCKET_NAME', 'vitest-media');
+  vi.stubEnv(
+    'R2_PUBLIC_BASE_URL',
+    'https://cdn.vitest.example',
+  );
+  vi.stubEnv(
+    'NEXT_PUBLIC_R2_PUBLIC_BASE_URL',
+    'https://cdn.vitest.example',
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // assertProofKey tests
 // ─────────────────────────────────────────────────────────────
 
@@ -44,12 +75,7 @@ describe('assertProofKey', () => {
   let assertProofKeyFn: typeof import('@/lib/r2')['assertProofKey'];
 
   beforeEach(async () => {
-    vi.stubEnv('R2_PRIVATE_BUCKET_NAME', 'mundotech-proofs');
-    vi.stubEnv('R2_ENDPOINT', 'https://test.r2.cloudflarestorage.com');
-    vi.stubEnv('R2_ACCESS_KEY_ID', 'test-key');
-    vi.stubEnv('R2_SECRET_ACCESS_KEY', 'test-secret');
-    vi.stubEnv('R2_BUCKET_NAME', 'mundotech-media');
-    vi.stubEnv('R2_PUBLIC_BASE_URL', 'https://cdn.test.com');
+    stubPrivateR2TestEnv();
     const mod = await import('@/lib/r2');
     assertProofKeyFn = mod.assertProofKey;
   });
@@ -131,12 +157,7 @@ describe('uploadPrivateProof', () => {
   let uploadPrivateProofFn: typeof import('@/lib/r2')['uploadPrivateProof'];
 
   beforeEach(async () => {
-    vi.stubEnv('R2_PRIVATE_BUCKET_NAME', 'mundotech-proofs');
-    vi.stubEnv('R2_ENDPOINT', 'https://test.r2.cloudflarestorage.com');
-    vi.stubEnv('R2_ACCESS_KEY_ID', 'test-key');
-    vi.stubEnv('R2_SECRET_ACCESS_KEY', 'test-secret');
-    vi.stubEnv('R2_BUCKET_NAME', 'mundotech-media');
-    vi.stubEnv('R2_PUBLIC_BASE_URL', 'https://cdn.test.com');
+    stubPrivateR2TestEnv();
     mockSend.mockReset();
     mockSend.mockResolvedValue({});
     capturedPutArgs.length = 0;
@@ -172,7 +193,7 @@ describe('uploadPrivateProof', () => {
 
   it('lanza error si falta R2_PRIVATE_BUCKET_NAME', async () => {
     vi.stubEnv('R2_PRIVATE_BUCKET_NAME', '');
-    // La función ahora lee process.env en cada llamada, no necesita recarga
+
     await expect(
       uploadPrivateProofFn({
         buffer: Buffer.from('x'),
@@ -180,6 +201,30 @@ describe('uploadPrivateProof', () => {
         contentType: 'image/webp',
       }),
     ).rejects.toThrow('R2_PRIVATE_BUCKET_NAME');
+  });
+
+  it('lanza error si falta R2_PRIVATE_ACCESS_KEY_ID', async () => {
+    vi.stubEnv('R2_PRIVATE_ACCESS_KEY_ID', '');
+
+    await expect(
+      uploadPrivateProofFn({
+        buffer: Buffer.from('x'),
+        key: 'proofs/test.webp',
+        contentType: 'image/webp',
+      }),
+    ).rejects.toThrow('R2_PRIVATE_ACCESS_KEY_ID');
+  });
+
+  it('lanza error si falta R2_PRIVATE_SECRET_ACCESS_KEY', async () => {
+    vi.stubEnv('R2_PRIVATE_SECRET_ACCESS_KEY', '');
+
+    await expect(
+      uploadPrivateProofFn({
+        buffer: Buffer.from('x'),
+        key: 'proofs/test.webp',
+        contentType: 'image/webp',
+      }),
+    ).rejects.toThrow('R2_PRIVATE_SECRET_ACCESS_KEY');
   });
 
   it('usa Cache-Control private, no-store', async () => {
@@ -199,12 +244,7 @@ describe('getPrivateProofReadUrl', () => {
   let getPrivateProofReadUrlFn: typeof import('@/lib/r2')['getPrivateProofReadUrl'];
 
   beforeEach(async () => {
-    vi.stubEnv('R2_PRIVATE_BUCKET_NAME', 'mundotech-proofs');
-    vi.stubEnv('R2_ENDPOINT', 'https://test.r2.cloudflarestorage.com');
-    vi.stubEnv('R2_ACCESS_KEY_ID', 'test-key');
-    vi.stubEnv('R2_SECRET_ACCESS_KEY', 'test-secret');
-    vi.stubEnv('R2_BUCKET_NAME', 'mundotech-media');
-    vi.stubEnv('R2_PUBLIC_BASE_URL', 'https://cdn.test.com');
+    stubPrivateR2TestEnv();
     mockSend.mockReset();
     const mod = await import('@/lib/r2');
     getPrivateProofReadUrlFn = mod.getPrivateProofReadUrl;
@@ -215,7 +255,6 @@ describe('getPrivateProofReadUrl', () => {
   });
 
   it('usa expiresIn por defecto de 180s', async () => {
-    // getSignedUrl mock
     const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
     vi.mocked(getSignedUrl).mockResolvedValue('https://signed.url/proof');
     await getPrivateProofReadUrlFn('proofs/test.webp');
@@ -248,12 +287,7 @@ describe('deletePrivateProof', () => {
   let deletePrivateProofFn: typeof import('@/lib/r2')['deletePrivateProof'];
 
   beforeEach(async () => {
-    vi.stubEnv('R2_PRIVATE_BUCKET_NAME', 'mundotech-proofs');
-    vi.stubEnv('R2_ENDPOINT', 'https://test.r2.cloudflarestorage.com');
-    vi.stubEnv('R2_ACCESS_KEY_ID', 'test-key');
-    vi.stubEnv('R2_SECRET_ACCESS_KEY', 'test-secret');
-    vi.stubEnv('R2_BUCKET_NAME', 'mundotech-media');
-    vi.stubEnv('R2_PUBLIC_BASE_URL', 'https://cdn.test.com');
+    stubPrivateR2TestEnv();
     mockSend.mockReset();
     mockSend.mockResolvedValue({});
     const mod = await import('@/lib/r2');
@@ -282,12 +316,7 @@ describe('isR2PublicUrl con R2_PRIVATE_BUCKET_NAME', () => {
   let isR2PublicUrlFn: typeof import('@/lib/r2')['isR2PublicUrl'];
 
   beforeEach(async () => {
-    vi.stubEnv('R2_PRIVATE_BUCKET_NAME', 'mundotech-proofs');
-    vi.stubEnv('R2_ENDPOINT', 'https://test.r2.cloudflarestorage.com');
-    vi.stubEnv('R2_ACCESS_KEY_ID', 'test-key');
-    vi.stubEnv('R2_SECRET_ACCESS_KEY', 'test-secret');
-    vi.stubEnv('R2_BUCKET_NAME', 'mundotech-media');
-    vi.stubEnv('R2_PUBLIC_BASE_URL', 'https://cdn.test.com');
+    stubPrivateR2TestEnv();
     vi.stubEnv('NEXT_PUBLIC_R2_PUBLIC_BASE_URL', '');
     const mod = await import('@/lib/r2');
     isR2PublicUrlFn = mod.isR2PublicUrl;
@@ -298,7 +327,7 @@ describe('isR2PublicUrl con R2_PRIVATE_BUCKET_NAME', () => {
   });
 
   it('acepta URL del dominio público R2', () => {
-    expect(isR2PublicUrlFn('https://cdn.test.com/proofs/abc.webp')).toBe(true);
+    expect(isR2PublicUrlFn('https://cdn.vitest.example/proofs/abc.webp')).toBe(true);
   });
 
   it('rechaza host ajeno', () => {
@@ -306,7 +335,7 @@ describe('isR2PublicUrl con R2_PRIVATE_BUCKET_NAME', () => {
   });
 
   it('rechaza suplantación por sufijo', () => {
-    expect(isR2PublicUrlFn('https://cdn.test.com.evil.com/x')).toBe(false);
+    expect(isR2PublicUrlFn('https://cdn.vitest.example.evil.com/x')).toBe(false);
   });
 });
 
@@ -334,13 +363,10 @@ describe('migration: paymentProofKey columna aditiva', () => {
       items: [],
     } as Parameters<typeof prismaOrderToOrder>[0];
 
-    // Sin paymentProofKey ni paymentProofUrl en el input
     const order = prismaOrderToOrder(mockPrismaOrder);
-    // paymentProofKey usa ?? null → null, paymentProofUrl no tiene default → undefined
     expect(order.paymentProofKey).toBeNull();
     expect(order.paymentProofUrl).toBeUndefined();
 
-    // Con null explícito → null (columna nullable en BD)
     const orderWithNulls = prismaOrderToOrder({
       ...mockPrismaOrder,
       paymentProofKey: null,
@@ -349,7 +375,6 @@ describe('migration: paymentProofKey columna aditiva', () => {
     expect(orderWithNulls.paymentProofKey).toBeNull();
     expect(orderWithNulls.paymentProofUrl).toBeNull();
 
-    // Con valores concretos → pasan correctamente
     const orderWithValues = prismaOrderToOrder({
       ...mockPrismaOrder,
       paymentProofKey: 'proofs/abc.webp',

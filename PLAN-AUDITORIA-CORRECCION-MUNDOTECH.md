@@ -2,7 +2,7 @@
 
 **Proyecto:** `nasmityo2/mundotech`  
 **Auditoría base:** 11 de julio de 2026  
-**Documento de ejecución:** `PROMPTS-CURSOR-MUNDOTECH-V3-CHECKLIST.md`  
+**Documento de ejecución:** `PROMPTS-CURSOR-MUNDOTECH-V4-COPIAR-PEGAR.md`  
 **Estado inicial:** 0 de 32 sesiones completadas
 
 > Este archivo es la fuente de verdad del avance. Cada sesión de Cursor debe abrirlo antes de trabajar y actualizar **únicamente su propia sección** al terminar. Un checkbox solo se marca cuando la implementación, las pruebas y los criterios de aceptación están verificados.

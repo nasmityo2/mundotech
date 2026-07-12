@@ -9,12 +9,12 @@ const BATCH_LIMIT = 100;
 /**
  * GET /api/cron/purge-payment-uploads
  *
- * SESIÓN 05 (CORREGIDO): limpia registros PaymentUpload PENDING cuyo expiresAt ya venció.
- * Por cada uno:
- *   1. Reclama atómicamente PENDING → DELETING con updateMany condicional.
+ * SESIÓN 05 (CORREGIDO): limpia registros PaymentUpload PENDING o UPLOADING
+ * cuyo expiresAt ya venció. Por cada uno:
+ *   1. Reclama atómicamente (PENDING|UPLOADING) → DELETING con updateMany condicional.
  *   2. Si tiene objectKey, lo borra del bucket privado R2.
  *   3. Marca DELETED.
- * Si R2 falla, revierte DELETING → PENDING para reintento.
+ * Si R2 falla, revierte DELETING → estado anterior (previousStatus) para reintento.
  * Si no hay objectKey, marca DELETED directamente.
  *
  * Protección: Authorization: Bearer <CRON_SECRET>
@@ -38,22 +38,30 @@ export async function GET(request: Request): Promise<NextResponse> {
     const now = new Date();
     const expired = await prisma.paymentUpload.findMany({
       where: {
-        status: 'PENDING',
+        status: {
+          in: ['PENDING', 'UPLOADING'],
+        },
         expiresAt: { lte: now },
       },
       take: BATCH_LIMIT,
       orderBy: { expiresAt: 'asc' },
-      select: { id: true, objectKey: true },
+      select: {
+        id: true,
+        objectKey: true,
+        status: true,
+      },
     });
 
     attempted = expired.length;
 
     for (const record of expired) {
-      // Reclamo atómico: PENDING → DELETING
+      const previousStatus = record.status;
+
+      // Reclamo atómico: (PENDING|UPLOADING) → DELETING
       const claim = await prisma.paymentUpload.updateMany({
         where: {
           id: record.id,
-          status: 'PENDING',
+          status: previousStatus,
           expiresAt: { lte: now },
         },
         data: {
@@ -72,20 +80,21 @@ export async function GET(request: Request): Promise<NextResponse> {
           const errorName =
             r2Err instanceof Error ? r2Err.name : 'UnknownError';
           console.error(
-            '[cron/purge-payment-uploads] Fallo R2, revirtiendo a PENDING. PaymentUpload.id=%s errorName=%s',
+            '[cron/purge-payment-uploads] Fallo R2, revirtiendo a estado anterior. PaymentUpload.id=%s errorName=%s previousStatus=%s',
             record.id,
             errorName,
+            previousStatus,
           );
           r2Errors++;
 
-          // Revertir: DELETING → PENDING para reintento futuro
+          // Revertir a estado anterior para reintento futuro
           await prisma.paymentUpload.updateMany({
             where: {
               id: record.id,
               status: 'DELETING',
             },
             data: {
-              status: 'PENDING',
+              status: previousStatus,
             },
           });
           continue;

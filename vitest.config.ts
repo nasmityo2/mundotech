@@ -13,10 +13,24 @@ export default defineConfig({
       NEXTAUTH_SECRET: 'vitest-secret',
       NEXTAUTH_URL: 'http://localhost:3000',
       CRON_SECRET: 'vitest-cron-secret',
+
+      RESEND_API_KEY: 're_vitest_dummy',
+      RESEND_FROM_ADDRESS: 'vitest@example.com',
+
+      R2_ENDPOINT:
+        'https://vitest-account.r2.cloudflarestorage.com',
+
+      R2_ACCESS_KEY_ID: 'vitest-public-access-key',
+      R2_SECRET_ACCESS_KEY: 'vitest-public-secret-key',
+      R2_BUCKET_NAME: 'vitest-media',
+      R2_PUBLIC_BASE_URL: 'https://cdn.vitest.example',
+      NEXT_PUBLIC_R2_PUBLIC_BASE_URL:
+        'https://cdn.vitest.example',
+
       R2_PRIVATE_BUCKET_NAME: 'vitest-proofs',
-      R2_PRIVATE_ACCESS_KEY_ID: 'vitest-access-key-id',
-      R2_PRIVATE_SECRET_ACCESS_KEY: 'vitest-secret-access-key',
-      R2_ENDPOINT: 'https://vitest.r2.cloudflarestorage.com',
+      R2_PRIVATE_ACCESS_KEY_ID: 'vitest-private-access-key',
+      R2_PRIVATE_SECRET_ACCESS_KEY:
+        'vitest-private-secret-key',
     },
   },
   resolve: {
