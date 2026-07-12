@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { readSettings, writeSettings, storeSettingsSchema } from '@/lib/data-store';
 import { requireAdmin } from '@/lib/api-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 /**
  * GET /api/settings
@@ -35,6 +36,9 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

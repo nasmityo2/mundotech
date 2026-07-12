@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { isSafeEditableLink } from '@/lib/safe-link';
 import { revalidatePath, revalidateTag } from 'next/cache';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 /**
  * Tipos de banner válidos según la UI del panel admin.
@@ -79,6 +80,9 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
@@ -111,6 +115,9 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = rejectInvalidMutationOrigin(_req);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

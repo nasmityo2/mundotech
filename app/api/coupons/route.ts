@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { couponInputSchema, couponToClient, normalizeCouponCode } from '@/lib/coupons';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 /** GET /api/coupons — listado admin de todos los cupones. */
 export async function GET() {
@@ -23,6 +24,9 @@ export async function GET() {
 
 /** POST /api/coupons — crear cupón (admin). */
 export async function POST(request: Request) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

@@ -1,74 +1,113 @@
+import { isIP } from 'node:net';
+import { createHmac } from 'crypto';
 
-interface Entry {
+// ── HMAC key para derivar hashes persistentes de IP/email ────────────────
+// Derivado de NEXTAUTH_SECRET; nunca expuesto. Si el secret rota,
+// los buckets anteriores pierden vigencia (lo cual es aceptable).
+function getBucketSecret(): string {
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) return 'mundotech-rate-limit-fallback';
+  return createHmac('sha256', secret).update('rate-limit-bucket').digest('hex');
+}
+
+/** Hash corto para claves de rate limit — nunca expone el valor original. */
+export function hashForBucket(value: string): string {
+  return createHmac('sha256', getBucketSecret()).update(value.trim().toLowerCase()).digest('hex').slice(0, 32);
+}
+
+// ── Tipos ─────────────────────────────────────────────────────────────────
+
+export interface RateLimitConfig {
+  limit: number;
+  windowMs: number;
+}
+
+export interface RateLimitResult {
+  limited: boolean;
+  retryAfterSeconds: number;
+  source: 'upstash' | 'memory';
+}
+
+// ── Mapa en memoria para fallback de critical ────────────────────────────
+
+interface MemoryEntry {
   count: number;
   resetAt: number;
 }
 
-const store = new Map<string, Entry>();
-
-// Limpia entradas expiradas cada 5 minutos para evitar memory leaks
-// en servidores de desarrollo de larga duración.
+const memoryStore = new Map<string, MemoryEntry>();
 let lastCleanup = Date.now();
 const CLEANUP_INTERVAL_MS = 5 * 60_000;
 
-function maybeCleanup(): void {
+function maybeCleanupMemory(): void {
   const now = Date.now();
   if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
   lastCleanup = now;
-  for (const [key, entry] of store) {
-    if (now > entry.resetAt) store.delete(key);
+  for (const [key, entry] of memoryStore) {
+    if (now > entry.resetAt) memoryStore.delete(key);
   }
 }
 
-export interface RateLimitConfig {
-  /** Número máximo de requests permitidos dentro de la ventana. */
-  limit: number;
-  /** Tamaño de la ventana en milisegundos. */
-  windowMs: number;
-}
-
-/** Ventana fija en memoria (instancia local). @returns true si debe bloquearse. */
-function rateLimitInMemory(key: string, config: RateLimitConfig): boolean {
-  maybeCleanup();
+/**
+ * Ventana fija en memoria.
+ * @returns segundos restantes si limitado, o 0 si permitido.
+ */
+function memoryWindow(key: string, config: RateLimitConfig): { limited: boolean; retryAfterSeconds: number } {
+  maybeCleanupMemory();
 
   const now = Date.now();
-  const entry = store.get(key);
+  const entry = memoryStore.get(key);
 
   if (!entry || now > entry.resetAt) {
-    store.set(key, { count: 1, resetAt: now + config.windowMs });
-    return false;
+    memoryStore.set(key, { count: 1, resetAt: now + config.windowMs });
+    return { limited: false, retryAfterSeconds: 0 };
   }
 
   if (entry.count >= config.limit) {
-    return true;
+    const remainingMs = entry.resetAt - now;
+    return { limited: true, retryAfterSeconds: Math.ceil(Math.max(remainingMs, 0) / 1000) };
   }
 
   entry.count++;
-  return false;
+  return { limited: false, retryAfterSeconds: 0 };
 }
+
+/** Elimina entradas del Map que coinciden con un prefijo de key. */
+function memoryClearByPrefix(prefix: string): void {
+  for (const key of memoryStore.keys()) {
+    if (key.startsWith(prefix)) memoryStore.delete(key);
+  }
+}
+
+// ── Upstash Redis REST ────────────────────────────────────────────────────
 
 const UPSTASH_TIMEOUT_MS = 2_000;
 
-/**
- * Ventana fija distribuida sobre Upstash Redis REST.
- * Pipeline: INCR clave; PEXPIRE clave windowMs NX (solo fija TTL al crearla).
- * @returns true si debe bloquearse; null si Redis no está disponible.
- */
-async function rateLimitUpstash(
-  key: string,
-  config: RateLimitConfig,
-): Promise<boolean | null> {
+function upstashConfig(): { url: string; token: string } | null {
   const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
   const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
   if (!url || !token) return null;
+  return { url: url.replace(/\/$/, ''), token };
+}
+
+/**
+ * Ventana fija distribuida.
+ * @returns resultado o null si Upstash no está disponible.
+ */
+async function upstashWindow(
+  key: string,
+  config: RateLimitConfig,
+): Promise<{ limited: boolean; retryAfterSeconds: number } | null> {
+  const cfg = upstashConfig();
+  if (!cfg) return null;
 
   const redisKey = `rl:${key}`;
 
   try {
-    const res = await fetch(`${url.replace(/\/$/, '')}/pipeline`, {
+    const res = await fetch(`${cfg.url}/pipeline`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${cfg.token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify([
@@ -80,71 +119,133 @@ async function rateLimitUpstash(
     });
 
     if (!res.ok) {
-      console.error('[rate-limit] Upstash respondió', res.status, await res.text().catch(() => ''));
+      console.error('[rate-limit] Upstash HTTP', res.status);
       return null;
     }
 
     const data = (await res.json()) as Array<{ result?: unknown; error?: string }>;
     const count = Number(data?.[0]?.result);
     if (!Number.isFinite(count)) {
-      console.error('[rate-limit] Respuesta inesperada de Upstash:', JSON.stringify(data));
+      console.error('[rate-limit] Upstash respuesta inesperada');
       return null;
     }
 
-    return count > config.limit;
-  } catch (err) {
-    console.error('[rate-limit] Error consultando Upstash; fallback a memoria:', err);
+    const limited = count > config.limit;
+    // Con Upstash no podemos calcular retryAfter preciso sin TTL;
+    // usamos la ventana completa como estimación conservadora.
+    const retryAfterSeconds = limited ? Math.ceil(config.windowMs / 1000) : 0;
+    return { limited, retryAfterSeconds };
+  } catch (_err) {
+    console.error('[rate-limit] Upstash error; fallback a memoria');
     return null;
   }
 }
 
+// ── Políticas de rate limit ──────────────────────────────────────────────
+
 /**
- * Comprueba si la clave dada ha superado el límite configurado.
- * Global (Upstash) cuando hay credenciales; en memoria como fallback.
- *
- * @returns `true` si la request debe ser bloqueada (límite superado).
+ * Rate limit CRÍTICO: intenta Upstash; si falla usa Map local
+ * con el MISMO límite (nunca fail-open). Para endpoints de login,
+ * reset, orders POST, uploads y validación de cupones.
  */
-export async function rateLimit(key: string, config: RateLimitConfig): Promise<boolean> {
-  const distributed = await rateLimitUpstash(key, config);
-  if (distributed !== null) return distributed;
-  return rateLimitInMemory(key, config);
+export async function rateLimitCritical(
+  key: string,
+  config: RateLimitConfig,
+): Promise<RateLimitResult> {
+  const upstash = await upstashWindow(key, config);
+  if (upstash !== null) {
+    return { ...upstash, source: 'upstash' };
+  }
+  // Fallback a memoria — mismo límite, nunca más laxo.
+  const memory = memoryWindow(key, config);
+  return { ...memory, source: 'memory' };
 }
 
 /**
- * Extrae la IP del cliente de forma segura según el entorno de despliegue.
+ * Rate limit BEST-EFFORT: intenta Upstash con el límite configurado;
+ * si falla, usa el fallback en memoria con un límite igual al
+ * original (el viejo comportamiento). Para GET públicos de catálogo,
+ * reviews y endpoints de baja criticidad.
+ */
+export async function rateLimitBestEffort(
+  key: string,
+  config: RateLimitConfig,
+): Promise<RateLimitResult> {
+  const upstash = await upstashWindow(key, config);
+  if (upstash !== null) {
+    return { ...upstash, source: 'upstash' };
+  }
+  const memory = memoryWindow(key, config);
+  return { ...memory, source: 'memory' };
+}
+
+/**
+ * @deprecated Usar `rateLimitCritical` o `rateLimitBestEffort`.
+ * Mantenido para compatibilidad; internamente delega en best-effort.
+ */
+export async function rateLimit(key: string, config: RateLimitConfig): Promise<boolean> {
+  const result = await rateLimitBestEffort(key, config);
+  return result.limited;
+}
+
+// ── IP del cliente ────────────────────────────────────────────────────────
+
+/**
+ * Extrae la IP del cliente de forma segura según DEPLOYMENT_ENV.
  *
- * Estrategia por entorno (configurable con DEPLOYMENT_ENV):
- *  - "vercel"     → x-vercel-forwarded-for (proxy de Vercel, no falsificable)
- *  - "cloudflare" → cf-connecting-ip (proxy de Cloudflare, no falsificable)
- *  - default      → último valor de x-forwarded-for (IP del proxy más cercano conocido)
- *                   o x-real-ip, con fallback a 'unknown'.
+ * - cloudflare → exclusivamente `cf-connecting-ip` (validado con isIP).
+ *   Si falta o es inválido, devuelve "unknown".
+ * - vercel     → primer valor de `x-vercel-forwarded-for` (validado con isIP).
+ *   Si falta o es inválido, devuelve "unknown".
+ * - desarrollo → fallback al último XFF / x-real-ip / "unknown".
  *
- * ADVERTENCIA: El primer valor de x-forwarded-for puede ser falsificado por el cliente.
- * En producción detrás de un proxy de confianza, configurar DEPLOYMENT_ENV
- * (PRD-103 — validado al arranque en lib/env-validation.ts).
+ * NUNCA confía en XFF genérico en producción: sin proxy de confianza
+ * configurado la app ya lanzó en validateEnv() y no debería llegar aquí.
  */
 export function getClientIp(request: Request): string {
   const env = (process.env.DEPLOYMENT_ENV ?? '').toLowerCase();
 
-  if (env === 'vercel') {
-    const ip = request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim();
-    if (ip) return ip;
-  }
-
   if (env === 'cloudflare') {
-    const ip = request.headers.get('cf-connecting-ip')?.trim();
-    if (ip) return ip;
+    const raw = request.headers.get('cf-connecting-ip')?.trim();
+    if (raw && isIP(raw)) return raw;
+    return 'unknown';
   }
 
-  // Sin proxy de confianza configurado: tomar el ÚLTIMO valor de x-forwarded-for
-  // (el proxy más cercano conocido) en lugar del primero (que el cliente puede falsificar).
+  if (env === 'vercel') {
+    const raw = request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim();
+    if (raw && isIP(raw)) return raw;
+    return 'unknown';
+  }
+
+  // Desarrollo o sin proxy: fallback documentado (solo para dev).
   const xff = request.headers.get('x-forwarded-for');
   if (xff) {
     const parts = xff.split(',').map((s) => s.trim()).filter(Boolean);
     if (parts.length > 0) {
-      return parts[parts.length - 1];
+      const last = parts[parts.length - 1];
+      if (isIP(last)) return last;
     }
   }
 
-  return request.headers.get('x-real-ip')?.trim() ?? 'unknown';
+  const realIp = request.headers.get('x-real-ip')?.trim();
+  if (realIp && isIP(realIp)) return realIp;
+
+  return 'unknown';
 }
+
+// ── Exportación para tests ────────────────────────────────────────────────
+
+// Exponemos el store interno para que los tests puedan inspeccionar y limpiar.
+export function __memoryStoreSize(): number {
+  return memoryStore.size;
+}
+
+export function __memoryStoreClear(): void {
+  memoryStore.clear();
+}
+
+export function __memoryClearByPrefix(prefix: string): void {
+  memoryClearByPrefix(prefix);
+}
+
+export { memoryWindow, upstashWindow };

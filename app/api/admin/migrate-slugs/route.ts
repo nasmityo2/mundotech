@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { slugify } from '@/lib/slugify';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 /**
  * POST /api/admin/migrate-slugs
@@ -11,7 +12,10 @@ import { slugify } from '@/lib/slugify';
  * así que esta ruta queda como herramienta de reparación (slugs vacíos legacy).
  * Solo accesible por administradores.
  */
-export async function POST() {
+export async function POST(request: Request) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { markCartOptedOut, findAbandonedCartByRecoveryToken } from '@/lib/abandoned-cart';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
-import { verifySameOrigin } from '@/lib/security';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { emailSiteBaseUrl } from '@/emails/mundotech/site';
 
 /**
@@ -50,9 +50,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
   // SEC-02 (AUDITORIA-2026-07): mutación pública — mismo guard CSRF que cart/orders.
-  if (!verifySameOrigin(req)) {
-    return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
-  }
+  const originCheck = rejectInvalidMutationOrigin(req);
+  if (originCheck) return originCheck;
 
   const ip = getClientIp(req);
   if (await rateLimit(`cart:unsubscribe:ip:${ip}`, { limit: 10, windowMs: 10 * 60_000 })) {

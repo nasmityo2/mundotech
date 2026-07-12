@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/api-auth';
-import { verifySameOrigin } from '@/lib/security';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { removeCartItem } from '@/lib/cart';
 
 /**
@@ -11,9 +11,8 @@ export async function DELETE(
   { params }: { params: Promise<{ productId: string }> },
 ) {
   // PRD-011: mitigación CSRF en mutaciones del carrito.
-  if (!verifySameOrigin(request)) {
-    return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
-  }
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
 
   const auth = await requireUser();
   if (!auth.authorized) return auth.response;

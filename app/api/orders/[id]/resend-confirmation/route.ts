@@ -11,11 +11,15 @@ import type { OrderConfirmationPayload } from '@/emails/mundotech/types';
 import { d, dn } from '@/lib/decimal';
 import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { roundMoney2 } from '@/lib/exchange-rate';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = rejectInvalidMutationOrigin(_request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

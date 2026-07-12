@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/api-auth';
-import { verifySameOrigin } from '@/lib/security';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { getUserCart, clearUserCart } from '@/lib/cart';
 
 /** GET /api/cart — Devuelve los ítems del carrito del usuario autenticado. */
@@ -20,9 +20,8 @@ export async function GET() {
 /** DELETE /api/cart — Vacía el carrito del usuario autenticado. */
 export async function DELETE(request: Request) {
   // PRD-011: mitigación CSRF — un sitio externo no puede vaciar el carrito.
-  if (!verifySameOrigin(request)) {
-    return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
-  }
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
 
   const auth = await requireUser();
   if (!auth.authorized) return auth.response;

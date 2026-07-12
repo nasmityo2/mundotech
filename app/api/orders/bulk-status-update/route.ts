@@ -6,6 +6,7 @@ import type { OrderStatus } from '@/lib/definitions';
 import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order';
 import { orderPathSegment } from '@/lib/order-ref';
 import { sendOrderCancelledEmail } from '@/lib/resend';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 /** PRD-200: el bulk no puede avanzar a estados que requieren acción individual.
  *  'Enviado' exige tracking + email por pedido.
@@ -29,6 +30,9 @@ const bulkUpdateSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

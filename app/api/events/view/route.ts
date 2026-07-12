@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
-import { verifySameOrigin } from '@/lib/security';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { z } from 'zod';
 
 // PRD-183: sessionId con formato estricto (cuid/uuid/nanoid o el `${Date.now()}-${rand36}`
@@ -32,9 +32,8 @@ function viewBucketFor(nowMs = Date.now()): string {
  */
 export async function POST(request: Request) {
   try {
-    if (!verifySameOrigin(request)) {
-      return NextResponse.json({ ok: false }, { status: 403 });
-    }
+    const originCheck = rejectInvalidMutationOrigin(request);
+    if (originCheck) return originCheck;
 
     const ip = getClientIp(request);
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { prismaOrderToOrder, type OrderStatus } from '@/lib/definitions';
-import { verifySameOrigin } from '@/lib/security';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { sendPaymentValidatedEmail } from '@/lib/resend';
 
 const BINANCE_PENDING: OrderStatus = 'Pendiente verificación Binance';
@@ -30,9 +30,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   // PRD-199: mitigación CSRF — mismo hardening que el resto de mutaciones de pedidos.
-  if (!verifySameOrigin(request)) {
-    return NextResponse.json({ message: 'Origen no permitido.' }, { status: 403 });
-  }
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
 
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;

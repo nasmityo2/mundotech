@@ -2,9 +2,13 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { slugify } from '@/lib/slugify';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 // POST /api/categories/sync — crea registros en Category para cada categoría única de Product
-export async function POST() {
+export async function POST(request: Request) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

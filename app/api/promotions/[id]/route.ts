@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { isSafeEditableLink } from '@/lib/safe-link';
 import { revalidatePath, revalidateTag } from 'next/cache';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 const promotionSchema = z.object({
   title:        z.string().min(1, 'El título es obligatorio.').max(200),
@@ -30,6 +31,9 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
@@ -62,6 +66,9 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = rejectInvalidMutationOrigin(_req);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

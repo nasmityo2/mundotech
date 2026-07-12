@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { verifyBearerSecret } from '@/lib/security';
 
 /**
  * GET /api/cron/purge-product-views
@@ -9,7 +10,7 @@ import { prisma } from '@/lib/prisma';
  * (las métricas de "más vistos" solo usan ventanas recientes).
  *
  * Protección: igual que /api/cron/abandoned-cart — Authorization: Bearer
- * <CRON_SECRET> o el header x-vercel-cron cuando corre EN Vercel.
+ * <CRON_SECRET> (timing-safe) o el header x-vercel-cron cuando corre EN Vercel.
  */
 export const dynamic = 'force-dynamic';
 
@@ -18,10 +19,7 @@ const RETENTION_DAYS = 90;
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
 
-  if (cronSecret) {
-    const auth = req.headers.get('authorization') ?? '';
-    if (auth === `Bearer ${cronSecret}`) return true;
-  }
+  if (cronSecret && verifyBearerSecret(req, cronSecret)) return true;
 
   if (process.env.VERCEL === '1' && req.headers.get('x-vercel-cron') === '1') {
     return true;

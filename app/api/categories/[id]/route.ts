@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { saveSlugRedirect } from '@/lib/slug-redirects';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 /**
  * PRD-041: mismo contrato Zod que el POST de /api/categories — antes este PUT
@@ -28,6 +29,9 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
@@ -80,6 +84,9 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = rejectInvalidMutationOrigin(_req);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

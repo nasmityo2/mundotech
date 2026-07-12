@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendReviewRequestEmail } from '@/lib/resend';
 import type { ReviewRequestProduct } from '@/emails/mundotech/ReviewRequestEmail';
+import { verifyBearerSecret } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -33,7 +34,7 @@ const BATCH_LIMIT = 25;
 function isAuthorized(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return false;
-  return request.headers.get('authorization') === `Bearer ${cronSecret}`;
+  return verifyBearerSecret(request, cronSecret);
 }
 
 function firstNameFrom(displayName: string): string {

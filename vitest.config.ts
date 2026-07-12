@@ -31,6 +31,9 @@ export default defineConfig({
       R2_PRIVATE_ACCESS_KEY_ID: 'vitest-private-access-key',
       R2_PRIVATE_SECRET_ACCESS_KEY:
         'vitest-private-secret-key',
+
+      TEMP_TOKEN_RETENTION_DAYS: '7',
+      DELETED_UPLOAD_RETENTION_DAYS: '30',
     },
   },
   resolve: {

@@ -10,3 +10,7 @@
 30 1 * * 0 . /etc/mundotech/mundotech.env; curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3000/api/cron/purge-product-views >> /var/log/mundotech-cron.log 2>&1
 # review-request (FASE 4.5): a las 10:00 — email de reseña 7 días tras 'Entregado' (uno por pedido, sin reenvíos).
 0 10 * * * . /etc/mundotech/mundotech.env; curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3000/api/cron/review-request >> /var/log/mundotech-cron.log 2>&1
+# SESIÓN 07 — Purga unificada de datos temporales (una vez al día a las 03:00).
+# Borra reset tokens, tokens de email, uploads DELETED, vistas y carritos abandonados
+# según la política de retención. No borra pedidos ni comprobantes LINKED.
+0 3 * * * . /etc/mundotech/mundotech.env; curl -fsS -H "Authorization: Bearer $CRON_SECRET" "http://127.0.0.1:3000/api/cron/purge-temporary-data" >> /var/log/mundotech-cron.log 2>&1

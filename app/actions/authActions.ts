@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 
 import { prisma } from '@/lib/prisma';
 import { sendPasswordResetEmail, sendWelcomeEmail } from '@/lib/resend';
-import { rateLimit } from '@/lib/rate-limit';
+import { rateLimitCritical, hashForBucket } from '@/lib/rate-limit';
 import { getActionClientIp, hashToken } from '@/lib/security';
 import bcrypt from 'bcrypt';
 
@@ -37,7 +37,7 @@ export async function registerUserAction({ name, email, password }: Record<strin
   try {
     // 0. Rate limit por IP: frena bots y la enumeración de correos vía registro
     const ip = await getActionClientIp();
-    if (await rateLimit(`register:${ip}`, { limit: 5, windowMs: 15 * 60_000 })) {
+    if ((await rateLimitCritical(`register:${hashForBucket(ip)}`, { limit: 5, windowMs: 15 * 60_000 })).limited) {
       return {
         success: false,
         message: 'Demasiados intentos de registro. Espera unos minutos e intenta de nuevo.',
@@ -121,7 +121,7 @@ export async function registerFromOrderAction(
 ): Promise<{ success: boolean; message: string; email?: string }> {
   try {
     const ip = await getActionClientIp();
-    if (await rateLimit(`register-from-order:${ip}`, { limit: 5, windowMs: 15 * 60_000 })) {
+    if ((await rateLimitCritical(`register-from-order:${hashForBucket(ip)}`, { limit: 5, windowMs: 15 * 60_000 })).limited) {
       return {
         success: false,
         message: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.',
@@ -206,7 +206,7 @@ export async function requestPasswordReset(
 
   // Rate limit por IP: evita spam de correos de reset y timing probes
   const ip = await getActionClientIp();
-  if (await rateLimit(`pw-reset:${ip}`, { limit: 5, windowMs: 15 * 60_000 })) {
+  if ((await rateLimitCritical(`pw-reset:${hashForBucket(ip)}`, { limit: 5, windowMs: 15 * 60_000 })).limited) {
     // Mismo mensaje genérico: no revelar siquiera el rate limit exacto
     return { ok: true, message: PASSWORD_RESET_GENERIC_MESSAGE };
   }
@@ -252,7 +252,7 @@ export async function verifyPasswordResetToken(token: string): Promise<boolean> 
   if (!t) return false;
   try {
     const ip = await getActionClientIp();
-    if (await rateLimit(`pw-reset-verify:${ip}`, { limit: 20, windowMs: 15 * 60_000 })) {
+    if ((await rateLimitCritical(`pw-reset-verify:${hashForBucket(ip)}`, { limit: 20, windowMs: 15 * 60_000 })).limited) {
       return false;
     }
 
@@ -289,15 +289,17 @@ export async function resetPassword(
     // (frena fuerza bruta del token y reuso agresivo si se filtró el enlace).
     const tokenHash = hashToken(t);
     const ip = await getActionClientIp();
-    const ipLimited = await rateLimit(`pw-reset-commit:ip:${ip}`, {
-      limit: 10,
-      windowMs: 15 * 60_000,
-    });
-    const tokenLimited = await rateLimit(`pw-reset-commit:token:${tokenHash}`, {
-      limit: 5,
-      windowMs: 15 * 60_000,
-    });
-    if (ipLimited || tokenLimited) {
+    const [ipResult, tokenResult] = await Promise.all([
+      rateLimitCritical(`pw-reset-commit:ip:${hashForBucket(ip)}`, {
+        limit: 10,
+        windowMs: 15 * 60_000,
+      }),
+      rateLimitCritical(`pw-reset-commit:token:${hashForBucket(tokenHash)}`, {
+        limit: 5,
+        windowMs: 15 * 60_000,
+      }),
+    ]);
+    if (ipResult.limited || tokenResult.limited) {
       return {
         ok: false,
         message: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.',

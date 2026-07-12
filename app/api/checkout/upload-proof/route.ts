@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prisma } from '@/lib/prisma';
-import { rateLimit, getClientIp } from '@/lib/rate-limit';
-import { verifySameOrigin, hashToken } from '@/lib/security';
+import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit';
+import { rejectInvalidMutationOrigin, hashToken, buildRateLimitedResponse } from '@/lib/security';
 import { detectImageMimeFromBuffer, isAllowedProofMime } from '@/lib/detect-image-mime';
 import { processImageWithFallback } from '@/lib/image-processing';
 import { uploadPrivateProof, deletePrivateProof } from '@/lib/r2';
@@ -29,9 +29,8 @@ const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
  */
 export async function POST(request: Request) {
   // Mitigación CSRF (formularios cross-site con cookies de sesión)
-  if (!verifySameOrigin(request)) {
-    return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
-  }
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
 
   const rawToken = request.headers.get('x-checkout-upload-token');
   if (!rawToken?.trim()) {
@@ -49,16 +48,15 @@ export async function POST(request: Request) {
 
   // Rate limit ANTES del claim
   const limitKey = isGuest
-    ? `upload-proof:ip:${getClientIp(request)}`
-    : `upload-proof:${session!.user!.id}`;
+    ? `upload-proof:ip:${hashForBucket(getClientIp(request))}`
+    : `upload-proof:user:${hashForBucket(session!.user!.id)}`;
   const limitCfg = isGuest
     ? { limit: 6, windowMs: 10 * 60_000 }
     : { limit: 10, windowMs: 10 * 60_000 };
-  if (await rateLimit(limitKey, limitCfg)) {
-    return NextResponse.json(
-      { error: 'Demasiadas solicitudes de subida. Espera unos minutos.' },
-      { status: 429 },
-    );
+  const rateResult = await rateLimitCritical(limitKey, limitCfg);
+  if (rateResult.limited) {
+    return buildRateLimitedResponse(rateResult.retryAfterSeconds,
+      'Demasiadas solicitudes de subida. Espera unos minutos.');
   }
 
   // Variables de control para cleanup

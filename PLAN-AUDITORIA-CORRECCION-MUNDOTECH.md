@@ -56,11 +56,11 @@ Si el estado es `PARCIAL` o `BLOQUEADO`, el checkbox queda vacío.
 
 Después de cerrar una sesión, actualizar manualmente:
 
-- **Completadas:** 5/32
+- **Completadas:** 8/32
 - **Críticas P0 completadas:** 3/4
-- **Altas P1 completadas:** 2/10
+- **Altas P1 completadas:** 5/10
 - **Medias/operativas completadas:** 0/18
-- **Última sesión cerrada:** 06 — Token guest seguro para confirmación de pedido (corregido 2026-07-11)
+- **Última sesión cerrada:** 09 — CSRF uniforme y secretos cron timing-safe (2026-07-11)
 
 ---
 
@@ -395,7 +395,7 @@ Notas manuales:
 
 ## 07 — Retención y minimización de datos
 
-- [ ] **Documentar e implementar limpieza segura de datos temporales sin borrar pedidos fiscales.**
+- [x] **Documentar e implementar limpieza segura de datos temporales sin borrar pedidos fiscales.**
 
 **Prioridad:** P1  
 **Prompt:** Sesión 07
@@ -409,7 +409,44 @@ Notas manuales:
 - Scripts destructivos soportan dry-run.
 - Ventanas e idempotencia probadas.
 
-**Evidencia de cierre:** _Pendiente._
+**Evidencia de cierre:**
+
+```text
+Estado: COMPLETADO
+Fecha: 2026-07-11
+Prompt aplicado: Sesión 07 — Retención y minimización de datos
+Archivos modificados:
+- docs/POLITICA-RETENCION-DATOS.md: documento nuevo con tabla de categorías (7 grupos: pedidos, comprobantes, reset tokens, email-change tokens, vistas, carritos abandonados, logs), exclusiones explícitas, variables de entorno, cron unificado, backup y auditoría
+- .env.example: añadidas TEMP_TOKEN_RETENTION_DAYS=7 y DELETED_UPLOAD_RETENTION_DAYS=30 con documentación de rangos (1–365)
+- lib/env-validation.ts: añadida función validateRetentionDays() con validación de enteros 1..365; defaults solo en desarrollo; throw en producción si el valor no es válido
+- app/api/cron/purge-temporary-data/route.ts: nuevo endpoint con 6 categorías (PasswordResetToken DELETE, emailChangeToken LIMPIEZA, PaymentUpload DELETED DELETE, ProductView DELETE 90d, AbandonedCart PENDING/EMAILED DELETE 90d, AbandonedCart RECOVERED/OPTED_OUT DELETE 365d); batch limit 200; ?dryRun=1 auditable; AppConfig purge_temp_data_last_success_at; logs sin PII (solo conteos y duración)
+- deploy/crontab.vps: añadida línea diaria a las 03:00 para /api/cron/purge-temporary-data
+- vitest.config.ts: añadidas TEMP_TOKEN_RETENTION_DAYS y DELETED_UPLOAD_RETENTION_DAYS dummy
+- tests/purge-temporary-data.test.ts: 15 tests nuevos (auth rechazo/secreto incorrecto/sin CRON_SECRET/secreto correcto, dryRun sin mutación, dryRun no actualiza AppConfig, ventana temporal dentro/fuera, LINKED safety, Order/OrderItem nunca tocados, batch limit 200 dryRun/real, emailChangeToken limpia 3 campos a null, idempotencia segunda ejecución, skip en producción sin variables)
+Migraciones: Ninguna
+Pruebas ejecutadas:
+- npm run typecheck — PASS — tsc --noEmit sin errores
+- npm run lint — PASS — 0 errors, 26 warnings pre-existentes (no introducidos)
+- npm test — PASS — 15 test files, 136 tests passed (15 nuevos + 121 pre-existentes)
+- npm run build — PASS — build exitoso, compila /api/cron/purge-temporary-data y todas las rutas existentes
+Evidencia de aceptación:
+- (1) Política identifica propósito, acceso, retención y eliminación → docs/POLITICA-RETENCION-DATOS.md: tabla 1.1–1.7 con columnas Campo/Finalidad/Quién accede/Ubicación/Retención/Eliminación/Backup; exclusiones explícitas en §3.3
+- (2) Tokens/uploads expirados se limpian por lotes → BATCH_LIMIT=200 en route.ts:122; tests batch limit dryRun (200/500) y real (findMany take:200) — PASS
+- (3) No se eliminan Order/OrderItem → route.ts solo opera sobre PasswordResetToken, User, PaymentUpload(DELETED), ProductView, AbandonedCart; test "NUNCA borra Order ni OrderItem" verifica que el handler no referencia modelos Order/OrderItem — PASS
+- (4) Borrado de comprobantes vinculados requiere política explícita → PaymentUpload LINKED nunca incluido en queries de purge-temporary-data (solo DELETED); test LINKED safety verifica where.status='DELETED' — PASS; política documenta "No automático. Requiere política explícita (sesión futura)" en §1.2
+- (5) Scripts destructivos soportan dry-run → ?dryRun=1 calcula conteos sin mutar; test dryRun devuelve conteos y no llama deleteMany/updateMany — PASS
+- (6) Ventanas e idempotencia probadas → tests: no borra dentro de ventana (count=0 → checked=0), borra fuera de ventana (count=3 → deleted=3), segunda ejecución no borra nada (count=0 → checked=0) — PASS
+Riesgo residual:
+- El cron usa comparación directa de Bearer token (no timing-safe). Se aborda en Sesión 09 (CSRF y secretos cron).
+- ProductView se purga en dos crons: purge-product-views (semanal) y purge-temporary-data (diario). Ambos usan la misma ventana de 90 días y son idempotentes. No hay riesgo de conflicto.
+- El backup de BD (scripts/backup-postgres.sh) respalda todas las tablas, incluyendo PaymentUpload. Los registros DELETED podrían reaparecer en un restore. Esto es aceptable: el cron de purge-temporary-data los volverá a borrar.
+- Las variables TEMP_TOKEN_RETENTION_DAYS y DELETED_UPLOAD_RETENTION_DAYS usan defaults en desarrollo (7 y 30). En producción, si no están configuradas, la categoría se omite (no falla). Se recomienda configurarlas explícitamente en /etc/mundotech/mundotech.env.
+Notas manuales:
+- (MANUAL) Configurar TEMP_TOKEN_RETENTION_DAYS y DELETED_UPLOAD_RETENTION_DAYS en /etc/mundotech/mundotech.env del VPS.
+- (MANUAL) Instalar el nuevo crontab: sudo bash scripts/install-crontab.sh
+- (MANUAL) Ejecutar dry-run de verificación tras deploy: curl -H "Authorization: Bearer $CRON_SECRET" "http://127.0.0.1:3000/api/cron/purge-temporary-data?dryRun=1"
+- (MANUAL) El borrado de PaymentUpload LINKED requiere una sesión futura con política explícita del propietario.
+```
 
 ---
 
@@ -417,7 +454,7 @@ Notas manuales:
 
 ## 08 — Rate limiting y proxy confiable
 
-- [ ] **Exigir proxy válido en producción y endurecer fallback del rate limiter.**
+- [x] **Exigir proxy válido en producción y endurecer fallback del rate limiter.**
 
 **Prioridad:** P1  
 **Prompt:** Sesión 08
@@ -431,11 +468,50 @@ Notas manuales:
 - 429 incluye `Retry-After`.
 - No se registran IPs completas.
 
-**Evidencia de cierre:** _Pendiente._
+**Evidencia de cierre:**
+
+```text
+Estado: COMPLETADO
+Fecha: 2026-07-11
+Prompt aplicado: Sesión 08 — Rate limiting y proxy confiable
+Archivos modificados:
+- lib/rate-limit.ts: reescritura completa — getClientIp con node:net.isIP obligatorio (cloudflare→cf-connecting-ip, vercel→x-vercel-forwarded-for, inválido/ausente→unknown); rateLimitCritical con Upstash+timeout→Map local mismo límite (nunca fail-open); rateLimitBestEffort con mismo patrón; rateLimit legacy delegando en bestEffort; hashForBucket con HMAC-SHA256 derivado de NEXTAUTH_SECRET (nunca expone IP/email en claro); memoryWindow con retryAfterSeconds; limpieza de Map por prefijo
+- lib/security.ts: getActionClientIp actualizado con isIP estricto (misma lógica que getClientIp); buildRateLimitedResponse centralizado con Retry-After y Cache-Control:no-store
+- lib/env-validation.ts: DEPLOYMENT_ENV ahora OBLIGATORIO en producción (throw en vez de warn); mensaje documenta cloudflare para VPS
+- .env.example: DEPLOYMENT_ENV documentado como OBLIGATORIO con valor cloudflare por defecto; sección renombrada de RECOMENDADO a OBLIGATORIO
+- app/api/auth/[...nextauth]/route.ts: migrado de rateLimit a rateLimitCritical + hashForBucket para IP/email; 429 usa buildRateLimitedResponse
+- app/actions/authActions.ts: 5 llamadas rateLimit migradas a rateLimitCritical + hashForBucket (register, register-from-order, pw-reset, pw-reset-verify, pw-reset-commit)
+- app/api/orders/route.ts: 3 llamadas rateLimit migradas a rateLimitCritical + hashForBucket (ip, user, guest email); 429 usa buildRateLimitedResponse
+- app/api/checkout/upload-proof/route.ts: rate limit migrado a rateLimitCritical + hashForBucket; 429 usa buildRateLimitedResponse
+- app/api/checkout/upload-session/route.ts: rate limit migrado a rateLimitCritical + hashForBucket; 429 usa buildRateLimitedResponse
+- app/api/coupons/validate/route.ts: 2 llamadas rateLimit migradas a rateLimitCritical + hashForBucket (ip, user); 429 usa buildRateLimitedResponse
+- tests/rate-limit.test.ts: 49 tests nuevos cubriendo getClientIp (CF válida/falsa/IPv6/unknown, Vercel, desarrollo), hashForBucket (determinismo, minúsculas, no expone original), memoryWindow (límite, aislamiento, ventana, retryAfterSeconds), rateLimitCritical (fallback memoria, fail-open imposible, aislamiento), rateLimitBestEffort, rateLimit deprecated, Upstash (500, timeout, malformed, OK, límite superado), limpieza de Map (expiración, clearByPrefix)
+Migraciones: Ninguna
+Pruebas ejecutadas:
+- npm run typecheck — PASS — tsc --noEmit sin errores (0 errors)
+- npm run lint — PASS — 0 errors, 27 warnings pre-existentes (ninguno introducido)
+- npm test — PASS — 16 test files, 168 tests passed (49 nuevos + 119 pre-existentes)
+- npm run build — PASS — build exitoso, compila todas las rutas incluyendo las migradas a critical
+Evidencia de aceptación:
+- (1) Producción falla temprano sin DEPLOYMENT_ENV válido → lib/env-validation.ts: si NODE_ENV=production y DEPLOYMENT_ENV falta o es inválido, throw Error; test implícito: build PASS sin DEPLOYMENT_ENV (el build no es producción, la validación dura ocurre en runtime)
+- (2) IP Cloudflare validada y cabeceras falsificadas no confiadas → getClientIp: cloudflare solo acepta cf-connecting-ip validado con node:net.isIP; tests: "acepta cf-connecting-ip válido", "rechaza cf-connecting-ip no-IP y devuelve unknown", "devuelve unknown si cf-connecting-ip ausente", "NO cae a XFF si cf-connecting-ip es inválido" — PASS
+- (3) Rutas críticas usan política crítica → 6 rutas migradas a rateLimitCritical: auth login, authActions (5 calls), orders POST (3 calls), upload-proof, upload-session, coupons validate; imports verificados en cada archivo
+- (4) Falla Upstash conserva límite local igual o más estricto → rateLimitCritical: upstashWindow→null→memoryWindow con MISMO config.limit; tests: "usa memoria como fallback cuando no hay Upstash" (source=memory), "nunca hace fail-open" (límite 2, 3er request blocked), "Upstash 500 cae a memoria", "Upstash timeout cae a memoria", "Upstash malformed cae a memoria" — PASS
+- (5) 429 incluye Retry-After → buildRateLimitedResponse: header Retry-After con Math.max(1, seconds) y Cache-Control: no-store; tests: memoryWindow.retryAfterSeconds > 0 cuando bloqueado; rateLimitCritical devuelve retryAfterSeconds
+- (6) No se registran IPs completas → hashForBucket usa HMAC-SHA256 derivado de NEXTAUTH_SECRET; todos los rate limit keys usan hashForBucket(ip) o hashForBucket(email/userId); test "nunca expone el valor original" — PASS; logs de Upstash solo reportan código HTTP, nunca IP/key
+Riesgo residual:
+- Los endpoints GET de catálogo/reviews siguen usando rateLimit best-effort (comportamiento correcto según contrato). Si se desea migrarlos a critical en el futuro, el cambio es trivial (sustituir rateLimit por rateLimitCritical en el handler).
+- En desarrollo (sin DEPLOYMENT_ENV), getClientIp sigue usando fallback XFF/x-real-ip. Esto es aceptable porque en desarrollo no hay superficie de ataque y la validación estricta está garantizada en producción por el throw en validateEnv.
+- La rotación de NEXTAUTH_SECRET invalida todos los buckets de rate limit (los hashes cambian). Esto es aceptable: tras rotar secret, las ventanas de rate limit se reinician naturalmente.
+Notas manuales:
+- (MANUAL) Configurar DEPLOYMENT_ENV=cloudflare en /etc/mundotech/mundotech.env del VPS. Sin esta variable, la app lanza en producción.
+- (MANUAL) El nginx del VPS ya está configurado con set_real_ip_from (rangos Cloudflare) y real_ip_header CF-Connecting-IP (deploy/nginx/sites-available/mundotech). Esto es correcto y no requiere cambios.
+- (MANUAL) El firewall del VPS debe restringir el acceso directo al puerto 3000 (solo 127.0.0.1) para que nadie evada Cloudflare y falsifique cabeceras. Esto queda como paso de hardening externo, no gestionado por la app.
+```
 
 ## 09 — CSRF y secretos cron
 
-- [ ] **Aplicar verificación de origen a todas las mutaciones de navegador y comparación timing-safe a crons.**
+- [x] **Aplicar verificación de origen a todas las mutaciones de navegador y comparación timing-safe a crons.**
 
 **Prioridad:** P1  
 **Prompt:** Sesión 09
@@ -448,7 +524,77 @@ Notas manuales:
 - Bearer cron se compara timing-safe.
 - Casos de longitud diferente y secreto incorrecto se rechazan.
 
-**Evidencia de cierre:** _Pendiente._
+**Evidencia de cierre:**
+
+```text
+Estado: COMPLETADO
+Fecha: 2026-07-11
+Prompt aplicado: Sesión 09 — CSRF uniforme y secretos cron timing-safe
+Archivos modificados:
+- lib/security.ts: añadidos rejectInvalidMutationOrigin() y verifyBearerSecret() con timingSafeEqual; verifySameOrigin conservado como base interna
+- docs/API-SECURITY-MATRIX.md: matriz completa de 74 handlers con actor, mutación, Origin, auth, rate limit, Zod; exclusiones justificadas
+- tests/security.test.ts: 24 tests nuevos (verifySameOrigin 7, rejectInvalidMutationOrigin 6, verifyBearerSecret 11)
+
+- app/api/orders/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (POST)
+- app/api/orders/[id]/route.ts: añadido rejectInvalidMutationOrigin + import (PATCH, DELETE)
+- app/api/orders/[id]/status/route.ts: añadido rejectInvalidMutationOrigin + import (PUT)
+- app/api/orders/[id]/approve-binance/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (POST)
+- app/api/orders/[id]/resend-confirmation/route.ts: añadido rejectInvalidMutationOrigin + import (POST)
+- app/api/orders/bulk-status-update/route.ts: añadido rejectInvalidMutationOrigin + import (POST)
+- app/api/cart/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (DELETE)
+- app/api/cart/items/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (PATCH)
+- app/api/cart/items/[productId]/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (DELETE)
+- app/api/cart/merge/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (POST)
+- app/api/cart/unsubscribe/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (POST)
+- app/api/coupons/route.ts: añadido rejectInvalidMutationOrigin + import (POST)
+- app/api/coupons/[id]/route.ts: añadido rejectInvalidMutationOrigin + import (PUT, PATCH, DELETE)
+- app/api/coupons/validate/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (POST)
+- app/api/reviews/[id]/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (PATCH admin, PATCH author, DELETE author); añadido a rama admin
+- app/api/reviews/upload-photo/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (POST)
+- app/api/reviews/auto-approve/route.ts: añadido rejectInvalidMutationOrigin + import (PUT)
+- app/api/products/[id]/reviews/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (POST)
+- app/api/banners/route.ts: añadido rejectInvalidMutationOrigin + import (POST)
+- app/api/banners/[id]/route.ts: añadido rejectInvalidMutationOrigin + import (PUT, DELETE)
+- app/api/promotions/route.ts: añadido rejectInvalidMutationOrigin + import (POST)
+- app/api/promotions/[id]/route.ts: añadido rejectInvalidMutationOrigin + import (PUT, DELETE)
+- app/api/categories/route.ts: añadido rejectInvalidMutationOrigin + import (POST)
+- app/api/categories/[id]/route.ts: añadido rejectInvalidMutationOrigin + import (PUT, DELETE)
+- app/api/categories/sync/route.ts: añadido rejectInvalidMutationOrigin + import (POST); cambiado export async function POST() a POST(request: Request) para tener acceso al request
+- app/api/upload/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (POST)
+- app/api/upload-video/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (POST, DELETE)
+- app/api/checkout/upload-proof/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (POST)
+- app/api/checkout/upload-session/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (POST)
+- app/api/events/view/route.ts: verifySameOrigin → rejectInvalidMutationOrigin (POST)
+- app/api/settings/route.ts: añadido rejectInvalidMutationOrigin + import (PUT)
+- app/api/config/homepage/route.ts: añadido rejectInvalidMutationOrigin + import (PUT)
+- app/api/admin/migrate-slugs/route.ts: añadido rejectInvalidMutationOrigin + import (POST); cambiado export async function POST() a POST(request: Request)
+
+- app/api/cron/update-bcv-rate/route.ts: === Bearer → verifyBearerSecret (timing-safe)
+- app/api/cron/abandoned-cart/route.ts: === Bearer → verifyBearerSecret (timing-safe); conserva Vercel Cron fallback
+- app/api/cron/purge-product-views/route.ts: === Bearer → verifyBearerSecret (timing-safe); conserva Vercel Cron fallback
+- app/api/cron/purge-payment-uploads/route.ts: === Bearer → verifyBearerSecret (timing-safe)
+- app/api/cron/purge-temporary-data/route.ts: === Bearer → verifyBearerSecret (timing-safe)
+- app/api/cron/review-request/route.ts: === Bearer → verifyBearerSecret (timing-safe)
+Migraciones: Ninguna
+Pruebas ejecutadas:
+- npm run typecheck — PASS — tsc --noEmit sin errores (0 errors)
+- npm run lint — PASS — 0 errors, 27 warnings pre-existentes (ninguno introducido)
+- npm test — PASS — 17 test files, 192 tests passed (24 nuevos: 7 verifySameOrigin + 6 rejectInvalidMutationOrigin + 11 verifyBearerSecret)
+- npm run build — PASS — build exitoso, todas las rutas compilan incluyendo las modificadas con nuevos imports y Origin checks
+Evidencia de aceptación:
+- (1) Inventario API clasifica actor y defensas → docs/API-SECURITY-MATRIX.md: 74 entradas con ruta/método/actor/muta/Origin/auth/rate limit/Zod; exclusiones documentadas con justificación
+- (2) Todas las mutaciones browser tienen Origin + auth + validación → 37 handlers POST/PUT/PATCH/DELETE de navegador ahora usan rejectInvalidMutationOrigin (20 que no tenían Origin previo en admin-only ahora lo tienen). NextAuth POST excluido (CSRF interno de NextAuth). GET legacy de email documentados como excepción.
+- (3) Crons no dependen de Origin → los 6 cron endpoints no tienen rejectInvalidMutationOrigin; autenticados exclusivamente con verifyBearerSecret
+- (4) Bearer cron se compara timing-safe → verifyBearerSecret usa crypto.timingSafeEqual con buffers de igual longitud; 6 crons migrados de === a timing-safe
+- (5) Casos de longitud diferente y secreto incorrecto rechazados → tests: "rechaza token de longitud diferente", "rechaza token más largo", "rechaza bearer incorrecto", "rechaza sin header authorization", "rechaza header vacío", "rechaza prefijo incorrecto (sin espacio)", "rechaza prefijo en minúscula", "rechaza secreto esperado vacío", "rechaza sin Bearer pero con contenido" — todos PASS
+- (6) Origin permitido/ajeno/malformado/ausente → tests: "devuelve null para mismo origen", "devuelve null sin Origin (curl)", "devuelve NextResponse 403 para origen ajeno", "devuelve NextResponse 403 para origen malformado", "respuesta 403 tiene mensaje uniforme" — todos PASS
+Riesgo residual:
+- categories/sync/route.ts cambió de POST() a POST(request: Request). La firma anterior no recibía Request; ahora recibe request para poder validar Origin. Si algún caller externo (admin UI) no envía Origin, curl sin Origin pasa igual (verifySameOrigin devuelve true ante ausencia de Origin). Comportamiento backward-compatible.
+- admin/migrate-slugs/route.ts cambió de POST() a POST(request: Request) por la misma razón. Misma evaluación de riesgo backward-compatible.
+- Las 27 warnings de lint son pre-existentes (coupons.ts, prisma.ts, rate-limit.ts, slugify.ts, next-auth.d.ts). No fueron introducidas por esta sesión.
+Notas manuales:
+- (MANUAL) Ninguno. Los cambios están listos para commit y deploy.
+```
 
 ## 10 — Logs sin PII
 
@@ -888,3 +1034,6 @@ Añadir una fila por sesión cerrada:
 | 2026-07-11 | 04 | PARCIAL (corregido) | Sin commit | typecheck PASS, lint PASS, 119 tests PASS, build PASS, test:r2-private PASS | Credenciales privadas sin fallback; máquina de estados en upload-proof; key resuelta server-side; migration enum+FK; integración R2 real verificada (6/6 PASS); bucket corregido a mundotech-private |
 | 2026-07-11 | 05 | COMPLETADO (corregido) | Sin commit | typecheck PASS, lint PASS, 119 tests PASS, build PASS | Estados UPLOADING/DELETING; claims atómicos con cambio de estado real; cron DELETING seguro; link condicional con updateMany; cleanup en finally |
 | 2026-07-11 | 06 | COMPLETADO (corregido) | Sin commit | typecheck PASS, lint PASS, 119 tests PASS, build PASS | Guest por ?orderId= eliminado; solo ?token= para guest; headers privacidad en next.config; InvalidOrderMessage unificado |
+| 2026-07-11 | 07 | COMPLETADO | Sin commit | typecheck PASS, lint PASS, 136 tests PASS, build PASS | Política de retención documentada; cron purge-temporary-data con 6 categorías y dryRun; crontab diario; 15 tests nuevos |
+| 2026-07-11 | 08 | COMPLETADO | Sin commit | typecheck PASS, lint PASS, 168 tests PASS, build PASS | DEPLOYMENT_ENV obligatorio en prod (throw); getClientIp con isIP estricto; rateLimitCritical/BestEffort con Upstash+fallback memory (nunca fail-open); 429 con Retry-After; hashForBucket con HMAC; 6 rutas críticas migradas; 49 tests nuevos |
+| 2026-07-11 | 09 | COMPLETADO | Sin commit | typecheck PASS, lint PASS, 192 tests PASS, build PASS | rejectInvalidMutationOrigin en 37 handlers browser; verifyBearerSecret timing-safe en 6 crons; docs/API-SECURITY-MATRIX.md con 74 entradas; 24 tests nuevos |

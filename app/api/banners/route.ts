@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/api-auth';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { isSafeEditableImageUrl, isSafeEditableLink } from '@/lib/safe-link';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 const FOCAL_POINTS = [
   'center',
@@ -85,6 +86,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

@@ -17,8 +17,8 @@ import { roundMoney2 } from '@/lib/exchange-rate';
 import { readSettings } from '@/lib/data-store';
 import { markCartRecovered } from '@/lib/abandoned-cart';
 import { sendOrderConfirmationEmail } from '@/lib/resend';
-import { rateLimit, getClientIp } from '@/lib/rate-limit';
-import { verifySameOrigin } from '@/lib/security';
+import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit';
+import { rejectInvalidMutationOrigin, buildRateLimitedResponse } from '@/lib/security';
 import { d, dn } from '@/lib/decimal';
 import { hashToken } from '@/lib/security';
 import { CHECKOUT_MODE } from '@/lib/checkout-mode';
@@ -159,27 +159,23 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   // Mitigación CSRF: peticiones de navegador desde otro origen se rechazan
-  if (!verifySameOrigin(request)) {
-    return NextResponse.json({ message: 'Origen no permitido.' }, { status: 403 });
-  }
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
 
   const ip = getClientIp(request);
-  if (await rateLimit(`orders:post:ip:${ip}`, { limit: 5, windowMs: 60_000 })) {
-    return NextResponse.json(
-      { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
-      { status: 429 }
-    );
+  const ipResult = await rateLimitCritical(`orders:post:ip:${hashForBucket(ip)}`, { limit: 5, windowMs: 60_000 });
+  if (ipResult.limited) {
+    return buildRateLimitedResponse(ipResult.retryAfterSeconds,
+      'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.');
   }
 
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   const isGuest = !userId || userId === 'guest';
 
-  if (!isGuest && (await rateLimit(`orders:post:user:${userId}`, { limit: 5, windowMs: 60_000 }))) {
-    return NextResponse.json(
-      { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
-      { status: 429 }
-    );
+  if (!isGuest && (await rateLimitCritical(`orders:post:user:${hashForBucket(userId!)}`, { limit: 5, windowMs: 60_000 })).limited) {
+    return buildRateLimitedResponse(60,
+      'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.');
   }
 
   try {
@@ -219,11 +215,9 @@ export async function POST(request: Request) {
           );
         }
         // Rate limit adicional por email: un mismo invitado no puede spamear pedidos.
-        if (await rateLimit(`orders:post:guest:${guestEmail}`, { limit: 5, windowMs: 60_000 })) {
-          return NextResponse.json(
-            { message: 'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.' },
-            { status: 429 }
-          );
+        if ((await rateLimitCritical(`orders:post:guest:${hashForBucket(guestEmail)}`, { limit: 5, windowMs: 60_000 })).limited) {
+          return buildRateLimitedResponse(60,
+            'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.');
         }
       }
     }

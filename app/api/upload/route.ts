@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/api-auth';
 import { rateLimit } from '@/lib/rate-limit';
-import { verifySameOrigin } from '@/lib/security';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { detectImageMimeFromBuffer, isAllowedAdminUploadMime } from '@/lib/detect-image-mime';
 import { processImage } from '@/lib/image-processing';
 import { buildKey, uploadToR2, type R2Folder } from '@/lib/r2';
@@ -25,7 +25,7 @@ const UPLOAD_BY_PURPOSE: Record<
 
 export async function POST(request: Request) {
   // PRD-046: mitigación CSRF (sesión admin podría ser forzada cross-site).
-  if (!verifySameOrigin(request)) {
+  if (!rejectInvalidMutationOrigin(request)) {
     return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
   }
 

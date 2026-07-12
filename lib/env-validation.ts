@@ -33,6 +33,27 @@ const REQUIRED_IN_PRODUCTION = [
 /** PRD-060: valores admitidos para DEPLOYMENT_ENV (extracción segura de IP). */
 const VALID_DEPLOYMENT_ENVS = ['vercel', 'cloudflare'] as const;
 
+/**
+ * SESIÓN 07: valida que TEMP_TOKEN_RETENTION_DAYS y DELETED_UPLOAD_RETENTION_DAYS
+ * sean enteros en el rango 1..365. En desarrollo se usan defaults si faltan;
+ * en producción se omite la categoría si la variable no está definida.
+ */
+function validateRetentionDays(name: string, value: string | undefined): number | null {
+  if (!value?.trim()) return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 365) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const msg =
+      `[env] ${name}="${value}" no es válido. Debe ser un entero entre 1 y 365.`;
+    if (isProduction) {
+      throw new Error(`${msg} Revisa .env.example.`);
+    }
+    console.warn(msg);
+    return null;
+  }
+  return parsed;
+}
+
 let validated = false;
 
 export function validateEnv(): void {
@@ -70,9 +91,13 @@ export function validateEnv(): void {
     console.warn(msg);
   }
 
-  // PRD-060: si DEPLOYMENT_ENV está definida, debe ser un valor conocido —
-  // un typo ("Vercel", "vercell") degradaría en silencio la extracción de IP
-  // y haría evadible el rate limiting (PRD-103).
+  // SESIÓN 07: validar variables de retención
+  validateRetentionDays('TEMP_TOKEN_RETENTION_DAYS', process.env.TEMP_TOKEN_RETENTION_DAYS);
+  validateRetentionDays('DELETED_UPLOAD_RETENTION_DAYS', process.env.DELETED_UPLOAD_RETENTION_DAYS);
+
+  // SESIÓN 08: sin DEPLOYMENT_ENV en producción la IP del cliente se extrae
+  // de cabeceras falsificables → rate limit evadible. Ahora es OBLIGATORIO:
+  // producción sin proxy confiable debe lanzar temprano.
   const deploymentEnv = process.env.DEPLOYMENT_ENV?.trim().toLowerCase();
   if (deploymentEnv && !(VALID_DEPLOYMENT_ENVS as readonly string[]).includes(deploymentEnv)) {
     const msg =
@@ -84,13 +109,12 @@ export function validateEnv(): void {
     console.warn(msg);
   }
 
-  // PRD-103: sin DEPLOYMENT_ENV en producción la IP del cliente se extrae de
-  // cabeceras falsificables → rate limit evadible. Solo advertencia (no todos
-  // los despliegues están detrás de Vercel/Cloudflare).
   if (isProduction && !deploymentEnv) {
-    console.warn(
-      '[env] DEPLOYMENT_ENV no está configurada. Configura DEPLOYMENT_ENV=vercel ' +
-        '(o cloudflare) para que el rate limiting use la IP real del cliente.',
+    throw new Error(
+      '[env] DEPLOYMENT_ENV es obligatorio en producción. ' +
+        'Configura DEPLOYMENT_ENV=cloudflare (para el VPS detrás de Cloudflare) ' +
+        'o DEPLOYMENT_ENV=vercel (si despliegas en Vercel). ' +
+        'Sin un proxy de confianza, las IPs de cliente son falsificables y el rate limiting es evadible.',
     );
   }
 }

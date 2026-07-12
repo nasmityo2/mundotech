@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { rateLimit, getClientIp } from '@/lib/rate-limit';
-import { verifySameOrigin, hashToken } from '@/lib/security';
+import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit';
+import { rejectInvalidMutationOrigin, hashToken, buildRateLimitedResponse } from '@/lib/security';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,16 +22,14 @@ const TOKEN_EXPIRY_MS = 30 * 60 * 1000; // 30 minutos
  * Rate limit: 10 tokens por IP cada 10 minutos.
  */
 export async function POST(request: Request) {
-  if (!verifySameOrigin(request)) {
-    return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
-  }
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
 
   const ip = getClientIp(request);
-  if (await rateLimit(`upload-session:ip:${ip}`, { limit: 10, windowMs: 10 * 60_000 })) {
-    return NextResponse.json(
-      { error: 'Demasiadas solicitudes. Espera unos minutos.' },
-      { status: 429 },
-    );
+  const rateResult = await rateLimitCritical(`upload-session:ip:${hashForBucket(ip)}`, { limit: 10, windowMs: 10 * 60_000 });
+  if (rateResult.limited) {
+    return buildRateLimitedResponse(rateResult.retryAfterSeconds,
+      'Demasiadas solicitudes. Espera unos minutos.');
   }
 
   try {

@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { isAdminRole } from '@/lib/api-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
-import { verifySameOrigin } from '@/lib/security';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { reviewToClient, reviewInputSchema, readReviewsAutoApprove } from '@/lib/reviews';
 import { VALID_REVIEW_STATUSES } from '@/lib/definitions';
 
@@ -59,6 +59,8 @@ export async function PATCH(
 
   // ── Rama admin: moderación (sin cambios de comportamiento) ────────────────
   if (isAdmin) {
+    const originCheck = rejectInvalidMutationOrigin(request);
+    if (originCheck) return originCheck;
     const parsed = adminPatchSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -89,7 +91,7 @@ export async function PATCH(
   }
 
   // ── Rama autor (PRD-162) ───────────────────────────────────────────────────
-  if (!verifySameOrigin(request)) {
+  if (!rejectInvalidMutationOrigin(request)) {
     return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
   }
   const ip = getClientIp(request);
@@ -175,7 +177,7 @@ export async function DELETE(
     }
 
     // ── Rama autor (PRD-162) ──────────────────────────────────────────────
-    if (!verifySameOrigin(request)) {
+    if (!rejectInvalidMutationOrigin(request)) {
       return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
     }
     const ip = getClientIp(request);

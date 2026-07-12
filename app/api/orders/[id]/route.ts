@@ -8,6 +8,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order';
 import { trackingUrlSchema, trackingPhotoUrlSchema } from '@/lib/tracking-url-validation';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 export async function GET(
   _request: Request,
@@ -64,6 +65,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 
@@ -124,6 +128,9 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = rejectInvalidMutationOrigin(_req);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

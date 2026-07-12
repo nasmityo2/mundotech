@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { revalidatePath, revalidateTag } from 'next/cache';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 const categorySchema = z.object({
   name:        z.string().trim().min(1).max(80),
@@ -58,6 +59,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

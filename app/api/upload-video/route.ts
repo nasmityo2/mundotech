@@ -7,7 +7,7 @@ import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import { requireAdmin } from '@/lib/api-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
-import { verifySameOrigin } from '@/lib/security';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 import {
   detectVideoContainerFromBuffer,
   isAllowedVideoExtension,
@@ -157,7 +157,7 @@ async function processVideoJob(
 }
 
 export async function POST(request: Request) {
-  if (!verifySameOrigin(request)) {
+  if (!rejectInvalidMutationOrigin(request)) {
     return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
   }
 
@@ -248,7 +248,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  if (!verifySameOrigin(request)) {
+  if (!rejectInvalidMutationOrigin(request)) {
     return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
   }
 

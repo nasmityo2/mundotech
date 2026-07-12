@@ -3,8 +3,8 @@ import { getServerSession } from 'next-auth/next';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { rateLimit, getClientIp } from '@/lib/rate-limit';
-import { verifySameOrigin } from '@/lib/security';
+import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit';
+import { rejectInvalidMutationOrigin, buildRateLimitedResponse } from '@/lib/security';
 import { validateCouponForCheckout } from '@/lib/coupons';
 import { loadExchangeRateUsdBsFromTx, roundMoney2 } from '@/lib/exchange-rate';
 import { d } from '@/lib/decimal';
@@ -28,16 +28,14 @@ const schema = z.object({
  * No incrementa usos: solo previsualiza el descuento para la UI del checkout.
  */
 export async function POST(request: Request) {
-  if (!verifySameOrigin(request)) {
-    return NextResponse.json({ valid: false, reason: 'Origen no permitido.' }, { status: 403 });
-  }
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
 
   const ip = getClientIp(request);
-  if (await rateLimit(`coupons:validate:ip:${ip}`, { limit: 30, windowMs: 60_000 })) {
-    return NextResponse.json(
-      { valid: false, reason: 'Demasiados intentos. Espera un momento.' },
-      { status: 429 }
-    );
+  const ipResult = await rateLimitCritical(`coupons:validate:ip:${hashForBucket(ip)}`, { limit: 30, windowMs: 60_000 });
+  if (ipResult.limited) {
+    return buildRateLimitedResponse(ipResult.retryAfterSeconds,
+      'Demasiados intentos. Espera un momento.');
   }
 
   try {
@@ -54,11 +52,9 @@ export async function POST(request: Request) {
 
     // PRD-160: límite adicional POR USUARIO — el límite por IP no frena fuerza
     // bruta de códigos desde redes compartidas/rotativas con sesión válida.
-    if (userId && (await rateLimit(`coupons:validate:user:${userId}`, { limit: 15, windowMs: 60_000 }))) {
-      return NextResponse.json(
-        { valid: false, reason: 'Demasiados intentos. Espera un momento.' },
-        { status: 429 }
-      );
+    if (userId && (await rateLimitCritical(`coupons:validate:user:${hashForBucket(userId)}`, { limit: 15, windowMs: 60_000 })).limited) {
+      return buildRateLimitedResponse(60,
+        'Demasiados intentos. Espera un momento.');
     }
 
     const { code, items } = parsed.data;

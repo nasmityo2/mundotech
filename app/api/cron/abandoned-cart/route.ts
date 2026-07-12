@@ -8,6 +8,7 @@ import {
 } from '@/lib/abandoned-cart';
 import { prisma } from '@/lib/prisma';
 import { sendAbandonedCartEmail } from '@/lib/resend';
+import { verifyBearerSecret } from '@/lib/security';
 
 /**
  * GET /api/cron/abandoned-cart
@@ -16,7 +17,7 @@ import { sendAbandonedCartEmail } from '@/lib/resend';
  *   - 24 h: carritos PENDING con lastActivityAt > 24 h.
  *   - 72 h: carritos EMAILED_24H con emailSentAt > 48 h adicionales.
  *
- * Protección: requiere Authorization: Bearer <CRON_SECRET>
+ * Protección: requiere Authorization: Bearer <CRON_SECRET> (timing-safe)
  * (o el header x-vercel-cron si se ejecuta desde Vercel Cron).
  *
  * Variables de entorno necesarias:
@@ -27,11 +28,8 @@ export const dynamic = 'force-dynamic';
 function isAuthorized(req: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET;
 
-  // Llamada autenticada con el secreto (funciona en cualquier entorno)
-  if (cronSecret) {
-    const auth = req.headers.get('authorization') ?? '';
-    if (auth === `Bearer ${cronSecret}`) return true;
-  }
+  // Llamada autenticada con el secreto (timing-safe, funciona en cualquier entorno)
+  if (cronSecret && verifyBearerSecret(req, cronSecret)) return true;
 
   // Header de Vercel Cron: solo es confiable cuando realmente corremos EN
   // Vercel (la plataforma lo inyecta y un cliente externo no puede llegar con

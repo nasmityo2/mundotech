@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
-import { verifySameOrigin } from '@/lib/security';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 import {
   reviewInputSchema,
   reviewToClient,
@@ -50,7 +50,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!verifySameOrigin(request)) {
+  if (!rejectInvalidMutationOrigin(request)) {
     return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
   }
 

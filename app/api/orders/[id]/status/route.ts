@@ -8,6 +8,7 @@ import { orderPathSegment } from '@/lib/order-ref';
 import { sendOrderDeliveredEmail, sendShippingEmail, sendOrderCancelledEmail } from '@/lib/resend';
 import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order';
 import { trackingUrlSchema, trackingPhotoUrlSchema } from '@/lib/tracking-url-validation';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 type OrderWithRelations = Prisma.OrderGetPayload<{
   include: { items: true; customer: { select: { email: true; name: true } } };
@@ -34,6 +35,9 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

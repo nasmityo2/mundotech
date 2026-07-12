@@ -6,7 +6,8 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import type { JWT } from 'next-auth/jwt';
 import type { Session } from 'next-auth';
-import { rateLimit, getClientIp } from '@/lib/rate-limit';
+import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit';
+import { buildRateLimitedResponse } from '@/lib/security';
 
 const googleId     = process.env.GOOGLE_CLIENT_ID;
 const googleSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -177,11 +178,11 @@ const nextAuthHandler = NextAuth(authOptions);
 
 /** SHA-256 corto para no usar el email en claro como clave de rate limit. */
 function emailBucket(email: string): string {
-  return createHash('sha256').update(email.trim().toLowerCase()).digest('hex').slice(0, 24);
+  return hashForBucket(email);
 }
 
 /**
- * Wrapper con rate limiting sobre el handler de NextAuth.
+ * Wrapper con rate limiting CRÍTICO sobre el handler de NextAuth.
  * - 10 POST por IP por minuto (fuerza bruta general sobre Credentials).
  * - PRD-242: bucket secundario por email en /callback/credentials — un
  *   atacante que rota IPs contra un mismo correo también queda frenado.
@@ -189,11 +190,10 @@ function emailBucket(email: string): string {
 async function handler(req: Request, ctx: unknown) {
   if (req.method === 'POST') {
     const ip = getClientIp(req);
-    if (await rateLimit(`auth:${ip}`, { limit: 10, windowMs: 60_000 })) {
-      return new Response(
-        JSON.stringify({ error: 'Demasiados intentos de inicio de sesión. Intenta de nuevo en un minuto.' }),
-        { status: 429, headers: { 'Content-Type': 'application/json' } }
-      );
+    const ipResult = await rateLimitCritical(`auth:${hashForBucket(ip)}`, { limit: 10, windowMs: 60_000 });
+    if (ipResult.limited) {
+      return buildRateLimitedResponse(ipResult.retryAfterSeconds,
+        'Demasiados intentos de inicio de sesión. Intenta de nuevo en un minuto.');
     }
 
     if (new URL(req.url).pathname.endsWith('/callback/credentials')) {
@@ -201,15 +201,13 @@ async function handler(req: Request, ctx: unknown) {
         const form = await req.clone().formData();
         const email = String(form.get('email') ?? '').trim().toLowerCase();
         if (email) {
-          const blocked = await rateLimit(`auth:email:${emailBucket(email)}`, {
+          const emailResult = await rateLimitCritical(`auth:email:${emailBucket(email)}`, {
             limit: 10,
             windowMs: 15 * 60_000,
           });
-          if (blocked) {
-            return new Response(
-              JSON.stringify({ error: 'Demasiados intentos para este correo. Espera unos minutos.' }),
-              { status: 429, headers: { 'Content-Type': 'application/json' } }
-            );
+          if (emailResult.limited) {
+            return buildRateLimitedResponse(emailResult.retryAfterSeconds,
+              'Demasiados intentos para este correo. Espera unos minutos.');
           }
         }
       } catch {

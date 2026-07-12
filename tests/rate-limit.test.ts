@@ -1,0 +1,400 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {
+  memoryWindow,
+  getClientIp,
+  hashForBucket,
+  rateLimitCritical,
+  rateLimitBestEffort,
+  rateLimit,
+  __memoryStoreClear,
+  __memoryClearByPrefix,
+} from '@/lib/rate-limit';
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+function mockRequest(headers: Record<string, string>): Request {
+  return new Request('https://mundotechve.com/api/test', {
+    headers: new Headers(headers),
+  });
+}
+
+/** Espera al menos `ms` milisegundos. */
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// ── getClientIp ────────────────────────────────────────────────────────────
+
+describe('getClientIp', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  describe('cloudflare', () => {
+    beforeEach(() => {
+      process.env.DEPLOYMENT_ENV = 'cloudflare';
+    });
+
+    it('acepta cf-connecting-ip válido', () => {
+      const req = mockRequest({ 'cf-connecting-ip': '1.2.3.4' });
+      expect(getClientIp(req)).toBe('1.2.3.4');
+    });
+
+    it('acepta IPv6 cf-connecting-ip', () => {
+      const req = mockRequest({ 'cf-connecting-ip': '::1' });
+      expect(getClientIp(req)).toBe('::1');
+    });
+
+    it('rechaza cf-connecting-ip no-IP y devuelve unknown', () => {
+      const req = mockRequest({ 'cf-connecting-ip': 'not-an-ip' });
+      expect(getClientIp(req)).toBe('unknown');
+    });
+
+    it('devuelve unknown si cf-connecting-ip ausente', () => {
+      const req = mockRequest({ 'x-forwarded-for': '1.2.3.4' });
+      expect(getClientIp(req)).toBe('unknown');
+    });
+
+    it('rechaza cf-connecting-ip vacío', () => {
+      const req = mockRequest({ 'cf-connecting-ip': '  ' });
+      expect(getClientIp(req)).toBe('unknown');
+    });
+
+    it('NO cae a XFF si cf-connecting-ip es inválido', () => {
+      const req = mockRequest({
+        'cf-connecting-ip': 'not-ip',
+        'x-forwarded-for': '10.0.0.1, 1.2.3.4',
+      });
+      expect(getClientIp(req)).toBe('unknown');
+    });
+  });
+
+  describe('vercel', () => {
+    beforeEach(() => {
+      process.env.DEPLOYMENT_ENV = 'vercel';
+    });
+
+    it('acepta primer x-vercel-forwarded-for', () => {
+      const req = mockRequest({ 'x-vercel-forwarded-for': '4.5.6.7, 8.9.10.11' });
+      expect(getClientIp(req)).toBe('4.5.6.7');
+    });
+
+    it('rechaza x-vercel-forwarded-for no-IP', () => {
+      const req = mockRequest({ 'x-vercel-forwarded-for': 'garbage' });
+      expect(getClientIp(req)).toBe('unknown');
+    });
+
+    it('devuelve unknown si x-vercel-forwarded-for ausente', () => {
+      const req = mockRequest({ 'x-forwarded-for': '1.2.3.4' });
+      expect(getClientIp(req)).toBe('unknown');
+    });
+  });
+
+  describe('desarrollo (sin DEPLOYMENT_ENV)', () => {
+    it('toma último XFF si es IP válida', () => {
+      const req = mockRequest({
+        'x-forwarded-for': 'evil.1, 1.2.3.4',
+      });
+      expect(getClientIp(req)).toBe('1.2.3.4');
+    });
+
+    it('cae a x-real-ip si XFF es inválido', () => {
+      const req = mockRequest({
+        'x-forwarded-for': 'not-ip',
+        'x-real-ip': '9.9.9.9',
+      });
+      expect(getClientIp(req)).toBe('9.9.9.9');
+    });
+
+    it('devuelve unknown si todo ausente', () => {
+      const req = mockRequest({});
+      expect(getClientIp(req)).toBe('unknown');
+    });
+  });
+});
+
+// ── hashForBucket ──────────────────────────────────────────────────────────
+
+describe('hashForBucket', () => {
+  it('produce hash determinista', () => {
+    const a = hashForBucket('1.2.3.4');
+    const b = hashForBucket('1.2.3.4');
+    expect(a).toBe(b);
+  });
+
+  it('diferentes entradas producen diferentes hashes', () => {
+    const a = hashForBucket('1.2.3.4');
+    const b = hashForBucket('5.6.7.8');
+    expect(a).not.toBe(b);
+  });
+
+  it('normaliza a minúsculas', () => {
+    const a = hashForBucket('USER@MAIL.COM');
+    const b = hashForBucket('user@mail.com');
+    expect(a).toBe(b);
+  });
+
+  it('nunca expone el valor original', () => {
+    const result = hashForBucket('1.2.3.4');
+    expect(result).not.toContain('1.2.3.4');
+  });
+});
+
+// ── memoryWindow ────────────────────────────────────────────────────────────
+
+describe('memoryWindow', () => {
+  beforeEach(() => {
+    __memoryStoreClear();
+  });
+
+  it('permite hasta el límite y bloquea al exceder', () => {
+    const config = { limit: 3, windowMs: 60_000 };
+
+    expect(memoryWindow('test', config)).toEqual({ limited: false, retryAfterSeconds: 0 });
+    expect(memoryWindow('test', config)).toEqual({ limited: false, retryAfterSeconds: 0 });
+    expect(memoryWindow('test', config)).toEqual({ limited: false, retryAfterSeconds: 0 });
+    const blocked = memoryWindow('test', config);
+    expect(blocked.limited).toBe(true);
+    expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
+  });
+
+  it('aisla buckets diferentes', () => {
+    const config = { limit: 1, windowMs: 60_000 };
+
+    expect(memoryWindow('bucket-a', config).limited).toBe(false);
+    expect(memoryWindow('bucket-b', config).limited).toBe(false);
+    // bucket-a llegó al límite, bucket-b no
+    expect(memoryWindow('bucket-a', config).limited).toBe(true);
+    expect(memoryWindow('bucket-b', config).limited).toBe(true);
+  });
+
+  it('reinicia contador tras vencer la ventana', async () => {
+    const config = { limit: 1, windowMs: 100 };
+
+    expect(memoryWindow('sliding', config).limited).toBe(false);
+    // Segundo request bloqueado
+    expect(memoryWindow('sliding', config).limited).toBe(true);
+
+    await sleep(150);
+    // Ventana vencida — se reinicia
+    expect(memoryWindow('sliding', config).limited).toBe(false);
+  });
+
+  it('retryAfterSeconds es conservador', () => {
+    const config = { limit: 1, windowMs: 60_000 };
+
+    memoryWindow('retry', config);
+    const blocked = memoryWindow('retry', config);
+    expect(blocked.limited).toBe(true);
+    expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
+    expect(blocked.retryAfterSeconds).toBeLessThanOrEqual(60);
+  });
+});
+
+// ── rateLimitCritical ──────────────────────────────────────────────────────
+
+describe('rateLimitCritical', () => {
+  beforeEach(() => {
+    __memoryStoreClear();
+  });
+
+  it('usa memoria como fallback cuando no hay Upstash configurado', async () => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    const result1 = await rateLimitCritical('critical-test', { limit: 1, windowMs: 60_000 });
+    expect(result1.limited).toBe(false);
+    expect(result1.source).toBe('memory');
+
+    const result2 = await rateLimitCritical('critical-test', { limit: 1, windowMs: 60_000 });
+    expect(result2.limited).toBe(true);
+    expect(result2.source).toBe('memory');
+  });
+
+  it('nunca hace fail-open — memory usa mismo límite', async () => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    const config = { limit: 2, windowMs: 60_000 };
+    await rateLimitCritical('failopen', config);
+    await rateLimitCritical('failopen', config);
+    const result = await rateLimitCritical('failopen', config);
+    expect(result.limited).toBe(true);
+  });
+
+  it('aislamiento por bucket en critical', async () => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    const config = { limit: 1, windowMs: 60_000 };
+
+    await rateLimitCritical('critical-a', config);
+    const result = await rateLimitCritical('critical-b', config);
+    expect(result.limited).toBe(false);
+  });
+});
+
+// ── rateLimitBestEffort ────────────────────────────────────────────────────
+
+describe('rateLimitBestEffort', () => {
+  beforeEach(() => {
+    __memoryStoreClear();
+  });
+
+  it('usa memoria como fallback', async () => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    const result = await rateLimitBestEffort('be-test', { limit: 1, windowMs: 60_000 });
+    expect(result.source).toBe('memory');
+    expect(result.limited).toBe(false);
+  });
+});
+
+// ── rateLimit (deprecated wrapper) ─────────────────────────────────────────
+
+describe('rateLimit (deprecated)', () => {
+  beforeEach(() => {
+    __memoryStoreClear();
+  });
+
+  it('devuelve booleano (compatibilidad)', async () => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    const ok = await rateLimit('old-api', { limit: 1, windowMs: 60_000 });
+    expect(ok).toBe(false);
+
+    const blocked = await rateLimit('old-api', { limit: 1, windowMs: 60_000 });
+    expect(blocked).toBe(true);
+  });
+});
+
+// ── Upstash simulado ───────────────────────────────────────────────────────
+
+describe('Upstash fallback scenarios', () => {
+  beforeEach(() => {
+    __memoryStoreClear();
+    vi.restoreAllMocks();
+  });
+
+  it('cae a memoria si Upstash devuelve 500', async () => {
+    process.env.UPSTASH_REDIS_REST_URL = 'https://fake.upstash.io';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response('Internal Server Error', { status: 500 }),
+    );
+
+    const result = await rateLimitCritical('upstash-500', { limit: 2, windowMs: 60_000 });
+    expect(result.source).toBe('memory');
+    expect(result.limited).toBe(false);
+  });
+
+  it('cae a memoria si Upstash timeout', async () => {
+    process.env.UPSTASH_REDIS_REST_URL = 'https://fake.upstash.io';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+
+    vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Timeout'));
+
+    const result = await rateLimitCritical('upstash-timeout', { limit: 2, windowMs: 60_000 });
+    expect(result.source).toBe('memory');
+    expect(result.limited).toBe(false);
+  });
+
+  it('cae a memoria si Upstash devuelve respuesta malformada', async () => {
+    process.env.UPSTASH_REDIS_REST_URL = 'https://fake.upstash.io';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify([{ result: 'not-a-number' }]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const result = await rateLimitCritical('upstash-malformed', { limit: 2, windowMs: 60_000 });
+    expect(result.source).toBe('memory');
+    expect(result.limited).toBe(false);
+  });
+
+  it('usa Upstash correctamente cuando responde bien', async () => {
+    process.env.UPSTASH_REDIS_REST_URL = 'https://fake.upstash.io';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+
+    // Simula 2 requests bajo límite de 5
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([{ result: 1 }, { result: 'OK' }]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([{ result: 2 }, { result: 'OK' }]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+
+    const r1 = await rateLimitCritical('upstash-ok', { limit: 5, windowMs: 60_000 });
+    expect(r1.source).toBe('upstash');
+    expect(r1.limited).toBe(false);
+
+    const r2 = await rateLimitCritical('upstash-ok', { limit: 5, windowMs: 60_000 });
+    expect(r2.source).toBe('upstash');
+    expect(r2.limited).toBe(false);
+  });
+
+  it('detecta límite superado en Upstash', async () => {
+    process.env.UPSTASH_REDIS_REST_URL = 'https://fake.upstash.io';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(JSON.stringify([{ result: 6 }, { result: 'OK' }]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    const result = await rateLimitCritical('upstash-over', { limit: 5, windowMs: 60_000 });
+    expect(result.source).toBe('upstash');
+    expect(result.limited).toBe(true);
+    expect(result.retryAfterSeconds).toBeGreaterThan(0);
+  });
+});
+
+// ── Limpieza de Map ────────────────────────────────────────────────────────
+
+describe('memory cleanup', () => {
+  beforeEach(() => {
+    __memoryStoreClear();
+  });
+
+  it('limpia entradas expiradas después del intervalo', async () => {
+    const config = { limit: 1, windowMs: 50 };
+
+    memoryWindow('cleanup-test', config);
+    // Forzar que la ventana expire
+    await sleep(100);
+
+    // Una nueva entrada con window corta debería limpiar la anterior
+    memoryWindow('cleanup-test', { limit: 1, windowMs: 50 });
+    // El contador debería haberse reiniciado (primer request de ventana nueva)
+    expect(memoryWindow('cleanup-test', { limit: 1, windowMs: 50 }).limited).toBe(true);
+  });
+
+  it('__memoryClearByPrefix limpia solo entradas con prefijo', () => {
+    const config = { limit: 1, windowMs: 60_000 };
+
+    memoryWindow('auth:123', config);
+    memoryWindow('orders:456', config);
+
+    __memoryClearByPrefix('auth:');
+
+    // auth debe haberse reiniciado
+    expect(memoryWindow('auth:123', config).limited).toBe(false);
+    // orders sigue bloqueado
+    expect(memoryWindow('orders:456', config).limited).toBe(true);
+  });
+});

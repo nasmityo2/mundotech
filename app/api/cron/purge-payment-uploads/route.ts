@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { deletePrivateProof } from '@/lib/r2';
+import { verifyBearerSecret } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,12 +18,12 @@ const BATCH_LIMIT = 100;
  * Si R2 falla, revierte DELETING → estado anterior (previousStatus) para reintento.
  * Si no hay objectKey, marca DELETED directamente.
  *
- * Protección: Authorization: Bearer <CRON_SECRET>
+ * Protección: Authorization: Bearer <CRON_SECRET> (timing-safe).
  */
 function isAuthorized(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return false;
-  return request.headers.get('authorization') === `Bearer ${cronSecret}`;
+  return verifyBearerSecret(request, cronSecret);
 }
 
 export async function GET(request: Request): Promise<NextResponse> {

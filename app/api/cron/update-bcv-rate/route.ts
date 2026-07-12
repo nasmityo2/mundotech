@@ -4,6 +4,7 @@ import { fetchBcvRate } from '@/lib/bcv-rate';
 import { EXCHANGE_RATE_BCV_DATE_KEY } from '@/lib/exchange-rate';
 import { persistExchangeRateWithBcvDate } from '@/lib/persist-exchange-rate';
 import { prisma } from '@/lib/prisma';
+import { verifyBearerSecret } from '@/lib/security';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -14,7 +15,7 @@ const MAX_RATE_JUMP_RATIO = 0.15;
 function isAuthorized(request: Request): boolean {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return false;
-  return request.headers.get('authorization') === `Bearer ${cronSecret}`;
+  return verifyBearerSecret(request, cronSecret);
 }
 
 async function getStoredBcvDate(): Promise<string | null> {
