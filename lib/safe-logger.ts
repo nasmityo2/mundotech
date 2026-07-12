@@ -30,6 +30,16 @@ const SECRET_PATTERN_RE =
   /\b(cfat_|gh[pousr]_[A-Za-z0-9]+|re_[A-Za-z0-9]+|sk_live_|sk_test_|rk_live_|rk_test_|whsec_|ssec_|acct_)[A-Za-z0-9_-]+\b/g;
 const LABELED_SECRET_RE =
   /\b(password|secret|token|accessKey|privateKey|apiKey|cf_secret|cf_token|signing_secret)\s*[=:]\s*['"]?[A-Za-z0-9_\-./+=%]+/gi;
+const EVENT_RE =
+  /^[a-z0-9_]{1,80}$/;
+const VENEZUELA_PHONE_RE =
+  /(?<!d)(?:\+?58[\s-]?)?0?4(?:12|14|16|24|26)[\s-]?\d{3}[\s-]?\d{4}(?!\d)/g;
+const VENEZUELA_ID_RE =
+  /\b[VEJGP]\s*[-:]?\s*\d{6,9}\b/gi;
+const LABELED_REFERENCE_RE =
+  /\b(reference|referencia|paymentReference)\s*[=:]\s*["']?[A-Za-z0-9-]{4,40}["']?/gi;
+const LABELED_ADDRESS_RE =
+  /\b(address|direccion|dirección|shippingAddress)\s*[=:]\s*["']?.{5,180}["']?/gi;
 
 const MAX_MESSAGE_LENGTH = 500;
 
@@ -45,6 +55,10 @@ export function sanitizeText(value: string): string {
   result = result.replace(BEARER_RE, 'Bearer [REDACTED]');
   result = result.replace(SECRET_PATTERN_RE, '[REDACTED_SECRET]');
   result = result.replace(LABELED_SECRET_RE, '$1=[REDACTED_SECRET]');
+  result = result.replace(VENEZUELA_PHONE_RE, '[REDACTED_PHONE]');
+  result = result.replace(VENEZUELA_ID_RE, '[REDACTED_ID]');
+  result = result.replace(LABELED_REFERENCE_RE, '$1=[REDACTED_REFERENCE]');
+  result = result.replace(LABELED_ADDRESS_RE, '$1=[REDACTED_ADDRESS]');
   result = result.replace(EMAIL_RE, '[REDACTED_EMAIL]');
 
   return result.slice(0, MAX_MESSAGE_LENGTH);
@@ -62,6 +76,48 @@ export function normalizeError(error: unknown): SafeError {
   return { name: 'UnknownError', message: 'Unknown error type (non-serializable)' };
 }
 
+export function sanitizeEvent(event: string): string {
+  const normalized = String(event).trim();
+  return EVENT_RE.test(normalized) ? normalized : 'invalid_log_event';
+}
+
+export function sanitizeContext(context?: SafeLogContext): SafeLogContext | undefined {
+  if (!context) {
+    return undefined;
+  }
+  const safe: SafeLogContext = {};
+  if (context.requestId) {
+    safe.requestId = sanitizeText(context.requestId);
+  }
+  if (context.orderId) {
+    safe.orderId = sanitizeText(context.orderId);
+  }
+  if (context.route) {
+    safe.route = sanitizeText(context.route);
+  }
+  if (context.operation) {
+    safe.operation = sanitizeText(context.operation);
+  }
+  if (typeof context.status === 'string') {
+    safe.status = sanitizeText(context.status);
+  } else if (typeof context.status === 'number' && Number.isFinite(context.status)) {
+    safe.status = context.status;
+  }
+  if (typeof context.count === 'number' && Number.isFinite(context.count)) {
+    safe.count = context.count;
+  }
+  if (typeof context.durationMs === 'number' && Number.isFinite(context.durationMs) && context.durationMs >= 0) {
+    safe.durationMs = context.durationMs;
+  }
+  if (context.errorName) {
+    safe.errorName = sanitizeText(context.errorName);
+  }
+  if (context.provider) {
+    safe.provider = context.provider;
+  }
+  return Object.keys(safe).length > 0 ? safe : undefined;
+}
+
 // ── Entorno productivo ────────────────────────────────────────────────────
 
 function isProduction(): boolean {
@@ -69,13 +125,16 @@ function isProduction(): boolean {
 }
 
 function outputLine(level: LogLevel, event: string, context?: SafeLogContext, safeError?: SafeError): void {
+  const safeEvent = sanitizeEvent(event);
+  const safeContext = sanitizeContext(context);
+
   const line: Record<string, unknown> = {
     timestamp: new Date().toISOString(),
     level,
-    event,
+    event: safeEvent,
   };
-  if (context && Object.keys(context).length > 0) {
-    line.context = context;
+  if (safeContext && Object.keys(safeContext).length > 0) {
+    line.context = safeContext;
   }
   if (safeError) {
     line.error = safeError;
@@ -84,7 +143,6 @@ function outputLine(level: LogLevel, event: string, context?: SafeLogContext, sa
   const jsonLine = JSON.stringify(line);
 
   if (isProduction()) {
-    // Producción: una sola línea JSON
     switch (level) {
       case 'error':
         console.error(jsonLine);
@@ -96,12 +154,11 @@ function outputLine(level: LogLevel, event: string, context?: SafeLogContext, sa
         console.log(jsonLine);
     }
   } else {
-    // Desarrollo: legible pero sanitizado
-    const ctxStr = context && Object.keys(context).length > 0
-      ? ` ctx=${JSON.stringify(context)}`
+    const ctxStr = safeContext && Object.keys(safeContext).length > 0
+      ? ` ctx=${JSON.stringify(safeContext)}`
       : '';
     const errStr = safeError ? ` err=${safeError.name}:${safeError.message}` : '';
-    const msg = `[${event}]${ctxStr}${errStr}`;
+    const msg = `[${safeEvent}]${ctxStr}${errStr}`;
     switch (level) {
       case 'error':
         console.error(msg);
@@ -126,21 +183,26 @@ export function logWarn(event: string, context?: SafeLogContext): void {
 }
 
 export function logError(event: string, error: unknown, context?: SafeLogContext): void {
+  const safeEvent = sanitizeEvent(event);
+  const safeContext = sanitizeContext(context);
   const safeError = normalizeError(error);
 
   // Enviar a Sentry solo en producción con DSN configurado
   if (isProduction() && process.env.SENTRY_DSN) {
-    Sentry.captureException(error, {
+    const sentryError = new Error(safeError.message);
+    sentryError.name = safeError.name;
+
+    Sentry.captureException(sentryError, {
       tags: {
-        event,
-        ...(context?.provider ? { provider: context.provider } : {}),
-        ...(context?.route ? { route: context.route } : {}),
+        event: safeEvent,
+        ...(safeContext?.provider ? { provider: safeContext.provider } : {}),
+        ...(safeContext?.route ? { route: safeContext.route } : {}),
       },
-      extra: context
-        ? { requestId: context.requestId, orderId: context.orderId, operation: context.operation }
+      extra: safeContext
+        ? { requestId: safeContext.requestId, orderId: safeContext.orderId, operation: safeContext.operation }
         : undefined,
     });
   }
 
-  outputLine('error', event, context, safeError);
+  outputLine('error', safeEvent, safeContext, safeError);
 }

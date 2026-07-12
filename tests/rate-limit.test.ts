@@ -26,13 +26,18 @@ function mockRequest(headers: Record<string, string>): Request {
   });
 }
 
+// ── Cleanup global ─────────────────────────────────────────────────────────
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+  __memoryStoreClear();
+});
+
 // ── getClientIp ────────────────────────────────────────────────────────────
 
 describe('getClientIp', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
   describe('cloudflare', () => {
     beforeEach(() => {
       vi.stubEnv('DEPLOYMENT_ENV', 'cloudflare');
@@ -163,10 +168,6 @@ describe('hashForBucket', () => {
 // ── memoryWindow ────────────────────────────────────────────────────────────
 
 describe('memoryWindow', () => {
-  afterEach(() => {
-    __memoryStoreClear();
-    vi.useRealTimers();
-  });
 
   it('permite hasta el límite y bloquea al exceder', () => {
     const config = { limit: 3, windowMs: 60_000 };
@@ -216,13 +217,10 @@ describe('memoryWindow', () => {
 // ── rateLimitCritical ──────────────────────────────────────────────────────
 
 describe('rateLimitCritical', () => {
-  afterEach(() => {
-    __memoryStoreClear();
-  });
 
   it('usa memoria como fallback cuando no hay Upstash configurado', async () => {
-    delete process.env.UPSTASH_REDIS_REST_URL;
-    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', '');
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', '');
 
     const result1 = await rateLimitCritical('critical-test', { limit: 1, windowMs: 60_000 });
     expect(result1.limited).toBe(false);
@@ -234,8 +232,8 @@ describe('rateLimitCritical', () => {
   });
 
   it('nunca hace fail-open — memory usa mismo límite', async () => {
-    delete process.env.UPSTASH_REDIS_REST_URL;
-    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', '');
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', '');
 
     const config = { limit: 2, windowMs: 60_000 };
     await rateLimitCritical('failopen', config);
@@ -245,8 +243,8 @@ describe('rateLimitCritical', () => {
   });
 
   it('aislamiento por bucket en critical', async () => {
-    delete process.env.UPSTASH_REDIS_REST_URL;
-    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', '');
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', '');
 
     const config = { limit: 1, windowMs: 60_000 };
 
@@ -259,13 +257,10 @@ describe('rateLimitCritical', () => {
 // ── rateLimitBestEffort ────────────────────────────────────────────────────
 
 describe('rateLimitBestEffort', () => {
-  afterEach(() => {
-    __memoryStoreClear();
-  });
 
   it('usa memoria como fallback', async () => {
-    delete process.env.UPSTASH_REDIS_REST_URL;
-    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', '');
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', '');
 
     const result = await rateLimitBestEffort('be-test', { limit: 1, windowMs: 60_000 });
     expect(result.source).toBe('memory');
@@ -276,13 +271,10 @@ describe('rateLimitBestEffort', () => {
 // ── rateLimit (deprecated wrapper) ─────────────────────────────────────────
 
 describe('rateLimit (deprecated)', () => {
-  afterEach(() => {
-    __memoryStoreClear();
-  });
 
   it('devuelve booleano (compatibilidad)', async () => {
-    delete process.env.UPSTASH_REDIS_REST_URL;
-    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', '');
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', '');
 
     const ok = await rateLimit('old-api', { limit: 1, windowMs: 60_000 });
     expect(ok).toBe(false);
@@ -295,14 +287,10 @@ describe('rateLimit (deprecated)', () => {
 // ── Upstash simulado ───────────────────────────────────────────────────────
 
 describe('Upstash fallback scenarios', () => {
-  afterEach(() => {
-    __memoryStoreClear();
-    vi.restoreAllMocks();
-  });
 
   it('cae a memoria si Upstash devuelve 500', async () => {
-    process.env.UPSTASH_REDIS_REST_URL = 'https://fake.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', 'https://fake.upstash.io');
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', 'fake-token');
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response('Internal Server Error', { status: 500 }),
@@ -314,8 +302,8 @@ describe('Upstash fallback scenarios', () => {
   });
 
   it('cae a memoria si Upstash timeout', async () => {
-    process.env.UPSTASH_REDIS_REST_URL = 'https://fake.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', 'https://fake.upstash.io');
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', 'fake-token');
 
     vi.spyOn(globalThis, 'fetch').mockRejectedValueOnce(new Error('Timeout'));
 
@@ -325,8 +313,8 @@ describe('Upstash fallback scenarios', () => {
   });
 
   it('cae a memoria si Upstash devuelve respuesta malformada', async () => {
-    process.env.UPSTASH_REDIS_REST_URL = 'https://fake.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', 'https://fake.upstash.io');
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', 'fake-token');
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify([{ result: 'not-a-number' }]), {
@@ -341,8 +329,8 @@ describe('Upstash fallback scenarios', () => {
   });
 
   it('usa Upstash correctamente cuando responde bien', async () => {
-    process.env.UPSTASH_REDIS_REST_URL = 'https://fake.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', 'https://fake.upstash.io');
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', 'fake-token');
 
     // Simula 2 requests bajo límite de 5
     vi.spyOn(globalThis, 'fetch')
@@ -369,8 +357,8 @@ describe('Upstash fallback scenarios', () => {
   });
 
   it('detecta límite superado en Upstash', async () => {
-    process.env.UPSTASH_REDIS_REST_URL = 'https://fake.upstash.io';
-    process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', 'https://fake.upstash.io');
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', 'fake-token');
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify([{ result: 6 }, { result: 'OK' }]), {
@@ -430,10 +418,6 @@ describe('buildRateLimitedResponse', () => {
 // ── Limpieza de Map ────────────────────────────────────────────────────────
 
 describe('memory cleanup', () => {
-  afterEach(() => {
-    __memoryStoreClear();
-    vi.useRealTimers();
-  });
 
   it('limpia entradas expiradas después del intervalo (fake timers)', () => {
     vi.useFakeTimers();

@@ -1,16 +1,29 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@sentry/nextjs', () => ({
+  captureException: vi.fn(),
+}));
+
+import * as Sentry from '@sentry/nextjs';
 import {
   sanitizeText,
   normalizeError,
+  sanitizeEvent,
+  sanitizeContext,
   logInfo,
   logWarn,
   logError,
 } from '@/lib/safe-logger';
 import type { SafeLogContext } from '@/lib/safe-logger';
 
+// ── Cleanup global ─────────────────────────────────────────────────────────
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
 // ── Type-level test helpers ────────────────────────────────────────────────
-// These are compile-time checks — if they pass, types are correct.
-// We verify that an object with `email` key is NOT assignable to SafeLogContext.
 
 // Type-level check: SafeLogContext should NOT allow email as a key
 type _TestContext = SafeLogContext extends { email?: string } ? true : false;
@@ -82,6 +95,32 @@ describe('sanitizeText', () => {
     const result = sanitizeText('Order 1234 was created successfully');
     expect(result).toBe('Order 1234 was created successfully');
   });
+
+  // ── Nuevos patrones de PII ───────────────────────────────────────────────
+
+  it('redacta teléfono venezolano', () => {
+    const result = sanitizeText('phone=0412-123-4567');
+    expect(result).not.toContain('0412-123-4567');
+    expect(result).toContain('[REDACTED_PHONE]');
+  });
+
+  it('redacta cédula venezolana', () => {
+    const result = sanitizeText('customerId=V-12345678');
+    expect(result).not.toContain('V-12345678');
+    expect(result).toContain('[REDACTED_ID]');
+  });
+
+  it('redacta referencia bancaria etiquetada', () => {
+    const result = sanitizeText('paymentReference=123456789');
+    expect(result).not.toContain('123456789');
+    expect(result).toContain('[REDACTED_REFERENCE]');
+  });
+
+  it('redacta dirección etiquetada', () => {
+    const result = sanitizeText('shippingAddress=Carrera 21 con calle 21');
+    expect(result).not.toContain('Carrera 21');
+    expect(result).toContain('[REDACTED_ADDRESS]');
+  });
 });
 
 describe('normalizeError', () => {
@@ -109,11 +148,43 @@ describe('normalizeError', () => {
   });
 });
 
-describe('logInfo / logWarn / logError', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
+describe('sanitizeEvent', () => {
+  it('acepta event name canónico', () => {
+    expect(sanitizeEvent('checkout_failed')).toBe('checkout_failed');
   });
 
+  it('reemplaza evento inválido o con PII', () => {
+    expect(sanitizeEvent('email=user@example.com')).toBe('invalid_log_event');
+  });
+});
+
+describe('sanitizeContext', () => {
+  it('sanitiza strings dentro del contexto', () => {
+    const result = sanitizeContext({
+      requestId: 'req-user@example.com',
+      orderId: 'order-safe',
+      route: '/api/test?token=cfat_abc123',
+      operation: 'send to user@example.com',
+      status: 'Bearer secret-token',
+      errorName: 'error user@example.com',
+      provider: 'resend',
+    });
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('user@example.com');
+    expect(serialized).not.toContain('cfat_abc123');
+    expect(serialized).not.toContain('secret-token');
+  });
+
+  it('omite métricas no finitas o negativas', () => {
+    const result = sanitizeContext({
+      count: Number.NaN,
+      durationMs: -1,
+    });
+    expect(result).toBeUndefined();
+  });
+});
+
+describe('logInfo / logWarn / logError', () => {
   it('logInfo outputs event and optional context', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const ctx: SafeLogContext = { orderId: 'abc123', operation: 'checkout' };
@@ -203,5 +274,52 @@ describe('logInfo / logWarn / logError', () => {
 
     vi.unstubAllEnvs();
     spy.mockRestore();
+  });
+
+  // ── Sentry sanitizado ────────────────────────────────────────────────────
+
+  it('Sentry recibe un Error nuevo y sanitizado', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('SENTRY_DSN', 'https://public@example.ingest.sentry.io/1');
+
+    const originalError = new Error('Failed for user@example.com with Bearer secret-token');
+
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    logError('sentry_test_error', originalError, {
+      operation: 'send to user@example.com',
+      provider: 'resend',
+    });
+
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+
+    const captured = vi.mocked(Sentry.captureException).mock.calls[0]?.[0];
+    expect(captured).toBeInstanceOf(Error);
+    expect(captured).not.toBe(originalError);
+
+    const capturedMessage = (captured as Error).message;
+    expect(capturedMessage).not.toContain('user@example.com');
+    expect(capturedMessage).not.toContain('secret-token');
+
+    const options = vi.mocked(Sentry.captureException).mock.calls[0]?.[1];
+    expect(JSON.stringify(options)).not.toContain('user@example.com');
+
+    consoleSpy.mockRestore();
+  });
+
+  // ── Contexto sanitizado en console ───────────────────────────────────────
+
+  it('outputLine nunca imprime contexto original', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    logError('context_test', new Error('safe'), {
+      operation: 'email=user@example.com',
+    });
+
+    const output = String(spy.mock.calls[0]?.[0] ?? '');
+    expect(output).not.toContain('user@example.com');
+    expect(output).toContain('[REDACTED_EMAIL]');
   });
 });

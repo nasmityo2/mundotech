@@ -473,7 +473,7 @@ Notas manuales:
 **Revisión correctiva (2026-07-11):**
 - Hallazgo: `app/api/cron/purge-temporary-data/route.ts` contenía `totalDeleted > 0 || true` (condición siempre verdadera) y el log de error exponía `err.message` (posible PII). Tests de cutoff incompletos (sin assertions sobre valores exactos de cutoff).
 - Cambio aplicado: Reemplazado el bloque `totalDeleted > 0 || true` por `upsert` incondicional dentro de `if (!dryRun)`. Error log cambiado a solo `errorName` (no expone `err.message`). Tests fortalecidos con `beforeEach/afterEach` globales usando `vi.useFakeTimers`, nueva suite `cutoff values` con verificación de 5 cutoffs (PasswordResetToken 7d, PaymentUpload DELETED 30d, ProductView 90d, AbandonedCart pending 90d, AbandonedCart terminal 365d). Test `dryRun no actualiza AppConfig` ahora verifica `expect(mockPrisma.appConfig.upsert).not.toHaveBeenCalled()`.
-- Prueba: `npm test tests/purge-temporary-data.test.ts` — pendiente de ejecución.
+- Prueba: `npm test tests/purge-temporary-data.test.ts` — PASS (20 tests, 0 failures).
 - Resultado: Código corregido y tests fortalecidos.
 - Riesgo residual: El log de error ahora solo emite `errorName`. La Sesión 10 migrará al logger seguro completo.
 
@@ -543,7 +543,7 @@ Notas manuales:
 **Revisión correctiva (2026-07-11):**
 - Hallazgo: `getBucketSecret()` en `lib/rate-limit.ts` usaba fallback predecible `'mundotech-rate-limit-fallback'` si `NEXTAUTH_SECRET` no estaba configurado. Tests no cubrían `hashForBucket` sin secret, ni `buildRateLimitedResponse`, y usaban `process.env = {...}` en lugar de `vi.stubEnv`. Tests con `await sleep(150)` en lugar de fake timers.
 - Cambio aplicado: `getBucketSecret()` ahora lanza `Error` si `NEXTAUTH_SECRET` falta o está vacío (sin trim). Tests reescritos: `process.env` reemplazado por `vi.stubEnv`/`vi.unstubAllEnvs`. Añadida suite `hashForBucket sin NEXTAUTH_SECRET` con test que verifica `toThrow('NEXTAUTH_SECRET')`. Añadida suite `buildRateLimitedResponse` con 3 tests (status/headers, mínimo 1 segundo, mensaje personalizado sin leak de backend). `await sleep(150)` reemplazado por `vi.useFakeTimers` + `vi.advanceTimersByTime`.
-- Prueba: `npm test tests/rate-limit.test.ts` — pendiente de ejecución.
+- Prueba: `npm test tests/rate-limit.test.ts` — PASS (36 tests, 0 failures).
 - Resultado: Código corregido y tests endurecidos.
 - Riesgo residual: Ninguno conocido.
 
@@ -645,7 +645,7 @@ Notas manuales:
 
 ## 10 — Logs sin PII
 
-- [x] **Centralizar logging estructurado y retirar PII/secretos de los flujos sensibles.**
+- [ ] **Centralizar logging estructurado y retirar PII/secretos de los flujos sensibles.**
 
 **Prioridad:** P1  
 **Prompt:** Sesión 10
@@ -715,6 +715,13 @@ Riesgo residual:
 
 Notas manuales:
 - Ninguno (todas las pruebas automatizadas PASS)
+
+**Revisión correctiva (2026-07-11):**
+- Hallazgo: El logger no redactaba teléfono venezolano, cédula, referencia bancaria ni dirección. No existían sanitizeEvent/sanitizeContext. Sentry recibía el error original sin sanitizar. outputLine imprimía el evento y contexto original sin pasar por sanitización. Los tests no verificaban los nuevos patrones de PII. En rate-limit tests, 15 mutaciones directas de process.env (delete/assign). Catches silenciosos en verifyPasswordResetToken y resetPassword.
+- Cambio aplicado: En safe-logger.ts: añadidos EVENT_RE, VENEZUELA_PHONE_RE, VENEZUELA_ID_RE, LABELED_REFERENCE_RE, LABELED_ADDRESS_RE; sanitizeText redacta teléfono/cédula/referencia/dirección; nuevas funciones sanitizeEvent/sanitizeContext; outputLine usa safeEvent/safeContext; logError envía Error reconstruido y sanitizado a Sentry (nunca el error original). En authActions.ts: catches silenciosos corregidos con logError. Creado docs/LOGGING-EVENTS.md con 82 eventos canónicos. En rate-limit tests: todas las mutaciones process.env reemplazadas por vi.stubEnv; afterEach global unificado; eliminados 7 afterEach duplicados.
+- Prueba: npm test -- tests/safe-logger.test.ts — PASS (32/32). npm test -- tests/rate-limit.test.ts — PASS (36/36). npm test -- tests/purge-temporary-data.test.ts — PASS (20/20).
+- Resultado: Código corregido. Pendiente validación suite completa (typecheck, lint, test completo, build).
+- Riesgo residual: Gitleaks no instalado localmente — sesión 03 no verificable sin runner GitHub.
 
 ## 11 — Health mínimo y operaciones privadas
 

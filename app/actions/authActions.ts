@@ -262,7 +262,10 @@ export async function verifyPasswordResetToken(token: string): Promise<boolean> 
       select: { expiresAt: true },
     });
     return Boolean(row && row.expiresAt > new Date());
-  } catch {
+  } catch (error) {
+    logError('password_reset_token_verify_failed', error, {
+      operation: 'password_reset_token_verify',
+    });
     return false;
   }
 }
@@ -314,7 +317,11 @@ export async function resetPassword(
 
     if (!row || row.expiresAt <= new Date()) {
       if (row) {
-        await prisma.passwordResetToken.delete({ where: { id: row.id } }).catch(() => {});
+        await prisma.passwordResetToken.delete({ where: { id: row.id } }).catch((cleanupError) => {
+          logError('password_reset_expired_token_cleanup_failed', cleanupError, {
+            operation: 'password_reset_token_cleanup',
+          });
+        });
       }
       return { ok: false, message: RESET_INVALID_MESSAGE };
     }
