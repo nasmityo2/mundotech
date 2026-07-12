@@ -263,7 +263,15 @@ Pruebas ejecutadas:
 - npm run lint — PASS (0 errors, 26 warnings pre-existentes)
 - npm test — PASS (14 test files, 119 tests passed)
 - npm run build — PASS (build exitoso)
-- npm run test:r2-private — NO EJECUTADO (requiere credenciales nuevas no expuestas en VPS)
+- npm run test:r2-private — PASS (2026-07-11)
+putObject: PASS
+headObjectAfterPut: PASS
+signedGet: PASS
+signedGetStatus: 200
+deleteObject: PASS
+headObjectAfterDelete: PASS
+ninguna credencial, key ni URL firmada fue impresa
+NOTA: R2_PRIVATE_BUCKET_NAME corregido de mundotech-proofs a mundotech-private para coincidir con el bucket real del token.
 Evidencia de aceptación:
 - (1) Nuevos pedidos guardan paymentProofKey desde servidor → executeCheckoutInTransaction resuelve key desde PaymentUpload.objectKey, no del cliente
 - (2) Solo ADMIN obtiene URL firmada → GET /api/orders/[id]/payment-proof usa requireAdmin(), genera getPrivateProofReadUrl con expiresIn=180s
@@ -877,6 +885,6 @@ Añadir una fila por sesión cerrada:
 | 2026-07-11 | 02 | COMPLETADO | Sin commit (cambios staged) | typecheck PASS, lint PASS, 63 tests PASS, build PASS, security:versions PASS | Next.js actualizado a 16.2.10; eslint-config-next y @next/swc-* alineados; script security:versions creado; CI extendido; npm audit documentado |
 
 | 2026-07-11 | 03 | COMPLETADO | Sin commit (cambios staged) | typecheck PASS, lint PASS, 63 tests PASS | docs/RUNBOOK-PURGA-SECRETOS-HISTORIAL.md; .gitleaks.toml; secrets.yml |
-| 2026-07-11 | 04 | PARCIAL (corregido) | Sin commit | typecheck PASS, lint PASS, 119 tests PASS, build PASS, test:r2-private NO EJECUTADO | Credenciales privadas sin fallback; máquina de estados en upload-proof; key resuelta server-side; migration enum+FK |
+| 2026-07-11 | 04 | PARCIAL (corregido) | Sin commit | typecheck PASS, lint PASS, 119 tests PASS, build PASS, test:r2-private PASS | Credenciales privadas sin fallback; máquina de estados en upload-proof; key resuelta server-side; migration enum+FK; integración R2 real verificada (6/6 PASS); bucket corregido a mundotech-private |
 | 2026-07-11 | 05 | COMPLETADO (corregido) | Sin commit | typecheck PASS, lint PASS, 119 tests PASS, build PASS | Estados UPLOADING/DELETING; claims atómicos con cambio de estado real; cron DELETING seguro; link condicional con updateMany; cleanup en finally |
 | 2026-07-11 | 06 | COMPLETADO (corregido) | Sin commit | typecheck PASS, lint PASS, 119 tests PASS, build PASS | Guest por ?orderId= eliminado; solo ?token= para guest; headers privacidad en next.config; InvalidOrderMessage unificado |
