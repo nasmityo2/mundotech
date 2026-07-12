@@ -1,12 +1,17 @@
 import { isIP } from 'node:net';
 import { createHmac } from 'crypto';
+import { logError, logWarn } from '@/lib/safe-logger';
 
 // ── HMAC key para derivar hashes persistentes de IP/email ────────────────
 // Derivado de NEXTAUTH_SECRET; nunca expuesto. Si el secret rota,
 // los buckets anteriores pierden vigencia (lo cual es aceptable).
 function getBucketSecret(): string {
-  const secret = process.env.NEXTAUTH_SECRET;
-  if (!secret) return 'mundotech-rate-limit-fallback';
+  const secret = process.env.NEXTAUTH_SECRET?.trim();
+  if (!secret) {
+    throw new Error(
+      '[rate-limit] NEXTAUTH_SECRET es obligatorio para derivar buckets.',
+    );
+  }
   return createHmac('sha256', secret).update('rate-limit-bucket').digest('hex');
 }
 
@@ -119,14 +124,14 @@ async function upstashWindow(
     });
 
     if (!res.ok) {
-      console.error('[rate-limit] Upstash HTTP', res.status);
+      logError('upstash_http_error', new Error(`Upstash HTTP ${res.status}`), { provider: 'upstash', status: res.status });
       return null;
     }
 
     const data = (await res.json()) as Array<{ result?: unknown; error?: string }>;
     const count = Number(data?.[0]?.result);
     if (!Number.isFinite(count)) {
-      console.error('[rate-limit] Upstash respuesta inesperada');
+      logError('upstash_unexpected_response', new Error('Unexpected Upstash response'), { provider: 'upstash' });
       return null;
     }
 
@@ -136,7 +141,7 @@ async function upstashWindow(
     const retryAfterSeconds = limited ? Math.ceil(config.windowMs / 1000) : 0;
     return { limited, retryAfterSeconds };
   } catch (_err) {
-    console.error('[rate-limit] Upstash error; fallback a memoria');
+    logWarn('upstash_fallback_to_memory', { provider: 'upstash' });
     return null;
   }
 }

@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/api-auth';
 import { prismaOrderToOrder, type OrderStatus } from '@/lib/definitions';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { sendPaymentValidatedEmail } from '@/lib/resend';
+import { logError, logInfo } from '@/lib/safe-logger';
 
 const BINANCE_PENDING: OrderStatus = 'Pendiente verificación Binance';
 const APPROVED_STATUS: OrderStatus = 'En Proceso';
@@ -103,14 +104,14 @@ export async function POST(
           updated.id
         );
       } catch (emailError) {
-        console.error('[approve-binance] Email no crítico falló:', emailError);
+        logError('approve_binance_email_failed', emailError, { orderId, provider: 'resend' });
       }
     }
 
-    console.info('[approve-binance] Pago Binance verificado; pedido En Proceso:', orderId);
+    logInfo('approve_binance_success', { orderId });
     return NextResponse.json(prismaOrderToOrder(updated!));
   } catch (error) {
-    console.error('[approve-binance] Error inesperado:', error);
+    logError('approve_binance_error', error, { orderId });
     return NextResponse.json({ message: 'No se pudo aprobar el pago.' }, { status: 500 });
   }
 }

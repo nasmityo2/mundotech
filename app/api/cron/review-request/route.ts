@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { sendReviewRequestEmail } from '@/lib/resend';
 import type { ReviewRequestProduct } from '@/emails/mundotech/ReviewRequestEmail';
 import { verifyBearerSecret } from '@/lib/security';
+import { logInfo, logError } from '@/lib/safe-logger';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -130,12 +131,12 @@ export async function GET(request: Request): Promise<NextResponse> {
     }
 
     if (sent > 0 || skipped > 0) {
-      console.log(`[cron-review-request] enviados=${sent} omitidos=${skipped} candidatos=${candidates.length}`);
+      logInfo('cron_review_request', { count: sent, operation: 'review_request' });
     }
 
     return NextResponse.json({ ok: true, sent, skipped, candidates: candidates.length });
   } catch (error) {
-    console.error('[cron-review-request] error inesperado:', error);
+    logError('cron_review_request_error', error, { operation: 'review_request' });
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 }

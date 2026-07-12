@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyBearerSecret } from '@/lib/security';
+import { logInfo, logError } from '@/lib/safe-logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -300,36 +301,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     // ── Registrar última ejecución ─────────────────────────
     if (!dryRun) {
-      const totalDeleted =
-        passwordResetTokens.deleted +
-        emailChangeTokens.deleted +
-        deletedUploads.deleted +
-        productViews.deleted +
-        abandonedCartsPending.deleted +
-        abandonedCartsTerminal.deleted;
-
-      if (totalDeleted > 0 || true) {
-        // Siempre registrar éxito aunque no haya borrado nada (para health check)
-        await prisma.appConfig.upsert({
-          where: { key: LAST_SUCCESS_KEY },
-          update: { value: new Date().toISOString() },
-          create: { key: LAST_SUCCESS_KEY, value: new Date().toISOString() },
-        });
-      }
+      await prisma.appConfig.upsert({
+        where: { key: LAST_SUCCESS_KEY },
+        update: { value: new Date().toISOString() },
+        create: { key: LAST_SUCCESS_KEY, value: new Date().toISOString() },
+      });
     }
 
     const durationMs = Date.now() - startMs;
 
-    console.log(
-      `[cron/purge-temporary-data] dryRun=${dryRun} ` +
-        `pwdReset=${passwordResetTokens.deleted}/${passwordResetTokens.checked} ` +
-        `emailChg=${emailChangeTokens.deleted}/${emailChangeTokens.checked} ` +
-        `uploadsDel=${deletedUploads.deleted}/${deletedUploads.checked} ` +
-        `views=${productViews.deleted}/${productViews.checked} ` +
-        `cartPend=${abandonedCartsPending.deleted}/${abandonedCartsPending.checked} ` +
-        `cartTerm=${abandonedCartsTerminal.deleted}/${abandonedCartsTerminal.checked} ` +
-        `ms=${durationMs}`,
-    );
+    logInfo('cron_purge_temporary_data', {
+      operation: 'purge_temporary_data',
+      count: passwordResetTokens.deleted + emailChangeTokens.deleted + deletedUploads.deleted + productViews.deleted + abandonedCartsPending.deleted + abandonedCartsTerminal.deleted,
+      durationMs,
+    });
 
     const result: PurgeResult = {
       ok: true,
@@ -350,10 +335,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     });
   } catch (err) {
     const durationMs = Date.now() - startMs;
-    const errMsg = err instanceof Error ? err.message : String(err);
-    console.error(
-      `[cron/purge-temporary-data] Error (ms=${durationMs}): ${errMsg}`,
-    );
+    logError('cron_purge_temporary_data_error', err, { operation: 'purge_temporary_data', durationMs });
     return NextResponse.json(
       { error: 'Internal server error', durationMs },
       { status: 500 },

@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { sendPasswordResetEmail, sendWelcomeEmail } from '@/lib/resend';
 import { rateLimitCritical, hashForBucket } from '@/lib/rate-limit';
 import { getActionClientIp, hashToken } from '@/lib/security';
+import { logError, logInfo } from '@/lib/safe-logger';
 import bcrypt from 'bcrypt';
 
 function firstNameFromName(displayName: string): string {
@@ -100,7 +101,7 @@ export async function registerUserAction({ name, email, password }: Record<strin
     return { success: true, message: REGISTER_GENERIC_MESSAGE };
 
   } catch (error) {
-    console.error('Error en registerUserAction:', error);
+    logError('register_user_action_failed', error, { operation: 'register' });
     return { success: false, message: 'Ocurrió un error inesperado en el servidor.' };
   }
 }
@@ -180,14 +181,14 @@ export async function registerFromOrderAction(
 
     await sendWelcomeEmail(normalizedEmail, firstNameFromName(order.customerName));
 
-    console.log('[register-from-order] cuenta creada y pedidos vinculados:', user.id);
+    logInfo('register_from_order_success', { orderId: id, operation: 'register_from_order' });
     return {
       success: true,
       message: '¡Cuenta creada! Tus pedidos ya están vinculados.',
       email: normalizedEmail,
     };
   } catch (error) {
-    console.error('[registerFromOrderAction]', error);
+    logError('register_from_order_action_failed', error, { operation: 'register_from_order' });
     return { success: false, message: 'Ocurrió un error inesperado. Intenta de nuevo.' };
   }
 }
@@ -235,7 +236,7 @@ export async function requestPasswordReset(
 
     return { ok: true, message: PASSWORD_RESET_GENERIC_MESSAGE };
   } catch (error) {
-    console.error('[requestPasswordReset]', error);
+    logError('password_reset_request_failed', error, { operation: 'password_reset_request' });
     return {
       ok: false,
       message: 'No pudimos procesar la solicitud. Intenta de nuevo más tarde.',
@@ -347,7 +348,7 @@ export async function resetPassword(
 
     return { ok: true };
   } catch (error) {
-    console.error('[resetPassword]', error);
+    logError('reset_password_failed', error, { operation: 'reset_password' });
     return {
       ok: false,
       message: 'No pudimos actualizar la contraseña. Intenta de nuevo más tarde.',

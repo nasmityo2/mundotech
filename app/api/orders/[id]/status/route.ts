@@ -9,6 +9,7 @@ import { sendOrderDeliveredEmail, sendShippingEmail, sendOrderCancelledEmail } f
 import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order';
 import { trackingUrlSchema, trackingPhotoUrlSchema } from '@/lib/tracking-url-validation';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
+import { logInfo, logError, logWarn } from '@/lib/safe-logger';
 
 type OrderWithRelations = Prisma.OrderGetPayload<{
   include: { items: true; customer: { select: { email: true; name: true } } };
@@ -122,7 +123,7 @@ export async function PUT(
       });
     });
 
-    console.info('[order-cancel] Stock y cupón revertidos, pedido cancelado:', orderId);
+    logInfo('order_cancelled_stock_reverted', { orderId, operation: 'cancel_order' });
   } else {
     updated = await prisma.order.update({
       where: { id: orderId },
@@ -154,11 +155,7 @@ export async function PUT(
     try {
       await sendOrderCancelledEmail(recipientEmail, firstName, orderRef);
     } catch (emailErr) {
-      console.error(
-        '[order-cancel-email] Fallo no crítico — pedido cancelado en BD.',
-        `orderId=${orderId} email=${recipientEmail}`,
-        emailErr,
-      );
+      logError('order_cancel_email_failed', emailErr, { orderId, provider: 'resend', operation: 'send_cancellation' });
     }
   }
 
@@ -173,11 +170,7 @@ export async function PUT(
   const shouldSendDeliveredEmail = transitionedToDelivered && recipientEmail;
 
   if (status === 'Enviado' && newTracking && !recipientEmail) {
-    console.warn(
-      '[shipping-email] Pedido',
-      orderId,
-      'Enviado con guía pero sin email (pedido ni cuenta vinculada); no se envía correo.'
-    );
+    logWarn('shipping_email_skipped_no_email', { orderId, operation: 'send_shipping' });
   }
 
   if (shouldSendShippingEmail) {
@@ -193,11 +186,7 @@ export async function PUT(
         }
       );
     } catch (emailErr) {
-      console.error(
-        '[shipping-email] Fallo no crítico — pedido marcado Enviado en BD.',
-        `orderId=${orderId} email=${recipientEmail}`,
-        emailErr,
-      );
+      logError('shipping_email_failed', emailErr, { orderId, provider: 'resend', operation: 'send_shipping' });
     }
   }
 
@@ -209,20 +198,12 @@ export async function PUT(
         orderPathSegment(updated.orderNumber)
       );
     } catch (emailErr) {
-      console.error(
-        '[order-delivered-email] Fallo no crítico — pedido marcado Entregado en BD.',
-        `orderId=${orderId} email=${recipientEmail}`,
-        emailErr,
-      );
+      logError('order_delivered_email_failed', emailErr, { orderId, provider: 'resend', operation: 'send_delivered' });
     }
   }
 
   if (status === 'Entregado' && !recipientEmail) {
-    console.warn(
-      '[order-delivered-email] Pedido',
-      orderId,
-      'marcado Entregado pero sin email; no se notifica al cliente.'
-    );
+    logWarn('delivered_email_skipped_no_email', { orderId, operation: 'send_delivered' });
   }
 
   return NextResponse.json(prismaOrderToOrder(updated));

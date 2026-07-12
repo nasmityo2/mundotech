@@ -12,6 +12,7 @@ import { d, dn } from '@/lib/decimal';
 import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { roundMoney2 } from '@/lib/exchange-rate';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
+import { logInfo, logError } from '@/lib/safe-logger';
 
 export async function POST(
   _request: Request,
@@ -117,17 +118,10 @@ export async function POST(
 
   try {
     await sendOrderConfirmationEmail(confirmationPayload);
-    console.info(
-      '[resend-confirmation] Email reenviado por admin.',
-      `orderId=${orderId} orderNumber=${order.orderNumber} email=${recipientEmail}`,
-    );
+    logInfo('resend_confirmation_success', { orderId, operation: 'resend_confirmation' });
     return NextResponse.json({ success: true, email: recipientEmail });
   } catch (emailError) {
-    console.error(
-      '[resend-confirmation] Fallo al reenviar email de confirmación.',
-      `orderId=${orderId} orderNumber=${order.orderNumber} email=${recipientEmail}`,
-      emailError,
-    );
+    logError('resend_confirmation_failed', emailError, { orderId, provider: 'resend', operation: 'resend_confirmation' });
     return NextResponse.json(
       { message: 'No se pudo reenviar el correo en este momento. Inténtalo de nuevo.' },
       { status: 500 }

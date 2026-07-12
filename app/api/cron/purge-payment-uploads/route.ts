@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { deletePrivateProof } from '@/lib/r2';
 import { verifyBearerSecret } from '@/lib/security';
+import { logInfo, logError } from '@/lib/safe-logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,14 +79,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         try {
           await deletePrivateProof(record.objectKey);
         } catch (r2Err) {
-          const errorName =
-            r2Err instanceof Error ? r2Err.name : 'UnknownError';
-          console.error(
-            '[cron/purge-payment-uploads] Fallo R2, revirtiendo a estado anterior. PaymentUpload.id=%s errorName=%s previousStatus=%s',
-            record.id,
-            errorName,
-            previousStatus,
-          );
+          logError('cron_purge_uploads_r2_failed', r2Err, { operation: 'purge_payment_uploads', provider: 'r2' });
           r2Errors++;
 
           // Revertir a estado anterior para reintento futuro
@@ -114,10 +108,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       });
 
       if (deleted.count !== 1) {
-        console.error(
-          '[cron/purge-payment-uploads] No se pudo marcar DELETED. PaymentUpload.id=%s',
-          record.id,
-        );
+        logError('cron_purge_uploads_mark_deleted_failed', new Error('Could not mark DELETED'), { operation: 'purge_payment_uploads' });
         continue;
       }
 
@@ -136,9 +127,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       });
     }
 
-    console.log(
-      `[cron/purge-payment-uploads] purged=${purged} r2Errors=${r2Errors} attempted=${attempted}`,
-    );
+    logInfo('cron_purge_payment_uploads', { count: purged, operation: 'purge_payment_uploads' });
 
     return NextResponse.json({
       ok: true,
@@ -147,7 +136,7 @@ export async function GET(request: Request): Promise<NextResponse> {
       attempted,
     });
   } catch (err) {
-    console.error('[cron/purge-payment-uploads] Error general:', err);
+    logError('cron_purge_payment_uploads_error', err, { operation: 'purge_payment_uploads' });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

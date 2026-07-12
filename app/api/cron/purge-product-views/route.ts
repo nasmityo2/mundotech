@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyBearerSecret } from '@/lib/security';
+import { logInfo, logError } from '@/lib/safe-logger';
 
 /**
  * GET /api/cron/purge-product-views
@@ -39,10 +40,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       where: { createdAt: { lt: cutoff } },
     });
 
-    console.log(`[cron/purge-product-views] ${count} vistas purgadas (> ${RETENTION_DAYS} días).`);
+    logInfo('cron_purge_product_views', { count, operation: 'purge_product_views' });
     return NextResponse.json({ ok: true, purged: count, retentionDays: RETENTION_DAYS });
   } catch (err) {
-    console.error('[cron/purge-product-views] Error:', err);
+    logError('cron_purge_product_views_error', err, { operation: 'purge_product_views' });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

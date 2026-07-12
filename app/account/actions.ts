@@ -10,6 +10,7 @@ import bcrypt from 'bcrypt';
 import { hashToken } from '@/lib/security';
 import { sendEmailChangeConfirmEmail } from '@/lib/resend';
 import { emailSiteBaseUrl } from '@/emails/mundotech/site';
+import { logError } from '@/lib/safe-logger';
 
 interface UpdateResult {
   success: boolean;
@@ -113,7 +114,7 @@ export async function updateUserDetails(data: { name: string; email: string }): 
         newEmail: parsed.data.email,
       });
     } catch (emailError) {
-      console.error('[email-change] Error enviando confirmación:', emailError);
+      logError('email_change_confirm_failed', emailError, { operation: 'email_change' });
     }
 
     revalidatePath('/account/details');
@@ -122,7 +123,7 @@ export async function updateUserDetails(data: { name: string; email: string }): 
       message: `Te enviamos un correo de confirmación a ${parsed.data.email}. Revisa tu bandeja y haz clic en el enlace para completar el cambio.`,
     };
   } catch (error) {
-    console.error('Error al actualizar el usuario:', error);
+    logError('update_user_details_failed', error, { operation: 'update_details' });
     return { success: false, message: 'Ocurrió un error al guardar los datos.' };
   }
 }
@@ -170,7 +171,7 @@ export async function updatePassword(data: { currentPassword?: string; newPasswo
 
     return { success: true, message: 'Contraseña actualizada correctamente. Por seguridad, las sesiones abiertas se cerrarán en unos minutos.' };
   } catch (error) {
-    console.error('Error al actualizar la contraseña:', error);
+    logError('update_password_failed', error, { operation: 'update_password' });
     return { success: false, message: 'Ocurrió un error al actualizar la contraseña.' };
   }
 }

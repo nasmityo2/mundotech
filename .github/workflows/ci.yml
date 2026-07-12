@@ -28,6 +28,9 @@ jobs:
       - name: Verificar versiones de seguridad
         run: npm run security:versions
 
+      - name: Verificar guards de origen API
+        run: npm run security:api-guards
+
       - name: ESLint
         run: npm run lint
 

@@ -8,6 +8,7 @@ import type { JWT } from 'next-auth/jwt';
 import type { Session } from 'next-auth';
 import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit';
 import { buildRateLimitedResponse } from '@/lib/security';
+import { logError } from '@/lib/safe-logger';
 
 const googleId     = process.env.GOOGLE_CLIENT_ID;
 const googleSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -151,7 +152,7 @@ export const authOptions: AuthOptions = {
           token.pwvAt = Date.now();
         } catch (err) {
           // BD caída: no cerrar sesiones por un fallo transitorio.
-          console.error('[auth] Error re-validando JWT:', err);
+          logError('auth_jwt_revalidation_failed', err, { provider: 'nextauth' });
         }
       }
 

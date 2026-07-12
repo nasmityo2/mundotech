@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { buildOrderListWhere } from '@/lib/orders/order-list-filters';
 import { parseOrderTab } from '@/lib/orders/order-tabs';
+import { logWarn, logInfo } from '@/lib/safe-logger';
 
 const MAX_EXPORT_ROWS = 5000;
 
@@ -31,13 +32,7 @@ export async function GET(request: Request) {
   if (totalMatching > MAX_EXPORT_ROWS) {
     const accept = request.headers.get('accept') ?? '';
     const wantsJson = accept.includes('application/json');
-    console.warn(
-      '[orders-export] límite excedido admin=%s total=%d max=%d tab=%s',
-      auth.session.user?.email ?? 'desconocido',
-      totalMatching,
-      MAX_EXPORT_ROWS,
-      tab,
-    );
+    logWarn('orders_export_limit_exceeded', { count: totalMatching, operation: 'export' });
     if (wantsJson) {
       return Response.json(
         {
@@ -63,14 +58,7 @@ export async function GET(request: Request) {
   });
 
   // PRD-156: auditoría del acceso a PII
-  console.info(
-    '[orders-export] admin=%s filas=%d tab=%s busqueda=%s fecha=%s',
-    auth.session.user?.email ?? 'desconocido',
-    filtered.length,
-    tab,
-    q ? 'sí' : 'no',
-    new Date().toISOString(),
-  );
+  logInfo('orders_export_executed', { count: filtered.length, operation: 'export' });
 
   const rows = filtered.map(o => ({
     Pedido: String(o.orderNumber).padStart(4, '0'),

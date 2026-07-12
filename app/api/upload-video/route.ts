@@ -26,6 +26,7 @@ import { prisma } from '@/lib/prisma';
 import { readFile } from 'fs/promises';
 import { deleteFromR2, keyFromR2PublicUrl } from '@/lib/r2';
 import { z } from 'zod';
+import { logError } from '@/lib/safe-logger';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -42,7 +43,7 @@ async function safeDeleteR2Key(key: string, label: string): Promise<void> {
   try {
     await deleteFromR2(key);
   } catch (err) {
-    console.error(`[upload-video] DELETE R2 failed (${label}):`, err);
+    logError('upload_video_r2_delete_failed', err, { provider: 'r2', operation: `delete_${label}` });
   }
 }
 
@@ -61,7 +62,7 @@ async function deleteVideoAssets(url: string, posterUrl?: string): Promise<void>
       data: { status: 'DELETED' },
     });
   } catch (err) {
-    console.error('[upload-video] DELETE VideoJob mark failed:', err);
+    logError('upload_video_job_mark_failed', err, { operation: 'mark_video_deleted' });
   }
 }
 
@@ -140,7 +141,7 @@ async function processVideoJob(
       },
     });
   } catch (err) {
-    console.error('[upload-video] job failed:', jobId, err);
+    logError('upload_video_job_failed', err, { operation: 'process_video_job' });
     const message =
       err instanceof Error ? err.message : 'Error desconocido al procesar el video.';
     await prisma.videoJob.update({
@@ -151,7 +152,7 @@ async function processVideoJob(
     try {
       await rm(tmpDir, { recursive: true, force: true });
     } catch (cleanupErr) {
-      console.error('[upload-video] temp cleanup failed:', cleanupErr);
+      logError('upload_video_temp_cleanup_failed', cleanupErr, { operation: 'cleanup_temp' });
     }
   }
 }
@@ -240,7 +241,7 @@ export async function POST(request: Request) {
         /* ignore */
       }
     }
-    console.error('[upload-video] POST error:', err);
+    logError('upload_video_post_error', err, { operation: 'upload_video_post' });
     const message =
       err instanceof Error ? err.message : 'Error al subir el video.';
     return NextResponse.json({ error: message }, { status: 500 });
@@ -273,7 +274,7 @@ export async function DELETE(request: Request) {
     await deleteVideoAssets(parsed.data.url, parsed.data.posterUrl);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error('[upload-video] DELETE error:', err);
+    logError('upload_video_delete_error', err, { operation: 'delete_video' });
     return NextResponse.json({ error: 'Error al eliminar el video.' }, { status: 500 });
   }
 }

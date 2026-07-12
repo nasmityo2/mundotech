@@ -29,6 +29,7 @@ import {
   encodeOrderCursor,
   orderCursorWhere,
 } from '@/lib/orders/order-cursor';
+import { logError, logWarn } from '@/lib/safe-logger';
 
 const CHECKOUT_TX_MAX_RETRIES = 3;
 
@@ -130,7 +131,7 @@ export async function GET(request: Request) {
     });
     return NextResponse.json(orders.map(prismaOrderToOrder));
   } catch (error) {
-    console.error('[GET /api/orders]', error);
+    logError('orders_get_failed', error, { route: '/api/orders' });
     return NextResponse.json(
       { message: 'Error al obtener los pedidos.' },
       { status: 500 },
@@ -186,7 +187,7 @@ export async function POST(request: Request) {
     const parsed = checkoutSchema.safeParse(body);
 
     if (!parsed.success) {
-      console.error('[POST /api/orders] Zod validation failed:', JSON.stringify(parsed.error.issues, null, 2));
+      logWarn('checkout_validation_failed', { status: 400, route: '/api/orders', operation: 'checkout' });
       return NextResponse.json(
         { message: 'Datos de pedido inválidos.', errors: parsed.error.issues },
         { status: 400 }
@@ -277,7 +278,7 @@ export async function POST(request: Request) {
     });
 
     if (reused) {
-      console.warn('[POST /api/orders] Pedido duplicado evitado; se reutiliza:', createdOrder.id);
+      logWarn('checkout_duplicate_prevented', { orderId: createdOrder.id, operation: 'checkout' });
       // No devolver token si el pedido ya existía: el token se generó en el original.
       return NextResponse.json(prismaOrderToOrder(createdOrder), { status: 200 });
     }
@@ -288,7 +289,7 @@ export async function POST(request: Request) {
       include: { items: true },
     });
     if (!order) {
-      console.error('[POST /api/orders] Pedido creado pero no encontrado en BD:', createdOrder.id);
+      logError('checkout_order_not_found_after_create', new Error('Order not found after creation'), { orderId: createdOrder.id, operation: 'checkout' });
       return NextResponse.json(
         { message: 'No pudimos procesar tu pedido en este momento. Intenta de nuevo en unos minutos.' },
         { status: 500 },
@@ -404,18 +405,10 @@ export async function POST(request: Request) {
       try {
         await sendOrderConfirmationEmail(confirmationPayload);
       } catch (emailError) {
-        console.error(
-          '[order-confirmation-email] Fallo no crítico — pedido confirmado en BD.',
-          `Reenviar manualmente: orderId=${order.id} orderNumber=${order.orderNumber} email=${recipientEmail}`,
-          emailError,
-        );
+        logError('order_confirmation_email_failed', emailError, { orderId: order.id, provider: 'resend', operation: 'send_confirmation' });
       }
     } else {
-      console.warn(
-        '[order-confirmation-email] Pedido',
-        order.id,
-        'creado sin email de contacto; no se envía confirmación.'
-      );
+      logWarn('order_confirmation_skipped_no_email', { orderId: order.id, operation: 'send_confirmation' });
     }
 
     // SESIÓN 06: para invitados devolver DTO mínimo + token raw; para autenticados el Order completo.
@@ -425,7 +418,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(prismaOrderToOrder(order), { status: 201 });
   } catch (error) {
-    console.error('[POST /api/orders]', error);
+    logError('checkout_failed', error, { operation: 'checkout' });
 
     // PRD-029/PRD-070: solo los errores de negocio (CheckoutError) exponen su
     // mensaje y status (400/404/409). Cualquier error interno responde 500 con

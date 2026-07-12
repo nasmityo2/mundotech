@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit';
 import { rejectInvalidMutationOrigin, hashToken, buildRateLimitedResponse } from '@/lib/security';
+import { logError } from '@/lib/safe-logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (err) {
-    console.error('[upload-session]', err);
+    logError('upload_session_failed', err, { operation: 'upload_session' });
     return NextResponse.json(
       { error: 'No pudimos iniciar la sesión de subida. Intenta de nuevo.' },
       { status: 500 },

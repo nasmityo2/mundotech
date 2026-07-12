@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { rejectInvalidMutationOrigin, verifyBearerSecret, verifySameOrigin } from '@/lib/security';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -15,22 +15,25 @@ function mockRequestWithUrl(url: string, headers: Record<string, string>): Reque
   });
 }
 
-const originalEnv = { ...process.env };
-
-beforeEach(() => {
-  process.env = { ...originalEnv };
-});
-
 // ── verifySameOrigin (base) ─────────────────────────────────────────────────
 
 describe('verifySameOrigin', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXTAUTH_URL', 'https://mundotechve.com');
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://mundotechve.com');
+    vi.stubEnv('NODE_ENV', 'production');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('permite sin Origin (curl, apps nativas)', () => {
     const req = mockRequest({});
     expect(verifySameOrigin(req)).toBe(true);
   });
 
   it('permite mismo origen (NEXTAUTH_URL)', () => {
-    process.env.NEXTAUTH_URL = 'https://mundotechve.com';
     const req = mockRequestWithUrl('https://mundotechve.com/api/test', {
       origin: 'https://mundotechve.com',
     });
@@ -38,33 +41,13 @@ describe('verifySameOrigin', () => {
   });
 
   it('permite mismo origen (NEXT_PUBLIC_SITE_URL)', () => {
-    process.env.NEXT_PUBLIC_SITE_URL = 'https://mundotechve.com';
     const req = mockRequestWithUrl('https://mundotechve.com/api/test', {
       origin: 'https://mundotechve.com',
-    });
-    expect(verifySameOrigin(req)).toBe(true);
-  });
-
-  it('permite mismo host via x-forwarded-host', () => {
-    const req = mockRequestWithUrl('https://mundotechve.com/api/test', {
-      origin: 'https://mundotechve.com',
-      'x-forwarded-host': 'mundotechve.com',
-      'x-forwarded-proto': 'https',
-    });
-    expect(verifySameOrigin(req)).toBe(true);
-  });
-
-  it('permite localhost con http', () => {
-    process.env.NEXTAUTH_URL = 'http://localhost:3000';
-    const req = mockRequestWithUrl('http://localhost:3000/api/test', {
-      origin: 'http://localhost:3000',
-      host: 'localhost:3000',
     });
     expect(verifySameOrigin(req)).toBe(true);
   });
 
   it('rechaza origen ajeno (cross-site)', () => {
-    process.env.NEXTAUTH_URL = 'https://mundotechve.com';
     const req = mockRequestWithUrl('https://mundotechve.com/api/test', {
       origin: 'https://evil.com',
     });
@@ -72,19 +55,75 @@ describe('verifySameOrigin', () => {
   });
 
   it('rechaza origen malformado', () => {
-    process.env.NEXTAUTH_URL = 'https://mundotechve.com';
     const req = mockRequestWithUrl('https://mundotechve.com/api/test', {
       origin: 'not-a-url',
     });
     expect(verifySameOrigin(req)).toBe(false);
+  });
+
+  it('no confía en x-forwarded-host para permitir un origen ajeno', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('NEXTAUTH_URL', 'https://mundotechve.com');
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://mundotechve.com');
+    const request = mockRequestWithUrl(
+      'https://mundotechve.com/api/test',
+      {
+        origin: 'https://evil.example',
+        'x-forwarded-host': 'evil.example',
+        'x-forwarded-proto': 'https',
+        host: 'evil.example',
+      },
+    );
+    expect(
+      verifySameOrigin(request),
+    ).toBe(false);
+  });
+
+  it('permite localhost derivado de request.url solo en desarrollo', () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('NEXTAUTH_URL', '');
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', '');
+    const request = mockRequestWithUrl(
+      'http://localhost:3000/api/test',
+      {
+        origin: 'http://localhost:3000',
+      },
+    );
+    expect(
+      verifySameOrigin(request),
+    ).toBe(true);
+  });
+
+  it('no permite localhost automáticamente en producción', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('NEXTAUTH_URL', 'https://mundotechve.com');
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://mundotechve.com');
+    const request = mockRequestWithUrl(
+      'http://localhost:3000/api/test',
+      {
+        origin: 'http://localhost:3000',
+      },
+    );
+    expect(
+      verifySameOrigin(request),
+    ).toBe(false);
   });
 });
 
 // ── rejectInvalidMutationOrigin ──────────────────────────────────────────────
 
 describe('rejectInvalidMutationOrigin', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXTAUTH_URL', 'https://mundotechve.com');
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://mundotechve.com');
+    vi.stubEnv('NODE_ENV', 'production');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('devuelve null para mismo origen', () => {
-    process.env.NEXTAUTH_URL = 'https://mundotechve.com';
     const req = mockRequestWithUrl('https://mundotechve.com/api/test', {
       origin: 'https://mundotechve.com',
     });
@@ -97,7 +136,6 @@ describe('rejectInvalidMutationOrigin', () => {
   });
 
   it('devuelve NextResponse 403 para origen ajeno', () => {
-    process.env.NEXTAUTH_URL = 'https://mundotechve.com';
     const req = mockRequestWithUrl('https://mundotechve.com/api/test', {
       origin: 'https://evil.com',
     });
@@ -107,7 +145,6 @@ describe('rejectInvalidMutationOrigin', () => {
   });
 
   it('devuelve NextResponse 403 para origen malformado', () => {
-    process.env.NEXTAUTH_URL = 'https://mundotechve.com';
     const req = mockRequestWithUrl('https://mundotechve.com/api/test', {
       origin: 'not-a-url',
     });
@@ -117,7 +154,6 @@ describe('rejectInvalidMutationOrigin', () => {
   });
 
   it('respuesta 403 tiene mensaje uniforme', async () => {
-    process.env.NEXTAUTH_URL = 'https://mundotechve.com';
     const req = mockRequestWithUrl('https://mundotechve.com/api/test', {
       origin: 'https://evil.com',
     });
@@ -178,18 +214,38 @@ describe('verifyBearerSecret', () => {
   });
 
   it('timing-safe: mismo secreto, mismos caracteres, mismo resultado', () => {
-    // Dos llamadas con el mismo secreto deben devolver el mismo resultado
     const req1 = mockRequest({ authorization: `Bearer ${SECRET}` });
     const req2 = mockRequest({ authorization: `Bearer ${SECRET}` });
     expect(verifyBearerSecret(req1, SECRET)).toBe(true);
     expect(verifyBearerSecret(req2, SECRET)).toBe(true);
   });
 
-  it('timing-safe: secreto con mismos caracteres pero disposición distinta', () => {
-    const similarSecret = 'vitest-cron-secret'; // same length, different chars
-    const req = mockRequest({ authorization: `Bearer ${similarSecret}` });
-    // Debe funcionar si es exactamente el mismo string
-    expect(verifyBearerSecret(req, similarSecret)).toBe(true);
+  it('rechaza secreto diferente con la misma longitud', () => {
+    const wrongSameLength = 'vitest-cron-secreu';
+    expect(wrongSameLength).toHaveLength(
+      SECRET.length,
+    );
+    const request = mockRequest({
+      authorization: `Bearer ${wrongSameLength}`,
+    });
+    expect(
+      verifyBearerSecret(
+        request,
+        SECRET,
+      ),
+    ).toBe(false);
+  });
+
+  it('rechaza expected vacío incluso con Bearer vacío', () => {
+    const request = mockRequest({
+      authorization: 'Bearer ',
+    });
+    expect(
+      verifyBearerSecret(
+        request,
+        '',
+      ),
+    ).toBe(false);
   });
 
   it('rechaza sin Bearer pero con contenido', () => {

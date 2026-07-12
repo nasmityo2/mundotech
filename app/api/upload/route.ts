@@ -6,6 +6,7 @@ import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { detectImageMimeFromBuffer, isAllowedAdminUploadMime } from '@/lib/detect-image-mime';
 import { processImage } from '@/lib/image-processing';
 import { buildKey, uploadToR2, type R2Folder } from '@/lib/r2';
+import { logError } from '@/lib/safe-logger';
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
       mimeType: contentType,
     });
   } catch (err) {
-    console.error('[upload] R2 error:', err);
+    logError('upload_r2_error', err, { provider: 'r2', operation: 'admin_upload' });
     return NextResponse.json(
       { error: 'Error al subir imagen. Verifica la configuración de almacenamiento.' },
       { status: 500 }

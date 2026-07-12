@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
+import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { readReviewsAutoApprove, writeReviewsAutoApprove } from '@/lib/reviews';
 
 /** PRD-229: rastro de auditoría del último cambio (AppConfig, sin tocar schema). */
@@ -19,6 +20,9 @@ const schema = z.object({ autoApprove: z.boolean() });
 
 /** PUT /api/reviews/auto-approve — activa/desactiva auto-aprobación (admin). */
 export async function PUT(request: Request) {
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
+
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
 

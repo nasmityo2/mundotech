@@ -22,6 +22,7 @@ import { WelcomeEmail } from '@/emails/mundotech/WelcomeEmail';
 import { render } from '@react-email/render';
 import { Resend } from 'resend';
 import * as React from 'react';
+import { logError, logWarn } from '@/lib/safe-logger';
 
 export type { OrderConfirmationPayload, OrderConfirmationLineItem } from '@/emails/mundotech/types';
 
@@ -42,10 +43,7 @@ const BRAND_SENDER_NAME = 'MundoTech';
 function resolveFromAddress(): string | null {
   const raw = process.env.RESEND_FROM_ADDRESS?.trim();
   if (!raw) {
-    console.error(
-      '[resend] RESEND_FROM_ADDRESS no está configurada; los correos se omitirán. ' +
-        'Configura un remitente con dominio propio verificado en Resend.',
-    );
+    logError('resend_from_address_missing', new Error('RESEND_FROM_ADDRESS not configured'), { provider: 'resend' });
     return null;
   }
   if (raw.includes('<') && raw.includes('>')) return raw;
@@ -83,7 +81,7 @@ async function sendBrandedEmail(params: {
   // PRD-020: sin remitente propio configurado no se envía nada (nunca se usa
   // un dominio de terceros como From).
   if (!FROM_ADDRESS) {
-    console.warn(`[${logScope}] RESEND_FROM_ADDRESS ausente; se omite el envío a`, to);
+    logWarn('resend_from_address_absent', { provider: 'resend', operation: logScope });
     return;
   }
 
@@ -103,10 +101,10 @@ async function sendBrandedEmail(params: {
     });
 
     if (error) {
-      console.error(`[${logScope}] Error de Resend al enviar a`, to, error);
+      logError('resend_send_failed', error, { provider: 'resend', operation: logScope });
     }
   } catch (err) {
-    console.error(`[${logScope}] Excepción al enviar a`, to, err);
+    logError('resend_send_exception', err, { provider: 'resend', operation: logScope });
   }
 }
 
@@ -122,13 +120,13 @@ export async function sendPaymentValidatedEmail(
 ): Promise<void> {
   const resend = getResend();
   if (!resend) {
-    console.warn('[payment-validated-email] RESEND_API_KEY no está configurada; se omite el envío para:', email);
+    logWarn('resend_api_key_missing', { provider: 'resend', operation: 'payment-validated-email' });
     return;
   }
 
   const trimmedEmail = email.trim();
   if (!trimmedEmail) {
-    console.warn('[payment-validated-email] Email vacío; se omite el envío.');
+    logWarn('payment_validated_email_empty', { provider: 'resend', operation: 'payment-validated-email' });
     return;
   }
 
@@ -163,13 +161,13 @@ export async function sendPaymentRejectedEmail(
 ): Promise<void> {
   const resend = getResend();
   if (!resend) {
-    console.warn('[payment-rejected-email] RESEND_API_KEY no está configurada; se omite el envío para:', email);
+    logWarn('resend_api_key_missing', { provider: 'resend', operation: 'payment-rejected-email' });
     return;
   }
 
   const trimmedEmail = email.trim();
   if (!trimmedEmail) {
-    console.warn('[payment-rejected-email] Email vacío; se omite el envío.');
+    logWarn('payment_rejected_email_empty', { provider: 'resend', operation: 'payment-rejected-email' });
     return;
   }
 
@@ -198,16 +196,13 @@ export async function sendPaymentRejectedEmail(
 export async function sendOrderConfirmationEmail(order: OrderConfirmationPayload): Promise<void> {
   const resend = getResend();
   if (!resend) {
-    console.warn(
-      '[order-confirmation-email] RESEND_API_KEY no está configurada; se omite el envío para:',
-      order.email
-    );
+    logWarn('resend_api_key_missing', { provider: 'resend', operation: 'order-confirmation-email' });
     return;
   }
 
   const trimmedEmail = order.email.trim();
   if (!trimmedEmail) {
-    console.warn('[order-confirmation-email] Email vacío; se omite el envío.');
+    logWarn('order_confirmation_email_empty', { provider: 'resend', operation: 'order-confirmation-email' });
     return;
   }
 
@@ -234,14 +229,14 @@ export async function sendShippingEmail(
 ): Promise<void> {
   const resend = getResend();
   if (!resend) {
-    console.warn('[shipping-email] RESEND_API_KEY no está configurada; se omite el envío para:', email);
+    logWarn('resend_api_key_missing', { provider: 'resend', operation: 'shipping-email' });
     return;
   }
 
   const trimmedEmail = email.trim();
   const trimmedTracking = trackingNumber.trim();
   if (!trimmedEmail || !trimmedTracking) {
-    console.warn('[shipping-email] Email o guía vacíos; se omite el envío.');
+    logWarn('shipping_email_empty_params', { provider: 'resend', operation: 'shipping-email' });
     return;
   }
 
@@ -269,14 +264,14 @@ export async function sendShippingEmail(
 export async function sendOrderDeliveredEmail(email: string, firstName: string, orderRef: string): Promise<void> {
   const resend = getResend();
   if (!resend) {
-    console.warn('[order-delivered-email] RESEND_API_KEY no está configurada; se omite el envío para:', email);
+    logWarn('resend_api_key_missing', { provider: 'resend', operation: 'order-delivered-email' });
     return;
   }
 
   const trimmedEmail = email.trim();
   const ref = orderRef.trim();
   if (!trimmedEmail || !ref) {
-    console.warn('[order-delivered-email] Email o referencia vacío; se omite el envío.');
+    logWarn('order_delivered_email_empty', { provider: 'resend', operation: 'order-delivered-email' });
     return;
   }
 
@@ -298,14 +293,14 @@ export async function sendOrderDeliveredEmail(email: string, firstName: string, 
 export async function sendWelcomeEmail(email: string, firstName: string): Promise<void> {
   const resend = getResend();
   if (!resend) {
-    console.warn('[welcome-email] RESEND_API_KEY no está configurada; se omite el envío para:', email);
+    logWarn('resend_api_key_missing', { provider: 'resend', operation: 'welcome-email' });
     return;
   }
 
   const trimmed = firstName.trim() || 'Cliente';
   const trimmedEmail = email.trim();
   if (!trimmedEmail) {
-    console.warn('[welcome-email] Email vacío; se omite el envío.');
+    logWarn('welcome_email_empty', { provider: 'resend', operation: 'welcome-email' });
     return;
   }
 
@@ -331,13 +326,13 @@ export async function sendRestockNotificationEmail(params: {
 }): Promise<void> {
   const resend = getResend();
   if (!resend) {
-    console.warn('[restock-email] RESEND_API_KEY no está configurada; se omite el envío para:', params.email);
+    logWarn('resend_api_key_missing', { provider: 'resend', operation: 'restock-email' });
     return;
   }
 
   const trimmedEmail = params.email.trim();
   if (!trimmedEmail) {
-    console.warn('[restock-email] Email vacío; se omite el envío.');
+    logWarn('restock_email_empty', { provider: 'resend', operation: 'restock-email' });
     return;
   }
 
@@ -373,13 +368,13 @@ export async function sendAbandonedCartEmail(params: {
 }): Promise<void> {
   const resend = getResend();
   if (!resend) {
-    console.warn('[abandoned-cart-email] RESEND_API_KEY no está configurada; se omite el envío para:', params.email);
+    logWarn('resend_api_key_missing', { provider: 'resend', operation: 'abandoned-cart-email' });
     return;
   }
 
   const trimmedEmail = params.email.trim();
   if (!trimmedEmail || params.items.length === 0) {
-    console.warn('[abandoned-cart-email] Email vacío o carrito sin ítems; se omite el envío.');
+    logWarn('abandoned_cart_email_empty', { provider: 'resend', operation: 'abandoned-cart-email' });
     return;
   }
 
@@ -421,13 +416,13 @@ export async function sendOrderCancelledEmail(
 ): Promise<void> {
   const resend = getResend();
   if (!resend) {
-    console.warn('[order-cancelled-email] RESEND_API_KEY no está configurada; se omite el envío para:', email);
+    logWarn('resend_api_key_missing', { provider: 'resend', operation: 'order-cancelled-email' });
     return;
   }
 
   const trimmedEmail = email.trim();
   if (!trimmedEmail) {
-    console.warn('[order-cancelled-email] Email vacío; se omite el envío.');
+    logWarn('order_cancelled_email_empty', { provider: 'resend', operation: 'order-cancelled-email' });
     return;
   }
 
@@ -455,13 +450,13 @@ export async function sendEmailChangeConfirmEmail(params: {
 }): Promise<void> {
   const resend = getResend();
   if (!resend) {
-    console.warn('[email-change-confirm] RESEND_API_KEY no está configurada; se omite el envío para:', params.to);
+    logWarn('resend_api_key_missing', { provider: 'resend', operation: 'email-change-confirm' });
     return;
   }
 
   const trimmedEmail = params.to.trim();
   if (!trimmedEmail) {
-    console.warn('[email-change-confirm] Email vacío; se omite el envío.');
+    logWarn('email_change_confirm_empty', { provider: 'resend', operation: 'email-change-confirm' });
     return;
   }
 
@@ -491,13 +486,13 @@ export async function sendReviewRequestEmail(params: {
 }): Promise<boolean> {
   const resend = getResend();
   if (!resend) {
-    console.warn('[review-request-email] RESEND_API_KEY no está configurada; se omite el envío para:', params.email);
+    logWarn('resend_api_key_missing', { provider: 'resend', operation: 'review-request-email' });
     return false;
   }
 
   const trimmedEmail = params.email.trim();
   if (!trimmedEmail || params.products.length === 0) {
-    console.warn('[review-request-email] Email vacío o sin productos; se omite el envío.');
+    logWarn('review_request_email_empty', { provider: 'resend', operation: 'review-request-email' });
     return false;
   }
 
@@ -520,13 +515,13 @@ export async function sendReviewRequestEmail(params: {
 export async function sendPasswordResetEmail(email: string, token: string): Promise<void> {
   const resend = getResend();
   if (!resend) {
-    console.warn('[password-reset-email] RESEND_API_KEY no está configurada; se omite el envío para:', email);
+    logWarn('resend_api_key_missing', { provider: 'resend', operation: 'password-reset-email' });
     return;
   }
 
   const trimmedEmail = email.trim();
   if (!trimmedEmail || !token.trim()) {
-    console.warn('[password-reset-email] Email o token vacío; se omite el envío.');
+    logWarn('password_reset_email_empty', { provider: 'resend', operation: 'password-reset-email' });
     return;
   }
 

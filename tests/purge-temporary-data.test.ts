@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 // Mock prisma antes de importar el handler
 const mockPrisma = {
@@ -74,6 +81,21 @@ function resetAllMocks(): void {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Centralizar timers y cleanup
+// ─────────────────────────────────────────────────────────────
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-07-11T12:00:00.000Z'));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+  resetAllMocks();
+});
+
+// ─────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────
 
@@ -83,11 +105,6 @@ describe('purge-temporary-data — auth', () => {
     vi.stubEnv('TEMP_TOKEN_RETENTION_DAYS', '7');
     vi.stubEnv('DELETED_UPLOAD_RETENTION_DAYS', '30');
     vi.stubEnv('NODE_ENV', 'development');
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    resetAllMocks();
   });
 
   it('rechaza sin Authorization header', async () => {
@@ -140,11 +157,6 @@ describe('purge-temporary-data — dryRun', () => {
     vi.stubEnv('NODE_ENV', 'development');
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    resetAllMocks();
-  });
-
   it('dryRun devuelve conteos sin mutar', async () => {
     // Simula 5 reset tokens expirados
     mockPrisma.passwordResetToken.count.mockResolvedValue(5);
@@ -181,8 +193,9 @@ describe('purge-temporary-data — dryRun', () => {
     expect(res.status).toBe(200);
 
     // AppConfig no debe actualizarse en dryRun
-    // (el código actual siempre upsert, pero verificar que no hay write)
-    expect(mockPrisma.passwordResetToken.deleteMany).not.toHaveBeenCalled();
+    expect(
+      mockPrisma.appConfig.upsert,
+    ).not.toHaveBeenCalled();
   });
 });
 
@@ -192,11 +205,6 @@ describe('purge-temporary-data — time boundaries', () => {
     vi.stubEnv('TEMP_TOKEN_RETENTION_DAYS', '7');
     vi.stubEnv('DELETED_UPLOAD_RETENTION_DAYS', '30');
     vi.stubEnv('NODE_ENV', 'development');
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    resetAllMocks();
   });
 
   it('no borra passwordResetToken con expiresAt dentro de la ventana', async () => {
@@ -239,7 +247,7 @@ describe('purge-temporary-data — time boundaries', () => {
   });
 });
 
-describe('purge-temporary-data — PaymentUpload LINKED safety', () => {
+describe('purge-temporary-data — cutoff values', () => {
   beforeEach(() => {
     vi.stubEnv('CRON_SECRET', 'vitest-cron-secret');
     vi.stubEnv('TEMP_TOKEN_RETENTION_DAYS', '7');
@@ -247,9 +255,111 @@ describe('purge-temporary-data — PaymentUpload LINKED safety', () => {
     vi.stubEnv('NODE_ENV', 'development');
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    resetAllMocks();
+  it('PasswordResetToken cutoff es 7 días desde ahora', async () => {
+    mockPrisma.passwordResetToken.count.mockResolvedValue(0);
+
+    const req = mockRequest({ secret: 'vitest-cron-secret' });
+    const { GET } = await import(
+      '@/app/api/cron/purge-temporary-data/route'
+    );
+    await GET(req as unknown as Parameters<typeof GET>[0]);
+
+    const countArgs =
+      mockPrisma.passwordResetToken.count.mock.calls[0]?.[0];
+    expect(countArgs?.where?.expiresAt?.lt).toEqual(
+      new Date('2026-07-04T12:00:00.000Z'),
+    );
+  });
+
+  it('PaymentUpload DELETED cutoff es 30 días desde ahora', async () => {
+    const req = mockRequest({ secret: 'vitest-cron-secret' });
+    const { GET } = await import(
+      '@/app/api/cron/purge-temporary-data/route'
+    );
+    await GET(req as unknown as Parameters<typeof GET>[0]);
+
+    const uploadCountArgs =
+      mockPrisma.paymentUpload.count.mock.calls[0]?.[0];
+    expect(uploadCountArgs?.where).toEqual({
+      status: 'DELETED',
+      updatedAt: {
+        lt: new Date('2026-06-11T12:00:00.000Z'),
+      },
+    });
+  });
+
+  it('ProductView cutoff es 90 días desde ahora', async () => {
+    const expectedProductViewCutoff = new Date(
+      new Date('2026-07-11T12:00:00.000Z').getTime() -
+        90 * 24 * 60 * 60 * 1000,
+    );
+
+    const req = mockRequest({ secret: 'vitest-cron-secret' });
+    const { GET } = await import(
+      '@/app/api/cron/purge-temporary-data/route'
+    );
+    await GET(req as unknown as Parameters<typeof GET>[0]);
+
+    const productViewArgs =
+      mockPrisma.productView.count.mock.calls[0]?.[0];
+    expect(productViewArgs?.where?.createdAt?.lt).toEqual(
+      expectedProductViewCutoff,
+    );
+  });
+
+  it('AbandonedCart pending cutoff es 90 días', async () => {
+    const expectedProductViewCutoff = new Date(
+      new Date('2026-07-11T12:00:00.000Z').getTime() -
+        90 * 24 * 60 * 60 * 1000,
+    );
+
+    const req = mockRequest({ secret: 'vitest-cron-secret' });
+    const { GET } = await import(
+      '@/app/api/cron/purge-temporary-data/route'
+    );
+    await GET(req as unknown as Parameters<typeof GET>[0]);
+
+    const pendingArgs =
+      mockPrisma.abandonedCart.count.mock.calls.find(
+        ([arg]) =>
+          Array.isArray(arg?.where?.status?.in) &&
+          (arg.where.status.in as string[]).includes('PENDING'),
+      )?.[0];
+    expect(pendingArgs?.where?.lastActivityAt?.lt).toEqual(
+      expectedProductViewCutoff,
+    );
+  });
+
+  it('AbandonedCart terminal cutoff es 365 días', async () => {
+    const expectedTerminalCutoff = new Date(
+      new Date('2026-07-11T12:00:00.000Z').getTime() -
+        365 * 24 * 60 * 60 * 1000,
+    );
+
+    const req = mockRequest({ secret: 'vitest-cron-secret' });
+    const { GET } = await import(
+      '@/app/api/cron/purge-temporary-data/route'
+    );
+    await GET(req as unknown as Parameters<typeof GET>[0]);
+
+    const terminalArgs =
+      mockPrisma.abandonedCart.count.mock.calls.find(
+        ([arg]) =>
+          Array.isArray(arg?.where?.status?.in) &&
+          (arg.where.status.in as string[]).includes('RECOVERED'),
+      )?.[0];
+    expect(terminalArgs?.where?.updatedAt?.lt).toEqual(
+      expectedTerminalCutoff,
+    );
+  });
+});
+
+describe('purge-temporary-data — PaymentUpload LINKED safety', () => {
+  beforeEach(() => {
+    vi.stubEnv('CRON_SECRET', 'vitest-cron-secret');
+    vi.stubEnv('TEMP_TOKEN_RETENTION_DAYS', '7');
+    vi.stubEnv('DELETED_UPLOAD_RETENTION_DAYS', '30');
+    vi.stubEnv('NODE_ENV', 'development');
   });
 
   it('NUNCA borra PaymentUpload LINKED', async () => {
@@ -305,11 +415,6 @@ describe('purge-temporary-data — batch limit', () => {
     vi.stubEnv('NODE_ENV', 'development');
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    resetAllMocks();
-  });
-
   it('limita a BATCH_LIMIT=200 en dryRun', async () => {
     mockPrisma.passwordResetToken.count.mockResolvedValue(500);
 
@@ -363,11 +468,6 @@ describe('purge-temporary-data — emailChangeToken cleanup', () => {
     vi.stubEnv('NODE_ENV', 'development');
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    resetAllMocks();
-  });
-
   it('limpia emailChangeToken, emailChangeTokenExpiry y pendingEmail', async () => {
     mockPrisma.user.count.mockResolvedValue(2);
     mockPrisma.user.findMany.mockResolvedValue([
@@ -404,11 +504,6 @@ describe('purge-temporary-data — idempotency', () => {
     vi.stubEnv('TEMP_TOKEN_RETENTION_DAYS', '7');
     vi.stubEnv('DELETED_UPLOAD_RETENTION_DAYS', '30');
     vi.stubEnv('NODE_ENV', 'development');
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    resetAllMocks();
   });
 
   it('segunda ejecución no borra nada si ya purgó todo', async () => {
@@ -450,11 +545,6 @@ describe('purge-temporary-data — sin variables de retención', () => {
     vi.stubEnv('DELETED_UPLOAD_RETENTION_DAYS', '');
     // En producción sin variables → skip. En dev se usan defaults.
     vi.stubEnv('NODE_ENV', 'production');
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    resetAllMocks();
   });
 
   it('omite categorías de tokens y uploads cuando las variables no están configuradas en producción', async () => {

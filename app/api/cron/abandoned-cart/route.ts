@@ -9,6 +9,7 @@ import {
 import { prisma } from '@/lib/prisma';
 import { sendAbandonedCartEmail } from '@/lib/resend';
 import { verifyBearerSecret } from '@/lib/security';
+import { logInfo, logError } from '@/lib/safe-logger';
 
 /**
  * GET /api/cron/abandoned-cart
@@ -77,7 +78,7 @@ async function createRecoveryCoupon(): Promise<string | null> {
     } catch (err) {
       // Colisión de código único (P2002) → reintenta con otro código.
       if (attempt === 2) {
-        console.error('[cron/abandoned-cart] no se pudo crear cupón de recuperación:', err);
+        logError('cron_abandoned_cart_coupon_failed', err, { operation: 'abandoned_cart_coupon' });
       }
     }
   }
@@ -122,7 +123,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         });
         sent24h++;
       } catch (err) {
-        console.error('[cron/abandoned-cart] envío 24h falló para', cart.id, err);
+        logError('cron_abandoned_cart_24h_failed', err, { operation: 'abandoned_cart_24h' });
         errors24++;
       }
     }
@@ -160,14 +161,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         });
         sent72h++;
       } catch (err) {
-        console.error('[cron/abandoned-cart] envío 72h falló para', cart.id, err);
+        logError('cron_abandoned_cart_72h_failed', err, { operation: 'abandoned_cart_72h' });
         errors72++;
       }
     }
 
-    console.log(
-      `[cron/abandoned-cart] 24h: ${sent24h} enviados, ${errors24} errores | 72h: ${sent72h} enviados, ${errors72} errores`,
-    );
+    logInfo('cron_abandoned_cart', { count: sent24h + sent72h, operation: 'abandoned_cart' });
 
     return NextResponse.json({
       ok:      true,
@@ -177,7 +176,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       errors72,
     });
   } catch (err) {
-    console.error('[cron/abandoned-cart] Error general:', err);
+    logError('cron_abandoned_cart_error', err, { operation: 'abandoned_cart' });
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

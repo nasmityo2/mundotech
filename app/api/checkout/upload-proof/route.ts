@@ -8,6 +8,7 @@ import { detectImageMimeFromBuffer, isAllowedProofMime } from '@/lib/detect-imag
 import { processImageWithFallback } from '@/lib/image-processing';
 import { uploadPrivateProof, deletePrivateProof } from '@/lib/r2';
 import { v4 as uuidv4 } from 'uuid';
+import { logError } from '@/lib/safe-logger';
 
 /** sharp usa módulos nativos; no compatible con Edge. */
 export const runtime = 'nodejs';
@@ -163,7 +164,7 @@ export async function POST(request: Request) {
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (err) {
-    console.error('[upload-proof]', err);
+    logError('upload_proof_failed', err, { operation: 'upload_proof' });
     return NextResponse.json(
       { error: 'No pudimos subir el comprobante. Intenta con otra imagen o más tarde.' },
       { status: 500 },
@@ -183,10 +184,7 @@ export async function POST(request: Request) {
               ? cleanupError.name
               : 'UnknownError';
 
-          console.error(
-            '[upload-proof] No se pudo eliminar el objeto incompleto.',
-            { errorName },
-          );
+          logError('upload_proof_cleanup_failed', cleanupError, { operation: 'upload_proof_cleanup', errorName });
         }
       }
 

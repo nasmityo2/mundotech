@@ -30,11 +30,11 @@ Rotar en este orden. Cada servicio debe generar nueva clave **antes** de revocar
 |---|---|---|---|---|---|
 | 1 | **PostgreSQL (Neon)** | `DATABASE_URL`, `DIRECT_URL` | Admin sist. | Acceso total a BD clientes, pedidos, finanzas | Reset password → nueva conexión → actualizar .env.production |
 | 2 | **NextAuth** | `NEXTAUTH_SECRET` | Admin sist. | Sesiones JWT falsificables | Generar nuevo secret → todas las sesiones existentes se invalidan |
-| 3 | **Cloudflare R2** | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Admin sist. | Acceso a imágenes de productos y comprobantes | Rotar en dashboard R2 |
+| 3 | **Cloudflare R2** | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_PRIVATE_ACCESS_KEY_ID`, `R2_PRIVATE_SECRET_ACCESS_KEY` | Admin sist. | Acceso a imágenes de productos y comprobantes | Rotar en dashboard R2 |
 | 4 | **Resend** | `RESEND_API_KEY` | Admin sist. | Envío de emails fraudulentos en nombre del dominio | Rotar en dashboard Resend |
-| 5 | **Binance API** | `BINANCE_API_KEY`, `BINANCE_SECRET_KEY` | Admin sist. | Transacciones financieras no autorizadas | Rotar en dashboard Binance |
+| 5 | **Binance API** | `BINANCE_PAY_API_KEY`, `BINANCE_PAY_API_SECRET` | Admin sist. | Transacciones financieras no autorizadas | Rotar en dashboard Binance |
 | 6 | **Google OAuth** | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Admin sist. | Inicio de sesión fraudulento con cuenta Google | Rotar en Google Cloud Console |
-| 7 | **Cloudflare (Global)** | `CLOUDFLARE_API_TOKEN` | Admin sist. | Control de DNS, CDN, reglas WAF | Rotar en dashboard Cloudflare |
+| 7 | **Cloudflare (Global)** | `CF_API_TOKEN` | Admin sist. | Control de DNS, CDN, reglas WAF | Rotar en dashboard Cloudflare |
 | 8 | **CRON_SECRET** | `CRON_SECRET` | Admin sist. | Ejecución no autorizada de tareas programadas | Generar nuevo valor |
 | 9 | **Upstash Redis** | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Admin sist. | Rate limiting, caché, colas manipulables | Rotar en dashboard Upstash |
 | 10 | **Sentry** | `SENTRY_AUTH_TOKEN` | Admin sist. | Acceso a errores internos y eventos | Rotar en dashboard Sentry |
@@ -321,4 +321,5 @@ git push origin --force --tags
 - [git-filter-repo documentation](https://htmlpreview.github.io/?https://github.com/newren/git-filter-repo/blob/docs/html/git-filter-repo.html)
 - [gitleaks documentation](https://github.com/gitleaks/gitleaks)
 - [GitHub: Removing sensitive data from a repository](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository)
-- Plan de auditoría: `docs/PLAN-AUDITORIA-CORRECCION-MUNDOTECH.md`
+- Plan de auditoría: `PLAN-AUDITORIA-CORRECCION-MUNDOTECH.md`
+- El workflow de Gitleaks debe ejecutarse con reglas predeterminadas extendidas y sin allowlist de archivos completos. Los valores dummy se permiten únicamente mediante regexes exactas.

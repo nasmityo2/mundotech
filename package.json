@@ -12,6 +12,7 @@
     "db:studio": "prisma studio",
     "db:migrate": "prisma migrate deploy",
     "security:versions": "node scripts/check-security-versions.mjs",
+    "security:api-guards": "node scripts/check-api-origin-guards.mjs",
     "deploy:vps": "bash scripts/deploy-vps.sh",
     "db:seed:reviews": "tsx scripts/seed-reviews.ts",
     "db:migrate:images": "tsx scripts/migrate-legacy-images-to-r2.ts",

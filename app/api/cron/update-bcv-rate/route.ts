@@ -5,6 +5,7 @@ import { EXCHANGE_RATE_BCV_DATE_KEY } from '@/lib/exchange-rate';
 import { persistExchangeRateWithBcvDate } from '@/lib/persist-exchange-rate';
 import { prisma } from '@/lib/prisma';
 import { verifyBearerSecret } from '@/lib/security';
+import { logInfo, logError } from '@/lib/safe-logger';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -39,7 +40,7 @@ async function recordBcvSuccess(): Promise<void> {
       create: { key: BCV_LAST_SUCCESS_KEY, value: now },
     });
   } catch (err) {
-    console.error('[cron-bcv] no se pudo registrar lastBcvSuccessAt:', err);
+    logError('cron_bcv_record_success_failed', err, { operation: 'bcv_record_success' });
   }
 }
 
@@ -51,7 +52,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   try {
     const fetched = await fetchBcvRate();
     if (!fetched) {
-      console.error('[cron-bcv] sin datos de API — se conserva la tasa actual en BD');
+      logError('cron_bcv_no_api_data', new Error('No BCV rate data from API'), { operation: 'bcv_rate_update' });
       return NextResponse.json({ ok: false, reason: 'fetch-failed' });
     }
 
@@ -64,10 +65,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     const actual = await getExchangeRate();
     const jumpRatio = Math.abs(fetched.rate - actual) / actual;
     if (jumpRatio > MAX_RATE_JUMP_RATIO) {
-      console.error(
-        `[cron-bcv] salto sospechoso ${actual.toFixed(4)}→${fetched.rate.toFixed(4)} ` +
-          `(${(jumpRatio * 100).toFixed(1)}%) — requiere revisión manual`,
-      );
+      logError('cron_bcv_suspicious_jump', new Error(`Rate jump ${(jumpRatio * 100).toFixed(1)}%`), { operation: 'bcv_rate_update' });
       return NextResponse.json({
         ok: false,
         needsReview: true,
@@ -79,13 +77,11 @@ export async function GET(request: Request): Promise<NextResponse> {
     await persistExchangeRateWithBcvDate(fetched.rate, fetched.date);
     await recordBcvSuccess();
 
-    console.log(
-      `[cron-bcv] tasa actualizada: Bs. ${fetched.rate.toFixed(4)}/USD (${fetched.date})`,
-    );
+    logInfo('cron_bcv_rate_updated', { operation: 'bcv_rate_update' });
 
     return NextResponse.json({ ok: true, rate: fetched.rate, date: fetched.date });
   } catch (error) {
-    console.error('[cron-bcv] error inesperado:', error);
+    logError('cron_bcv_unexpected_error', error, { operation: 'bcv_rate_update' });
     return NextResponse.json({ ok: false });
   }
 }

@@ -1,4 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import {
   memoryWindow,
   getClientIp,
@@ -9,6 +16,7 @@ import {
   __memoryStoreClear,
   __memoryClearByPrefix,
 } from '@/lib/rate-limit';
+import { buildRateLimitedResponse } from '@/lib/security';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -18,21 +26,16 @@ function mockRequest(headers: Record<string, string>): Request {
   });
 }
 
-/** Espera al menos `ms` milisegundos. */
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 // ── getClientIp ────────────────────────────────────────────────────────────
 
 describe('getClientIp', () => {
-  const originalEnv = { ...process.env };
-
-  beforeEach(() => {
-    process.env = { ...originalEnv };
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   describe('cloudflare', () => {
     beforeEach(() => {
-      process.env.DEPLOYMENT_ENV = 'cloudflare';
+      vi.stubEnv('DEPLOYMENT_ENV', 'cloudflare');
     });
 
     it('acepta cf-connecting-ip válido', () => {
@@ -71,7 +74,7 @@ describe('getClientIp', () => {
 
   describe('vercel', () => {
     beforeEach(() => {
-      process.env.DEPLOYMENT_ENV = 'vercel';
+      vi.stubEnv('DEPLOYMENT_ENV', 'vercel');
     });
 
     it('acepta primer x-vercel-forwarded-for', () => {
@@ -116,35 +119,53 @@ describe('getClientIp', () => {
 // ── hashForBucket ──────────────────────────────────────────────────────────
 
 describe('hashForBucket', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('produce hash determinista', () => {
+    vi.stubEnv('NEXTAUTH_SECRET', 'vitest-nextauth-secret-for-rate-limit');
     const a = hashForBucket('1.2.3.4');
     const b = hashForBucket('1.2.3.4');
     expect(a).toBe(b);
   });
 
   it('diferentes entradas producen diferentes hashes', () => {
+    vi.stubEnv('NEXTAUTH_SECRET', 'vitest-nextauth-secret-for-rate-limit');
     const a = hashForBucket('1.2.3.4');
     const b = hashForBucket('5.6.7.8');
     expect(a).not.toBe(b);
   });
 
   it('normaliza a minúsculas', () => {
+    vi.stubEnv('NEXTAUTH_SECRET', 'vitest-nextauth-secret-for-rate-limit');
     const a = hashForBucket('USER@MAIL.COM');
     const b = hashForBucket('user@mail.com');
     expect(a).toBe(b);
   });
 
   it('nunca expone el valor original', () => {
+    vi.stubEnv('NEXTAUTH_SECRET', 'vitest-nextauth-secret-for-rate-limit');
     const result = hashForBucket('1.2.3.4');
     expect(result).not.toContain('1.2.3.4');
+  });
+
+  describe('hashForBucket sin NEXTAUTH_SECRET', () => {
+    it('lanza en vez de usar un fallback predecible', () => {
+      vi.stubEnv('NEXTAUTH_SECRET', '');
+      expect(() =>
+        hashForBucket('1.2.3.4'),
+      ).toThrow('NEXTAUTH_SECRET');
+    });
   });
 });
 
 // ── memoryWindow ────────────────────────────────────────────────────────────
 
 describe('memoryWindow', () => {
-  beforeEach(() => {
+  afterEach(() => {
     __memoryStoreClear();
+    vi.useRealTimers();
   });
 
   it('permite hasta el límite y bloquea al exceder', () => {
@@ -168,14 +189,15 @@ describe('memoryWindow', () => {
     expect(memoryWindow('bucket-b', config).limited).toBe(true);
   });
 
-  it('reinicia contador tras vencer la ventana', async () => {
+  it('reinicia contador tras vencer la ventana (fake timers)', () => {
+    vi.useFakeTimers();
     const config = { limit: 1, windowMs: 100 };
 
     expect(memoryWindow('sliding', config).limited).toBe(false);
     // Segundo request bloqueado
     expect(memoryWindow('sliding', config).limited).toBe(true);
 
-    await sleep(150);
+    vi.advanceTimersByTime(101);
     // Ventana vencida — se reinicia
     expect(memoryWindow('sliding', config).limited).toBe(false);
   });
@@ -194,7 +216,7 @@ describe('memoryWindow', () => {
 // ── rateLimitCritical ──────────────────────────────────────────────────────
 
 describe('rateLimitCritical', () => {
-  beforeEach(() => {
+  afterEach(() => {
     __memoryStoreClear();
   });
 
@@ -237,7 +259,7 @@ describe('rateLimitCritical', () => {
 // ── rateLimitBestEffort ────────────────────────────────────────────────────
 
 describe('rateLimitBestEffort', () => {
-  beforeEach(() => {
+  afterEach(() => {
     __memoryStoreClear();
   });
 
@@ -254,7 +276,7 @@ describe('rateLimitBestEffort', () => {
 // ── rateLimit (deprecated wrapper) ─────────────────────────────────────────
 
 describe('rateLimit (deprecated)', () => {
-  beforeEach(() => {
+  afterEach(() => {
     __memoryStoreClear();
   });
 
@@ -273,7 +295,7 @@ describe('rateLimit (deprecated)', () => {
 // ── Upstash simulado ───────────────────────────────────────────────────────
 
 describe('Upstash fallback scenarios', () => {
-  beforeEach(() => {
+  afterEach(() => {
     __memoryStoreClear();
     vi.restoreAllMocks();
   });
@@ -364,21 +386,64 @@ describe('Upstash fallback scenarios', () => {
   });
 });
 
+// ── buildRateLimitedResponse ────────────────────────────────────────────────
+
+describe('buildRateLimitedResponse', () => {
+  it('incluye status, Retry-After y no-store', async () => {
+    const response = buildRateLimitedResponse(42);
+    expect(response.status).toBe(429);
+    expect(
+      response.headers.get('Retry-After'),
+    ).toBe('42');
+    expect(
+      response.headers.get('Cache-Control'),
+    ).toBe('no-store');
+    const body = await response.json();
+    expect(body).toEqual({
+      message:
+        'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.',
+    });
+  });
+
+  it('usa mínimo un segundo', () => {
+    const response = buildRateLimitedResponse(0);
+    expect(
+      response.headers.get('Retry-After'),
+    ).toBe('1');
+  });
+
+  it('acepta mensaje genérico personalizado sin exponer backend', async () => {
+    const response = buildRateLimitedResponse(
+      10,
+      'Espera unos segundos e intenta de nuevo.',
+    );
+    const body = await response.json();
+    expect(body).toEqual({
+      message:
+        'Espera unos segundos e intenta de nuevo.',
+    });
+    expect(JSON.stringify(body)).not.toContain('upstash');
+    expect(JSON.stringify(body)).not.toContain('memory');
+  });
+});
+
 // ── Limpieza de Map ────────────────────────────────────────────────────────
 
 describe('memory cleanup', () => {
-  beforeEach(() => {
+  afterEach(() => {
     __memoryStoreClear();
+    vi.useRealTimers();
   });
 
-  it('limpia entradas expiradas después del intervalo', async () => {
+  it('limpia entradas expiradas después del intervalo (fake timers)', () => {
+    vi.useFakeTimers();
     const config = { limit: 1, windowMs: 50 };
 
     memoryWindow('cleanup-test', config);
     // Forzar que la ventana expire
-    await sleep(100);
+    vi.advanceTimersByTime(51);
 
-    // Una nueva entrada con window corta debería limpiar la anterior
+    // Una nueva entrada con window corta
     memoryWindow('cleanup-test', { limit: 1, windowMs: 50 });
     // El contador debería haberse reiniciado (primer request de ventana nueva)
     expect(memoryWindow('cleanup-test', { limit: 1, windowMs: 50 }).limited).toBe(true);

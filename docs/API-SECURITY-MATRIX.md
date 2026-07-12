@@ -135,6 +135,15 @@ Leyenda de valores en columnas:
 
 ---
 
+## Verificación automática
+
+`npm run security:api-guards` analiza el AST de cada Route Handler y falla
+si un POST/PUT/PATCH/DELETE de navegador no contiene
+`rejectInvalidMutationOrigin`. La única excepción actual es el POST interno
+de NextAuth, que utiliza su `csrfToken`.
+
+---
+
 ## Dependencias de archivos
 
 | Archivo | Rol |

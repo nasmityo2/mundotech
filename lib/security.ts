@@ -73,40 +73,73 @@ export function buildRateLimitedResponse(retryAfterSeconds: number, message?: st
 
 /**
  * Mitigación CSRF para Route Handlers públicos de mutación: si la petición
- * trae header Origin, debe coincidir con el host del propio despliegue (o con
- * NEXTAUTH_URL / NEXT_PUBLIC_SITE_URL). Peticiones sin Origin (curl, apps
- * nativas, same-origin antiguos) se permiten — esto bloquea el vector
- * navegador cross-site, que es el que importa para CSRF.
+ * trae header Origin, debe coincidir con NEXTAUTH_URL o NEXT_PUBLIC_SITE_URL.
+ * Peticiones sin Origin (curl, apps nativas, same-origin antiguos) se permiten
+ * — esto bloquea el vector navegador cross-site, que es el que importa para CSRF.
+ *
+ * NUNCA confía en x-forwarded-host, x-forwarded-proto ni host (manipulables
+ * por el atacante en una request directa).
  */
 export function verifySameOrigin(request: Request): boolean {
-  const origin = request.headers.get('origin');
-  if (!origin) return true;
+  const originHeader =
+    request.headers.get('origin');
 
-  const allowed = new Set<string>();
-
-  for (const candidate of [process.env.NEXTAUTH_URL, process.env.NEXT_PUBLIC_SITE_URL]) {
-    if (!candidate) continue;
-    try {
-      allowed.add(new URL(candidate).origin);
-    } catch {
-      /* env mal formada: se ignora */
-    }
+  // Compatibilidad para curl, cron y clientes sin Origin.
+  // La autorización/rate limit sigue siendo obligatoria.
+  if (!originHeader) {
+    return true;
   }
 
-  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host');
-  if (host) {
-    const proto = request.headers.get('x-forwarded-proto') ?? 'https';
-    allowed.add(`${proto}://${host}`);
-    if (host.startsWith('localhost') || host.startsWith('127.0.0.1')) {
-      allowed.add(`http://${host}`);
-    }
-  }
-
+  let requestOrigin: string;
   try {
-    return allowed.has(new URL(origin).origin);
+    requestOrigin =
+      new URL(originHeader).origin;
   } catch {
     return false;
   }
+
+  const allowedOrigins =
+    new Set<string>();
+
+  for (const candidate of [
+    process.env.NEXTAUTH_URL,
+    process.env.NEXT_PUBLIC_SITE_URL,
+  ]) {
+    const value = candidate?.trim();
+    if (!value) {
+      continue;
+    }
+    try {
+      allowedOrigins.add(
+        new URL(value).origin,
+      );
+    } catch {
+      // env-validation debe detectar configuración crítica inválida.
+    }
+  }
+
+  if (
+    process.env.NODE_ENV !== 'production'
+  ) {
+    try {
+      const runtimeOrigin =
+        new URL(request.url).origin;
+      const hostname =
+        new URL(request.url).hostname;
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1'
+      ) {
+        allowedOrigins.add(runtimeOrigin);
+      }
+    } catch {
+      return false;
+    }
+  }
+
+  return allowedOrigins.has(
+    requestOrigin,
+  );
 }
 
 /**
@@ -130,37 +163,44 @@ export function rejectInvalidMutationOrigin(request: Request): NextResponse | nu
   );
 }
 
-/**
- * SESIÓN 09: Comparación timing-safe para Bearer secrets de cron.
- *
- * - Parsea exactamente 'Bearer ' del header Authorization.
- * - Usa crypto.timingSafeEqual con buffers de igual longitud.
- * - Rechaza ante ausencia del header, prefijo incorrecto o longitud distinta.
- * - Nunca imprime ni incluye el secreto en logs ni mensajes de error.
- *
- * @param request  Request del handler.
- * @param expected  Valor esperado del secreto (process.env.CRON_SECRET).
- * @returns true si el secreto coincide; false en cualquier otro caso.
- */
-export function verifyBearerSecret(request: Request, expected: string): boolean {
-  const auth = request.headers.get('authorization');
-  if (!auth) return false;
+export function verifyBearerSecret(
+  request: Request,
+  expected: string,
+): boolean {
+  if (!expected) {
+    return false;
+  }
 
-  // Parse exacto: debe empezar con 'Bearer ' (sin espacios extras, sin variantes)
-  if (!auth.startsWith('Bearer ')) return false;
-  const token = auth.slice(7); // longitud mínima 'Bearer ' = 7
+  const auth =
+    request.headers.get('authorization');
 
-  // Rechazo temprano por longitud distinta — evita leak de longitud del secreto
-  if (token.length !== expected.length) return false;
+  if (!auth?.startsWith('Bearer ')) {
+    return false;
+  }
 
-  const bufToken = Buffer.from(token);
-  const bufExpected = Buffer.from(expected);
+  const token = auth.slice(7);
+  if (!token) {
+    return false;
+  }
+
+  if (
+    Buffer.byteLength(token) !==
+    Buffer.byteLength(expected)
+  ) {
+    return false;
+  }
+
+  const tokenBuffer =
+    Buffer.from(token, 'utf8');
+  const expectedBuffer =
+    Buffer.from(expected, 'utf8');
 
   try {
-    return timingSafeEqual(bufToken, bufExpected);
+    return timingSafeEqual(
+      tokenBuffer,
+      expectedBuffer,
+    );
   } catch {
-    // timingSafeEqual lanza si los buffers tienen distinta longitud;
-    // la guarda de arriba lo previene, pero por defensa en profundidad:
     return false;
   }
 }
