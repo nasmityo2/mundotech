@@ -7,7 +7,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['lib/*.test.ts', 'tests/**/*.test.ts'],
+    include: ['lib/*.test.ts', 'tests/**/*.test.{ts,tsx}'],
     env: {
       DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
       NEXTAUTH_SECRET: 'vitest-secret',
@@ -34,6 +34,9 @@ export default defineConfig({
 
       TEMP_TOKEN_RETENTION_DAYS: '7',
       DELETED_UPLOAD_RETENTION_DAYS: '30',
+
+      NEXT_PUBLIC_GA4_ID: 'G-TEST123',
+      NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: 'test-gsc-verification',
     },
   },
   resolve: {

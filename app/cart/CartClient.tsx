@@ -204,7 +204,7 @@ const CartClient = () => {
                   </div>
                 </dl>
 
-                <button
+                <button type="button"
                   onClick={handleCheckout}
                   className="mt-6 inline-flex w-full items-center justify-center gap-2 bg-brand-yellow text-navy font-bold text-sm h-12 rounded-2xl hover:bg-[#FFE03A] shadow-soft hover:shadow-card hover:-translate-y-0.5 transition-all"
                 >

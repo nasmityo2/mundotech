@@ -4,11 +4,18 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { Play, X, Maximize2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, X, Maximize2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import DynamicZoomWrapper from './DynamicZoomWrapper';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 const ZoomLightbox = dynamic(() => import('./ZoomLightbox'), {
   ssr: false,
-  loading: () => null,
+  loading: () => (
+    <div className="flex items-center justify-center w-full h-full min-h-[300px] motion-safe:animate-pulse" aria-label="Cargando visor">
+      <Loader2 size={32} className="text-slate-400 motion-safe:animate-spin" />
+    </div>
+  ),
 });
 import type { ProductGalleryItem } from '@/lib/product-media';
 import { cn } from '@/lib/utils';
@@ -237,7 +244,10 @@ function CarouselVideo({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={item.posterUrl!}
+          alt=""
           aria-hidden
+          loading="lazy"
+          decoding="async"
           className="absolute inset-0 h-full w-full object-cover scale-125 blur-2xl opacity-50"
         />
       )}
@@ -287,6 +297,8 @@ function Lightbox({
   const startY = useRef<number | null>(null);
   const axis = useRef<'h' | 'v' | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const lbVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
 
   useEffect(() => { setMounted(true); }, []);
@@ -304,24 +316,25 @@ function Lightbox({
     onClose();
   }, [onClose]);
 
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
+  // Scroll lock compartido con compensación de scrollbar
+  useBodyScrollLock(mounted);
 
   // Al cambiar de slide se resetea el zoom
   useEffect(() => { setZoomed(false); }, [index]);
 
+  // Focus trap: foco inicial, Tab/Shift+Tab, Escape cierra
+  useFocusTrap({ containerRef: dialogRef, enabled: mounted, onClose: handleClose });
+
+  // Navegación con flechas (el hook maneja Escape)
   useEffect(() => {
+    if (!mounted) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') handleClose();
       if (e.key === 'ArrowRight') setIndex((i) => Math.min(items.length - 1, i + 1));
       if (e.key === 'ArrowLeft') setIndex((i) => Math.max(0, i - 1));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [handleClose, items.length]);
+  }, [mounted, handleClose, items.length]);
 
   const goPrev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
   const goNext = useCallback(() => setIndex((i) => Math.min(items.length - 1, i + 1)), [items.length]);
@@ -362,12 +375,28 @@ function Lightbox({
   if (!mounted) return null;
   const current = items[index];
   const bgClass = current.type === 'VIDEO' ? 'bg-black' : 'bg-white';
+  const titleId = 'lightbox-title';
 
   return createPortal(
-    <div className={cn('fixed inset-0 z-[120] flex flex-col select-none transition-colors duration-200', bgClass)}>
+    <DynamicZoomWrapper onClose={handleClose} fallback={null}>
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      className={cn(
+        'fixed inset-0 z-[120] flex flex-col select-none',
+        'motion-safe:transition-colors motion-safe:duration-200',
+        bgClass,
+      )}
+    >
+      {/* Título oculto para accesibilidad */}
+      <h2 id={titleId} className="sr-only">{name} — Visor de imágenes</h2>
+
       {/* Cerrar */}
       <div className="absolute top-0 right-0 z-[4] p-3">
         <button
+          ref={closeRef}
           type="button"
           onClick={handleClose}
           aria-label="Cerrar"
@@ -386,7 +415,15 @@ function Lightbox({
         onTouchEnd={onTouchEnd}
       >
         <div
-          className={cn('flex h-full w-full', dragging ? '' : 'transition-transform duration-300 ease-out')}
+          className={cn(
+            'flex h-full w-full',
+            dragging
+              ? ''
+              : cn(
+                  'motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out',
+                  'motion-reduce:transition-none',
+                ),
+          )}
           style={{ transform: `translateX(calc(${-index * 100}% + ${dragX}px))` }}
         >
           {items.map((item, i) => (
@@ -413,6 +450,8 @@ function Lightbox({
                 <img
                   src={item.url}
                   alt={`${name} — imagen ${i + 1}`}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-contain"
                   draggable={false}
                 />
@@ -452,7 +491,8 @@ function Lightbox({
           </button>
         </>
       )}
-    </div>,
+    </div>
+    </DynamicZoomWrapper>,
     document.body,
   );
 }

@@ -10,6 +10,8 @@ import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import { ApproveBinanceButton } from '@/components/admin/ApproveBinanceButton';
 import { ValidatePaymentAdminButton } from '@/components/admin/ValidatePaymentAdminButton';
 import { rejectOrderPayment } from '@/app/actions/orderActions';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 const formatDateTime = (iso: string | null | undefined) => {
   if (!iso) return null;
@@ -160,6 +162,9 @@ export function PaymentVerificationPanel({
             <img
               src={proofState.url}
               alt="Comprobante de pago"
+              referrerPolicy="no-referrer"
+              loading="lazy"
+              decoding="async"
               className="w-full rounded-xl border border-gray-200 max-h-72 object-contain bg-slate-50"
             />
             <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-black/60 rounded-md px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -174,6 +179,9 @@ export function PaymentVerificationPanel({
             <img
               src={proofState.url}
               alt="Comprobante de pago"
+              referrerPolicy="no-referrer"
+              loading="lazy"
+              decoding="async"
               className="w-full rounded-xl border border-gray-200 max-h-72 object-contain bg-slate-50"
             />
             <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-black/60 rounded-md px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -271,8 +279,12 @@ function RejectPaymentDialog({
   onClose: () => void;
   onDone: (o: Order) => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const [reason, setReason] = useState('');
   const [pending, startTransition] = useTransition();
+
+  useBodyScrollLock(true);
+  useFocusTrap({ containerRef: dialogRef, enabled: true, onClose });
 
   const submit = () => {
     startTransition(async () => {
@@ -287,11 +299,18 @@ function RejectPaymentDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reject-payment-title"
+      className="fixed inset-0 z-50 flex sm:items-center sm:justify-center"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <div className="relative z-10 w-full sm:w-[440px] sm:max-w-[92vw] bg-white sm:rounded-2xl shadow-2xl flex flex-col">
         <header className="border-b border-gray-100 px-4 py-3.5 flex items-center justify-between gap-3">
-          <h2 className="text-base font-black text-navy">Rechazar pago</h2>
+          <h2 id="reject-payment-title" className="text-base font-black text-navy">Rechazar pago</h2>
           <button type="button" onClick={onClose} aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100">
             <X size={20} className="text-gray-500" />
           </button>
@@ -308,17 +327,16 @@ function RejectPaymentDialog({
               onChange={(e) => setReason(e.target.value)}
               rows={3}
               maxLength={500}
-              autoFocus
               placeholder="Ej: No recibimos el pago / referencia no encontrada en el banco."
               className="w-full px-3.5 py-2 border border-gray-200 rounded-xl bg-gray-50 text-base focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-400 resize-y"
             />
           </div>
         </div>
         <footer className="border-t border-gray-100 px-4 py-3 flex gap-2">
-          <button onClick={onClose} disabled={pending} className="flex-1 min-h-[52px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100">
+          <button type="button" onClick={onClose} disabled={pending} className="flex-1 min-h-[52px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100">
             Cancelar
           </button>
-          <button onClick={submit} disabled={pending} className="flex-[2] min-h-[52px] inline-flex items-center justify-center gap-2 bg-rose-600 text-white text-sm font-black uppercase rounded-xl hover:bg-rose-700 active:bg-rose-800 disabled:opacity-60">
+          <button type="button" onClick={submit} disabled={pending} className="flex-[2] min-h-[52px] inline-flex items-center justify-center gap-2 bg-rose-600 text-white text-sm font-black uppercase rounded-xl hover:bg-rose-700 active:bg-rose-800 disabled:opacity-60">
             {pending ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
             Rechazar y cancelar
           </button>

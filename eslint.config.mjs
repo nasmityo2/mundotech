@@ -14,6 +14,8 @@ const eslintConfig = [
       'react-hooks/refs': 'off',
       'react-hooks/purity': 'off',
       'react-hooks/static-components': 'off',
+      // PRD-102: todos los <button> deben tener type explícito
+      'react/button-has-type': ['error', { button: true, submit: true, reset: true }],
     },
   },
   {

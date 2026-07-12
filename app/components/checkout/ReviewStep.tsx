@@ -599,6 +599,8 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
               <img
                 src={paymentData.proofPreviewUrl}
                 alt="Comprobante"
+                loading="lazy"
+                decoding="async"
                 className="w-24 h-24 object-cover rounded-xl border border-slate-200"
               />
             </div>

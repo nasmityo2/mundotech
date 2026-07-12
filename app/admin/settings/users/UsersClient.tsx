@@ -215,8 +215,8 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
         <p className="text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
       )}
       <DialogFooter>
-        <button onClick={onClose} disabled={pending} className="flex-1 min-h-[48px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl">Cancelar</button>
-        <button onClick={submit} disabled={pending} className="flex-1 min-h-[48px] bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase rounded-xl flex items-center justify-center gap-2">
+        <button type="button" onClick={onClose} disabled={pending} className="flex-1 min-h-[48px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl">Cancelar</button>
+        <button type="button" onClick={submit} disabled={pending} className="flex-1 min-h-[48px] bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase rounded-xl flex items-center justify-center gap-2">
           {pending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />} Crear
         </button>
       </DialogFooter>
@@ -245,8 +245,8 @@ function ResetPasswordDialog({ user, onClose, onDone }: { user: AdminUser; onClo
         <p className="text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
       )}
       <DialogFooter>
-        <button onClick={onClose} disabled={pending} className="flex-1 min-h-[48px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl">Cancelar</button>
-        <button onClick={submit} disabled={pending} className="flex-1 min-h-[48px] bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase rounded-xl flex items-center justify-center gap-2">
+        <button type="button" onClick={onClose} disabled={pending} className="flex-1 min-h-[48px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl">Cancelar</button>
+        <button type="button" onClick={submit} disabled={pending} className="flex-1 min-h-[48px] bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase rounded-xl flex items-center justify-center gap-2">
           {pending ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />} Cambiar
         </button>
       </DialogFooter>

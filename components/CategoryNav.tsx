@@ -27,7 +27,7 @@ const CategoryNav = () => {
           const isActive = filterCategory === cat;
           const label = categoryLabels[cat] ?? cat;
           return (
-            <button
+            <button type="button"
               key={cat}
               onClick={() => setFilterCategory(cat)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border ${

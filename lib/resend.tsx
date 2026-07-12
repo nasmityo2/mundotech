@@ -56,6 +56,11 @@ const FROM_ADDRESS = resolveFromAddress();
 const REPLY_TO_ADDRESS = emailContactAddress();
 
 function getResend(): Resend | null {
+  // PRD-E2E: en pruebas E2E nunca se hacen llamadas externas a Resend.
+  const nodeEnv = (process.env.NODE_ENV ?? '').trim();
+  if (nodeEnv === 'E2E' || nodeEnv === 'test') {
+    return null;
+  }
   const key = process.env.RESEND_API_KEY;
   if (!key?.trim()) {
     return null;

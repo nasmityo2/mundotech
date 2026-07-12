@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, Building, ChevronRight, Copy, Check, UploadCloud, X, Wallet } from 'lucide-react';
+import { useReducedMotion, reducedTransition } from '@/lib/motion';
 import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 import type { StoreSettings } from '@/lib/data-store';
@@ -56,6 +57,7 @@ const selectCls =
   'block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy';
 
 const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPaymentSubmit, initialData, pagoMovil, transferencia, binancePayId = '', binanceQrUrl = '', whatsappMode = false, embedded = false }, ref) => {
+  const prefersReduced = useReducedMotion();
   const [selected,        setSelected]        = useState<PaymentMethod | null>(initialData?.paymentMethod ?? null);
   const [copiedField,     setCopiedField]      = useState<string | null>(null);
   const [bank,            setBank]             = useState(initialData?.bank && initialData.bank !== 'Binance' ? initialData.bank : '');
@@ -286,10 +288,10 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
           {storeDataRows && isBankManual && (
             <motion.div
               key={selected}
-              initial={{ opacity: 0, y: 8 }}
+              initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.22 }}
+              exit={prefersReduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={prefersReduced ? reducedTransition : { duration: 0.22 }}
               className="bg-navy/5 border border-navy/10 rounded-2xl p-5"
             >
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3">
@@ -331,10 +333,10 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
           {selected === 'binancepay' && (
             <motion.div
               key="binance-static"
-              initial={{ opacity: 0, y: 8 }}
+              initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.22 }}
+              exit={prefersReduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={prefersReduced ? reducedTransition : { duration: 0.22 }}
               className="rounded-2xl border border-[#F0B90B]/50 bg-gradient-to-br from-amber-50/90 to-white p-5 space-y-4"
             >
               <div>
@@ -367,6 +369,9 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                     <img
                       src={binanceQrUrl.trim()}
                       alt="Código QR Binance MundoTech"
+                      referrerPolicy="no-referrer"
+                      loading="lazy"
+                      decoding="async"
                       className="w-36 h-36 rounded-xl border border-slate-200 bg-white object-contain"
                     />
                   </div>
@@ -414,6 +419,8 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                     <img
                       src={proofPreviewUrl}
                       alt="Captura Binance"
+                      loading="lazy"
+                      decoding="async"
                       className="w-40 h-40 object-cover rounded-xl border border-slate-200 shadow-soft"
                     />
                     <button
@@ -455,10 +462,10 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
         {selected === 'cashea' && (
           <motion.div
             key="cashea-static"
-            initial={{ opacity: 0, y: 8 }}
+            initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.22 }}
+            exit={prefersReduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            transition={prefersReduced ? reducedTransition : { duration: 0.22 }}
             className="rounded-2xl border border-navy/20 bg-navy/5 p-5 space-y-2"
           >
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
@@ -476,9 +483,9 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
       {/* ── Datos del comprobante ── */}
       {isBankManual && !whatsappMode && (
         <motion.div
-          initial={{ opacity: 0, y: 8 }}
+          initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
+          transition={prefersReduced ? reducedTransition : { duration: 0.25 }}
           className="space-y-5"
         >
           <div className="border-t border-slate-100 pt-6">
@@ -573,6 +580,8 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                 <img
                   src={proofPreviewUrl}
                   alt="Comprobante"
+                  loading="lazy"
+                  decoding="async"
                   className="w-40 h-40 object-cover rounded-xl border border-slate-200 shadow-soft"
                 />
                 <button

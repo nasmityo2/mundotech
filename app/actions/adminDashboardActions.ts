@@ -14,6 +14,7 @@ import { VALIDATED_REVENUE_STATUSES } from '@/lib/analytics-orders';
 import type { OrderStatus } from '@/lib/definitions';
 import { d, dn } from '@/lib/decimal';
 import { roundMoney2 } from '@/lib/exchange-rate';
+import { parseTimestamp, BACKUP_LAST_SUCCESS_KEY } from '@/lib/operations-health';
 
 const LOW_STOCK_THRESHOLD = 3;
 
@@ -157,11 +158,8 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     ? new Date(bcvRateDateMs).toISOString()
     : null;
   const bcvStale = bcvRateDate == null || Date.now() - bcvRateDateMs > BCV_STALE_MS;
-  const lastBackupRaw = opsMap.get('backup_last_success_at') ?? null;
-  const lastBackupAt =
-    lastBackupRaw && Number.isFinite(Date.parse(lastBackupRaw))
-      ? new Date(Date.parse(lastBackupRaw)).toISOString()
-      : null;
+  const lastBackupRaw = opsMap.get(BACKUP_LAST_SUCCESS_KEY) ?? null;
+  const lastBackupAt = parseTimestamp(lastBackupRaw);
 
   return {
     totalProducts,

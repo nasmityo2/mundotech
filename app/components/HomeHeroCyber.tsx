@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Logo from '@/components/Logo';
 import { ArrowRight, Tag, MapPin } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useReducedMotion } from '@/lib/motion';
 
 /** Fila del modelo Banner (type: 'hero') tal como llega de Prisma. */
 export interface HeroBannerRow {
@@ -136,13 +137,14 @@ export default function HomeHeroCyber({
         ];
 
   const [active, setActive] = useState(0);
+  const prefersReduced = useReducedMotion();
 
   useEffect(() => {
     if (slides.length <= 1) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (prefersReduced) return;
     const id = setInterval(() => setActive((v) => (v + 1) % slides.length), 6500);
     return () => clearInterval(id);
-  }, [slides.length]);
+  }, [slides.length, prefersReduced]);
 
   const slide = slides[active] ?? slides[0];
 
@@ -246,7 +248,7 @@ export default function HomeHeroCyber({
           <div className="relative z-10 hidden sm:flex h-full w-full items-end sm:items-center px-4 pb-6 pt-3 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
             <div
               key={active}
-              className="w-full max-w-full sm:max-w-2xl lg:max-w-[min(36rem,52%)] xl:max-w-2xl text-left animate-fade-up pb-1 sm:pb-0"
+              className="w-full max-w-full sm:max-w-2xl lg:max-w-[min(36rem,52%)] xl:max-w-2xl text-left animate-fade-up motion-reduce:animate-none pb-1 sm:pb-0"
             >
               <BadgePill label={slide.badge} />
 

@@ -2,6 +2,7 @@
 
 import { Check } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useReducedMotion, reducedTransition } from '@/lib/motion';
 
 interface CheckoutStepperProps {
   currentStep: number;
@@ -14,6 +15,7 @@ const steps = [
 ];
 
 const CheckoutStepper = ({ currentStep }: CheckoutStepperProps) => {
+  const prefersReduced = useReducedMotion();
   return (
     <nav aria-label="Progreso del checkout" className="w-full">
       {/* Móvil: lista vertical */}
@@ -33,7 +35,7 @@ const CheckoutStepper = ({ currentStep }: CheckoutStepperProps) => {
                   ? 'calc(50% - 12px)'
                   : 'calc(100% - 48px)',
           }}
-          transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          transition={prefersReduced ? reducedTransition : { duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           aria-hidden
         />
         {steps.map((step) => {
@@ -77,7 +79,7 @@ const CheckoutStepper = ({ currentStep }: CheckoutStepperProps) => {
           initial={false}
           animate={{ scaleX: currentStep / (steps.length - 1) }}
           style={{ right: 20 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          transition={prefersReduced ? reducedTransition : { duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         />
 
         {steps.map((step) => {

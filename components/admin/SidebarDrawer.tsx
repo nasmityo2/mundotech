@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import { X, LogOut } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import { ADMIN_NAV_GROUPS, isItemActive } from '@/lib/admin-nav';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface SidebarDrawerProps {
   open: boolean;
@@ -16,6 +18,7 @@ interface SidebarDrawerProps {
 
 export default function SidebarDrawer({ open, onClose, userName, userEmail }: SidebarDrawerProps) {
   const pathname = usePathname();
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   // Cerrar el drawer cuando cambia la ruta
   useEffect(() => {
@@ -23,21 +26,9 @@ export default function SidebarDrawer({ open, onClose, userName, userEmail }: Si
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  // Bloquear scroll del body mientras está abierto
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden';
-      return () => { document.body.style.overflow = ''; };
-    }
-  }, [open]);
-
-  // Cerrar con tecla ESC
-  useEffect(() => {
-    if (!open) return;
-    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open, onClose]);
+  // Scroll lock y focus trap compartidos
+  useBodyScrollLock(open);
+  useFocusTrap({ containerRef: drawerRef, enabled: open, onClose });
 
   return (
     <>
@@ -50,12 +41,14 @@ export default function SidebarDrawer({ open, onClose, userName, userEmail }: Si
       />
 
       <aside
+        ref={drawerRef}
         className={`md:hidden fixed inset-y-0 left-0 z-50 w-[84vw] max-w-[320px] bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
         aria-hidden={!open}
         role="dialog"
+        aria-modal="true"
         aria-label="Menú de administración"
       >
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">

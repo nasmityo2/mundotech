@@ -137,6 +137,7 @@ export default function AdminReviewsPage() {
               src={r.photos[0]}
               alt=""
               loading="lazy"
+              decoding="async"
               className="w-10 h-10 rounded-lg object-cover border border-slate-200"
             />
             {r.photos.length > 1 && (
@@ -318,7 +319,7 @@ function ReviewDetailDialog({
               {review.photos.map((src) => (
                 <a key={src} href={src} target="_blank" rel="noopener noreferrer">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt="Foto de la reseña" className="w-24 h-24 rounded-lg object-cover border border-gray-200" />
+                  <img src={src} alt="Foto de la reseña" loading="lazy" decoding="async" className="w-24 h-24 rounded-lg object-cover border border-gray-200" />
                 </a>
               ))}
             </div>
@@ -332,12 +333,12 @@ function ReviewDetailDialog({
         </div>
         <footer className="border-t border-gray-100 px-4 py-3 flex gap-2">
           {review.status !== 'APPROVED' && (
-            <button onClick={onApprove} className="flex-1 min-h-[48px] inline-flex items-center justify-center gap-2 bg-green-50 border border-green-300 text-green-800 text-sm font-bold rounded-xl active:bg-green-100">
+            <button type="button" onClick={onApprove} className="flex-1 min-h-[48px] inline-flex items-center justify-center gap-2 bg-green-50 border border-green-300 text-green-800 text-sm font-bold rounded-xl active:bg-green-100">
               <Check size={16} /> Aprobar
             </button>
           )}
           {review.status !== 'REJECTED' && (
-            <button onClick={onReject} className="flex-1 min-h-[48px] inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 text-sm font-bold rounded-xl active:bg-gray-100">
+            <button type="button" onClick={onReject} className="flex-1 min-h-[48px] inline-flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 text-sm font-bold rounded-xl active:bg-gray-100">
               <X size={16} /> Rechazar
             </button>
           )}
@@ -402,10 +403,10 @@ function ReplyDialog({
           </div>
         </div>
         <footer className="border-t border-gray-100 px-4 py-3 flex gap-2">
-          <button onClick={onClose} disabled={saving} className="flex-1 min-h-[52px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100">
+          <button type="button" onClick={onClose} disabled={saving} className="flex-1 min-h-[52px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100">
             Cancelar
           </button>
-          <button onClick={save} disabled={saving} className="flex-[2] min-h-[52px] inline-flex items-center justify-center gap-2 bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase rounded-xl active:bg-yellow-300 disabled:opacity-60">
+          <button type="button" onClick={save} disabled={saving} className="flex-[2] min-h-[52px] inline-flex items-center justify-center gap-2 bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase rounded-xl active:bg-yellow-300 disabled:opacity-60">
             {saving ? <Loader2 size={16} className="animate-spin" /> : null}
             Guardar respuesta
           </button>

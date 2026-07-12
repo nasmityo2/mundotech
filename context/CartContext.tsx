@@ -37,6 +37,8 @@ interface CartContextType {
   silentAddToCart: (product: Product, quantity?: number) => void;
   notification: { message: string; type: 'success' | 'error' } | null;
   showNotification: (message: string, type: 'success' | 'error') => void;
+  /** Texto del último anuncio accesible (aria-live). Solo lectura para UI. */
+  announcement: string;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -88,6 +90,30 @@ export const CartProvider = ({ children }: CartProviderProps) => {
     message: string;
     type: 'success' | 'error';
   } | null>(null);
+
+  const [announcement, setAnnouncement] = useState('');
+  const announceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Anuncia un texto en la región aria-live, limpiando y re-asentando para
+   *  que lectores de pantalla lean incluso texto repetido. */
+  const announce = useCallback((text: string) => {
+    if (announceTimerRef.current) clearTimeout(announceTimerRef.current);
+    // Limpiar primero para que el lector detecte cambio aunque sea el mismo texto
+    setAnnouncement('');
+    announceTimerRef.current = setTimeout(() => {
+      setAnnouncement(text);
+    }, 50);
+  }, []);
+
+  // Cleanup del timer al desmontar
+  useEffect(() => {
+    return () => {
+      if (announceTimerRef.current) clearTimeout(announceTimerRef.current);
+    };
+  }, []);
+
+  /** Sanea el nombre del producto: trunca a 60 caracteres para anuncios. */
+  const safeName = (name: string) => name.length > 60 ? name.slice(0, 57) + '…' : name;
 
   /**
    * hasMergedRef: se activa al completar el merge al login para no repetirlo.
@@ -357,6 +383,17 @@ export const CartProvider = ({ children }: CartProviderProps) => {
   );
 
   const addToCart = (product: Product, quantity: number = 1) => {
+    const prevItem = cartRef.current.find((i) => i.id === product.id);
+    if (prevItem) {
+      const newQty = prevItem.quantity + quantity;
+      if (newQty > product.stock) {
+        announce(`No hay suficiente stock de "${safeName(product.name)}". Máximo disponible: ${product.stock}.`);
+      } else {
+        announce(`"${safeName(product.name)}" actualizado: ${newQty} unidad(es) en el carrito.`);
+      }
+    } else {
+      announce(`"${safeName(product.name)}" agregado al carrito.`);
+    }
     applyAdd(product, quantity);
     setItemAdded(true);
     setTimeout(() => setItemAdded(false), 500);
@@ -378,6 +415,7 @@ export const CartProvider = ({ children }: CartProviderProps) => {
     setCart((prevItems) => prevItems.filter((i) => i.id !== productId));
     dbRemoveItem(productId);
     if (itemToRemove) {
+      announce(`"${safeName(itemToRemove.name)}" eliminado del carrito.`);
       showNotification(`"${itemToRemove.name}" eliminado.`, 'success');
       track('remove_from_cart', {
         currency: GA4_CURRENCY,
@@ -388,9 +426,15 @@ export const CartProvider = ({ children }: CartProviderProps) => {
   };
 
   const updateQuantity = (productId: string, quantity: number) => {
+    const item = cartRef.current.find((i) => i.id === productId);
     if (quantity <= 0) {
       removeFromCart(productId);
       return;
+    }
+    if (item && quantity > item.stock) {
+      announce(`No hay suficiente stock de "${safeName(item.name)}". Máximo disponible: ${item.stock}.`);
+    } else if (item) {
+      announce(`"${safeName(item.name)}" actualizado: ${quantity} unidad(es) en el carrito.`);
     }
     setCart((prevItems) =>
       prevItems.map((i) => {
@@ -428,6 +472,7 @@ export const CartProvider = ({ children }: CartProviderProps) => {
         silentAddToCart,
         notification,
         showNotification,
+        announcement,
       }}
     >
       {children}

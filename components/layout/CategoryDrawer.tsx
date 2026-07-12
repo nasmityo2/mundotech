@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, Clock, Zap, Sparkles, Tag } from 'lucide-react';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useReducedMotion, reducedTransition } from '@/lib/motion';
 
 interface PromoData {
   title:        string;
@@ -67,12 +69,14 @@ interface CategoryItem {
 }
 
 export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
+  const prefersReduced = useReducedMotion();
   const [promo, setPromo] = useState<PromoData | null>(null);
   // PRD-095: el menú ya no depende del catálogo completo (ProductContext);
   // usa el endpoint liviano de categorías y solo carga al abrir el drawer.
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const categoriesLoadedRef = useRef(false);
   const firstCatRef = useRef<HTMLAnchorElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open || categoriesLoadedRef.current) return;
@@ -112,18 +116,9 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
   // Lock compartido: no pisa el overflow de otros drawers (cart/búsqueda).
   useBodyScrollLock(open);
 
-  useEffect(() => {
-    if (open) {
-      const t = setTimeout(() => firstCatRef.current?.focus(), 180);
-      return () => clearTimeout(t);
-    }
-  }, [open]);
-
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [onClose]);
+  // Focus trap full: foco inicial en "Todos los productos" (firstCatRef).
+  // El hook se encarga del foco inicial, Tab/Shift+Tab y Escape.
+  useFocusTrap({ containerRef: drawerRef, enabled: open, onClose });
 
   const display = promo ?? FALLBACK_PROMO;
 
@@ -138,7 +133,7 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.22 }}
+            transition={prefersReduced ? reducedTransition : { duration: 0.22 }}
             className="fixed inset-0 z-[55] bg-navy/45 backdrop-blur-[2px] sm:backdrop-blur-sm cursor-pointer"
             onClick={onClose}
             aria-label="Cerrar menú"
@@ -147,13 +142,14 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
           {/* Drawer */}
           <motion.aside
             key="drawer"
+            ref={drawerRef}
             role="dialog"
             aria-modal="true"
             aria-label="Menú de categorías"
-            initial={{ x: '-100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '-100%' }}
-            transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            initial={prefersReduced ? { opacity: 0 } : { x: '-100%' }}
+            animate={prefersReduced ? { opacity: 1 } : { x: 0 }}
+            exit={prefersReduced ? { opacity: 0 } : { x: '-100%' }}
+            transition={prefersReduced ? reducedTransition : { type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="fixed top-0 left-0 h-[100dvh] w-[88vw] max-w-[340px] bg-white z-[56] flex flex-col shadow-lift overscroll-contain"
             style={{ paddingTop: 'env(safe-area-inset-top)' }}
           >

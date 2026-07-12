@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
 import { pathnameToLoginNextSlug, pathFromLoginNextSlug } from '@/lib/auth-path';
+import { buildPublicCachedCsp, buildStrictCsp } from '@/lib/csp';
 import { isAdminRole } from '@/lib/is-admin-role';
 import { slugify } from '@/lib/slugify';
 import {
@@ -10,66 +11,6 @@ import {
   LOGIN_RETURN_PROMOTED_HEADER,
   loginReturnCookieOptions,
 } from '@/lib/login-return-cookie-shared';
-
-function r2CspOrigin(): string {
-  const base = process.env.R2_PUBLIC_BASE_URL?.trim();
-  if (!base) return '';
-  try {
-    const u = new URL(base);
-    return u.protocol === 'https:' ? ` https://${u.hostname}` : '';
-  } catch {
-    return '';
-  }
-}
-
-/**
- * CSP estricta con nonce por petición (rutas SSR dinámicas: admin, checkout, login…).
- * strict-dynamic permite que scripts cargados por un script con nonce válido también se ejecuten.
- */
-function buildStrictCsp(nonce: string): string {
-  const r2Origin = r2CspOrigin();
-  return [
-    "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://www.googletagmanager.com https://static.cloudflareinsights.com`,
-    "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob:${r2Origin} https://*.google-analytics.com https://*.googletagmanager.com`,
-    `media-src 'self' data: blob:${r2Origin}`,
-    "font-src 'self' data:",
-    `connect-src 'self'${r2Origin} https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://static.cloudflareinsights.com`,
-    "frame-src 'self' https://iframe.mediadelivery.net https://www.google.com https://maps.google.com",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-  ].join('; ');
-}
-
-/**
- * CSP para HTML estático/ISR (/, /productos, /product/*, /categoria/*…).
- *
- * El HTML cacheado se genera en build SIN nonce en los scripts inline de Next.js
- * (self.__next_f.push, bootstrap de hidratación). Si el middleware exige nonce
- * distinto por request, el navegador bloquea la hidratación → skeleton congelado.
- *
- * Sin nonce ni strict-dynamic: 'unsafe-inline' permite esos scripts cacheados.
- * Las rutas dinámicas/sensibles siguen con buildStrictCsp().
- */
-function buildPublicCachedCsp(): string {
-  const r2Origin = r2CspOrigin();
-  return [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://static.cloudflareinsights.com",
-    "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob:${r2Origin} https://*.google-analytics.com https://*.googletagmanager.com`,
-    `media-src 'self' data: blob:${r2Origin}`,
-    "font-src 'self' data:",
-    `connect-src 'self'${r2Origin} https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://static.cloudflareinsights.com`,
-    "frame-src 'self' https://iframe.mediadelivery.net https://www.google.com https://maps.google.com",
-    "object-src 'none'",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-  ].join('; ');
-}
 
 /** Rutas públicas cuyo HTML puede servirse desde caché estática/ISR (CSP sin nonce). */
 const PUBLIC_CACHED_PATH_PATTERNS = [

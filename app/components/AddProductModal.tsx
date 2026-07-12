@@ -13,6 +13,9 @@ import { X, GripVertical, ImagePlus, Star, Camera, Plus, Trash2, Video, Play } f
 import { deriveLegacyImagesFromSlots, type ProductGalleryItem } from '@/lib/product-media';
 import { parseProductSpecs, type ProductSpec } from '@/lib/definitions';
 
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+
 interface Product {
   id:          string;
   name:        string;
@@ -76,6 +79,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   const formRef        = useRef<HTMLFormElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const videoInputRef  = useRef<HTMLInputElement>(null);
   const [slots, setSlots] = useState<GallerySlot[]>([]);
   const slotsRef = useRef(slots);
@@ -95,12 +99,12 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   const [discountPct, setDiscountPct] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
   const [pricing, setPricing] = useState({ marginPct: DEFAULT_PROFIT_MARGIN_PCT, factor: DEFAULT_BCV_BINANCE_FACTOR });
-  // Bloquear scroll del body con modal abierto
-  useEffect(() => {
-    if (!isOpen) return;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
+  // Scroll lock y focus trap compartidos
+  useBodyScrollLock(isOpen);
+  // handleClose se define más abajo, pero usamos una ref para pasarlo al hook
+  // sin romper el orden de hooks (handleClose necesita slots, slotsRef, etc.)
+  const handleCloseRef = useRef<() => void>(() => onClose());
+  useFocusTrap({ containerRef: dialogRef, enabled: isOpen, onClose: () => handleCloseRef.current() });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -394,6 +398,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
     sessionUploadedVideosRef.current = [];
     onClose();
   }, [onClose]);
+  handleCloseRef.current = handleClose;
 
   const handleSubmitAttempt = useCallback(() => {
     if (hasProcessingVideo) {
@@ -452,6 +457,10 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
 
   return (
     <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={product ? 'Editar producto' : 'Nuevo producto'}
       className="fixed z-50 inset-0 flex sm:items-center sm:justify-center"
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
@@ -975,7 +984,7 @@ function SortableSlot({
       className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50 aspect-square"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={previewSrc} alt={`Medio ${index + 1}`} className="w-full h-full object-contain p-1" />
+      <img src={previewSrc} alt={`Medio ${index + 1}`} loading="lazy" decoding="async" className="w-full h-full object-contain p-1" />
 
       {slot.type === 'VIDEO' && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

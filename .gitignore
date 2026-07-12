@@ -67,3 +67,9 @@ vercel.json.bak*
 # Playwright report y test outputs
 playwright-report/
 test-results/
+
+# SBOM generados por CI (cyclonedx-npm)
+sbom/
+
+# Auditoría de dependencias dev generada por CI
+docs/DEV-DEPENDENCY-AUDIT.md

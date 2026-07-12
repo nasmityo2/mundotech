@@ -53,7 +53,7 @@ export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) 
             Cuando hagas tu primera compra aparecerá aquí. Explora nuestro catálogo y encuentra tu próxima
             tecnología favorita.
           </p>
-          <button
+          <button type="button"
             onClick={() => router.push('/productos')}
             className="mt-6 inline-flex items-center gap-2 bg-navy text-white text-sm font-semibold px-5 h-11 rounded-xl hover:bg-navy-700 shadow-soft hover:shadow-card transition-all"
           >

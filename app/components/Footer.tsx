@@ -1,5 +1,8 @@
 import Link from 'next/link';
 import { Phone, MapPin, Mail, Clock } from 'lucide-react';
+import type { SiteShellData } from '@/lib/site-shell-cache';
+import { whatsappHref } from '@/lib/mundotech-social';
+import Logo from '@/components/Logo';
 
 /** Glyph de Instagram (lucide 1.x no exporta iconos de marca). */
 const InstagramGlyph = ({ size = 15 }: { size?: number }) => (
@@ -9,30 +12,17 @@ const InstagramGlyph = ({ size = 15 }: { size?: number }) => (
     <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
   </svg>
 );
-import { readSettings } from '@/lib/data-store';
-import { readSeoLocal, describeOpeningHours } from '@/lib/seo-local';
-import { readSiteContent } from '@/lib/site-content';
-import { whatsappHref } from '@/lib/mundotech-social';
-import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
-import Logo from '@/components/Logo';
 
 /**
- * Footer de la tienda. Todos los datos viven en el admin (settings, SEO local
- * y personalización) — aquí solo se renderizan. Los métodos de pago listados
- * son exactamente los que acepta el checkout: nada de prometer lo que no hay.
+ * Footer de la tienda. Todos los datos se reciben vía props desde layout.tsx
+ * — nunca consulta Prisma directamente. SESIÓN 15.
+ *
+ * Los métodos de pago listados son exactamente los que acepta el checkout:
+ * nada de prometer lo que no hay.
  */
-const Footer = async () => {
-  // P46/H14: los accesos rápidos de categoría enlazan a la URL canónica
-  // /categoria/[slug] (con fallback /productos), no al filtro ?cat=.
-  const [settings, seo, content, gamingPath, accesoriosPath] = await Promise.all([
-    readSettings(),
-    readSeoLocal(),
-    readSiteContent(),
-    resolveCategoryPathFromProductCategory('Consolas'),
-    resolveCategoryPathFromProductCategory('Accesorios'),
-  ]);
+export default function Footer({ shellData }: { shellData: SiteShellData }) {
+  const { settings, siteContent: content, categoryPaths, openingHours } = shellData;
 
-  const hours = describeOpeningHours(seo);
   const waHref = whatsappHref(
     content.whatsapp.phone || settings.phone,
     'Hola MundoTech, los contacto desde la página web.',
@@ -64,11 +54,11 @@ const Footer = async () => {
                   <span>{settings.address}</span>
                 </div>
               )}
-              {hours.length > 0 && (
+              {openingHours.length > 0 && (
                 <div className="flex items-start gap-2 text-[13px] text-on-dark">
                   <Clock size={13} className="text-brand-yellow flex-shrink-0 mt-0.5" aria-hidden="true" />
                   <span>
-                    {hours.map((h) => `${h.day}: ${h.hours}`).join(' · ')}
+                    {openingHours.map((h) => `${h.day}: ${h.hours}`).join(' · ')}
                   </span>
                 </div>
               )}
@@ -111,8 +101,8 @@ const Footer = async () => {
               <li><Link href="/productos"                className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Catálogo</Link></li>
               <li><Link href="/nosotros"                 className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Quiénes somos</Link></li>
               <li><Link href="/tienda-barquisimeto"      className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Nuestra tienda</Link></li>
-              <li><Link href={gamingPath}     className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Gaming</Link></li>
-              <li><Link href={accesoriosPath} className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Accesorios</Link></li>
+              <li><Link href={categoryPaths.gamingPath}   className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Gaming</Link></li>
+              <li><Link href={categoryPaths.accesoriosPath} className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Accesorios</Link></li>
             </ul>
           </div>
 
@@ -171,6 +161,4 @@ const Footer = async () => {
       </div>
     </footer>
   );
-};
-
-export default Footer;
+}

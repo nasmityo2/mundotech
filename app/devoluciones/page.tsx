@@ -7,7 +7,7 @@ import { whatsappHref } from '@/lib/mundotech-social';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 const PAGE_URL = `${SITE_URL}/devoluciones`;
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: 'Devoluciones y garantía',

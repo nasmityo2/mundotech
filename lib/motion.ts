@@ -1,6 +1,12 @@
 import type { Variants, Transition } from "framer-motion"
 
 /**
+ * Re-export de framer-motion para acceso controlado a useReducedMotion.
+ * Importar desde aquí garantiza consistencia en todo el proyecto.
+ */
+export { useReducedMotion } from "framer-motion"
+
+/**
  * Easing curva tipo "out-expo" muy usada en productos premium (Apple, Linear).
  */
 export const easeOutExpo = [0.22, 1, 0.36, 1] as const
@@ -82,4 +88,39 @@ export const slideX = {
     x: dir * -32,
     transition: { duration: 0.3, ease: easeOutExpo },
   }),
+}
+
+/**
+ * Helper para condiciones de animación reducida (framer-motion).
+ * Retorna variantes que, si reduce es true, aplican fade de 100ms máximo
+ * sin ningún transform de posición/escala — solo opacidad.
+ *
+ * Uso:
+ *   const anim = withReducedMotion(reduce, {
+ *     hidden: { opacity: 0, y: 16 },
+ *     visible: { opacity: 1, y: 0 },
+ *   })
+ *   // → reduce=true: hidden { opacity: 0 }, visible { opacity: 1 }, no y
+ */
+export function withReducedMotion(
+  reduce: boolean,
+  variants: Variants & { hidden?: { opacity?: number }; visible?: { opacity?: number } },
+): Variants {
+  if (!reduce) return variants
+  return {
+    hidden:  { opacity: variants.hidden?.opacity ?? 0 },
+    visible: {
+      opacity: 1,
+      transition: { duration: 0.1, ease: "easeOut" },
+    },
+  }
+}
+
+/**
+ * Transition reducida: fade rápido de 100ms, sin transform.
+ * Útil para animaciones manuales (AnimatePresence con initial/animate/exit).
+ */
+export const reducedTransition: Transition = {
+  duration: 0.1,
+  ease: "easeOut",
 }

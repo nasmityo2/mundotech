@@ -14,6 +14,17 @@
     --surface-muted: #F8FAFC;
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   html {
     scroll-behavior: smooth;
     overflow-x: hidden;
@@ -174,6 +185,15 @@
   }
   .text-pretty {
     text-wrap: pretty;
+  }
+
+  /* Reduced motion: spinners become static, ping/pulse/bounce disabled */
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none;
+      background-image: none;
+      background-color: #E5E9F2;
+    }
   }
 
   /* Tabular nums helper */

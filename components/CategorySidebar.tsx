@@ -64,7 +64,7 @@ const CategorySidebar = () => {
       <CollapsibleSection icon={<Tag size={14} />} title="Categorías" defaultOpen>
         <ul className="space-y-0.5">
           <li>
-            <button
+            <button type="button"
               onClick={() => setFilterCategory('all')}
               className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
                 filterCategory === 'all'
@@ -84,7 +84,7 @@ const CategorySidebar = () => {
           </li>
           {categories.map((cat) => (
             <li key={cat}>
-              <button
+              <button type="button"
                 onClick={() => setFilterCategory(cat)}
                 className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
                   filterCategory === cat
@@ -110,7 +110,7 @@ const CategorySidebar = () => {
         <ul className="space-y-0.5">
           {sortOptions.map((opt) => (
             <li key={opt.value}>
-              <button
+              <button type="button"
                 onClick={() => setSortOption(opt.value)}
                 className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
                   sortOption === opt.value

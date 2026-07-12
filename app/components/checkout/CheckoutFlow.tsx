@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ShieldCheck, Lock } from 'lucide-react';
+import { useReducedMotion, reducedTransition } from '@/lib/motion';
 
 import CheckoutStepper from '@/app/components/checkout/CheckoutStepper';
 import ShippingForm, { type ShippingFormData } from '@/app/components/checkout/ShippingForm';
@@ -41,6 +42,7 @@ interface CheckoutFlowProps {
 }
 
 const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, binanceQrUrl, shippingEstimates, whatsappMode = false, whatsappOrderPhone = '', storeName = 'MundoTech' }: CheckoutFlowProps) => {
+  const prefersReduced = useReducedMotion();
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection]     = useState<1 | -1>(1);
   const [shippingData, setShippingData] = useState<ShippingFormData | null>(null);
@@ -217,10 +219,10 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
               <motion.div
                 key={currentStep}
                 custom={direction}
-                initial={{ opacity: 0, x: direction * 24 }}
+                initial={prefersReduced ? { opacity: 0 } : { opacity: 0, x: direction * 24 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: direction * -24 }}
-                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                exit={prefersReduced ? { opacity: 0 } : { opacity: 0, x: direction * -24 }}
+                transition={prefersReduced ? reducedTransition : { duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               >
                 {renderStepContent()}
               </motion.div>

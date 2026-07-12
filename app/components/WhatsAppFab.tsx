@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { whatsappHref } from '@/lib/mundotech-social';
+import { useReducedMotion, reducedTransition } from '@/lib/motion';
 
 /**
  * Botón flotante de WhatsApp — el canal de venta real de la tienda.
@@ -24,6 +25,7 @@ export default function WhatsAppFab({
   phone: string;
   message?: string;
 }) {
+  const prefersReduced = useReducedMotion();
   const pathname = usePathname();
 
   const hidden =
@@ -39,9 +41,9 @@ export default function WhatsAppFab({
 
   return (
     <motion.a
-      initial={{ opacity: 0, scale: 0.6, y: 16 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ type: 'spring', stiffness: 320, damping: 22, delay: 0.4 }}
+      initial={prefersReduced ? { opacity: 0 } : { opacity: 0, scale: 0.6, y: 16 }}
+      animate={prefersReduced ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+      transition={prefersReduced ? reducedTransition : { type: 'spring', stiffness: 320, damping: 22, delay: 0.4 }}
       href={whatsappHref(phone, message)}
       target="_blank"
       rel="noopener noreferrer"

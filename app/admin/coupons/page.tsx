@@ -449,10 +449,10 @@ function CouponDialog({
 
         <footer className="sticky bottom-0 bg-white sm:rounded-b-2xl border-t border-gray-100 px-4 py-3 flex gap-2"
           style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-          <button onClick={onClose} disabled={pending} className="flex-1 min-h-[52px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100">
+          <button type="button" onClick={onClose} disabled={pending} className="flex-1 min-h-[52px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100">
             Cancelar
           </button>
-          <button onClick={submit} disabled={pending} className="flex-[2] min-h-[52px] inline-flex items-center justify-center gap-2 bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase rounded-xl active:bg-yellow-300 disabled:opacity-60">
+          <button type="button" onClick={submit} disabled={pending} className="flex-[2] min-h-[52px] inline-flex items-center justify-center gap-2 bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase rounded-xl active:bg-yellow-300 disabled:opacity-60">
             {pending ? <Loader2 size={16} className="animate-spin" /> : null}
             {coupon ? 'Guardar cambios' : 'Crear cupón'}
           </button>

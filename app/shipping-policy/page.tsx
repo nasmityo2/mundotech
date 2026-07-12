@@ -3,6 +3,8 @@ import Link from 'next/link';
 import LegalPageLayout from '@/app/components/LegalPageLayout';
 import { readSettings } from '@/lib/data-store';
 
+export const revalidate = 300;
+
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 const PAGE_URL = `${SITE_URL}/shipping-policy`;
 

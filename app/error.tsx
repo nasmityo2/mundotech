@@ -64,6 +64,7 @@ export default function GlobalError({ error, reset }: ErrorProps) {
         {/* CTAs */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6">
           <button
+            type="button"
             onClick={reset}
             className="inline-flex items-center gap-2 bg-navy text-white font-semibold text-sm px-6 py-3 rounded-xl hover:bg-navy-700 active:scale-95 transition-all shadow-card"
           >

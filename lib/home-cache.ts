@@ -1,6 +1,9 @@
 /**
  * Cached reads for the home page (ISR, revalidate=300).
  *
+ * SESIÓN 14 — Cada shelf tiene su propia consulta acotada con take+select
+ * mínimo. Ninguna regeneración ISR carga el catálogo completo de productos.
+ *
  * Heavy Prisma queries are wrapped in unstable_cache so ISR regeneration
  * hits the Next.js Data Cache instead of Postgres on every revalidation.
  * Tags align with lib/catalog-cache.ts where applicable.
@@ -23,20 +26,120 @@ const HOMEPAGE_CONFIG_KEYS = [
   'homepage_benefits',
 ] as const;
 
-export const getCachedHomeProducts = unstable_cache(
-  async () => {
+/**
+ * Tipo compartido para productos de las estanterías del home.
+ * price ya convertido a number, originalPrice a number | null.
+ */
+export type HomeShelfProduct = {
+  id: string;
+  slug: string | null;
+  name: string;
+  description: string | null;
+  price: number;
+  originalPrice: number | null;
+  stock: number;
+  category: string;
+  brand: string | null;
+  images: string[];
+};
+
+/** Convierte filas Prisma con Decimal al tipo HomeShelfProduct. */
+function toHomeShelfProduct(p: {
+  id: string;
+  slug: string | null;
+  name: string;
+  description: string | null;
+  price: { toNumber(): number };
+  originalPrice: { toNumber(): number } | null;
+  stock: number;
+  category: string;
+  brand: string | null;
+  images: string[];
+}): HomeShelfProduct {
+  return {
+    id: p.id,
+    slug: p.slug,
+    name: p.name,
+    description: p.description,
+    price: d(p.price),
+    originalPrice: dn(p.originalPrice),
+    stock: p.stock,
+    category: p.category,
+    brand: p.brand,
+    images: p.images,
+  };
+}
+
+// ── Product shelves (cada una con take acotado) ────────────────────────────
+
+/**
+ * Novedades: últimos 8 productos activos.
+ * SESIÓN 14 — take 8, nunca catálogo completo.
+ */
+export const getCachedNewestProducts = unstable_cache(
+  async (): Promise<HomeShelfProduct[]> => {
     const rows = await prisma.product.findMany({
       where: { isActive: true },
       orderBy: { createdAt: 'desc' },
+      take: 8,
       select: PRODUCT_CARD_SELECT,
     });
-    return rows.map((p) => ({
-      ...p,
-      price: d(p.price),
-      originalPrice: dn(p.originalPrice),
-    }));
+    return rows.map(toHomeShelfProduct);
   },
-  ['home-products'],
+  ['home-newest-products'],
+  { tags: ['catalog'], revalidate: REVALIDATE },
+);
+
+/**
+ * Ofertas: productos con originalPrice no null, máximo 24 en BD.
+ * Luego filtra en memoria los que realmente tienen rebaja (originalPrice > price)
+ * y retorna máximo 10. DB-safe: nunca catálogo completo.
+ * SESIÓN 14 — take 24, filtra en memoria, máximo 10.
+ */
+export const getCachedFlashDeals = unstable_cache(
+  async (): Promise<HomeShelfProduct[]> => {
+    const rows = await prisma.product.findMany({
+      where: { isActive: true, originalPrice: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: 24,
+      select: PRODUCT_CARD_SELECT,
+    });
+    return rows
+      .map(toHomeShelfProduct)
+      .filter((p) => p.originalPrice != null && p.originalPrice > p.price)
+      .slice(0, 10);
+  },
+  ['home-flash-deals'],
+  { tags: ['catalog'], revalidate: REVALIDATE },
+);
+
+/** Regex para detectar productos de gaming en el catálogo. */
+const GAMING_RE =
+  /consola|gaming|retro|game|handheld|r36|portátil|portatil|nintendo|playstation|xbox|steam/;
+
+function productHaystack(p: HomeShelfProduct): string {
+  return `${p.category} ${p.name} ${p.brand ?? ''}`.toLowerCase();
+}
+
+/**
+ * Gaming: últimos 24 productos activos, filtrados por regex en memoria.
+ * Máximo 8 resultados. DB-safe: nunca catálogo completo.
+ * SESIÓN 14 — take 24, filtra en memoria, máximo 8.
+ */
+export const getCachedGamingProducts = unstable_cache(
+  async (): Promise<HomeShelfProduct[]> => {
+    const rows = await prisma.product.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' },
+      take: 24,
+      select: PRODUCT_CARD_SELECT,
+    });
+    return rows
+      .map(toHomeShelfProduct)
+      .filter((p) => GAMING_RE.test(productHaystack(p)))
+      .slice(0, 8);
+  },
+  ['home-gaming-products'],
   { tags: ['catalog'], revalidate: REVALIDATE },
 );
 

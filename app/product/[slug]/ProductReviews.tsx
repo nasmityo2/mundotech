@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { Star, Loader2, CheckCircle2, ShieldCheck, MessageSquarePlus, X, Pencil, Trash2, Camera, ChevronRight, ChevronDown } from 'lucide-react';
 import { Stars } from '@/components/reviews/Stars';
 import type { Review, ReviewSummary } from '@/lib/definitions';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface Props {
   productId: string;
@@ -397,7 +399,7 @@ export default function ProductReviews({ productId, productName, initialSummary,
                   {photos.map((src) => (
                     <div key={src} className="relative w-16 h-16">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={src} alt="Foto de la reseña" className="w-16 h-16 rounded-lg object-cover border border-slate-200" />
+                      <img src={src} alt="Foto de la reseña" loading="lazy" decoding="async" className="w-16 h-16 rounded-lg object-cover border border-slate-200" />
                       <button type="button" onClick={() => removePhoto(src)} aria-label="Quitar foto"
                         className="absolute -top-1.5 -right-1.5 bg-white border border-slate-200 rounded-full p-0.5 shadow-sm text-slate-500 hover:text-rose-600">
                         <X size={12} />
@@ -471,7 +473,7 @@ export default function ProductReviews({ productId, productName, initialSummary,
                         <button key={src} type="button" onClick={() => setLightboxSrc(src)} aria-label="Ver foto en grande"
                           className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-navy/40">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={src} alt={`Foto de ${r.authorName}`} loading="lazy"
+                          <img src={src} alt={`Foto de ${r.authorName}`} loading="lazy" decoding="async"
                             className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover border border-slate-200 hover:opacity-90 transition cursor-zoom-in" />
                         </button>
                       ))}
@@ -492,16 +494,33 @@ export default function ProductReviews({ productId, productName, initialSummary,
         </ul>
       )}
 
-      {/* Visor de fotos (lightbox) */}
+      {/* Visor de fotos (lightbox) con focus trap y scroll lock */}
       {lightboxSrc && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" role="dialog" aria-modal="true" onClick={() => setLightboxSrc(null)}>
-          <button type="button" onClick={() => setLightboxSrc(null)} aria-label="Cerrar" className="absolute top-2 right-2 min-w-[48px] min-h-[48px] flex items-center justify-center text-white/80 hover:text-white">
-            <X size={28} />
-          </button>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightboxSrc} alt="Foto de la reseña" className="max-h-[90vh] max-w-[92vw] rounded-lg object-contain" onClick={(e) => e.stopPropagation()} />
-        </div>
+        <ReviewLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
       )}
     </section>
+  );
+}
+
+/* ── Lightbox para fotos de reseñas con focus trap y scroll lock ── */
+function ReviewLightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useBodyScrollLock(true);
+  useFocusTrap({ containerRef: ref, enabled: true, onClose });
+
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Foto de la reseña"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4"
+    >
+      <button type="button" onClick={onClose} aria-label="Cerrar" className="absolute top-2 right-2 z-[1] min-w-[48px] min-h-[48px] flex items-center justify-center text-white/80 hover:text-white">
+        <X size={28} />
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="Foto de la reseña" loading="lazy" decoding="async" className="max-h-[90vh] max-w-[92vw] rounded-lg object-contain" />
+    </div>
   );
 }

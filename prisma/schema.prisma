@@ -45,9 +45,7 @@ model Product {
   orderItems      OrderItem[]
   wishlistItems   WishlistItem[]
 
-  @@index([slug])
   @@index([category])
-  @@index([sku])
   @@index([isActive])
 }
 
@@ -262,7 +260,9 @@ model Order {
 
   @@index([customerId])
   @@index([status])
-  @@index([createdAt])
+  /// PRD-195: índice compuesto para paginación cursor (createdAt DESC, id DESC).
+  /// El `id` es discriminante de tie-break cuando varias filas comparten createdAt.
+  @@index([createdAt, id])
   @@index([paidAt])
   /// PRD-125: lookups de pedidos por email (guest, soporte, cron) sin full scan.
   @@index([customerEmail])
@@ -293,8 +293,6 @@ model AppConfig {
   key       String   @unique
   value     String
   updatedAt DateTime @updatedAt
-
-  @@index([key])
 }
 
 model ProductView {
@@ -361,7 +359,6 @@ model Coupon {
   redemptions   CouponRedemption[]
 
   @@index([active])
-  @@index([code])
 }
 
 model CouponRedemption {

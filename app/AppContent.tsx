@@ -19,7 +19,7 @@ const CartDrawer = dynamic(() => import("../components/CartDrawer"), { ssr: fals
  * nada de teléfonos ni emails hardcodeados en componentes de UI.
  */
 export default function AppContent({ contact }: { contact: NavbarContact }) {
-  const { openCart, isCartOpen } = useCart();
+  const { openCart, isCartOpen, announcement } = useCart();
   const pathname = usePathname();
   const isAdmin = pathname?.startsWith('/admin') ?? false;
 
@@ -46,6 +46,18 @@ export default function AppContent({ contact }: { contact: NavbarContact }) {
     <>
       <Navbar onCartClick={openCart} contact={contact} />
       {cartMounted && <CartDrawer />}
+      {/* SESIÓN 24: región aria-live global para anuncios del carrito.
+          role="status" + aria-live="polite" + aria-atomic="true" asegura
+          que lectores de pantalla anuncien el contenido completo al cambiar,
+          sin interrumpir otras tareas. */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {announcement}
+      </div>
     </>
   );
 }

@@ -15,11 +15,11 @@ import CookieConsent from "./components/CookieConsent";
 import ChunkErrorReloader from "@/components/ChunkErrorReloader";
 import JsonLd from "./components/JsonLd";
 import { Toaster } from "@/components/ui/Toaster";
-import { readSeoLocal, buildLocalBusinessSchema } from "@/lib/seo-local";
-import { readSettings } from "@/lib/data-store";
-import { readAnnouncement } from "@/lib/announcement";
-import { readSiteContent } from "@/lib/site-content";
+import MotionProvider from "@/components/MotionProvider";
+import { buildLocalBusinessSchema } from "@/lib/seo-local";
+import { getCachedSiteShellData, buildContactFromShellData } from "@/lib/site-shell-cache";
 import { googleMapsBusinessUrl } from "@/lib/google-maps";
+import { getExchangeRateWithTimestamp } from "@/lib/load-exchange-rate-ssr";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mundotechve.com";
 
@@ -133,17 +133,14 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Datos vivos editables desde /admin/settings/seo-local, /admin/settings
-  // y /admin/personalizar.
+  // SESIÓN 15: los datos globales del shell se leen en una única llamada
+  // cacheada (unstable_cache, revalidate=300). Footer recibe estos mismos
+  // datos por props, duplicando cero lecturas de BD.
   // Sin cookies()/headers() aquí: el layout raíz debe poder cachearse (ISR/estático).
   // Lo per-usuario (consentimiento, dismiss del aviso, badge carrito, sesión) se
   // resuelve en Client Components tras hidratar — ver CookieConsent, AnnouncementBarClient, Navbar.
-  const [seo, settings, announcement, siteContent] = await Promise.all([
-    readSeoLocal(),
-    readSettings(),
-    readAnnouncement(),
-    readSiteContent(),
-  ]);
+  const shellData = await getCachedSiteShellData();
+  const { announcement, settings, seoLocal: seo, siteContent } = shellData;
   const sameAs = [settings.instagram, settings.facebook].filter(Boolean) as string[];
 
   const localBusinessSchema = {
@@ -191,6 +188,9 @@ export default async function RootLayout({
     ...(sameAs.length > 0 ? { sameAs } : {}),
   };
 
+  // SESIÓN 17: leer tasa actual con timestamp para hidratación del provider
+  const { rate: initialRate, updatedAt: initialUpdatedAt } = await getExchangeRateWithTimestamp();
+
   return (
     <html lang="es" data-scroll-behavior="smooth" className={jost.variable}>
       <body className="bg-white text-navy antialiased nums" suppressHydrationWarning>
@@ -212,10 +212,11 @@ export default async function RootLayout({
         {/* Sin nonce: JSON-LD no es ejecutable; compatible con HTML cacheado (JsonLd.tsx). */}
         <JsonLd data={[websiteSchema, localBusinessSchema, organizationSchema]} />
         <AuthProvider>
+          <MotionProvider>
           <CartProvider>
             <WishlistProvider>
               <ProductProvider>
-                <ExchangeRateProvider>
+                <ExchangeRateProvider initialRate={initialRate} initialUpdatedAt={initialUpdatedAt}>
                   {/*
                     Shell del layout: Navbar/CartDrawer en cliente (AppContent),
                     <main> y <Footer> en servidor para reducir JS bundle
@@ -223,19 +224,8 @@ export default async function RootLayout({
                   */}
                   <div className="flex min-h-[100dvh] flex-col w-full max-w-full overflow-x-hidden">
                     <AnnouncementBar data={announcement} />
-                    <AppContent
-                      contact={{
-                        phone: settings.phone,
-                        phone2: settings.phone2,
-                        email: settings.email,
-                        // PRD-112: dirección viva desde settings (R1).
-                        address: settings.address,
-                        // PRD-285: claim logístico editable desde /admin/personalizar.
-                        deliveryNote:
-                          siteContent.productTrust.find((t) => t.icon === 'truck')?.title ?? '',
-                      }}
-                    />
-                    <AppLayoutShell footer={<Footer />}>
+                    <AppContent contact={buildContactFromShellData(shellData)} />
+                    <AppLayoutShell footer={<Footer shellData={shellData} />}>
                       {children}
                     </AppLayoutShell>
                   </div>
@@ -248,6 +238,7 @@ export default async function RootLayout({
               </ProductProvider>
             </WishlistProvider>
           </CartProvider>
+          </MotionProvider>
           <Toaster />
         </AuthProvider>
       </body>

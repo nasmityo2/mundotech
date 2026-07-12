@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { readSettings, writeSettings, storeSettingsSchema } from '@/lib/data-store';
 import { requireAdmin } from '@/lib/api-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
+import { CACHE_TAG_SITE_SHELL, CACHE_TAG_SETTINGS } from '@/lib/site-shell-cache';
 
 /**
  * GET /api/settings
@@ -52,6 +54,9 @@ export async function PUT(request: Request) {
       );
     }
     await writeSettings(parsed.data);
+    revalidatePath('/', 'layout');
+    revalidateTag(CACHE_TAG_SITE_SHELL, 'default');
+    revalidateTag(CACHE_TAG_SETTINGS, 'default');
     return NextResponse.json({ success: true, message: 'Configuración guardada.' });
   } catch (error) {
     // PRD-043: logging del fallo (antes el catch tragaba el error).

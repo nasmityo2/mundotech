@@ -42,6 +42,7 @@ export default function AdminError({
         )}
       </div>
       <button
+        type="button"
         onClick={reset}
         className="inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-navy px-5 text-sm font-semibold text-white transition active:opacity-80"
       >

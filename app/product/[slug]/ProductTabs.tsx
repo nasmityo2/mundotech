@@ -278,7 +278,7 @@ export default function ProductTabs({
         {tabs.map((tab) => {
           const isActive = active === tab.id;
           return (
-            <button
+            <button type="button"
               key={tab.id}
               ref={(el) => {
                 if (el) tabRefs.current.set(tab.id, el);

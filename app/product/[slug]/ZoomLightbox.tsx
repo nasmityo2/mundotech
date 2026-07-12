@@ -34,8 +34,16 @@ export default function ZoomLightbox({ url, alt, zoomed, onZoomChange }: Props) 
         <img
           src={url}
           alt={alt}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-contain"
           draggable={false}
+          onError={(e) => {
+            const target = e.currentTarget;
+            if (target.src !== '/placeholder-product.png') {
+              target.src = '/placeholder-product.png';
+            }
+          }}
         />
       </TransformComponent>
     </TransformWrapper>

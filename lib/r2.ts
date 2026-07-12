@@ -22,6 +22,14 @@ const REQUIRED_ENV = [
 let envChecked = false;
 
 function assertR2Env(): void {
+  // PRD-E2E: en pruebas E2E no se hacen llamadas externas a R2.
+  // Las funciones que llaman a assertR2Env() deben ser mockeadas o no ejecutarse.
+  // Si NODE_ENV=E2E y las variables no están configuradas, no lanzamos error
+  // (el caller es responsable de no llamar a R2 durante E2E).
+  const nodeEnv = (process.env.NODE_ENV ?? '').trim();
+  if (nodeEnv === 'E2E' || nodeEnv === 'test') {
+    return;
+  }
   if (envChecked) return;
   envChecked = true;
 

@@ -33,13 +33,13 @@ const LABELED_SECRET_RE =
 const EVENT_RE =
   /^[a-z0-9_]{1,80}$/;
 const VENEZUELA_PHONE_RE =
-  /(?<!d)(?:\+?58[\s-]?)?0?4(?:12|14|16|24|26)[\s-]?\d{3}[\s-]?\d{4}(?!\d)/g;
+  /(?<!\d)(?:\+?58[\s-]?)?0?4(?:12|14|16|24|26)[\s-]?\d{3}[\s-]?\d{4}(?!\d)/g;
 const VENEZUELA_ID_RE =
   /\b[VEJGP]\s*[-:]?\s*\d{6,9}\b/gi;
 const LABELED_REFERENCE_RE =
   /\b(reference|referencia|paymentReference)\s*[=:]\s*["']?[A-Za-z0-9-]{4,40}["']?/gi;
 const LABELED_ADDRESS_RE =
-  /\b(address|direccion|dirección|shippingAddress)\s*[=:]\s*["']?.{5,180}["']?/gi;
+  /\b(address|direccion|dirección|shippingAddress)\s*[=:]\s*["']?[^"'\n;]{5,180}["']?/gi;
 
 const MAX_MESSAGE_LENGTH = 500;
 

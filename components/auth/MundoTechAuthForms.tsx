@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { motion } from 'framer-motion';
+import { useReducedMotion } from '@/lib/motion';
 import {
   Mail,
   Lock,
@@ -137,6 +138,7 @@ interface LoginPanelProps {
 }
 
 export function AuthLoginForm({ callbackUrl, defaultEmail }: LoginPanelProps) {
+  const prefersReduced = useReducedMotion();
   const router = useRouter();
   const [googleAvailable, setGoogleAvailable] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -239,8 +241,8 @@ export function AuthLoginForm({ callbackUrl, defaultEmail }: LoginPanelProps) {
       </header>
 
       <motion.form
-        animate={shake ? { x: [0, -6, 6, -4, 4, 0] } : { x: 0 }}
-        transition={{ duration: 0.42 }}
+        animate={shake ? (prefersReduced ? { opacity: [1, 0.7, 1] } : { x: [0, -6, 6, -4, 4, 0] }) : { x: 0 }}
+        transition={{ duration: prefersReduced ? 0.15 : 0.42 }}
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-4"
         aria-labelledby="login-heading"
@@ -381,6 +383,7 @@ interface RegisterPanelProps {
 }
 
 export function AuthRegisterForm({ callbackUrl }: RegisterPanelProps) {
+  const prefersReduced = useReducedMotion();
   const router = useRouter();
   const [googleAvailable, setGoogleAvailable] = useState(false);
   const [shake, setShake] = useState(false);
@@ -530,8 +533,8 @@ export function AuthRegisterForm({ callbackUrl }: RegisterPanelProps) {
       </header>
 
       <motion.form
-        animate={shake ? { x: [0, -6, 6, -4, 4, 0] } : { x: 0 }}
-        transition={{ duration: 0.42 }}
+        animate={shake ? (prefersReduced ? { opacity: [1, 0.7, 1] } : { x: [0, -6, 6, -4, 4, 0] }) : { x: 0 }}
+        transition={{ duration: prefersReduced ? 0.15 : 0.42 }}
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-4"
         aria-labelledby="register-heading"

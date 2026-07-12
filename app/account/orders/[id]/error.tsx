@@ -32,6 +32,7 @@ export default function OrderDetailError({
       </p>
       <div className="flex flex-wrap items-center justify-center gap-3">
         <button
+          type="button"
           onClick={reset}
           className="inline-flex items-center gap-2 bg-navy text-white text-sm font-semibold px-5 h-11 rounded-xl hover:bg-navy-700 shadow-soft transition-all"
         >

@@ -6,6 +6,7 @@ import type { Product } from '../../context/ProductContext';
 import ProductCard from '../../components/ProductCard';
 import ProductCardSkeleton from '../../components/ProductCardSkeleton';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useReducedMotion, reducedTransition } from '@/lib/motion';
 import {
   SlidersHorizontal, ChevronDown, X, SearchX, Search,
   Tag, ArrowUpDown, Cpu, DollarSign, Loader2,
@@ -16,6 +17,7 @@ import {
   type ProductSort,
 } from '@/lib/products/filter';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 const DEBOUNCE_MS = 300;
 
@@ -351,27 +353,18 @@ const ProductGridAndFilters = ({
   facetBrands,
   initialQuery,
 }: Props) => {
+  const prefersReduced = useReducedMotion();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const mobileCloseRef = useRef<HTMLButtonElement>(null);
+  const mobileDrawerRef = useRef<HTMLDivElement>(null);
 
-  // A11y móvil del drawer de filtros: scroll-lock + Escape + foco inicial.
+  // A11y móvil del drawer de filtros: scroll-lock + focus trap.
   useBodyScrollLock(mobileSidebarOpen);
-  useEffect(() => {
-    if (!mobileSidebarOpen) return;
-    const t = setTimeout(() => mobileCloseRef.current?.focus(), 120);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMobileSidebarOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      clearTimeout(t);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [mobileSidebarOpen]);
+  useFocusTrap({ containerRef: mobileDrawerRef, enabled: mobileSidebarOpen, onClose: () => setMobileSidebarOpen(false) });
 
   const [state, setState] = useState<InitialQuery>(initialQuery);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -590,16 +583,24 @@ const ProductGridAndFilters = ({
             key={`${state.sort}-${state.q}-${state.category}-${state.brand}-${pathname}-${searchParams.toString()}`}
             initial="hidden"
             animate="visible"
-            variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
+            variants={
+              prefersReduced
+                ? { visible: { transition: { staggerChildren: 0, delayChildren: 0 } } }
+                : { visible: { transition: { staggerChildren: 0.04 } } }
+            }
             className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5"
           >
             {initialProducts.map((product) => (
               <motion.div
                 key={product.id}
-                variants={{
-                  hidden: { opacity: 0, y: 14 },
-                  visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
-                }}
+                variants={
+                  prefersReduced
+                    ? { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.1 } } }
+                    : {
+                        hidden: { opacity: 0, y: 14 },
+                        visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+                      }
+                }
                 className="h-full"
               >
                 <ProductCard product={product} />
@@ -611,11 +612,12 @@ const ProductGridAndFilters = ({
 
       <AnimatePresence>
         {mobileSidebarOpen && (
-          <div className="fixed inset-0 z-50 flex lg:hidden">
+          <div ref={mobileDrawerRef} className="fixed inset-0 z-50 flex lg:hidden">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={prefersReduced ? reducedTransition : undefined}
               className="absolute inset-0 bg-navy/40 backdrop-blur-sm"
               onClick={() => setMobileSidebarOpen(false)}
             />
@@ -623,10 +625,10 @@ const ProductGridAndFilters = ({
               role="dialog"
               aria-modal="true"
               aria-label="Filtros del catálogo"
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              initial={prefersReduced ? { opacity: 0 } : { x: '-100%' }}
+              animate={prefersReduced ? { opacity: 1 } : { x: 0 }}
+              exit={prefersReduced ? { opacity: 0 } : { x: '-100%' }}
+              transition={prefersReduced ? reducedTransition : { type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
               className="relative w-[88vw] max-w-[340px] bg-surface-sunken h-full overflow-y-auto p-5 shadow-lift"
               style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
             >

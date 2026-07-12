@@ -121,6 +121,19 @@ describe('sanitizeText', () => {
     expect(result).not.toContain('Carrera 21');
     expect(result).toContain('[REDACTED_ADDRESS]');
   });
+
+  it('no redacta parcialmente un teléfono incrustado dentro de otro número', () => {
+    const input = 'id=990412123456788';
+    const result = sanitizeText(input);
+    expect(result).toBe(input);
+  });
+
+  it('redacta dirección sin eliminar campos posteriores', () => {
+    const result = sanitizeText('shippingAddress=Carrera 21 con calle 21; status=500');
+    expect(result).toContain('shippingAddress=[REDACTED_ADDRESS]');
+    expect(result).toContain('status=500');
+    expect(result).not.toContain('Carrera 21');
+  });
 });
 
 describe('normalizeError', () => {

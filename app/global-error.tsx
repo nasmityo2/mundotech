@@ -77,6 +77,7 @@ export default function GlobalError({
             </p>
           ) : null}
           <button
+            type="button"
             onClick={() => reset()}
             style={{
               backgroundColor: '#FFD700',

@@ -14,8 +14,10 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useReducedMotion, reducedTransition } from '@/lib/motion';
 import { buildCatalogHref, type ProductSort } from '@/lib/products/filter';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 const SORT_OPTIONS = [
   { value: 'default',    label: 'Relevancia'   },
@@ -137,7 +139,7 @@ function FilterPanel({
             <div className="overflow-hidden">
               <ul className="px-3 pb-4 space-y-0.5">
                 <li>
-                  <button
+                  <button type="button"
                     onClick={() => navigate('', currentBrand, currentSort)}
                     className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
                       !currentCat
@@ -157,7 +159,7 @@ function FilterPanel({
                 </li>
                 {categories.map((cat) => (
                   <li key={cat}>
-                    <button
+                    <button type="button"
                       onClick={() => navigate(cat, currentBrand, currentSort)}
                       className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
                         currentCat === cat
@@ -199,7 +201,7 @@ function FilterPanel({
             <div className="overflow-hidden">
               <ul className="px-3 pb-4 space-y-0.5">
                 <li>
-                  <button
+                  <button type="button"
                     onClick={() => navigate(currentCat, '', currentSort)}
                     className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
                       !currentBrand
@@ -212,7 +214,7 @@ function FilterPanel({
                 </li>
                 {brands.map((brand) => (
                   <li key={brand}>
-                    <button
+                    <button type="button"
                       onClick={() => navigate(currentCat, brand, currentSort)}
                       className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
                         currentBrand === brand
@@ -306,7 +308,7 @@ function FilterPanel({
             <ul className="px-3 pb-4 space-y-0.5">
               {SORT_OPTIONS.map((opt) => (
                 <li key={opt.value}>
-                  <button
+                  <button type="button"
                     onClick={() => navigate(currentCat, currentBrand, opt.value)}
                     className={`flex items-center justify-between w-full px-3 h-10 rounded-xl text-[13px] transition-colors ${
                       currentSort === opt.value
@@ -376,25 +378,16 @@ function FilterPanel({
 // Componente principal exportado
 // ─────────────────────────────────────────────────────────────
 export default function SearchFiltersBar(props: Props) {
+  const prefersReduced = useReducedMotion();
   const { variant, q, currentCat, currentBrand, currentSort, minPrice, maxPrice, includeOutOfStock, filteredCount } = props;
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileCloseRef = useRef<HTMLButtonElement>(null);
+  const mobileDrawerRef = useRef<HTMLDivElement>(null);
 
-  // A11y móvil del drawer de filtros: scroll-lock + Escape + foco inicial.
+  // A11y móvil del drawer de filtros: scroll-lock + focus trap.
   useBodyScrollLock(mobileOpen);
-  useEffect(() => {
-    if (!mobileOpen) return;
-    const t = setTimeout(() => mobileCloseRef.current?.focus(), 120);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMobileOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      clearTimeout(t);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [mobileOpen]);
+  useFocusTrap({ containerRef: mobileDrawerRef, enabled: mobileOpen, onClose: () => setMobileOpen(false) });
 
   if (variant === 'sidebar') {
     return <FilterPanel {...props} />;
@@ -463,11 +456,12 @@ export default function SearchFiltersBar(props: Props) {
       {/* ── Drawer filtros móvil ── */}
       <AnimatePresence>
         {mobileOpen && (
-          <div className="fixed inset-0 z-50 flex lg:hidden">
+          <div ref={mobileDrawerRef} className="fixed inset-0 z-50 flex lg:hidden">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={prefersReduced ? reducedTransition : undefined}
               className="absolute inset-0 bg-navy/40 backdrop-blur-sm"
               onClick={() => setMobileOpen(false)}
             />
@@ -475,16 +469,16 @@ export default function SearchFiltersBar(props: Props) {
               role="dialog"
               aria-modal="true"
               aria-label="Filtros de búsqueda"
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              initial={prefersReduced ? { opacity: 0 } : { x: '-100%' }}
+              animate={prefersReduced ? { opacity: 1 } : { x: 0 }}
+              exit={prefersReduced ? { opacity: 0 } : { x: '-100%' }}
+              transition={prefersReduced ? reducedTransition : { type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
               className="relative w-[88vw] max-w-[340px] bg-surface-sunken h-full overflow-y-auto p-5 shadow-lift"
               style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
             >
               <div className="flex items-center justify-between mb-5">
                 <p className="text-base font-semibold text-navy">Filtros</p>
-                <button
+                <button type="button"
                   ref={mobileCloseRef}
                   onClick={() => setMobileOpen(false)}
                   className="min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center text-slate-400 hover:text-navy hover:bg-slate-100 active:bg-slate-200"
@@ -494,7 +488,7 @@ export default function SearchFiltersBar(props: Props) {
                 </button>
               </div>
               <FilterPanel {...props} onApply={() => setMobileOpen(false)} />
-              <button
+              <button type="button"
                 className="mt-5 w-full bg-navy text-white font-semibold text-sm h-12 rounded-xl hover:bg-navy-700 shadow-soft hover:shadow-card transition-all"
                 onClick={() => setMobileOpen(false)}
               >

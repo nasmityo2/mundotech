@@ -209,6 +209,7 @@ export default function AdminBannersPage() {
           </p>
         </div>
         <button
+          type="button"
           onClick={openCreate}
           className="flex items-center gap-2 bg-navy text-white text-sm font-bold px-4 py-2.5 rounded-xl hover:bg-navy/90 transition-colors shadow-sm"
         >
@@ -229,6 +230,7 @@ export default function AdminBannersPage() {
       {/* Filtro de tipo */}
       <div className="flex gap-2 flex-wrap mb-4">
         <button
+          type="button"
           onClick={() => setFilterType('all')}
           className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${filterType === 'all' ? 'bg-navy text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
         >
@@ -239,6 +241,7 @@ export default function AdminBannersPage() {
           if (count === 0) return null;
           return (
             <button
+              type="button"
               key={t.value}
               onClick={() => setFilterType(t.value)}
               className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${filterType === t.value ? 'bg-navy text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
@@ -260,6 +263,7 @@ export default function AdminBannersPage() {
           <p className="font-bold text-gray-500">No hay banners todavía</p>
           <p className="text-sm text-gray-400 mt-1">Crea el primer banner para la página principal</p>
           <button
+            type="button"
             onClick={openCreate}
             className="mt-4 inline-flex items-center gap-2 bg-navy text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-navy/90"
           >
@@ -314,6 +318,7 @@ export default function AdminBannersPage() {
 
                 <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
                   <button
+                    type="button"
                     onClick={() => handleToggle(b)}
                     className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
                       b.active ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-green-50 text-green-700 hover:bg-green-100'
@@ -323,12 +328,14 @@ export default function AdminBannersPage() {
                     {b.active ? 'Ocultar' : 'Activar'}
                   </button>
                   <button
+                    type="button"
                     onClick={() => openEdit(b)}
                     className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 border border-gray-200 bg-gray-50 text-navy hover:bg-gray-100 transition-colors rounded-lg"
                   >
                     <Pencil size={13} /> Editar
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleDelete(b.id)}
                     className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 transition-colors ml-auto"
                   >
@@ -357,7 +364,7 @@ export default function AdminBannersPage() {
               <h2 className="text-base font-black text-navy">
                 {editId ? 'Editar Banner' : 'Nuevo Banner'}
               </h2>
-              <button onClick={closeForm} aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100 text-gray-500">
+              <button type="button" onClick={closeForm} aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100 text-gray-500">
                 <X size={20} />
               </button>
             </div>
@@ -509,6 +516,7 @@ export default function AdminBannersPage() {
               style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
             >
               <button
+                type="button"
                 onClick={closeForm}
                 disabled={saving}
                 className="flex-1 min-h-[52px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl active:bg-gray-100"
@@ -516,6 +524,7 @@ export default function AdminBannersPage() {
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={handleSave}
                 disabled={saving}
                 className="flex-[2] min-h-[52px] flex items-center justify-center gap-2 bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase tracking-wide rounded-xl active:bg-yellow-300 disabled:opacity-60"

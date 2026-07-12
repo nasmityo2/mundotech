@@ -213,10 +213,12 @@
 - **Estado:** Completado — ahora solo monta el slide activo y sus vecinos inmediatos (máximo 3 `<Image>`), en vez de hasta 10 en capas opacity.
 - `lib/home-cache.ts:48` (`take: 10`) + `HomeHeroCyber.tsx:158-179`: todos con `<Image fill>` en capas opacity.
 
-### PERF-10 🟡 `react-zoom-pan-pinch` sin dynamic en PDP — **AMPLÍA P3-8** `| Pendiente 🔴`
+### PERF-10 🟡 `react-zoom-pan-pinch` sin dynamic en PDP — **AMPLÍA P3-8** `| Completado ✅`
 
-- **Estado:** Pendiente — `ProductGallery.tsx` importa `react-zoom-pan-pinch` estáticamente (línea 6). La librería (~10-15 KB gzipped) se descarga en todas las PDP aunque el usuario nunca abra el lightbox. Debería migrarse a `next/dynamic`.
-- `app/product/[slug]/ProductGallery.tsx:6`: cargado aunque el lightbox no se abra.
+- **Estado:** Completado — `ProductGallery.tsx` importa `ZoomLightbox` mediante `dynamic(() => import('./ZoomLightbox'), { ssr: false })`. La librería (~10-15 KB gzipped) solo se descarga cuando el usuario abre el lightbox.
+- `app/product/[slug]/ProductGallery.tsx:9-12`: `dynamic()` con `ssr: false` y loading accesible (spinner + aria-label).
+- `app/product/[slug]/ZoomLightbox.tsx`: único archivo que importa `react-zoom-pan-pinch` estáticamente (dentro del chunk dinámico).
+- `app/product/[slug]/DynamicZoomWrapper.tsx`: error boundary que permite cerrar si falla la carga.
 
 ### PERF-11 🟡 Fuente Jost sin pesos explícitos — **NUEVO** `| Pendiente 🟡`
 

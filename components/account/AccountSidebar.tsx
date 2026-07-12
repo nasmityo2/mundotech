@@ -58,7 +58,7 @@ const AccountSidebar = () => {
         })}
 
         {/* Cerrar sesión: al final de la fila en móvil */}
-        <button
+        <button type="button"
           onClick={() => signOut({ callbackUrl: '/' })}
           className="lg:hidden flex items-center gap-2 px-3.5 h-11 rounded-xl text-sm text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors flex-shrink-0 whitespace-nowrap"
         >
@@ -68,7 +68,7 @@ const AccountSidebar = () => {
       </nav>
 
       <div className="hidden lg:block p-2 border-t border-slate-100">
-        <button
+        <button type="button"
           onClick={() => signOut({ callbackUrl: '/' })}
           className="flex items-center gap-3 px-3.5 h-11 w-full rounded-xl text-sm text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
         >

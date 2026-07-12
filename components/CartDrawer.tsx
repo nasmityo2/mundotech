@@ -5,81 +5,30 @@ import { X, Plus, Minus, ShoppingBag, ArrowRight, ShieldCheck } from 'lucide-rea
 import { useCart } from '../context/CartContext';
 import { useExchangeRate } from '../context/ExchangeRateContext';
 import { formatCurrency } from '../lib/utils';
+import { useReducedMotion, reducedTransition } from '@/lib/motion';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef } from 'react';
-
-const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
+import { useRef } from 'react';
 
 const CartDrawer = () => {
+  const prefersReduced = useReducedMotion();
   const {
     cart, isCartLoading, removeFromCart, updateQuantity,
     getCartTotal, isCartOpen, closeCart,
   } = useCart();
+  const panelRef = useRef<HTMLElement | null>(null);
   const router           = useRouter();
   const { rate, stale }  = useExchangeRate();
-  const panelRef         = useRef<HTMLElement | null>(null);
 
-  // Block body scroll while drawer is open (iOS-safe)
-  useEffect(() => {
-    if (!isCartOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, [isCartOpen]);
+  // Scroll lock compartido
+  useBodyScrollLock(isCartOpen);
 
-  // Close on ESC
-  useEffect(() => {
-    if (!isCartOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeCart(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isCartOpen, closeCart]);
-
-  // PRD-117: focus trap — al abrir, el foco entra al panel; Tab/Shift+Tab
-  // ciclan dentro del diálogo; al cerrar, el foco vuelve al disparador.
-  useEffect(() => {
-    if (!isCartOpen) return;
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-
-    const focusFirst = window.setTimeout(() => {
-      const panel = panelRef.current;
-      if (!panel) return;
-      const focusables = panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
-      (focusables[0] ?? panel).focus();
-    }, 60);
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      const panel = panelRef.current;
-      if (!panel) return;
-      const focusables = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-        .filter((el) => el.offsetParent !== null);
-      if (focusables.length === 0) return;
-      const first = focusables[0];
-      const last  = focusables[focusables.length - 1];
-      const activeEl = document.activeElement as HTMLElement | null;
-
-      if (e.shiftKey) {
-        if (activeEl === first || !panel.contains(activeEl)) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else if (activeEl === last || !panel.contains(activeEl)) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => {
-      window.clearTimeout(focusFirst);
-      document.removeEventListener('keydown', onKeyDown, true);
-      previouslyFocused?.focus?.();
-    };
-  }, [isCartOpen]);
+  // Focus trap: foco inicial en primer elemento enfocable; Escape cierra.
+  // El hook maneja Tab/Shift+Tab, foco inicial y retorno al trigger.
+  useFocusTrap({ containerRef: panelRef as React.RefObject<HTMLElement | null>, enabled: isCartOpen, onClose: closeCart });
 
   // FASE 4.1 (MEJORA 1.2): el checkout ya no exige login — los invitados
   // compran directo y pueden crear cuenta en 1 clic tras pagar.
@@ -100,6 +49,7 @@ const CartDrawer = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={prefersReduced ? reducedTransition : undefined}
               onClick={closeCart}
               aria-label="Cerrar carrito"
               className="fixed inset-0 z-[65] bg-navy/45 backdrop-blur-[2px] sm:backdrop-blur-sm cursor-pointer"
@@ -112,10 +62,10 @@ const CartDrawer = () => {
               role="dialog"
               aria-modal="true"
               aria-label="Carrito de compras"
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              initial={prefersReduced ? { opacity: 0 } : { x: '100%' }}
+              animate={prefersReduced ? { opacity: 1 } : { x: 0 }}
+              exit={prefersReduced ? { opacity: 0 } : { x: '100%' }}
+              transition={prefersReduced ? reducedTransition : { type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
               className="fixed top-0 right-0 z-[66] flex h-[100dvh] w-full sm:max-w-md flex-col bg-white border-l border-slate-200 shadow-lift overscroll-contain"
               style={{
                 paddingTop: 'env(safe-area-inset-top)',

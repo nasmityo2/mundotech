@@ -13,10 +13,16 @@
     "db:migrate": "prisma migrate deploy",
     "security:versions": "node scripts/check-security-versions.mjs",
     "security:api-guards": "node scripts/check-api-origin-guards.mjs",
+    "security:audit:runtime": "npm audit --omit=dev --audit-level=high",
+    "security:audit:dev": "bash scripts/audit-dev-dependencies.sh",
+    "security:sbom": "bash scripts/generate-sbom.sh",
     "deploy:vps": "bash scripts/deploy-vps.sh",
     "db:seed:reviews": "tsx scripts/seed-reviews.ts",
     "db:migrate:images": "tsx scripts/migrate-legacy-images-to-r2.ts",
     "test:r2-private": "node scripts/verify-private-r2.mjs",
+    "test:e2e": "npx playwright test",
+    "test:e2e:ui": "npx playwright test --ui",
+    "db:e2e:reset": "tsx scripts/e2e-reset-db.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -60,7 +66,10 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@next/bundle-analyzer": "^16.2.10",
+    "@playwright/test": "^1.61.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20.11.20",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.0.0",
@@ -70,6 +79,7 @@
     "dotenv-cli": "^11.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.2.10",
+    "jsdom": "^29.1.1",
     "playwright": "^1.60.0",
     "postcss": "^8.5.9",
     "prisma": "^7.8.0",

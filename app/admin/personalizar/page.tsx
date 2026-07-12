@@ -494,6 +494,7 @@ export default function AdminPersonalizarPage() {
       </SectionCard>
 
       <button
+        type="button"
         onClick={save}
         disabled={pending}
         className="w-full min-h-[52px] inline-flex items-center justify-center gap-2 bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase rounded-xl active:bg-yellow-300 disabled:opacity-60"

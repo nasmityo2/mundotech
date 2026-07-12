@@ -328,7 +328,7 @@ function AdminProductsContent() {
       );
     }
     return (
-      <button
+      <button type="button"
         onDoubleClick={() => startInlineEdit(p.id, 'price', p.price)}
         onClick={(e) => { if (window.matchMedia('(hover: none)').matches) { e.preventDefault(); startInlineEdit(p.id, 'price', p.price); } }}
         title="Doble clic (PC) o tap (celular) para editar"
@@ -356,13 +356,13 @@ function AdminProductsContent() {
             onBlur={commitInlineEdit}
             className="w-16 text-right border border-navy/40 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-navy/50 bg-white"
           />
-          <button onClick={commitInlineEdit} disabled={savingInline} className="text-green-600"><Check size={14} /></button>
-          <button onClick={cancelInlineEdit} className="text-gray-400"><X size={14} /></button>
+          <button type="button" onClick={commitInlineEdit} disabled={savingInline} className="text-green-600"><Check size={14} /></button>
+          <button type="button" onClick={cancelInlineEdit} className="text-gray-400"><X size={14} /></button>
         </span>
       );
     }
     return (
-      <button
+      <button type="button"
         onDoubleClick={() => startInlineEdit(p.id, 'stock', p.stock)}
         onClick={(e) => { if (window.matchMedia('(hover: none)').matches) { e.preventDefault(); startInlineEdit(p.id, 'stock', p.stock); } }}
         title="Doble clic (PC) o tap (celular) para editar"
@@ -486,7 +486,7 @@ function AdminProductsContent() {
           <div className="px-3 py-3 space-y-3 bg-gray-50 border-b border-gray-100">
             <div className="flex flex-wrap gap-1.5">
               {(['all', 'low', 'out'] as StockFilter[]).map(f => (
-                <button
+                <button type="button"
                   key={f}
                   onClick={() => setStockFilter(f)}
                   className={`min-h-[36px] px-3 rounded-full text-xs font-semibold border transition ${
@@ -527,7 +527,7 @@ function AdminProductsContent() {
                 />
                 <span className="text-gray-400">USD</span>
                 {(minPrice || maxPrice) && (
-                  <button
+                  <button type="button"
                     onClick={() => {
                       setMinPrice('');
                       setMaxPrice('');

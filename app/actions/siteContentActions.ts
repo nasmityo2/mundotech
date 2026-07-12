@@ -8,6 +8,7 @@ import {
   writeSiteContent,
   type SiteContent,
 } from '@/lib/site-content';
+import { CACHE_TAG_SITE_SHELL, CACHE_TAG_SITE_CONTENT } from '@/lib/site-shell-cache';
 
 /** Lectura del contenido del sitio (es contenido público — la usa el editor). */
 export async function getSiteContent(): Promise<SiteContent> {
@@ -44,5 +45,7 @@ export async function updateSiteContent(input: SiteContent): Promise<UpdateSiteC
 
   revalidatePath('/', 'layout');
   revalidateTag('site-content', 'default');
+  revalidateTag(CACHE_TAG_SITE_SHELL, 'default');
+  revalidateTag(CACHE_TAG_SITE_CONTENT, 'default');
   return { success: true };
 }

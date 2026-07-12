@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowRight } from 'lucide-react';
 import type { SiteContent } from '@/lib/site-content-schema';
+import { useReducedMotion, reducedTransition } from '@/lib/motion';
 
 const STORAGE_KEY = 'mt_popup_dismissed_at';
 
@@ -16,6 +17,7 @@ const STORAGE_KEY = 'mt_popup_dismissed_at';
  * cerrarse) y nunca interrumpe checkout, auth ni admin.
  */
 export default function PromoPopup({ popup }: { popup: SiteContent['popup'] }) {
+  const prefersReduced = useReducedMotion();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -63,10 +65,10 @@ export default function PromoPopup({ popup }: { popup: SiteContent['popup'] }) {
     <AnimatePresence>
       {open && (
         <motion.aside
-          initial={{ opacity: 0, y: 28, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 28, scale: 0.97 }}
-          transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+          initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 28, scale: 0.97 }}
+          animate={prefersReduced ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
+          exit={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 28, scale: 0.97 }}
+          transition={prefersReduced ? reducedTransition : { duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
           role="dialog"
           aria-label={popup.title}
           className="fixed inset-x-3 bottom-3 z-[60] mx-auto max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lift sm:inset-x-auto sm:left-5 sm:bottom-5"

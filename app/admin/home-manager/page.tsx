@@ -105,7 +105,7 @@ function ImagePicker({ value, onChange, label, purpose }: {
       {value && (
         <div className="relative h-28 rounded-xl overflow-hidden border border-gray-200 mb-2 group">
           <Image src={value} alt="preview" fill className="object-cover" sizes="300px" />
-          <button onClick={() => onChange('')} className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/60 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <button type="button" onClick={() => onChange('')} className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/60 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
             <X size={11} />
           </button>
         </div>
@@ -267,7 +267,7 @@ export default function HomeManagerPage() {
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-6 w-fit flex-wrap">
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+          <button type="button" key={t.id} onClick={() => setTab(t.id)}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === t.id ? 'bg-white text-navy shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
             {t.label}
           </button>
@@ -279,7 +279,7 @@ export default function HomeManagerPage() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-gray-600">Marca hasta <strong>5 categorías</strong> como destacadas para mostrarlas en la Home.</p>
-            <button onClick={handleSync} disabled={syncing}
+            <button type="button" onClick={handleSync} disabled={syncing}
               className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 bg-navy text-white rounded-xl hover:bg-navy/90 transition-colors disabled:opacity-50">
               {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
               Sincronizar desde productos
@@ -292,7 +292,7 @@ export default function HomeManagerPage() {
               <ImageIcon size={36} className="mx-auto text-gray-300 mb-3" />
               <p className="font-bold text-gray-500">Sin categorías</p>
               <p className="text-sm text-gray-400 mt-1">Haz clic en &ldquo;Sincronizar&rdquo; para importar las categorías de tus productos</p>
-              <button onClick={handleSync} disabled={syncing}
+              <button type="button" onClick={handleSync} disabled={syncing}
                 className="mt-4 flex items-center gap-2 mx-auto text-xs font-bold px-4 py-2.5 bg-navy text-white rounded-xl hover:bg-navy/90 disabled:opacity-50">
                 {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                 Sincronizar ahora
@@ -317,7 +317,7 @@ export default function HomeManagerPage() {
                   <div className="p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <p className="font-black text-navy text-sm">{cat.name}</p>
-                      <button onClick={() => updateCat(cat.id, { isFeatured: !cat.isFeatured })}
+                      <button type="button" onClick={() => updateCat(cat.id, { isFeatured: !cat.isFeatured })}
                         className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${cat.isFeatured ? 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                         {cat.isFeatured ? <Star size={12} fill="currentColor" /> : <StarOff size={12} />}
                         {cat.isFeatured ? 'Destacada' : 'Destacar'}
@@ -330,7 +330,7 @@ export default function HomeManagerPage() {
                         className="w-16 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-navy/30" />
                     </div>
                     <ImagePicker label="Imagen de portada" purpose="category" value={cat.imageUrl ?? ''} onChange={url => updateCat(cat.id, { imageUrl: url || null })} />
-                    <button onClick={() => saveCategory(cat)} disabled={savingCat === cat.id}
+                    <button type="button" onClick={() => saveCategory(cat)} disabled={savingCat === cat.id}
                       className="w-full flex items-center justify-center gap-2 bg-navy text-white text-xs font-bold py-2.5 rounded-xl hover:bg-navy/90 disabled:opacity-50 transition-colors">
                       {savingCat === cat.id ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                       Guardar cambios
@@ -360,11 +360,11 @@ export default function HomeManagerPage() {
                   <div className="p-4 space-y-3">
                     <label className="flex items-center justify-between cursor-pointer">
                       <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">Estado</span>
-                      <div onClick={() => updatePromo(i, { active: !promo.active })}
+                      <button type="button" onClick={() => updatePromo(i, { active: !promo.active })}
                         className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${promo.active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                         {promo.active ? <Eye size={13} /> : <EyeOff size={13} />}
                         {promo.active ? 'Activo' : 'Inactivo'}
-                      </div>
+                      </button>
                     </label>
                     <div>
                       <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1">Título</label>
@@ -405,7 +405,7 @@ export default function HomeManagerPage() {
                         className="w-full text-xs border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-navy/20" />
                     </div>
                     <ImagePicker label="Imagen del producto (opcional)" purpose="banner" value={promo.imageUrl ?? ''} onChange={url => updatePromo(i, { imageUrl: url || null })} />
-                    <button onClick={() => savePromo(i)} disabled={savingPro === i}
+                    <button type="button" onClick={() => savePromo(i)} disabled={savingPro === i}
                       className="w-full flex items-center justify-center gap-2 bg-navy text-white text-xs font-bold py-2.5 rounded-xl hover:bg-navy/90 disabled:opacity-50 transition-colors">
                       {savingPro === i ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                       Guardar oferta {i + 1}
@@ -459,7 +459,7 @@ export default function HomeManagerPage() {
                 <p className={`text-sm font-semibold ${cfgMsg.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>{cfgMsg}</p>
               )}
 
-              <button
+              <button type="button"
                 onClick={() => saveConfig('homepage_benefits', benefits, setSavingBenefits)}
                 disabled={savingBenefits}
                 className="flex items-center gap-2 bg-navy text-white text-sm font-bold px-6 py-2.5 rounded-xl hover:bg-navy/90 disabled:opacity-50 transition-colors"
@@ -509,7 +509,7 @@ export default function HomeManagerPage() {
                 <p className={`text-sm font-semibold ${cfgMsg.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>{cfgMsg}</p>
               )}
 
-              <button
+              <button type="button"
                 onClick={() => saveConfig('homepage_flashdeals', flash, setSavingFlash)}
                 disabled={savingFlash}
                 className="flex items-center gap-2 bg-navy text-white text-sm font-bold px-6 py-2.5 rounded-xl hover:bg-navy/90 disabled:opacity-50 transition-colors"
@@ -574,7 +574,7 @@ export default function HomeManagerPage() {
                 <p className={`text-sm font-semibold ${cfgMsg.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>{cfgMsg}</p>
               )}
 
-              <button
+              <button type="button"
                 onClick={() => saveConfig('homepage_shelves', shelves, setSavingShelves)}
                 disabled={savingShelves}
                 className="flex items-center gap-2 bg-navy text-white text-sm font-bold px-6 py-2.5 rounded-xl hover:bg-navy/90 disabled:opacity-50 transition-colors"

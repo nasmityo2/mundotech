@@ -59,8 +59,10 @@ async function runCheckoutTransaction<T>(fn: (tx: Prisma.TransactionClient) => P
 }
 
 /**
- * PRD-195: GET /api/orders con paginación por cursor (opt-in).
- * - Sin parámetros: devuelve el array completo (compatibilidad con /admin/stats).
+ * PRD-195: GET /api/orders con paginación por cursor.
+ * - SESIÓN 13: `?limit=N` es obligatorio. Sin limit se rechaza.
+ *   El panel /admin/stats ahora usa /api/admin/stats (agregado server-side).
+ *
  * - Con ?limit=N: devuelve { orders: [...], nextCursor: string | null }.
  * - Con ?limit=N&cursor=lastId: devuelve la página siguiente.
  */
@@ -71,65 +73,64 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const limitParam = searchParams.get('limit');
-    const cursor = searchParams.get('cursor') ?? undefined;
 
-    if (limitParam !== null) {
-      const limit = Math.min(Math.max(parseInt(limitParam, 10) || 50, 1), 200);
-      const tab = parseOrderTab(searchParams.get('tab'), searchParams.get('status'));
-      const q = searchParams.get('q') ?? '';
-      const where = await buildOrderListWhere(tab, q);
-
-      const cursorRaw = cursor ?? undefined;
-      let pageWhere: Awaited<ReturnType<typeof buildOrderListWhere>>;
-      if (cursorRaw) {
-        const decodedCursor = decodeOrderCursor(cursorRaw);
-        if (decodedCursor == null) {
-          return NextResponse.json({ message: 'Cursor inválido.' }, { status: 400 });
-        }
-        pageWhere = { AND: [where, orderCursorWhere(decodedCursor)] };
-      } else {
-        pageWhere = where;
-      }
-
-      const countsWhere = q.trim() ? await buildOrderSearchWhere(q) : {};
-
-      const [orders, total, statusGroups] = await Promise.all([
-        prisma.order.findMany({
-          where: pageWhere,
-          take: limit + 1,
-          include: { items: true },
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        }),
-        prisma.order.count({ where }),
-        prisma.order.groupBy({
-          by: ['status'],
-          where: countsWhere,
-          _count: { _all: true },
-        }),
-      ]);
-
-      const hasNextPage = orders.length > limit;
-      const page = hasNextPage ? orders.slice(0, limit) : orders;
-      const lastRow = page[page.length - 1];
-      const nextCursor =
-        hasNextPage && lastRow != null
-          ? encodeOrderCursor({ createdAt: lastRow.createdAt, id: lastRow.id })
-          : null;
-
-      return NextResponse.json({
-        orders: page.map(prismaOrderToOrder),
-        nextCursor,
-        total,
-        counts: computeTabCounts(statusGroups),
-      });
+    // SESIÓN 13: limit es obligatorio. Usar /api/admin/stats para agregados.
+    if (limitParam === null) {
+      return NextResponse.json(
+        { message: 'Parámetro limit requerido. Usa /api/admin/stats para estadísticas agregadas.' },
+        { status: 400 },
+      );
     }
 
-    // Fallback sin paginación (mantiene compatibilidad con /admin/stats y exportación CSV).
-    const orders = await prisma.order.findMany({
-      include: { items: true },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    const limit = Math.min(Math.max(parseInt(limitParam, 10) || 50, 1), 200);
+    const cursor = searchParams.get('cursor') ?? undefined;
+    const tab = parseOrderTab(searchParams.get('tab'), searchParams.get('status'));
+    const q = searchParams.get('q') ?? '';
+    const where = await buildOrderListWhere(tab, q);
+
+    const cursorRaw = cursor ?? undefined;
+    let pageWhere: Awaited<ReturnType<typeof buildOrderListWhere>>;
+    if (cursorRaw) {
+      const decodedCursor = decodeOrderCursor(cursorRaw);
+      if (decodedCursor == null) {
+        return NextResponse.json({ message: 'Cursor inválido.' }, { status: 400 });
+      }
+      pageWhere = { AND: [where, orderCursorWhere(decodedCursor)] };
+    } else {
+      pageWhere = where;
+    }
+
+    const countsWhere = q.trim() ? await buildOrderSearchWhere(q) : {};
+
+    const [orders, total, statusGroups] = await Promise.all([
+      prisma.order.findMany({
+        where: pageWhere,
+        take: limit + 1,
+        include: { items: true },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      }),
+      prisma.order.count({ where }),
+      prisma.order.groupBy({
+        by: ['status'],
+        where: countsWhere,
+        _count: { _all: true },
+      }),
+    ]);
+
+    const hasNextPage = orders.length > limit;
+    const page = hasNextPage ? orders.slice(0, limit) : orders;
+    const lastRow = page[page.length - 1];
+    const nextCursor =
+      hasNextPage && lastRow != null
+        ? encodeOrderCursor({ createdAt: lastRow.createdAt, id: lastRow.id })
+        : null;
+
+    return NextResponse.json({
+      orders: page.map(prismaOrderToOrder),
+      nextCursor,
+      total,
+      counts: computeTabCounts(statusGroups),
     });
-    return NextResponse.json(orders.map(prismaOrderToOrder));
   } catch (error) {
     logError('orders_get_failed', error, { route: '/api/orders' });
     return NextResponse.json(

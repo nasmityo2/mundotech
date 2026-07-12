@@ -9,6 +9,7 @@ import { mrwOffices } from '@/lib/mrw-offices';
 import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
 import { tealcaOffices, type TealcaOffice } from '@/lib/tealca-offices';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { SavedAddress, SavedAddressInput, ShippingMethod } from '@/lib/definitions';
 import OfficeSelect from '@/app/components/checkout/OfficeSelect';
 import type { OfficeOption } from '@/app/components/checkout/OfficeSelect';
@@ -41,6 +42,8 @@ export default function AddressFormModal({
   isSubmitting,
 }: AddressFormModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const formDirtyRef = useRef(false);
 
   const initialZoomIndex = (() => {
     if (editAddress?.shippingMethod === 'zoom' && editAddress.mrwState && editAddress.mrwOffice) {
@@ -60,14 +63,14 @@ export default function AddressFormModal({
     return '';
   })();
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } =
+  const { register, handleSubmit, watch, setValue, formState: { errors, dirtyFields } } =
     useForm<FormValues>({
       defaultValues: {
         alias:           editAddress?.alias          ?? '',
         firstName:       editAddress?.firstName      ?? '',
         lastName:        editAddress?.lastName       ?? '',
         idNumber:        editAddress?.idNumber       ?? '',
-        phoneNumber:     editAddress?.phoneNumber    ?? '',
+        phoneNumber:    editAddress?.phoneNumber    ?? '',
         shippingMethod:  (editAddress?.shippingMethod ?? 'tienda') as ShippingMethod,
         mrwState:        editAddress?.mrwState       ?? '',
         mrwOffice:       editAddress?.mrwOffice      ?? '',
@@ -79,6 +82,11 @@ export default function AddressFormModal({
 
   const method       = watch('shippingMethod');
   const selectedState = watch('mrwState');
+
+  // Track form dirty state for close guard
+  useEffect(() => {
+    formDirtyRef.current = Object.keys(dirtyFields).length > 0;
+  }, [dirtyFields]);
 
   const mrwStateOptions: OfficeOption[] = Object.keys(mrwOffices).sort().map(s => ({ name: s }));
   const zoomStateOptions: OfficeOption[] = Object.keys(zoomOffices).sort().map(s => ({ name: s }));
@@ -101,17 +109,27 @@ export default function AddressFormModal({
   }, [selectedState, method, setValue]);
 
   const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === overlayRef.current) onClose();
+    if (e.target === overlayRef.current) {
+      // Form dirty guard: no cerrar si hay cambios sin guardar
+      if (formDirtyRef.current) {
+        if (!window.confirm('Hay cambios sin guardar. ¿Deseas descartarlos?')) return;
+      }
+      onClose();
+    }
   };
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  // Bottom sheet móvil: sin esto el body seguía scrolleando detrás del modal.
+  // Scroll lock
   useBodyScrollLock(true);
+
+  // Focus trap: el hook maneja foco inicial, Tab/Shift+Tab, y Escape.
+  // onClose se pasa para manejar Escape.
+  const handleCloseGuard = () => {
+    if (formDirtyRef.current) {
+      if (!window.confirm('Hay cambios sin guardar. ¿Deseas descartarlos?')) return;
+    }
+    onClose();
+  };
+  useFocusTrap({ containerRef: dialogRef, enabled: true, onClose: handleCloseGuard });
 
   const submit = handleSubmit(async (values) => {
     let officeLabel: string | null = null;
@@ -155,6 +173,7 @@ export default function AddressFormModal({
       officeCity:     officeCityVal,
       isDefault:      values.isDefault,
     });
+    formDirtyRef.current = false;
   });
 
   return (
@@ -163,7 +182,13 @@ export default function AddressFormModal({
       onClick={handleOverlayClick}
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4"
     >
-      <div role="dialog" aria-modal="true" aria-label="Formulario de dirección" className="relative w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl max-h-[90dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Formulario de dirección"
+        className="relative w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl max-h-[90dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]"
+      >
         {/* Header */}
         <div className="sticky top-0 bg-white/95 backdrop-blur-sm z-10 flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <h2 className="text-base font-bold text-navy">
@@ -171,7 +196,7 @@ export default function AddressFormModal({
           </h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCloseGuard}
             className="w-11 h-11 -my-1.5 -mr-2 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-navy transition-colors"
             aria-label="Cerrar"
           >
@@ -396,7 +421,7 @@ export default function AddressFormModal({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full inline-flex items-center justify-center gap-2 bg-navy text-white font-bold text-sm min-h-[52px] rounded-2xl hover:bg-navy-700 shadow-soft hover:shadow-card hover:-translate-y-0.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+              className="w-full inline-flex items-center justify-center gap-2 bg-navy text-white font-bold text-sm min-h-[52px] rounded-2xl hover:bg-navy-700 shadow-soft hover:shadow-card hover:-translate-y-0.5 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <><Loader2 size={16} className="animate-spin" /> Guardando…</>

@@ -1,48 +1,59 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logError } from '@/lib/safe-logger';
+import {
+  OPS_APP_CONFIG_KEYS,
+  buildPublicHealth,
+  buildOpsMap,
+} from '@/lib/operations-health';
 
 /**
- * FASE 4.8 (MEJORA 4.3) — health-check liviano para UptimeRobot y el deploy.
+ * SESIÓN 11 — Health público mínimo.
  *
- * - Sin auth y sin PII: solo estado de la app, la BD y frescura del cron BCV.
- * - `bcvStale: true` cuando la última corrida EXITOSA del cron de tasa tiene
- *   más de 48 h (2 días seguidos fallando = margen en riesgo — configurar el
- *   monitor de UptimeRobot con alerta por keyword "bcvStale":true).
- * - HTTP 200 mientras la app y la BD respondan (bcvStale NO tumba el status:
- *   la tienda sigue vendiendo con la tasa congelada anterior).
- * - HTTP 503 si la BD no responde.
+ * Contrato: GET /api/health
+ *
+ * Respuesta:
+ *   { status:'ok'|'degraded', db:'ok'|'down', bcvStale:boolean, backupStale:boolean, purgeStale:boolean }
+ *
+ * - NO contiene timestamps, versión, host, error, conteos ni PII.
+ * - Cache-Control: no-store, max-age=0.
+ * - Timeout DB <= 2s.
+ * - HTTP 503 solo si DB está caída.
+ * - BCV/backup/purge stale NO tumban el status (la tienda sigue funcionando).
  */
 
 export const dynamic = 'force-dynamic';
 
-const BCV_LAST_SUCCESS_KEY = 'bcv_last_success_at';
-const BCV_STALE_MS = 48 * 60 * 60 * 1000;
+/** Timeout de DB para health check: 2 segundos. */
+const DB_TIMEOUT_MS = 2_000;
 
 export async function GET(): Promise<NextResponse> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DB_TIMEOUT_MS);
+
   try {
-    const bcvRow = await prisma.appConfig.findUnique({
-      where: { key: BCV_LAST_SUCCESS_KEY },
-      select: { value: true },
+    const opsRows = await prisma.appConfig.findMany({
+      where: { key: { in: [...OPS_APP_CONFIG_KEYS] } },
+      select: { key: true, value: true },
     });
 
-    const lastBcvSuccessAt = bcvRow?.value ?? null;
-    const lastBcvMs = lastBcvSuccessAt ? Date.parse(lastBcvSuccessAt) : NaN;
-    const bcvStale = !Number.isFinite(lastBcvMs) || Date.now() - lastBcvMs > BCV_STALE_MS;
+    clearTimeout(timeout);
+
+    const opsMap = buildOpsMap(opsRows);
+    const health = buildPublicHealth(opsMap, true /* db ok */);
+
+    return NextResponse.json(health, {
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
+    });
+  } catch (err) {
+    clearTimeout(timeout);
+
+    // Si DB no responde, devolver degraded + 503
+    logError('health_db_down', err, { route: '/api/health' });
 
     return NextResponse.json(
-      {
-        status: 'ok',
-        db: 'ok',
-        bcvStale,
-        lastBcvSuccessAt,
-      },
-      { headers: { 'Cache-Control': 'no-store' } },
-    );
-  } catch (err) {
-    console.error('[health] BD inaccesible:', err);
-    return NextResponse.json(
-      { status: 'degraded', db: 'down' },
-      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+      { status: 'degraded', db: 'down', bcvStale: true, backupStale: true, purgeStale: true },
+      { status: 503, headers: { 'Cache-Control': 'no-store, max-age=0' } },
     );
   }
 }

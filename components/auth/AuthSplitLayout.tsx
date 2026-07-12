@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { MapPin, ShieldCheck } from 'lucide-react';
 import { whatsappHref } from '@/lib/mundotech-social';
 import Logo from '@/components/Logo';
+import { useReducedMotion, reducedTransition } from '@/lib/motion';
 
 export type AuthSplitVariant = 'login' | 'register' | 'recovery';
 
@@ -41,6 +42,7 @@ export default function AuthSplitLayout({
   breadcrumbLast,
   children,
 }: AuthSplitLayoutProps) {
+  const prefersReduced = useReducedMotion();
   const { tagline } = COPY[variant];
   const waHref = whatsappHref(
     '0412-1471338',
@@ -71,9 +73,9 @@ export default function AuthSplitLayout({
 
       <div className="mx-auto w-full max-w-[30rem]">
         <motion.div
-          initial={{ opacity: 0, y: 14 }}
+          initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          transition={prefersReduced ? reducedTransition : { duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="overflow-hidden rounded-3xl border border-border bg-white shadow-card"
         >
           {/* Banda-letrero: la fachada de la tienda */}

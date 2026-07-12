@@ -21,7 +21,7 @@ import { whatsappHref } from '@/lib/mundotech-social';
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 const PAGE_URL = `${SITE_URL}/nosotros`;
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: 'Quiénes somos — la tienda detrás del letrero amarillo',

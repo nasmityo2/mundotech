@@ -1,5 +1,3 @@
-'use client';
-
 import type { OrderWithPricingMeta } from '@/lib/order-pricing';
 import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
 

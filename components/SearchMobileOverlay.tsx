@@ -7,6 +7,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, ArrowLeft } from 'lucide-react';
 import { useSearchSuggest } from '@/hooks/useSearchSuggest';
 import SearchResultsList from '@/components/SearchResultsList';
+import { useReducedMotion, reducedTransition } from '@/lib/motion';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface Props {
   open: boolean;
@@ -14,8 +17,10 @@ interface Props {
 }
 
 export default function SearchMobileOverlay({ open, onClose }: Props) {
+  const prefersReduced = useReducedMotion();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const { query, setQuery, results, open: suggestionsOpen, setOpen, isPending, clear } =
     useSearchSuggest();
@@ -24,28 +29,16 @@ export default function SearchMobileOverlay({ open, onClose }: Props) {
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    const t = requestAnimationFrame(() => inputRef.current?.focus());
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      cancelAnimationFrame(t);
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  // Scroll lock compartido
+  useBodyScrollLock(open);
 
+  // Focus trap: foco inicial en el primer elemento enfocable (el input)
+  useFocusTrap({ containerRef: dialogRef, enabled: open, onClose });
+
+  // Limpiar sugerencias al cerrar
   useEffect(() => {
     if (!open) clear();
   }, [open, clear]);
-
-  // Cierre con ESC
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,13 +59,14 @@ export default function SearchMobileOverlay({ open, onClose }: Props) {
     <AnimatePresence>
       {open && (
         <motion.div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-label="Buscar productos"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
+          transition={prefersReduced ? reducedTransition : { duration: 0.18 }}
           className="fixed inset-0 z-[100] flex flex-col bg-white"
           style={{
             paddingTop: 'env(safe-area-inset-top)',

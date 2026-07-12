@@ -230,6 +230,7 @@ export default function SettingsClient({
           <p className="text-gray-500 mt-1 text-sm">Datos de la tienda, pagos y tasa cambiaria.</p>
         </div>
         <button
+          type="button"
           onClick={handleSave}
           disabled={saving}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
@@ -280,6 +281,7 @@ export default function SettingsClient({
               className="flex-1 px-3 py-2 border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-1 focus:ring-navy/30 focus:border-navy"
             />
             <button
+              type="button"
               onClick={handleRateUpdate}
               disabled={isUpdatingRate}
               className="flex items-center gap-2 px-4 py-2 bg-navy text-white text-sm font-semibold rounded-lg hover:bg-navy/90 disabled:opacity-60 transition"
@@ -309,6 +311,7 @@ export default function SettingsClient({
             placeholder="1.5"
           />
           <button
+            type="button"
             onClick={handlePricingUpdate}
             disabled={isSavingPricing}
             className="flex items-center gap-2 px-4 py-2 bg-navy text-white text-sm font-semibold rounded-lg hover:bg-navy/90 disabled:opacity-60 transition"
@@ -327,6 +330,7 @@ export default function SettingsClient({
               Cada producto se recalcula con su propio margen de ganancia guardado. Solo afecta productos con costo; las ofertas conservan su descuento.
             </p>
             <button
+              type="button"
               onClick={handleRecalc}
               disabled={isRecalculating}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-navy/30 text-navy text-sm font-semibold rounded-lg hover:bg-navy/5 disabled:opacity-60 transition"
@@ -484,6 +488,7 @@ export default function SettingsClient({
           </div>
 
           <button
+            type="button"
             onClick={handleSaveEstimates}
             disabled={isSavingEstimates}
             className="flex items-center gap-2 px-4 py-2 min-h-[44px] bg-navy text-white text-sm font-semibold rounded-lg hover:bg-navy/90 disabled:opacity-60 transition"

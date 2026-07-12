@@ -70,7 +70,7 @@ export default function UnsubscribeConfirmClient({ token }: Props) {
               Confirma si deseas darte de baja de los recordatorios de carrito abandonado.
               No afecta otros correos de tu pedido.
             </p>
-            <button
+            <button type="button"
               onClick={handleConfirm}
               disabled={status === 'loading'}
               className="w-full inline-flex items-center justify-center gap-2 bg-red-500 text-white text-sm font-semibold py-3 rounded-xl hover:bg-red-600 active:scale-[0.98] transition-all disabled:opacity-60"

@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireAdminAction } from '@/lib/api-auth';
 import {
   announcementSchema,
@@ -8,6 +8,7 @@ import {
   writeAnnouncement,
   type Announcement,
 } from '@/lib/announcement';
+import { CACHE_TAG_SITE_SHELL, CACHE_TAG_ANNOUNCEMENT } from '@/lib/site-shell-cache';
 
 /** Lectura pública de la barra de anuncios (la usa el layout). */
 export async function getAnnouncement(): Promise<Announcement> {
@@ -31,5 +32,7 @@ export async function updateAnnouncement(input: Announcement): Promise<UpdateAnn
 
   await writeAnnouncement(parsed.data);
   revalidatePath('/', 'layout');
+  revalidateTag(CACHE_TAG_SITE_SHELL, 'default');
+  revalidateTag(CACHE_TAG_ANNOUNCEMENT, 'default');
   return { success: true };
 }

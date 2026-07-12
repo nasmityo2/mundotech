@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Check, ArrowRight, Package, Mail, Home, MessageCircle } from 'lucide-react';
+import { useReducedMotion, reducedTransition } from '@/lib/motion';
 import { MUNDOTECH_SOCIAL } from '@/lib/mundotech-social';
 import type { GuestOrderConfirmation } from '@/lib/definitions';
 import { GuestOrderItem } from '@/lib/definitions';
@@ -19,6 +20,7 @@ const fadeUp = {
 };
 
 export default function GuestSuccessClientPage({ order }: Props) {
+  const prefersReduced = useReducedMotion();
   const subtotal = order.items.reduce((acc: number, item: GuestOrderItem) => acc + item.price * item.quantity, 0);
   const orderNumberPadded = String(order.orderNumber).padStart(4, '0');
 
@@ -28,7 +30,11 @@ export default function GuestSuccessClientPage({ order }: Props) {
       <motion.div
         initial="hidden"
         animate="visible"
-        variants={{ visible: { transition: { staggerChildren: 0.08 } } }}
+        variants={
+          prefersReduced
+            ? { visible: { transition: { staggerChildren: 0, delayChildren: 0 } } }
+            : { visible: { transition: { staggerChildren: 0.08 } } }
+        }
       >
         {/* Hero éxito */}
         <motion.div
@@ -36,9 +42,9 @@ export default function GuestSuccessClientPage({ order }: Props) {
           className="bg-white rounded-3xl border border-slate-200/80 shadow-soft p-8 sm:p-12 text-center"
         >
           <motion.div
-            initial={{ scale: 0, rotate: -180 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
+            initial={prefersReduced ? { opacity: 0 } : { scale: 0, rotate: -180 }}
+            animate={prefersReduced ? { opacity: 1 } : { scale: 1, rotate: 0 }}
+            transition={prefersReduced ? reducedTransition : { duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
             className="mx-auto w-20 h-20 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lift"
           >
             <Check size={42} strokeWidth={3} />

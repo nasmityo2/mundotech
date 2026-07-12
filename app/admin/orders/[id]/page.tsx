@@ -204,7 +204,7 @@ export default function AdminOrderDetailPage() {
 
   return (
     <div className="space-y-4">
-      <button
+      <button type="button"
         onClick={() => router.back()}
         className="hidden md:inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
       >
@@ -345,7 +345,7 @@ export default function AdminOrderDetailPage() {
                   <dt className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Comprobante / guía</dt>
                   <a href={order.trackingPhotoUrl} target="_blank" rel="noreferrer" className="block max-w-xs">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={order.trackingPhotoUrl} alt="Tracking" className="w-full rounded-xl border border-gray-200" />
+                    <img src={order.trackingPhotoUrl} alt="Comprobante de envío / guía" loading="lazy" decoding="async" referrerPolicy="no-referrer" className="w-full rounded-xl border border-gray-200" />
                   </a>
                 </div>
               )}

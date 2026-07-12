@@ -10,7 +10,9 @@ import { DEFAULT_SETTINGS } from '@/lib/data-store';
 import type { SiteContent } from '@/lib/site-content-schema';
 import type { StoreSettings } from '@/lib/data-store';
 import {
-  getCachedHomeProducts,
+  getCachedNewestProducts,
+  getCachedFlashDeals,
+  getCachedGamingProducts,
   getCachedHeroBanners,
   getCachedHomePromoBanners,
   getCachedHomeDiscoverBanners,
@@ -106,19 +108,23 @@ async function getData() {
   // renderiza vacía-pero-viva y el error queda registrado.
   try {
     const [
-      products,
+      newestProducts,
+      flashDeals,
+      gamingProducts,
       heroBanners,
       promoBanners,
       discoverBanners,
       featuredCategories,
       ctaBannerRow,
       activePromotions,
-      { flashConfig, shelvesConfig, benefitsConfig },
+      { shelvesConfig, benefitsConfig },
       siteContent,
       settings,
       gamingPath,
     ] = await Promise.all([
-      getCachedHomeProducts(),
+      getCachedNewestProducts(),
+      getCachedFlashDeals(),
+      getCachedGamingProducts(),
       getCachedHeroBanners(),
       getCachedHomePromoBanners(),
       getCachedHomeDiscoverBanners(),
@@ -132,14 +138,15 @@ async function getData() {
     ]);
 
     return {
-      products,
+      newestProducts,
+      flashDeals,
+      gamingProducts,
       heroBanners,
       promoBanners,
       discoverBanners,
       featuredCategories,
       ctaBannerRow,
       activePromotions,
-      flashConfig,
       shelvesConfig,
       benefitsConfig,
       siteContent,
@@ -149,14 +156,15 @@ async function getData() {
   } catch (error) {
     console.error('[home] getData falló — se renderiza con fallbacks seguros:', error);
     return {
-      products: [],
+      newestProducts: [],
+      flashDeals: [],
+      gamingProducts: [],
       heroBanners: [],
       promoBanners: [],
       discoverBanners: [],
       featuredCategories: [],
       ctaBannerRow: null,
       activePromotions: [],
-      flashConfig: null,
       shelvesConfig: null,
       benefitsConfig: null,
       siteContent: DEFAULT_SITE_CONTENT,
@@ -214,28 +222,12 @@ function CtaBanner({ data }: { data: CtaBannerData | null }) {
   );
 }
 
-function productHaystack(p: {
-  name: string;
-  category: string;
-  brand: string | null;
-}) {
-  return `${p.category} ${p.name} ${p.brand ?? ''}`.toLowerCase();
-}
-
-type HomeProduct = (typeof getData extends () => Promise<infer R> ? R : never)['products'][number];
-
-function pickGaming(products: HomeProduct[]) {
-  const re =
-    /consola|gaming|retro|game|handheld|r36|portátil|portatil|nintendo|playstation|xbox|steam/;
-  // Solo coincidencias reales. Si no hay ninguna, ProductShelf se oculta
-  // automáticamente (retorna null cuando products.length === 0).
-  // NO usar fallback a products: mostraba todo el catálogo bajo "Consolas y gaming".
-  return products.filter((p) => re.test(productHaystack(p)));
-}
 
 const HomePage = async () => {
   const {
-    products,
+    newestProducts,
+    flashDeals,
+    gamingProducts,
     heroBanners,
     promoBanners,
     discoverBanners,
@@ -256,15 +248,8 @@ const HomePage = async () => {
       ? benefitsConfig
       : buildBenefitsFallback(siteContent, settings);
 
-  const flashDeals = products
-    .filter((p) => p.originalPrice && p.originalPrice > p.price)
-    .slice(0, 10);
-
   const novedadesTitle = shelvesConfig?.newest?.title ?? 'Novedades en MundoTech';
   const novedadesBadge = shelvesConfig?.newest?.badge ?? 'Recién llegados';
-
-  const newest = products.slice(0, 8);
-  const gaming = pickGaming(products).slice(0, 8);
 
   return (
     <div className="w-full max-w-full overflow-x-hidden">
@@ -275,7 +260,7 @@ const HomePage = async () => {
             slides={heroBanners.length > 0 ? heroBanners : undefined}
             fallback={siteContent.heroFallback}
             brandStrip={siteContent.brandStrip}
-            priorityImages={promoBanners.length === 0}
+            priorityImages={true}
           />
         </div>
       </div>
@@ -303,7 +288,7 @@ const HomePage = async () => {
             viewAllLabel="Ver todas las ofertas"
             theme="light"
             maxItems={8}
-            priorityFirstItems={2}
+            priorityFirstItems={0}
           />
 
           <DiscoverMosaic banners={discoverBanners} />
@@ -314,7 +299,7 @@ const HomePage = async () => {
             badge={novedadesBadge}
             badgeColor="yellow"
             title={novedadesTitle}
-            products={newest}
+            products={newestProducts}
             viewAllHref="/productos"
             viewAllLabel="Ver todas las novedades"
             theme="light"
@@ -327,7 +312,7 @@ const HomePage = async () => {
             badgeColor="yellow"
             title="Consolas y gaming"
             subtitle="Consolas portátiles y accesorios para jugar donde quieras."
-            products={gaming}
+            products={gamingProducts}
             viewAllHref={gamingPath}
             viewAllLabel="Ver gaming"
             theme="light"

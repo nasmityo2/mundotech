@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Truck, X, Loader2 } from 'lucide-react';
 import PhotoUploader from '@/components/admin/PhotoUploader';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface ShipOrderDialogProps {
   open: boolean;
@@ -44,6 +46,7 @@ export default function ShipOrderDialog({
   onConfirm,
   editMode = false,
 }: ShipOrderDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const [trackingNumber, setTrackingNumber]     = useState('');
   const [trackingCarrier, setTrackingCarrier]   = useState('');
   const [trackingUrl, setTrackingUrl]           = useState('');
@@ -61,11 +64,11 @@ export default function ShipOrderDialog({
     }
   }, [open, initial]);
 
-  useEffect(() => {
-    if (!open) return;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, [open]);
+  // Scroll lock compartido con compensación de scrollbar
+  useBodyScrollLock(open);
+
+  // Focus trap: foco inicial en el primer campo, Tab/Shift+Tab dentro, Escape cierra
+  useFocusTrap({ containerRef: dialogRef, enabled: open, onClose });
 
   if (!open) return null;
 
@@ -89,6 +92,7 @@ export default function ShipOrderDialog({
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="ship-dialog-title"

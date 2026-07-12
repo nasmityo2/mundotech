@@ -1,9 +1,10 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { requireAdminAction } from '@/lib/api-auth';
 import { readSeoLocal, writeSeoLocal } from '@/lib/seo-local';
 import { seoLocalSchema, type SeoLocal } from '@/lib/seo-local-schema';
+import { CACHE_TAG_SITE_SHELL, CACHE_TAG_SEO_LOCAL } from '@/lib/site-shell-cache';
 
 export interface SeoLocalActionResult {
   success: boolean;
@@ -29,6 +30,10 @@ export async function updateSeoLocal(input: unknown): Promise<SeoLocalActionResu
   // Revalidar todas las rutas que consumen estos datos
   revalidatePath('/', 'layout');
   revalidatePath('/tienda-barquisimeto');
+  revalidatePath('/nosotros');
+  revalidatePath('/devoluciones');
+  revalidateTag(CACHE_TAG_SITE_SHELL, 'default');
+  revalidateTag(CACHE_TAG_SEO_LOCAL, 'default');
 
   return { success: true, message: 'Datos guardados.', data: parsed.data };
 }
