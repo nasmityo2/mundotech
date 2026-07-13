@@ -34,9 +34,8 @@ const UPLOAD_BY_PURPOSE: Record<
 
 export async function POST(request: Request) {
   // PRD-046: mitigación CSRF (sesión admin podría ser forzada cross-site).
-  if (!rejectInvalidMutationOrigin(request)) {
-    return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
-  }
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
 
   const auth = await requireAdmin();
   if (!auth.authorized) return auth.response;
