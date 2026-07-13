@@ -106,6 +106,48 @@ describe('GET /api/health', () => {
     });
   });
 
+  it('devuelve 503 si Prisma queda colgado (timeout real a 2s)', async () => {
+    vi.useFakeTimers();
+    vi.mocked(prisma.appConfig.findMany).mockImplementation(
+      () => new Promise(() => {}) as ReturnType<typeof prisma.appConfig.findMany>,
+    );
+
+    let settled = false;
+    const handlerPromise = handler().then((response) => {
+      settled = true;
+      return response;
+    });
+
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    const response = await handlerPromise;
+
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body).toEqual({
+      status: 'degraded',
+      db: 'down',
+      bcvStale: true,
+      backupStale: true,
+      purgeStale: true,
+    });
+
+    vi.useRealTimers();
+  });
+
+  it('limpia el timer cuando findMany resuelve antes del timeout', async () => {
+    const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+    vi.mocked(prisma.appConfig.findMany).mockResolvedValue([]);
+
+    const response = await handler();
+
+    expect(response.status).toBe(200);
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    clearTimeoutSpy.mockRestore();
+  });
+
   it('no contiene timestamps, version, host, error ni propiedades prohibidas', async () => {
     vi.mocked(prisma.appConfig.findMany).mockResolvedValue([
       mockAppConfigRow('bcv_last_success_at', new Date().toISOString()),
@@ -250,5 +292,34 @@ describe('GET /api/admin/operations-health', () => {
 
     const body = await response.json();
     expect(body).toHaveProperty('error');
+  });
+
+  it('devuelve 500 si Prisma queda colgado (timeout a 2s)', async () => {
+    vi.useFakeTimers();
+    vi.mocked(requireAdmin).mockResolvedValue({
+      authorized: true,
+      session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
+    });
+    vi.mocked(prisma.appConfig.findMany).mockImplementation(
+      () => new Promise(() => {}) as ReturnType<typeof prisma.appConfig.findMany>,
+    );
+
+    let settled = false;
+    const handlerPromise = handler().then((response) => {
+      settled = true;
+      return response;
+    });
+
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    const response = await handlerPromise;
+
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body).toHaveProperty('error');
+
+    vi.useRealTimers();
   });
 });

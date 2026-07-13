@@ -9,25 +9,26 @@ Este proyecto sigue la recomendación de GitHub Security Lab:
 de verificación adicional. Dependabot mantiene las SHA actualizadas automáticamente
 (ver `.github/dependabot.yml`).
 
-### Excepciones
+### Acciones fijadas actualmente
 
-- `actions/checkout@v4`, `actions/setup-node@v4`, `actions/upload-artifact@v4`:
-  se fijan a SHA específico de la versión v4.x más reciente. Dependabot las actualiza
-  semanalmente dentro del major v4.
-- Acciones oficiales de GitHub (bajo `actions/`) con despliegue lento y firmado:
-  aceptan pinning a SHA por versión exacta.
+| Acción | Versión legible | SHA |
+|---|---|---|
+| `actions/checkout` | v4.2.2 | `11bd71901bbe5b1630ceea73d27597364c9af683` |
+| `actions/setup-node` | v4.4.0 | `49933ea5288caeca8642d1e84afbd3f7d6820020` |
+| `actions/upload-artifact` | v4.6.2 | `ea165f8d65b6e75b540449e92b4886f43607fa02` |
 
 ### Política en workflows
 
-1. Toda `uses:` debe tener un comentario con la versión legible y el SHA:
+1. Toda `uses:` debe apuntar al **SHA completo**, con comentario de versión legible:
    ```yaml
-   uses: actions/checkout@v4  # v4.2.2 → 11bd71901bbe5b1630ceea73d27597364c9af683
+   uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
    ```
-2. Toda descarga externa (`curl`, `wget`) debe verificar checksum SHA-256 antes de
-   ejecutar el binario.
-3. Workflows de escritura (`contents: write`, `pull-requests: write`) requieren
+2. **Prohibido** usar tags flotantes (`@v4`, `@main`, `@latest`) en acciones de terceros.
+3. Toda descarga externa (`curl`, `wget`) debe verificar checksum SHA-256 antes de
+   ejecutar el binario (ver `secrets.yml` → Gitleaks 8.30.1).
+4. Workflows de escritura (`contents: write`, `pull-requests: write`) requieren
    revisión explícita del propietario.
-4. Workflows sin necesidad de escribir en el repositorio usarán `contents: read`
+5. Workflows sin necesidad de escribir en el repositorio usarán `contents: read`
    y `pull-requests: read`.
 
 ### Permisos mínimos

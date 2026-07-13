@@ -250,7 +250,7 @@ describe('getCachedGamingProducts (SESIÓN 14)', () => {
     vi.clearAllMocks();
   });
 
-  it('usa take=24, where.isActive=true', async () => {
+  it('usa take=8, where con isActive y OR insensible en category/name/brand', async () => {
     vi.mocked(prisma.product.findMany).mockResolvedValue([]);
 
     const { getCachedGamingProducts } = await import('@/lib/home-cache');
@@ -258,52 +258,60 @@ describe('getCachedGamingProducts (SESIÓN 14)', () => {
 
     const call = vi.mocked(prisma.product.findMany).mock.calls[0][0];
     const params = call as {
-      where?: Record<string, unknown>;
+      where?: { isActive?: boolean; OR?: Array<Record<string, unknown>> };
       take?: number;
+      orderBy?: unknown;
     };
-    expect(params.take).toBe(24);
-    expect(params.where).toEqual({ isActive: true });
+    expect(params.take).toBe(8);
+    expect(params.orderBy).toEqual({ createdAt: 'desc' });
+    expect(params.where?.isActive).toBe(true);
+    expect(params.where?.OR).toBeDefined();
+    expect(params.where!.OR!.length).toBeGreaterThan(0);
+
+    const firstOr = params.where!.OR![0];
+    expect(firstOr).toHaveProperty('category');
+    expect(firstOr.category).toEqual(
+      expect.objectContaining({ contains: expect.any(String), mode: 'insensitive' }),
+    );
   });
 
-  it('filtra solo productos que coinciden con regex gaming', async () => {
-    const rows = [
-      mockProduct({ id: 'a', name: 'Laptop', category: 'Computación' }),
-      mockProduct({ id: 'b', name: 'Nintendo Switch', category: 'Consolas y Gaming' }),
-      mockProduct({ id: 'c', name: 'PlayStation 5', category: 'Consolas' }),
-      mockProduct({ id: 'd', name: 'Mouse', category: 'Periféricos' }),
-    ];
-    vi.mocked(prisma.product.findMany).mockResolvedValue(rows as never);
+  it('buildGamingProductsWhere incluye OR para category, name y brand', async () => {
+    const { buildGamingProductsWhere, GAMING_KEYWORDS } = await import('@/lib/home-cache');
+    const where = buildGamingProductsWhere();
+
+    expect(where.isActive).toBe(true);
+    expect(where.OR).toHaveLength(GAMING_KEYWORDS.length * 3);
+
+    const fields = new Set(
+      where.OR.map((clause) => Object.keys(clause)[0]),
+    );
+    expect(fields).toEqual(new Set(['category', 'name', 'brand']));
+  });
+
+  it('un producto antiguo que coincide puede aparecer (sin filtro en memoria)', async () => {
+    const oldGaming = mockProduct({
+      id: 'legacy-ps2',
+      name: 'PlayStation 2 Slim',
+      category: 'Retro',
+      brand: 'Sony',
+    });
+    vi.mocked(prisma.product.findMany).mockResolvedValue([oldGaming] as never);
 
     const { getCachedGamingProducts } = await import('@/lib/home-cache');
     const result = await getCachedGamingProducts();
-    expect(result).toHaveLength(2);
-    expect(result.map((p: { id: string }) => p.id).sort()).toEqual(['b', 'c']);
-  });
 
-  it('reconoce gaming por category (Consolas y Gaming)', async () => {
-    const rows = [
-      mockProduct({ id: 'a', name: 'Audífonos', category: 'Consolas y Gaming' }),
-    ];
-    vi.mocked(prisma.product.findMany).mockResolvedValue(rows as never);
-
-    const { getCachedGamingProducts } = await import('@/lib/home-cache');
-    const result = await getCachedGamingProducts();
     expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('legacy-ps2');
+    expect(vi.mocked(prisma.product.findMany)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ isActive: true, OR: expect.any(Array) }),
+        take: 8,
+      }),
+    );
   });
 
-  it('reconoce gaming por brand', async () => {
-    const rows = [
-      mockProduct({ id: 'a', name: 'Mando inalámbrico', category: 'Accesorios', brand: 'Xbox' }),
-    ];
-    vi.mocked(prisma.product.findMany).mockResolvedValue(rows as never);
-
-    const { getCachedGamingProducts } = await import('@/lib/home-cache');
-    const result = await getCachedGamingProducts();
-    expect(result).toHaveLength(1);
-  });
-
-  it('retorna máximo 8 aunque haya muchos gaming', async () => {
-    const rows = Array.from({ length: 24 }, (_, i) =>
+  it('retorna hasta 8 productos devueltos por Prisma', async () => {
+    const rows = Array.from({ length: 8 }, (_, i) =>
       mockGamingProduct(`g-${i}`),
     );
     vi.mocked(prisma.product.findMany).mockResolvedValue(rows as never);
@@ -313,19 +321,15 @@ describe('getCachedGamingProducts (SESIÓN 14)', () => {
     expect(result).toHaveLength(8);
   });
 
-  it('retorna array vacío si no hay productos gaming', async () => {
-    const rows = [
-      mockProduct({ id: 'a', name: 'Laptop', category: 'Computación' }),
-      mockProduct({ id: 'b', name: 'Teléfono', category: 'Celulares' }),
-    ];
-    vi.mocked(prisma.product.findMany).mockResolvedValue(rows as never);
+  it('retorna array vacío si Prisma no encuentra coincidencias', async () => {
+    vi.mocked(prisma.product.findMany).mockResolvedValue([]);
 
     const { getCachedGamingProducts } = await import('@/lib/home-cache');
     const result = await getCachedGamingProducts();
     expect(result).toEqual([]);
   });
 
-  it('no incluye productos inactivos (verifica where)', async () => {
+  it('no incluye productos inactivos (where.isActive=true)', async () => {
     let passedActiveCheck = false;
     vi.mocked(prisma.product.findMany).mockImplementation(
       ((args?: unknown) => {

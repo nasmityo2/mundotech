@@ -1,50 +1,39 @@
 /**
  * e2e/specs/reset-password.spec.ts
- *
- * Flujo de reset de contraseña:
- * - Ir a /reset-password
- * - Verificar formulario
- * - Solicitar reset con email existente
- * - Verificar confirmación
  */
-import { test, expect } from '../fixtures/constants';
-import { E2E_CLIENT } from '../fixtures/constants';
+import {
+  test,
+  expect,
+  E2E_CLIENT,
+  E2E_RESET_TOKENS,
+} from '../fixtures/constants';
 
 test.describe('Reset Password', () => {
-  test('página de reset carga correctamente', async ({ page }) => {
-    await page.goto('/reset-password');
-    await page.waitForTimeout(2000);
+  test('forgot-password muestra formulario y confirmación genérica', async ({ page }) => {
+    await page.goto('/forgot-password');
+    await expect(page.locator('#forgot-email')).toBeVisible();
+    await expect(page.getByRole('button', { name: /Enviar enlace/i })).toBeVisible();
 
-    // Debe mostrar input de email y botón submit
-    const emailInput = page.locator('input[type="email"]');
-    await expect(emailInput).toBeVisible();
-    await expect(page.locator('button[type="submit"]')).toBeVisible();
+    await page.locator('#forgot-email').fill(E2E_CLIENT.email);
+    await page.getByRole('button', { name: /Enviar enlace/i }).click();
+
+    await expect(page.getByRole('status')).toBeVisible();
   });
 
-  test('solicitar reset con email registrado muestra confirmación', async ({ page }) => {
-    await page.goto('/reset-password');
-    await page.waitForTimeout(1000);
-
-    const emailInput = page.locator('input[type="email"]');
-    await emailInput.fill(E2E_CLIENT.email);
-    await page.click('button[type="submit"]');
-    await page.waitForTimeout(3000);
-
-    // Debe mostrar mensaje de éxito (sin revelar si el email existe o no)
-    const successText = page.locator('text=enviado, text=revisa, text=correo, text=instrucciones').first();
-    await expect(successText).toBeVisible();
+  test('token válido precargado permite formulario de nueva contraseña', async ({ page }) => {
+    await page.goto(`/reset-password#token=${encodeURIComponent(E2E_RESET_TOKENS.valid)}`);
+    await expect(page.locator('#reset-password')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('button', { name: 'Guardar contraseña' })).toBeVisible();
   });
 
-  test('enlace de login desde reset-password funciona', async ({ page }) => {
-    await page.goto('/reset-password');
-    await page.waitForTimeout(1000);
+  test('token expirado precargado muestra enlace inválido', async ({ page }) => {
+    await page.goto(`/reset-password#token=${encodeURIComponent(E2E_RESET_TOKENS.expired)}`);
+    await expect(page.getByText(/caducado|inválido/i)).toBeVisible({ timeout: 15_000 });
+  });
 
-    // Buscar enlace "Volver al login" / "Iniciar sesión"
-    const loginLink = page.locator('a:has-text("Iniciar sesión"), a:has-text("Login"), a:has-text("Volver")').first();
-    if (await loginLink.isVisible()) {
-      await loginLink.click();
-      await page.waitForURL(/login/, { timeout: 10_000 });
-      await expect(page).toHaveURL(/login/);
-    }
+  test('enlace de login desde forgot-password funciona', async ({ page }) => {
+    await page.goto('/forgot-password');
+    await page.getByRole('link', { name: /Volver al inicio de sesión/i }).click();
+    await expect(page).toHaveURL(/login/);
   });
 });

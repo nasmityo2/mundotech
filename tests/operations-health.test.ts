@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   BCV_STALE_MS,
   BACKUP_STALE_MS,
@@ -7,6 +7,9 @@ import {
   BACKUP_LAST_SUCCESS_KEY,
   PURGE_LAST_SUCCESS_KEY,
   OPS_APP_CONFIG_KEYS,
+  HEALTH_DB_TIMEOUT_MS,
+  HealthTimeoutError,
+  withTimeout,
   isStale,
   parseTimestamp,
   buildOpsMap,
@@ -68,6 +71,64 @@ describe('isStale', () => {
     expect(isStale(past(25 * 60 * 60 * 1000), PURGE_STALE_MS)).toBe(false);
     // Fuera de purge: 27h
     expect(isStale(past(27 * 60 * 60 * 1000), PURGE_STALE_MS)).toBe(true);
+  });
+
+  it('usa nowMs inyectado para comparación determinista', () => {
+    const fixedNow = Date.parse('2026-07-12T12:00:00.000Z');
+    const valueJustInside = new Date(fixedNow - BCV_STALE_MS).toISOString();
+    const valueJustOutside = new Date(fixedNow - BCV_STALE_MS - 1).toISOString();
+
+    expect(isStale(valueJustInside, BCV_STALE_MS, fixedNow)).toBe(false);
+    expect(isStale(valueJustOutside, BCV_STALE_MS, fixedNow)).toBe(true);
+  });
+});
+
+describe('withTimeout', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('resuelve con el valor de la promesa si termina a tiempo', async () => {
+    await expect(withTimeout(Promise.resolve('ok'), 100)).resolves.toBe('ok');
+  });
+
+  it('rechaza con HealthTimeoutError si la promesa no resuelve a tiempo', async () => {
+    vi.useFakeTimers();
+
+    const pending = withTimeout(new Promise<string>(() => {}), 50);
+    const expectation = expect(pending).rejects.toBeInstanceOf(HealthTimeoutError);
+
+    await vi.advanceTimersByTimeAsync(50);
+    await expectation;
+  });
+
+  it('limpia el timer en éxito', async () => {
+    const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+
+    await withTimeout(Promise.resolve(1), 100);
+
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    clearTimeoutSpy.mockRestore();
+  });
+
+  it('limpia el timer en timeout', async () => {
+    vi.useFakeTimers();
+    const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+
+    const pending = withTimeout(new Promise<number>(() => {}), 50);
+    const expectation = expect(pending).rejects.toBeInstanceOf(HealthTimeoutError);
+
+    await vi.advanceTimersByTimeAsync(50);
+    await expectation;
+
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+    clearTimeoutSpy.mockRestore();
+  });
+});
+
+describe('HEALTH_DB_TIMEOUT_MS', () => {
+  it('es 2000 ms', () => {
+    expect(HEALTH_DB_TIMEOUT_MS).toBe(2_000);
   });
 });
 

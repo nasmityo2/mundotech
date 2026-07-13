@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
         : { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
     });
   } catch (error) {
-    console.error('[GET /api/promotions] Error inesperado:', error);
+    logError('promotions_get_failed', error, { route: '/api/promotions' });
     return NextResponse.json({ error: 'Error al obtener promociones' }, { status: 500 });
   }
 }
@@ -94,7 +95,7 @@ export async function POST(request: Request) {
     revalidateTag('promotions', 'default');
     return NextResponse.json(promo, { status: 201 });
   } catch (error) {
-    console.error('[/api/promotions][POST] Error al crear promoción:', error);
+    logError('promotions_post_failed', error, { route: '/api/promotions' });
     return NextResponse.json({ error: 'Error al crear promoción' }, { status: 500 });
   }
 }

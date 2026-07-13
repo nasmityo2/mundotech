@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 
@@ -74,7 +75,7 @@ export async function GET(request: Request) {
       })),
     });
   } catch (error) {
-    console.error('[GET /api/orders/new-count]', error);
+    logError('orders_new_count_failed', error, { route: '/api/orders/new-count' });
     return NextResponse.json(
       { error: 'Error al consultar nuevos pedidos.' },
       { status: 500 },

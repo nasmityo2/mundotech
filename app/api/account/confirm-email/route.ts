@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
 import { hashToken } from '@/lib/security';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
@@ -85,7 +86,7 @@ export async function GET(request: Request) {
 
     return NextResponse.redirect(new URL('/account/details?emailChange=success', request.url));
   } catch (error) {
-    console.error('[GET /api/account/confirm-email]', error);
+    logError('confirm_email_failed', error, { route: '/api/account/confirm-email' });
     return NextResponse.redirect(new URL('/account/details?emailChange=error', request.url));
   }
 }

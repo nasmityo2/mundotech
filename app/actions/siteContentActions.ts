@@ -9,6 +9,7 @@ import {
   type SiteContent,
 } from '@/lib/site-content';
 import { CACHE_TAG_SITE_SHELL, CACHE_TAG_SITE_CONTENT } from '@/lib/site-shell-cache';
+import { logError } from '@/lib/safe-logger';
 
 /** Lectura del contenido del sitio (es contenido público — la usa el editor). */
 export async function getSiteContent(): Promise<SiteContent> {
@@ -39,7 +40,7 @@ export async function updateSiteContent(input: SiteContent): Promise<UpdateSiteC
   try {
     await writeSiteContent(parsed.data);
   } catch (error) {
-    console.error('[siteContentActions][updateSiteContent] Error al persistir:', error);
+    logError('site_content_update_failed', error, { operation: 'update_site_content' });
     return { success: false, message: 'No se pudo guardar. Intenta de nuevo.' };
   }
 

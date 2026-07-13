@@ -5,6 +5,9 @@ import {
   OPS_APP_CONFIG_KEYS,
   buildPublicHealth,
   buildOpsMap,
+  withTimeout,
+  HealthTimeoutError,
+  HEALTH_DB_TIMEOUT_MS,
 } from '@/lib/operations-health';
 
 /**
@@ -24,20 +27,15 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-/** Timeout de DB para health check: 2 segundos. */
-const DB_TIMEOUT_MS = 2_000;
-
 export async function GET(): Promise<NextResponse> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DB_TIMEOUT_MS);
-
   try {
-    const opsRows = await prisma.appConfig.findMany({
-      where: { key: { in: [...OPS_APP_CONFIG_KEYS] } },
-      select: { key: true, value: true },
-    });
-
-    clearTimeout(timeout);
+    const opsRows = await withTimeout(
+      prisma.appConfig.findMany({
+        where: { key: { in: [...OPS_APP_CONFIG_KEYS] } },
+        select: { key: true, value: true },
+      }),
+      HEALTH_DB_TIMEOUT_MS,
+    );
 
     const opsMap = buildOpsMap(opsRows);
     const health = buildPublicHealth(opsMap, true /* db ok */);
@@ -46,10 +44,8 @@ export async function GET(): Promise<NextResponse> {
       headers: { 'Cache-Control': 'no-store, max-age=0' },
     });
   } catch (err) {
-    clearTimeout(timeout);
-
-    // Si DB no responde, devolver degraded + 503
-    logError('health_db_down', err, { route: '/api/health' });
+    const event = err instanceof HealthTimeoutError ? 'health_db_timeout' : 'health_db_down';
+    logError(event, err, { route: '/api/health' });
 
     return NextResponse.json(
       { status: 'degraded', db: 'down', bcvStale: true, backupStale: true, purgeStale: true },

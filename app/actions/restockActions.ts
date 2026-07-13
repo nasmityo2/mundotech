@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { requireAdminAction } from '@/lib/api-auth';
 import { getActionClientIp } from '@/lib/security';
 import { z } from 'zod';
+import { logWarn, logError, logInfo } from '@/lib/safe-logger';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 
@@ -63,7 +64,7 @@ export async function subscribeRestockAction(
       message: 'Te avisaremos por email cuando el producto esté disponible.',
     };
   } catch (err) {
-    console.error('[restock] Error al suscribir:', err);
+    logError('restock_subscribe_failed', err, { operation: 'subscribe_restock' });
     return { success: false, message: 'No se pudo registrar tu solicitud. Inténtalo de nuevo.' };
   }
 }
@@ -93,9 +94,7 @@ export async function triggerRestockNotifications(
   try {
     await requireAdminAction();
   } catch {
-    console.warn(
-      '[restock] Invocación no autorizada de triggerRestockNotifications; ignorada.',
-    );
+    logWarn('restock_trigger_unauthorized', { operation: 'trigger_restock_notifications' });
     return;
   }
 
@@ -139,14 +138,14 @@ export async function triggerRestockNotifications(
           where: { id: sub.id },
           data:  { notifiedAt: null },
         });
-        console.error('[restock] envío falló, claim revertido para', sub.id, e);
+        logError('restock_email_send_failed', e, { operation: 'trigger_restock_notifications', provider: 'resend' });
       }
     }
 
     if (notifiedCount > 0) {
-      console.info(`[restock] Notificados ${notifiedCount} suscriptores para producto ${productId}`);
+      logInfo('restock_notifications_sent', { count: notifiedCount, operation: 'trigger_restock_notifications' });
     }
   } catch (err) {
-    console.error('[restock] Error al disparar notificaciones:', err);
+    logError('restock_notifications_dispatch_failed', err, { operation: 'trigger_restock_notifications' });
   }
 }

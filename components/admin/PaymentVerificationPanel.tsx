@@ -76,6 +76,7 @@ export function PaymentVerificationPanel({
     setProofState({ type: 'loading' });
 
     const controller = new AbortController();
+    let expiryTimer: ReturnType<typeof setTimeout> | undefined;
 
     fetch(`/api/orders/${order.id}/payment-proof`, {
       signal: controller.signal,
@@ -87,6 +88,10 @@ export function PaymentVerificationPanel({
           setProofState({ type: 'none' });
           return;
         }
+        if (res.status === 401 || res.status === 403) {
+          setProofState({ type: 'blocked' });
+          return;
+        }
         if (!res.ok) {
           setProofState({ type: 'error', message: `Error ${res.status}` });
           return;
@@ -96,6 +101,13 @@ export function PaymentVerificationPanel({
         if (!mountedRef.current) return;
         if (data.url) {
           setProofState({ type: 'private', url: data.url });
+          if (typeof data.expiresIn === 'number' && data.expiresIn > 0) {
+            expiryTimer = setTimeout(() => {
+              if (mountedRef.current) {
+                setProofState({ type: 'none' });
+              }
+            }, data.expiresIn * 1000);
+          }
         } else if (data.legacyUrl) {
           setProofState({ type: 'legacy', url: data.legacyUrl });
         } else {
@@ -111,6 +123,7 @@ export function PaymentVerificationPanel({
     return () => {
       mountedRef.current = false;
       controller.abort();
+      if (expiryTimer) clearTimeout(expiryTimer);
       setProofState({ type: 'none' });
     };
   }, [order.id, order.paymentProofKey, order.paymentProofUrl]);

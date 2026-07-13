@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
@@ -69,7 +70,7 @@ export async function GET() {
     }
     return NextResponse.json(result);
   } catch (error) {
-    console.error('[GET /api/config/homepage]', error);
+    logError('homepage_config_get_failed', error, { route: '/api/config/homepage' });
     return NextResponse.json({ error: 'Error al leer la configuración.' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { getPrivateProofReadUrl, isR2PublicUrl } from '@/lib/r2';
+import { logError, logWarn } from '@/lib/safe-logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -51,7 +52,10 @@ export async function GET(
         },
       );
     } catch (err) {
-      console.error('[payment-proof] Error generando URL firmada:', err);
+      logError('payment_proof_signed_url_failed', err, {
+        operation: 'payment_proof',
+        route: '/api/orders/[id]/payment-proof',
+      });
       return NextResponse.json(
         { error: 'No se pudo generar la URL del comprobante.' },
         { status: 500 },
@@ -74,10 +78,10 @@ export async function GET(
       );
     }
     // Host ajeno: no servir la URL aunque exista en BD (seguridad)
-    console.warn(
-      '[payment-proof] paymentProofUrl con host no confiable, omitiendo. Order:',
-      id,
-    );
+    logWarn('payment_proof_untrusted_legacy_host', {
+      operation: 'payment_proof',
+      route: '/api/orders/[id]/payment-proof',
+    });
   }
 
   return NextResponse.json({ error: 'El pedido no tiene comprobante de pago.' }, { status: 404 });

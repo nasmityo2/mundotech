@@ -13,6 +13,7 @@ import { headers } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { d, dn } from '@/lib/decimal';
+import { logError } from '@/lib/safe-logger';
 
 export interface ProductSnapshot {
   id: string;
@@ -62,7 +63,7 @@ export async function getProductSnapshots(ids: string[]): Promise<ProductSnapsho
     // PRD-204: price/originalPrice son Decimal → convertir a number
     return rows.map(p => ({ ...p, price: d(p.price), originalPrice: dn(p.originalPrice) }));
   } catch (error) {
-    console.error('[getProductSnapshots] Error al refrescar productos del carrito:', error);
+    logError('product_snapshot_refresh_failed', error, { operation: 'get_product_snapshots' });
     return null;
   }
 }

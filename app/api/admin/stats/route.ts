@@ -1,22 +1,33 @@
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { logError } from '@/lib/safe-logger';
-import { VALIDATED_REVENUE_STATUSES } from '@/lib/analytics-orders';
+import { d } from '@/lib/decimal';
 import { roundMoney2 } from '@/lib/exchange-rate';
+import {
+  ANALYTICS_TIMEZONE,
+  STATS_RANGE_VALUES,
+  VALIDATED_REVENUE_STATUSES,
+  computeStatsPeriodBounds,
+  createdAtPeriodWhere,
+  formatCaracasDateKey,
+  orderAnalyticsPeriodDate,
+  orderCountsTowardValidatedRevenue,
+  storedTotalToUsd,
+  type StatsPeriodBounds,
+  type StatsRange,
+} from '@/lib/analytics-orders';
 
 // ── Zod validation ──────────────────────────────────────────────────────────
 
-const RANGE_VALUES = ['7d', '30d', '90d', 'year', 'all'] as const;
-const RangeSchema = z.enum(RANGE_VALUES);
+const RangeSchema = z.enum(STATS_RANGE_VALUES);
 
 const QuerySchema = z.object({
   range: RangeSchema.default('30d'),
-  tz: z.string().default('America/Caracas'),
+  tz: z.literal(ANALYTICS_TIMEZONE).default(ANALYTICS_TIMEZONE),
 });
-
-type Range = (typeof RANGE_VALUES)[number];
 
 // ── DTO types ───────────────────────────────────────────────────────────────
 
@@ -61,83 +72,259 @@ export interface AdminStatsDTO {
   topProducts: TopProductStats[];
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── SQL helpers ───────────────────────────────────────────────────────────────
 
-/** Calcula cutoff ISO string para un rango dado en la timezone indicada. */
-function computeCutoff(range: Range, tz: string): Date | null {
-  if (range === 'all') return null;
+const VALIDATED_STATUS_LIST = Prisma.join(VALIDATED_REVENUE_STATUSES);
 
-  const now = new Date();
-  // Construir un Intl.DateTimeFormat que nos dé el inicio del día en la tz deseada
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const parts = formatter.formatToParts(now);
-  const year = parts.find((p) => p.type === 'year')!.value;
-  const month = parts.find((p) => p.type === 'month')!.value;
-  const day = parts.find((p) => p.type === 'day')!.value;
+function usdRevenueExpr(tableAlias: string): Prisma.Sql {
+  return Prisma.sql`
+    CASE
+      WHEN ${Prisma.raw(`${tableAlias}."exchangeRateUsdBs"`)} IS NOT NULL
+        AND ${Prisma.raw(`${tableAlias}."exchangeRateUsdBs"`)} > 0
+      THEN ${Prisma.raw(`${tableAlias}."total"`)} / ${Prisma.raw(`${tableAlias}."exchangeRateUsdBs"`)}
+      ELSE ${Prisma.raw(`${tableAlias}."total"`)}
+    END
+  `;
+}
 
-  // Inicio del día de hoy en la timezone indicada
-  const todayStartStr = `${year}-${month}-${day}T00:00:00.000`;
-  const todayStart = new Date(todayStartStr);
+function itemUsdRevenueExpr(): Prisma.Sql {
+  return Prisma.sql`
+    CASE
+      WHEN o."exchangeRateUsdBs" IS NOT NULL AND o."exchangeRateUsdBs" > 0
+      THEN (oi.price * oi.quantity) / o."exchangeRateUsdBs"
+      ELSE oi.price * oi.quantity
+    END
+  `;
+}
 
-  const rangesMs: Record<Exclude<Range, 'all'>, number> = {
-    '7d': 7 * 24 * 60 * 60 * 1000,
-    '30d': 30 * 24 * 60 * 60 * 1000,
-    '90d': 90 * 24 * 60 * 60 * 1000,
-    'year': 365 * 24 * 60 * 60 * 1000,
+function revenueDateFilterSql(bounds: StatsPeriodBounds, tableAlias: string): Prisma.Sql {
+  if (bounds.start === null) {
+    return Prisma.sql`TRUE`;
+  }
+
+  const paidAt = Prisma.raw(`${tableAlias}."paidAt"`);
+  const createdAt = Prisma.raw(`${tableAlias}."createdAt"`);
+
+  return Prisma.sql`
+    (
+      (${paidAt} >= ${bounds.start} AND ${paidAt} <= ${bounds.end})
+      OR (
+        ${paidAt} IS NULL
+        AND ${createdAt} >= ${bounds.start}
+        AND ${createdAt} <= ${bounds.end}
+      )
+    )
+  `;
+}
+
+function caracasDateExpr(tableAlias: string): Prisma.Sql {
+  const ts = Prisma.raw(`COALESCE(${tableAlias}."paidAt", ${tableAlias}."createdAt")`);
+  return Prisma.sql`TO_CHAR((${ts} AT TIME ZONE 'UTC') - INTERVAL '4 hours', 'YYYY-MM-DD')`;
+}
+
+// ── Fetchers ────────────────────────────────────────────────────────────────
+
+interface OperationalSnapshot {
+  orderCount: number;
+  byStatus: ByStatusStats[];
+  cancelledCount: number;
+  validatedCreatedCount: number;
+}
+
+async function fetchOperationalSnapshot(bounds: StatsPeriodBounds): Promise<OperationalSnapshot> {
+  const where = createdAtPeriodWhere(bounds);
+
+  const [orderCount, statusGroups, cancelledCount, validatedCreatedCount] = await Promise.all([
+    prisma.order.count({ where }),
+    prisma.order.groupBy({
+      by: ['status'],
+      where,
+      _count: { _all: true },
+    }),
+    prisma.order.count({
+      where: {
+        ...where,
+        status: 'Cancelado',
+      },
+    }),
+    prisma.order.count({
+      where: {
+        ...where,
+        status: { in: [...VALIDATED_REVENUE_STATUSES] },
+      },
+    }),
+  ]);
+
+  const byStatus = statusGroups
+    .map((row) => ({
+      status: row.status,
+      count: row._count._all,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    orderCount,
+    byStatus,
+    cancelledCount,
+    validatedCreatedCount,
   };
-
-  if (range in rangesMs) {
-    return new Date(todayStart.getTime() - rangesMs[range as Exclude<Range, 'all'>]);
-  }
-  return null;
 }
 
-/** Diferencia en ms entre dos cutoffs (misma duración que el período actual). */
-function spanMs(from: Date): number {
-  return Date.now() - from.getTime();
+interface RevenueSnapshot {
+  revenue: number;
+  paidOrderCount: number;
 }
 
-/**
- * Convierte un valor Decimal de Prisma a number. Usado en agregaciones SQL
- * donde Prisma devuelve string para sumas de Decimal.
- */
-function decimalToNumber(val: unknown): number {
-  if (val == null) return 0;
-  if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
-  if (typeof val === 'string') {
-    const n = Number(val);
-    return Number.isFinite(n) ? n : 0;
-  }
-  if (typeof val === 'object' && val !== null && typeof (val as { toNumber?: unknown }).toNumber === 'function') {
-    const n = (val as { toNumber(): number }).toNumber();
-    return Number.isFinite(n) ? n : 0;
-  }
-  return 0;
+async function fetchRevenueSnapshot(bounds: StatsPeriodBounds): Promise<RevenueSnapshot> {
+  const rows = await prisma.$queryRaw<Array<{ revenue: number | string | null; paid_count: number | bigint }>>(
+    Prisma.sql`
+      SELECT
+        COALESCE(SUM(${usdRevenueExpr('o')}), 0)::float8 AS revenue,
+        COUNT(*)::int AS paid_count
+      FROM "Order" o
+      WHERE o.status IN (${VALIDATED_STATUS_LIST})
+        AND ${revenueDateFilterSql(bounds, 'o')}
+    `,
+  );
+
+  const row = rows[0];
+  const revenue = roundMoney2(Number(row?.revenue ?? 0));
+  const paidOrderCount = Number(row?.paid_count ?? 0);
+
+  return { revenue, paidOrderCount };
 }
 
-/**
- * Convierte el total almacenado en el pedido a su equivalente en USD.
- * Si el pedido tiene exchangeRateUsdBs (pedido moderno en Bs), divide por la tasa.
- * Si no (legado), el total ya está en USD.
- */
-function storedTotalToUsd(totalStored: number, exchangeRate: number | null): number {
-  if (exchangeRate != null && exchangeRate > 0) {
-    return roundMoney2(totalStored / exchangeRate);
-  }
-  return roundMoney2(totalStored);
+async function fetchDailyStats(bounds: StatsPeriodBounds): Promise<DailyStats[]> {
+  const rows = await prisma.$queryRaw<Array<{ date: string; revenue: number | string | null; orders: number | bigint }>>(
+    Prisma.sql`
+      SELECT
+        ${caracasDateExpr('o')} AS date,
+        COUNT(*)::int AS orders,
+        COALESCE(SUM(${usdRevenueExpr('o')}), 0)::float8 AS revenue
+      FROM "Order" o
+      WHERE o.status IN (${VALIDATED_STATUS_LIST})
+        AND ${revenueDateFilterSql(bounds, 'o')}
+      GROUP BY 1
+      ORDER BY 1
+    `,
+  );
+
+  return rows.map((row) => ({
+    date: row.date,
+    orders: Number(row.orders),
+    revenue: roundMoney2(Number(row.revenue ?? 0)),
+  }));
 }
 
-// ── Tipos raw de Prisma ─────────────────────────────────────────────────────
+async function fetchByPayment(bounds: StatsPeriodBounds): Promise<ByPaymentStats[]> {
+  const rows = await prisma.$queryRaw<Array<{ method: string; count: number | bigint; revenue: number | string | null }>>(
+    Prisma.sql`
+      SELECT
+        COALESCE(NULLIF(o."paymentMethod", ''), 'Sin método') AS method,
+        COUNT(*)::int AS count,
+        COALESCE(SUM(${usdRevenueExpr('o')}), 0)::float8 AS revenue
+      FROM "Order" o
+      WHERE o.status IN (${VALIDATED_STATUS_LIST})
+        AND ${revenueDateFilterSql(bounds, 'o')}
+      GROUP BY 1
+      ORDER BY revenue DESC
+    `,
+  );
+
+  return rows.map((row) => ({
+    method: row.method,
+    count: Number(row.count),
+    revenue: roundMoney2(Number(row.revenue ?? 0)),
+  }));
+}
+
+async function fetchTopProducts(bounds: StatsPeriodBounds, take: number): Promise<TopProductStats[]> {
+  const rows = await prisma.$queryRaw<
+    Array<{
+      productId: string;
+      name: string;
+      quantity: number | bigint;
+      revenue: number | string | null;
+    }>
+  >(
+    Prisma.sql`
+      SELECT
+        oi."productId" AS "productId",
+        MAX(oi."productName") AS name,
+        SUM(oi.quantity)::int AS quantity,
+        COALESCE(SUM(${itemUsdRevenueExpr()}), 0)::float8 AS revenue
+      FROM "OrderItem" oi
+      INNER JOIN "Order" o ON oi."orderId" = o.id
+      WHERE o.status IN (${VALIDATED_STATUS_LIST})
+        AND ${revenueDateFilterSql(bounds, 'o')}
+      GROUP BY oi."productId"
+      ORDER BY revenue DESC
+      LIMIT ${take}
+    `,
+  );
+
+  return rows.map((row) => ({
+    productId: row.productId,
+    name: row.name,
+    quantity: Number(row.quantity),
+    revenue: roundMoney2(Number(row.revenue ?? 0)),
+  }));
+}
+
+function buildSummary(
+  operational: OperationalSnapshot,
+  revenue: RevenueSnapshot,
+): StatsSummary {
+  const averageTicket =
+    revenue.paidOrderCount > 0
+      ? roundMoney2(revenue.revenue / revenue.paidOrderCount)
+      : 0;
+
+  const cancelBase = operational.validatedCreatedCount + operational.cancelledCount;
+  const cancellationRate =
+    cancelBase > 0
+      ? roundMoney2((operational.cancelledCount / cancelBase) * 100)
+      : 0;
+
+  return {
+    revenue: revenue.revenue,
+    orderCount: operational.orderCount,
+    paidOrderCount: revenue.paidOrderCount,
+    averageTicket,
+    cancellationRate,
+  };
+}
+
+async function buildStatsPayload(bounds: StatsPeriodBounds): Promise<{
+  summary: StatsSummary;
+  daily: DailyStats[];
+  byStatus: ByStatusStats[];
+  byPayment: ByPaymentStats[];
+  topProducts: TopProductStats[];
+}> {
+  const [operational, revenue, daily, byPayment, topProducts] = await Promise.all([
+    fetchOperationalSnapshot(bounds),
+    fetchRevenueSnapshot(bounds),
+    fetchDailyStats(bounds),
+    fetchByPayment(bounds),
+    fetchTopProducts(bounds, 20),
+  ]);
+
+  return {
+    summary: buildSummary(operational, revenue),
+    daily,
+    byStatus: operational.byStatus,
+    byPayment,
+    topProducts,
+  };
+}
+
+// ── Pure helpers (testable) ─────────────────────────────────────────────────
 
 interface OrderRow {
   id: string;
-  total: unknown; // Prisma.Decimal
-  exchangeRateUsdBs: unknown; // Prisma.Decimal | null
+  total: unknown;
+  exchangeRateUsdBs: unknown;
   status: string;
   paymentMethod: string;
   paidAt: Date | null;
@@ -149,188 +336,89 @@ interface OrderItemRow {
   productId: string;
   productName: string;
   quantity: number;
-  price: unknown; // Prisma.Decimal
+  price: unknown;
 }
 
-// ── Lógica de negocio ──────────────────────────────────────────────────────
-
-const VALIDATED_STATUSES_SET = new Set<string>(VALIDATED_REVENUE_STATUSES as readonly string[]);
-
-/**
- * Fecha usada para agrupar ventas validadas: paidAt si existe, createdAt si no (legacy).
- */
-function periodDate(order: { paidAt: Date | null; createdAt: Date }): Date {
-  return order.paidAt ?? order.createdAt;
+function decimalToNumber(val: unknown): number {
+  return d(val as Parameters<typeof d>[0]);
 }
 
 function isValidRevenueStatus(status: string): boolean {
-  return VALIDATED_STATUSES_SET.has(status);
+  return orderCountsTowardValidatedRevenue(status as (typeof VALIDATED_REVENUE_STATUSES)[number]);
 }
 
-// ── Route Handler ───────────────────────────────────────────────────────────
-
-export const dynamic = 'force-dynamic';
-
-export async function GET(request: Request): Promise<NextResponse> {
-  const auth = await requireAdmin();
-  if (!auth.authorized) return auth.response;
-
-  try {
-    const { searchParams } = new URL(request.url);
-    const rawRange = searchParams.get('range') ?? '30d';
-    const rawTz = searchParams.get('tz') ?? 'America/Caracas';
-
-    const parsed = QuerySchema.safeParse({ range: rawRange, tz: rawTz });
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: `Rango inválido. Valores aceptados: ${RANGE_VALUES.join(', ')}` },
-        { status: 400 },
-      );
-    }
-
-    const { range, tz } = parsed.data;
-    const cutoff = computeCutoff(range, tz);
-    const isAllTime = cutoff === null;
-
-    // ── Fetch orders ──────────────────────────────────────────────────────────
-    const ordersWhere = isAllTime ? {} : { createdAt: { gte: cutoff } };
-
-    const [orders, items] = await Promise.all([
-      prisma.order.findMany({
-        where: ordersWhere,
-        select: {
-          id: true,
-          total: true,
-          exchangeRateUsdBs: true,
-          status: true,
-          paymentMethod: true,
-          paidAt: true,
-          createdAt: true,
-        },
-      }),
-      prisma.orderItem.findMany({
-        where: { order: ordersWhere },
-        select: {
-          orderId: true,
-          productId: true,
-          productName: true,
-          quantity: true,
-          price: true,
-        },
-      }),
-    ]);
-
-    // ── Build period DTO ──────────────────────────────────────────────────────
-    const periodStats = buildPeriodStats(orders, items);
-    const periodDto = toSummary(periodStats);
-
-    // ── Previous period (same span before current cutoff) ─────────────────────
-    let previousSummary: StatsSummary | null = null;
-    if (!isAllTime) {
-      const prevFrom = new Date(cutoff!.getTime() - spanMs(cutoff!));
-      const prevWhere = {
-        createdAt: { gte: prevFrom, lt: cutoff },
-      };
-      const [prevOrders, prevItems] = await Promise.all([
-        prisma.order.findMany({
-          where: prevWhere,
-          select: {
-            id: true,
-            total: true,
-            exchangeRateUsdBs: true,
-            status: true,
-            paymentMethod: true,
-            paidAt: true,
-            createdAt: true,
-          },
-        }),
-        prisma.orderItem.findMany({
-          where: { order: prevWhere },
-          select: {
-            orderId: true,
-            productId: true,
-            productName: true,
-            quantity: true,
-            price: true,
-          },
-        }),
-      ]);
-      const prevStats = buildPeriodStats(prevOrders, prevItems);
-      previousSummary = toSummary(prevStats);
-    }
-
-    // ── Daily series ──────────────────────────────────────────────────────────
-    const dailyAgg = aggregateDaily(orders, tz);
-
-    // ── By status ─────────────────────────────────────────────────────────────
-    const statusCounts = aggregateByStatus(orders);
-
-    // ── By payment method ────────────────────────────────────────────────────
-    const paymentAgg = aggregateByPayment(orders);
-
-    // ── Top products ─────────────────────────────────────────────────────────
-    const topProducts = aggregateTopProducts(items, orders, { take: 20 });
-
-    const dto: AdminStatsDTO = {
-      summary: periodDto,
-      previousSummary,
-      daily: dailyAgg,
-      byStatus: statusCounts,
-      byPayment: paymentAgg,
-      topProducts,
-    };
-
-    return NextResponse.json(dto, {
-      headers: { 'Cache-Control': 'no-store' },
-    });
-  } catch (err) {
-    logError('admin_stats_error', err, { route: '/api/admin/stats' });
-    return NextResponse.json(
-      { error: 'Error al obtener estadísticas.' },
-      { status: 500 },
-    );
-  }
+function periodDate(order: { paidAt: Date | null; createdAt: Date }): Date {
+  return orderAnalyticsPeriodDate({
+    paidAt: order.paidAt,
+    createdAt: order.createdAt,
+  });
 }
 
-// ── Pure aggregation functions (testable) ────────────────────────────────────
+function orderInRevenuePeriod(
+  order: OrderRow,
+  bounds: StatsPeriodBounds,
+): boolean {
+  if (!isValidRevenueStatus(order.status)) return false;
+  if (bounds.start === null) return true;
 
-interface PeriodStats {
+  const eventDate = periodDate(order);
+  return eventDate >= bounds.start && eventDate <= bounds.end;
+}
+
+function orderInCreatedPeriod(
+  order: OrderRow,
+  bounds: StatsPeriodBounds,
+): boolean {
+  if (bounds.start === null) return true;
+  return order.createdAt >= bounds.start && order.createdAt <= bounds.end;
+}
+
+function buildPeriodStats(
+  orders: OrderRow[],
+  items: OrderItemRow[],
+  bounds: StatsPeriodBounds,
+): {
   validatedOrders: OrderRow[];
   allPeriodOrders: OrderRow[];
   items: Map<string, OrderItemRow[]>;
-}
+} {
+  const allPeriodOrders = orders.filter((o) => orderInCreatedPeriod(o, bounds));
+  const validatedOrders = orders.filter((o) => orderInRevenuePeriod(o, bounds));
+  const validatedIds = new Set(validatedOrders.map((o) => o.id));
 
-function buildPeriodStats(orders: OrderRow[], items: OrderItemRow[]): PeriodStats {
-  const validatedOrders = orders.filter((o) => isValidRevenueStatus(o.status));
   const itemsByOrder = new Map<string, OrderItemRow[]>();
   for (const item of items) {
+    if (!validatedIds.has(item.orderId)) continue;
     const list = itemsByOrder.get(item.orderId) ?? [];
     list.push(item);
     itemsByOrder.set(item.orderId, list);
   }
+
   return {
     validatedOrders,
-    allPeriodOrders: orders,
+    allPeriodOrders,
     items: itemsByOrder,
   };
 }
 
-function toSummary(stats: PeriodStats): StatsSummary {
-  const { validatedOrders, allPeriodOrders } = stats;
-
-  const revenue = validatedOrders.reduce((sum, o) => {
+function toSummary(stats: {
+  validatedOrders: OrderRow[];
+  allPeriodOrders: OrderRow[];
+}): StatsSummary {
+  const revenue = stats.validatedOrders.reduce((sum, o) => {
     const totalNum = decimalToNumber(o.total);
     const rate = decimalToNumber(o.exchangeRateUsdBs) || 0;
     const rateNonNull = rate > 0 ? rate : null;
     return sum + storedTotalToUsd(totalNum, rateNonNull);
   }, 0);
 
-  const orderCount = allPeriodOrders.length;
-  const paidOrderCount = validatedOrders.length;
+  const orderCount = stats.allPeriodOrders.length;
+  const paidOrderCount = stats.validatedOrders.length;
   const averageTicket = paidOrderCount > 0 ? roundMoney2(revenue / paidOrderCount) : 0;
 
-  const cancelledCount = allPeriodOrders.filter((o) => o.status === 'Cancelado').length;
-  const cancelBase = paidOrderCount + cancelledCount;
+  const cancelledCount = stats.allPeriodOrders.filter((o) => o.status === 'Cancelado').length;
+  const validatedCreatedCount = stats.allPeriodOrders.filter((o) => isValidRevenueStatus(o.status)).length;
+  const cancelBase = validatedCreatedCount + cancelledCount;
   const cancellationRate = cancelBase > 0 ? roundMoney2((cancelledCount / cancelBase) * 100) : 0;
 
   return {
@@ -342,25 +430,13 @@ function toSummary(stats: PeriodStats): StatsSummary {
   };
 }
 
-/**
- * Agrupa órdenes validadas por día (en la timezone indicada).
- * La fecha de agrupación usa paidAt si existe, createdAt si no.
- */
-function aggregateDaily(orders: OrderRow[], tz: string): DailyStats[] {
+function aggregateDaily(orders: OrderRow[], bounds: StatsPeriodBounds): DailyStats[] {
   const map = new Map<string, { revenue: number; orders: number }>();
 
-  const dateFormatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-
   for (const o of orders) {
-    if (!isValidRevenueStatus(o.status)) continue;
+    if (!orderInRevenuePeriod(o, bounds)) continue;
 
-    const date = periodDate(o);
-    const key = dateFormatter.format(date); // YYYY-MM-DD
+    const key = formatCaracasDateKey(periodDate(o));
     const totalNum = decimalToNumber(o.total);
     const rate = decimalToNumber(o.exchangeRateUsdBs) || 0;
     const rateNonNull = rate > 0 ? rate : null;
@@ -377,9 +453,10 @@ function aggregateDaily(orders: OrderRow[], tz: string): DailyStats[] {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function aggregateByStatus(orders: OrderRow[]): ByStatusStats[] {
+function aggregateByStatus(orders: OrderRow[], bounds: StatsPeriodBounds): ByStatusStats[] {
   const map = new Map<string, number>();
   for (const o of orders) {
+    if (!orderInCreatedPeriod(o, bounds)) continue;
     map.set(o.status, (map.get(o.status) ?? 0) + 1);
   }
   return Array.from(map.entries())
@@ -387,10 +464,10 @@ function aggregateByStatus(orders: OrderRow[]): ByStatusStats[] {
     .sort((a, b) => b.count - a.count);
 }
 
-function aggregateByPayment(orders: OrderRow[]): ByPaymentStats[] {
+function aggregateByPayment(orders: OrderRow[], bounds: StatsPeriodBounds): ByPaymentStats[] {
   const map = new Map<string, { count: number; revenue: number }>();
   for (const o of orders) {
-    if (!isValidRevenueStatus(o.status)) continue;
+    if (!orderInRevenuePeriod(o, bounds)) continue;
     const method = o.paymentMethod || 'Sin método';
     const totalNum = decimalToNumber(o.total);
     const rate = decimalToNumber(o.exchangeRateUsdBs) || 0;
@@ -409,25 +486,20 @@ function aggregateByPayment(orders: OrderRow[]): ByPaymentStats[] {
 function aggregateTopProducts(
   items: OrderItemRow[],
   orders: OrderRow[],
+  bounds: StatsPeriodBounds,
   options: { take: number },
 ): TopProductStats[] {
-  // Build validated order IDs set
   const validatedOrderIds = new Set(
-    orders.filter((o) => isValidRevenueStatus(o.status)).map((o) => o.id),
+    orders.filter((o) => orderInRevenuePeriod(o, bounds)).map((o) => o.id),
   );
 
-  // Build exchange rate map
   const rateMap = new Map<string, number | null>();
   for (const o of orders) {
     const rate = decimalToNumber(o.exchangeRateUsdBs);
     rateMap.set(o.id, rate > 0 ? rate : null);
   }
 
-  // Aggregate by product
-  const productMap = new Map<
-    string,
-    { name: string; quantity: number; revenue: number }
-  >();
+  const productMap = new Map<string, { name: string; quantity: number; revenue: number }>();
 
   for (const item of items) {
     if (!validatedOrderIds.has(item.orderId)) continue;
@@ -454,10 +526,68 @@ function aggregateTopProducts(
     .slice(0, options.take);
 }
 
+// ── Route Handler ───────────────────────────────────────────────────────────
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request): Promise<NextResponse> {
+  const auth = await requireAdmin();
+  if (!auth.authorized) return auth.response;
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const rawRange = searchParams.get('range') ?? '30d';
+    const rawTz = searchParams.get('tz') ?? ANALYTICS_TIMEZONE;
+
+    const parsed = QuerySchema.safeParse({ range: rawRange, tz: rawTz });
+    if (!parsed.success) {
+      const message = parsed.error.issues.some((issue) => issue.path[0] === 'tz')
+        ? `Timezone inválida. Valor aceptado: ${ANALYTICS_TIMEZONE}`
+        : `Rango inválido. Valores aceptados: ${STATS_RANGE_VALUES.join(', ')}`;
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+
+    const { range } = parsed.data;
+    const bounds = computeStatsPeriodBounds(range as StatsRange);
+    const current = await buildStatsPayload(bounds);
+
+    let previousSummary: StatsSummary | null = null;
+    if (bounds.previousStart !== null && bounds.previousEnd !== null) {
+      const previousBounds: StatsPeriodBounds = {
+        range: bounds.range,
+        start: bounds.previousStart,
+        end: bounds.previousEnd,
+        previousStart: null,
+        previousEnd: null,
+      };
+      const previous = await buildStatsPayload(previousBounds);
+      previousSummary = previous.summary;
+    }
+
+    const dto: AdminStatsDTO = {
+      summary: current.summary,
+      previousSummary,
+      daily: current.daily,
+      byStatus: current.byStatus,
+      byPayment: current.byPayment,
+      topProducts: current.topProducts,
+    };
+
+    return NextResponse.json(dto, {
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  } catch (err) {
+    logError('admin_stats_error', err, { route: '/api/admin/stats' });
+    return NextResponse.json(
+      { error: 'Error al obtener estadísticas.' },
+      { status: 500 },
+    );
+  }
+}
+
 // ── Exports for testing ──────────────────────────────────────────────────────
 
 export {
-  computeCutoff,
   buildPeriodStats,
   toSummary,
   aggregateDaily,
@@ -465,7 +595,9 @@ export {
   aggregateByPayment,
   aggregateTopProducts,
   decimalToNumber,
-  storedTotalToUsd,
   isValidRevenueStatus,
   periodDate,
+  orderInRevenuePeriod,
+  orderInCreatedPeriod,
+  buildSummary,
 };

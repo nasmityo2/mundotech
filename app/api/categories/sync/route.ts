@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { slugify } from '@/lib/slugify';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
+import { revalidatePath, revalidateTag } from 'next/cache';
+import { CACHE_TAG_CATEGORIES, CACHE_TAG_SITE_SHELL } from '@/lib/site-shell-cache';
 
 // POST /api/categories/sync — crea registros en Category para cada categoría única de Product
 export async function POST(request: Request) {
@@ -48,9 +51,12 @@ export async function POST(request: Request) {
     }
 
     const all = await prisma.category.findMany({ orderBy: [{ order: 'asc' }, { name: 'asc' }] });
+    revalidatePath('/', 'layout');
+    revalidateTag(CACHE_TAG_CATEGORIES, 'default');
+    revalidateTag(CACHE_TAG_SITE_SHELL, 'default');
     return NextResponse.json({ created: toCreate.length, categories: all });
   } catch (e) {
-    console.error('[POST /api/categories/sync] Error:', e);
+    logError('categories_sync_failed', e, { route: '/api/categories/sync' });
     return NextResponse.json({ error: 'Error al sincronizar' }, { status: 500 });
   }
 }

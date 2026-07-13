@@ -62,6 +62,23 @@ function r2Hostname(): string {
 }
 
 /**
+ * Origin del endpoint R2 privado (R2_ENDPOINT) para img-src de URLs firmadas.
+ * Exige HTTPS y hostname `.r2.cloudflarestorage.com`. Devuelve origin o ''.
+ */
+export function privateR2Origin(): string {
+  const endpoint = process.env.R2_ENDPOINT?.trim();
+  if (!endpoint) return '';
+  try {
+    const u = new URL(endpoint);
+    if (u.protocol !== 'https:') return '';
+    if (!u.hostname.endsWith('.r2.cloudflarestorage.com')) return '';
+    return u.origin;
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Obtiene el origin de Sentry DSN (solo host/port, sin path ni secret).
  * Retorna string vacío si no está configurado o la URL no es válida.
  */
@@ -99,6 +116,8 @@ function buildImgSrc(): string {
   const parts: string[] = ["'self'", 'data:', 'blob:'];
   const r2 = r2Hostname();
   if (r2) parts.push(`https://${r2}`);
+  const privateOrigin = privateR2Origin();
+  if (privateOrigin) parts.push(privateOrigin);
   parts.push(...GOOGLE_ANALYTICS_SOURCES.img);
   return parts.join(' ');
 }

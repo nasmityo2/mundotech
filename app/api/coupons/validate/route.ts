@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { getServerSession } from 'next-auth/next';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
-    console.error('[POST /api/coupons/validate] Error inesperado:', error);
+    logError('coupon_validate_failed', error, { route: '/api/coupons/validate' });
     return NextResponse.json(
       { valid: false, reason: 'No se pudo validar el cupón.' },
       { status: 500 }

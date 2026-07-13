@@ -18,6 +18,7 @@ import { prisma } from '@/lib/prisma';
 import { d, dn } from '@/lib/decimal';
 import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
 import { firstCardImage } from '@/lib/product-media';
+import { logError } from '@/lib/safe-logger';
 
 const MAX_WISHLIST_ITEMS = 100;
 
@@ -68,7 +69,7 @@ export async function getWishlistAction(): Promise<WishlistProductDTO[]> {
   try {
     return await loadWishlistProducts(userId);
   } catch (err) {
-    console.error('[getWishlistAction]', err);
+    logError('wishlist_get_failed', err, { operation: 'get_wishlist' });
     return [];
   }
 }
@@ -102,7 +103,7 @@ export async function mergeWishlistAction(
     }
     return await loadWishlistProducts(userId);
   } catch (err) {
-    console.error('[mergeWishlistAction]', err);
+    logError('wishlist_merge_failed', err, { operation: 'merge_wishlist' });
     return [];
   }
 }
@@ -119,7 +120,7 @@ export async function addWishlistItemAction(productId: string): Promise<void> {
     });
   } catch (err) {
     // FK violation = producto inexistente; best-effort, la UI ya se actualizó.
-    console.error('[addWishlistItemAction]', productId, err);
+    logError('wishlist_add_failed', err, { operation: 'add_wishlist_item' });
   }
 }
 
@@ -129,7 +130,7 @@ export async function removeWishlistItemAction(productId: string): Promise<void>
   try {
     await prisma.wishlistItem.deleteMany({ where: { userId, productId } });
   } catch (err) {
-    console.error('[removeWishlistItemAction]', productId, err);
+    logError('wishlist_remove_failed', err, { operation: 'remove_wishlist_item' });
   }
 }
 
@@ -139,6 +140,6 @@ export async function clearWishlistAction(): Promise<void> {
   try {
     await prisma.wishlistItem.deleteMany({ where: { userId } });
   } catch (err) {
-    console.error('[clearWishlistAction]', err);
+    logError('wishlist_clear_failed', err, { operation: 'clear_wishlist' });
   }
 }

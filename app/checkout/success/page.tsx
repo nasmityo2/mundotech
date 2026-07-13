@@ -117,5 +117,5 @@ async function handleGuestToken(token: string) {
   }
 
   const guestDto = toGuestOrderConfirmationDto(row);
-  return <GuestSuccessClientPage order={guestDto} />;
+  return <GuestSuccessClientPage order={guestDto} guestToken={token} />;
 }

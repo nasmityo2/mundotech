@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import type { AbandonedCartItem, AbandonedCartStatus } from '@/lib/definitions';
 import { d } from '@/lib/decimal';
+import { logError } from '@/lib/safe-logger';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRD-178 — Tokens de recuperación hasheados.
@@ -72,7 +73,7 @@ export async function upsertAbandonedCart(params: {
       });
     }
   } catch (err) {
-    console.error('[abandoned-cart] upsertAbandonedCart error:', err);
+    logError('abandoned_cart_upsert_failed', err, { operation: 'upsert_abandoned_cart' });
   }
 }
 
@@ -91,7 +92,7 @@ export async function markCartRecovered(email: string): Promise<void> {
       },
     });
   } catch (err) {
-    console.error('[abandoned-cart] markCartRecovered error:', err);
+    logError('abandoned_cart_recovered_mark_failed', err, { operation: 'mark_cart_recovered' });
   }
 }
 
@@ -105,7 +106,7 @@ export async function markCartOptedOut(recoveryToken: string): Promise<void> {
       data:   { status: 'OPTED_OUT' satisfies AbandonedCartStatus },
     });
   } catch (err) {
-    console.error('[abandoned-cart] markCartOptedOut error:', err);
+    logError('abandoned_cart_opted_out_failed', err, { operation: 'mark_cart_opted_out' });
   }
 }
 
@@ -125,7 +126,7 @@ export async function findAbandonedCartByRecoveryToken(recoveryToken: string): P
       select: { id: true, email: true, items: true, status: true },
     });
   } catch (err) {
-    console.error('[abandoned-cart] findAbandonedCartByRecoveryToken error:', err);
+    logError('abandoned_cart_find_by_token_failed', err, { operation: 'find_by_recovery_token' });
     return null;
   }
 }

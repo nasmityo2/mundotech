@@ -127,13 +127,18 @@ describe('buildStrictCsp — directivas obligatorias', () => {
     expect(getDirective(getCsp(), "frame-src")).toContain('https://maps.google.com');
   });
 
-  it('NO incluye bucket privado ni S3 endpoint en img-src ni connect-src', () => {
-    const imgSrc = getDirective(getCsp(), "img-src") ?? '';
-    const connectSrc = getDirective(getCsp(), "connect-src") ?? '';
-    const combined = imgSrc + ' ' + connectSrc;
-    expect(combined).not.toContain('.r2.cloudflarestorage.com');
-    expect(combined).not.toContain('s3.');
-    expect(combined).not.toContain('s3.amazonaws.com');
+  it('incluye origin R2 privado en img-src cuando R2_ENDPOINT es válido', () => {
+    vi.stubEnv('R2_ENDPOINT', 'https://abc123.r2.cloudflarestorage.com');
+    const csp = buildStrictCsp('nonce');
+    expect(getDirective(csp, 'img-src')).toContain('https://abc123.r2.cloudflarestorage.com');
+  });
+
+  it('NO incluye origin R2 privado en script-src, frame-src ni connect-src', () => {
+    vi.stubEnv('R2_ENDPOINT', 'https://abc123.r2.cloudflarestorage.com');
+    const csp = buildStrictCsp('nonce');
+    expect(getDirective(csp, 'script-src')).not.toContain('.r2.cloudflarestorage.com');
+    expect(getDirective(csp, 'frame-src')).not.toContain('.r2.cloudflarestorage.com');
+    expect(getDirective(csp, 'connect-src')).not.toContain('.r2.cloudflarestorage.com');
   });
 
   it('NO incluye Sentry en connect-src si no hay DSN configurado', () => {
@@ -281,6 +286,36 @@ describe('orígenes — R2 público', () => {
     const csp = buildStrictCsp('x');
     const imgSrc = getDirective(csp, "img-src") ?? '';
     expect(imgSrc).not.toContain('not-a-url');
+  });
+});
+
+describe('orígenes — R2 privado (R2_ENDPOINT)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('incluye origin HTTPS válido en img-src', () => {
+    vi.stubEnv('R2_ENDPOINT', 'https://acct-id.r2.cloudflarestorage.com');
+    const csp = buildStrictCsp('x');
+    expect(getDirective(csp, 'img-src')).toContain('https://acct-id.r2.cloudflarestorage.com');
+  });
+
+  it('omite R2_ENDPOINT con protocolo HTTP', () => {
+    vi.stubEnv('R2_ENDPOINT', 'http://acct-id.r2.cloudflarestorage.com');
+    const csp = buildStrictCsp('x');
+    expect(getDirective(csp, 'img-src')).not.toContain('.r2.cloudflarestorage.com');
+  });
+
+  it('omite R2_ENDPOINT malformado', () => {
+    vi.stubEnv('R2_ENDPOINT', 'not-a-url');
+    const csp = buildStrictCsp('x');
+    expect(getDirective(csp, 'img-src')).not.toContain('not-a-url');
+  });
+
+  it('omite hostname que no termina en .r2.cloudflarestorage.com', () => {
+    vi.stubEnv('R2_ENDPOINT', 'https://evil.s3.amazonaws.com');
+    const csp = buildStrictCsp('x');
+    expect(getDirective(csp, 'img-src')).not.toContain('s3.amazonaws.com');
   });
 });
 

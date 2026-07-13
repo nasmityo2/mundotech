@@ -21,6 +21,40 @@ export const BACKUP_STALE_MS = 26 * 60 * 60 * 1000;
 /** Purga temp se considera stale si tiene > 26 h (~1 día + margen horario). */
 export const PURGE_STALE_MS = 26 * 60 * 60 * 1000;
 
+/** Timeout máximo de consulta DB en endpoints de health (ms). */
+export const HEALTH_DB_TIMEOUT_MS = 2_000;
+
+// ── Timeout de health ────────────────────────────────────────────────────
+
+export class HealthTimeoutError extends Error {
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number) {
+    super(`Health check timed out after ${timeoutMs}ms`);
+    this.name = 'HealthTimeoutError';
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+/**
+ * Corta la espera del handler si `promise` no resuelve en `ms`.
+ * No cancela la operación subyacente (p. ej. Prisma); solo deja de esperar.
+ */
+export async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new HealthTimeoutError(ms)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 // ── Claves de AppConfig ──────────────────────────────────────────────────
 
 export const BCV_LAST_SUCCESS_KEY = 'bcv_last_success_at';
@@ -68,11 +102,15 @@ export const OPS_APP_CONFIG_KEYS = [
  *   - value no es un ISO válido (Date.parse devuelve NaN)
  *   - la diferencia supera staleMs
  */
-export function isStale(value: string | null | undefined, staleMs: number): boolean {
+export function isStale(
+  value: string | null | undefined,
+  staleMs: number,
+  nowMs: number = Date.now(),
+): boolean {
   if (!value) return true;
   const ms = Date.parse(value);
   if (!Number.isFinite(ms)) return true;
-  return Date.now() - ms > staleMs;
+  return nowMs - ms > staleMs;
 }
 
 /**

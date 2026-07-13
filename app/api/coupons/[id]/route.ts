@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -76,7 +77,7 @@ export async function PUT(
     });
     return NextResponse.json(couponToClient(coupon));
   } catch (error) {
-    console.error('[PUT /api/coupons/[id]] Error inesperado:', error);
+    logError('coupons_put_failed', error, { route: '/api/coupons/[id]' });
     return NextResponse.json({ error: 'Error al actualizar el cupón.' }, { status: 500 });
   }
 }
@@ -125,7 +126,7 @@ export async function PATCH(
     ) {
       return NextResponse.json({ error: 'Cupón no encontrado.' }, { status: 404 });
     }
-    console.error('[PATCH /api/coupons/[id]] Error inesperado:', error);
+    logError('coupons_patch_failed', error, { route: '/api/coupons/[id]' });
     return NextResponse.json({ error: 'Error al actualizar el cupón.' }, { status: 500 });
   }
 }
@@ -172,7 +173,7 @@ export async function DELETE(
     await prisma.coupon.delete({ where: { id } });
     return NextResponse.json({ success: true, softDeleted: false });
   } catch (error) {
-    console.error('[DELETE /api/coupons/[id]] Error inesperado:', error);
+    logError('coupons_delete_failed', error, { route: '/api/coupons/[id]' });
     return NextResponse.json({ error: 'Error al eliminar el cupón.' }, { status: 500 });
   }
 }

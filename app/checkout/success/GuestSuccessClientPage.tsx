@@ -9,9 +9,11 @@ import { MUNDOTECH_SOCIAL } from '@/lib/mundotech-social';
 import type { GuestOrderConfirmation } from '@/lib/definitions';
 import { GuestOrderItem } from '@/lib/definitions';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
+import GuestAccountCard from './GuestAccountCard';
 
 interface Props {
   order: GuestOrderConfirmation;
+  guestToken: string;
 }
 
 const fadeUp = {
@@ -19,7 +21,7 @@ const fadeUp = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
 };
 
-export default function GuestSuccessClientPage({ order }: Props) {
+export default function GuestSuccessClientPage({ order, guestToken }: Props) {
   const prefersReduced = useReducedMotion();
   const subtotal = order.items.reduce((acc: number, item: GuestOrderItem) => acc + item.price * item.quantity, 0);
   const orderNumberPadded = String(order.orderNumber).padStart(4, '0');
@@ -111,6 +113,10 @@ export default function GuestSuccessClientPage({ order }: Props) {
               <DualOrderMoney amount={order.total} order={order} emphasis="total" />
             </div>
           </div>
+        </motion.div>
+
+        <motion.div variants={fadeUp}>
+          <GuestAccountCard guestToken={guestToken} />
         </motion.div>
 
         {/* WhatsApp CTA */}

@@ -3,6 +3,7 @@
  * Importado desde lib/prisma.ts para que cualquier ruta que toque la BD
  * falle temprano y con un mensaje claro si falta configuración crítica.
  */
+import { logWarn } from '@/lib/safe-logger';
 
 /** Imprescindibles para arrancar el servidor (fail-fast en runtime). */
 const REQUIRED_ALWAYS = ['DATABASE_URL', 'NEXTAUTH_SECRET', 'NEXTAUTH_URL'] as const;
@@ -48,7 +49,7 @@ function validateRetentionDays(name: string, value: string | undefined): number 
     if (isProduction) {
       throw new Error(`${msg} Revisa .env.example.`);
     }
-    console.warn(msg);
+    logWarn('env_retention_days_invalid', { operation: 'validate_env' });
     return null;
   }
   return parsed;
@@ -76,19 +77,17 @@ export function validateEnv(): void {
 
   const missingRecommended = RECOMMENDED_IN_PRODUCTION.filter((k) => !process.env[k]?.trim());
   if (missingRecommended.length > 0) {
-    console.warn(
-      `[env] Variables recomendadas ausentes: ${missingRecommended.join(', ')}. ` +
-        'Los correos transaccionales se omitirán hasta configurarlas (ver lib/resend.tsx).',
-    );
+    logWarn('env_recommended_vars_missing', { operation: 'validate_env', count: missingRecommended.length });
   }
 
   const missingProd = REQUIRED_IN_PRODUCTION.filter((k) => !process.env[k]?.trim());
   if (missingProd.length > 0) {
-    const msg = `[env] Variables requeridas en producción ausentes: ${missingProd.join(', ')}.`;
     if (isProduction) {
-      throw new Error(`${msg} Revisa .env.example y el EnvironmentFile del entorno de producción.`);
+      throw new Error(
+        `[env] Variables requeridas en producción ausentes: ${missingProd.join(', ')}. Revisa .env.example y el EnvironmentFile del entorno de producción.`,
+      );
     }
-    console.warn(msg);
+    logWarn('env_production_vars_missing', { operation: 'validate_env', count: missingProd.length });
   }
 
   // SESIÓN 07: validar variables de retención
@@ -106,7 +105,7 @@ export function validateEnv(): void {
     if (isProduction) {
       throw new Error(msg);
     }
-    console.warn(msg);
+    logWarn('env_deployment_env_invalid', { operation: 'validate_env' });
   }
 
   if (isProduction && !deploymentEnv) {

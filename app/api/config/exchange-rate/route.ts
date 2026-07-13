@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { getExchangeRate } from '@/app/actions/configActions';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
       headers: { 'Cache-Control': 'no-store' },
     });
   } catch (error) {
-    console.error('[GET /api/config/exchange-rate]', error);
+    logError('exchange_rate_config_get_failed', error, { route: '/api/config/exchange-rate' });
     return NextResponse.json(
       { error: 'No se pudo obtener la tasa.' },
       { status: 500 }

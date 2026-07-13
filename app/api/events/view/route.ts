@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error('[POST /api/events/view]', err);
+    logError('events_view_failed', err, { route: '/api/events/view' });
     return NextResponse.json({ ok: false }, { status: 200 }); // no romper al cliente
   }
 }

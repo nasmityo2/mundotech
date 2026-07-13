@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
@@ -6,6 +7,7 @@ import { requireAdmin } from '@/lib/api-auth';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { saveSlugRedirect } from '@/lib/slug-redirects';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
+import { CACHE_TAG_CATEGORIES, CACHE_TAG_SITE_SHELL } from '@/lib/site-shell-cache';
 
 /**
  * PRD-041: mismo contrato Zod que el POST de /api/categories — antes este PUT
@@ -71,11 +73,12 @@ export async function PUT(
       revalidatePath(`/categoria/${existing.slug}`, 'page');
     }
     revalidatePath('/categoria/[slug]', 'page');
-    revalidateTag('categories', 'max');
+    revalidateTag(CACHE_TAG_CATEGORIES, 'default');
+    revalidateTag(CACHE_TAG_SITE_SHELL, 'default');
     return NextResponse.json(category);
   } catch (error) {
     // PRD-043: logging del fallo (antes el catch tragaba el error).
-    console.error('[PUT /api/categories/[id]]', error);
+    logError('categories_put_failed', error, { route: '/api/categories/[id]' });
     return NextResponse.json({ error: 'Error al actualizar' }, { status: 500 });
   }
 }
@@ -93,7 +96,8 @@ export async function DELETE(
   try {
     const { id } = await params;
     await prisma.category.delete({ where: { id } });
-    revalidateTag('categories', 'max');
+    revalidateTag(CACHE_TAG_CATEGORIES, 'default');
+    revalidateTag(CACHE_TAG_SITE_SHELL, 'default');
     revalidatePath('/', 'layout');
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -101,7 +105,8 @@ export async function DELETE(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2025'
     ) {
-      revalidateTag('categories', 'max');
+      revalidateTag(CACHE_TAG_CATEGORIES, 'default');
+      revalidateTag(CACHE_TAG_SITE_SHELL, 'default');
       return NextResponse.json({ success: true, alreadyDeleted: true });
     }
     if (
@@ -114,7 +119,7 @@ export async function DELETE(
       );
     }
     // PRD-043: logging del fallo (antes el catch tragaba el error).
-    console.error('[DELETE /api/categories/[id]]', error);
+    logError('categories_delete_failed', error, { route: '/api/categories/[id]' });
     return NextResponse.json(
       {
         error: 'Error al eliminar',

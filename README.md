@@ -164,12 +164,12 @@ Documentación operativa completa: [`docs/ENTREGABLE-CRON-BCV-VPS-V2.md`](docs/E
 | `/api/cron/abandoned-cart` | Cada 2 horas | Emails carrito abandonado (24h / 72h) |
 | `/api/cron/review-request` | Todos los días 10:00 | Email de reseña 7 días tras 'Entregado' |
 | `/api/cron/purge-product-views` | Dom 01:30 | Purga `ProductView` > 90 días |
-| `/api/cron/purge-temporary-data` | Todos los días 03:00 | Purga unificada: reset tokens, email tokens, uploads DELETED, vistas, carritos abandonados |
-| `/api/cron/purge-payment-uploads` | (invocado internamente por purge-temporary-data) | Limpia `PaymentUpload` PENDING/UPLOADING expirados → R2 privado → DELETED |
+| `/api/cron/purge-temporary-data` | Todos los días 03:00 | Purga metadatos temporales: reset tokens, email tokens, registros `PaymentUpload` DELETED (>30d), vistas, carritos abandonados |
+| `/api/cron/purge-payment-uploads` | Cada hora :15 | Limpia `PaymentUpload` PENDING/UPLOADING expirados: borra objeto en R2 privado y marca `DELETED` |
 
 **Logs:**
 - `/var/log/bcv-cron.log` — cron BCV (644, root)
-- `/var/log/mundotech-cron.log` — abandoned-cart, review-request, purge-product-views, purge-temporary-data
+- `/var/log/mundotech-cron.log` — abandoned-cart, review-request, purge-product-views, purge-temporary-data, purge-payment-uploads
 
 `vercel.json` no define crons (`{}`). Backups del schedule legacy Vercel: `vercel.json.bak.*` en el servidor.
 
@@ -191,7 +191,7 @@ Documentación operativa completa: [`docs/ENTREGABLE-CRON-BCV-VPS-V2.md`](docs/E
 3. **e2e:** Postgres 16 efímero → migrate → seed (`e2e-reset-db.ts`) → `npx playwright test` (19 tests en 6 spec files).
 4. **axe:** Postgres 16 efímero → migrate → seed → `npx playwright test --grep "Axe"` (24 tests Axe).
 
-`.github/workflows/secrets.yml` ejecuta Gitleads en cada push/PR contra el historial completo.
+`.github/workflows/secrets.yml` ejecuta Gitleaks en cada push/PR contra el historial completo.
 
 ---
 

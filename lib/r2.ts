@@ -6,7 +6,14 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
+import { isE2eMode } from '@/lib/e2e-mode';
 import { slugify } from '@/lib/slugify';
+
+/** URL pública determinista en E2E (sin red). */
+const E2E_PUBLIC_BASE_URL = 'https://cdn.e2e.test';
+/** Data URL PNG 1×1 para lecturas prefirmadas simuladas en E2E. */
+const E2E_PROOF_READ_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 const R2_FOLDERS = ['products', 'banners', 'proofs', 'assets', 'reviews'] as const;
 export type R2Folder = (typeof R2_FOLDERS)[number];
@@ -22,12 +29,8 @@ const REQUIRED_ENV = [
 let envChecked = false;
 
 function assertR2Env(): void {
-  // PRD-E2E: en pruebas E2E no se hacen llamadas externas a R2.
-  // Las funciones que llaman a assertR2Env() deben ser mockeadas o no ejecutarse.
-  // Si NODE_ENV=E2E y las variables no están configuradas, no lanzamos error
-  // (el caller es responsable de no llamar a R2 durante E2E).
-  const nodeEnv = (process.env.NODE_ENV ?? '').trim();
-  if (nodeEnv === 'E2E' || nodeEnv === 'test') {
+  // PRD-E2E: en pruebas E2E (E2E_MODE=1) no se hacen llamadas externas a R2.
+  if (isE2eMode() || (process.env.NODE_ENV ?? '').trim() === 'test') {
     return;
   }
   if (envChecked) return;
@@ -186,6 +189,12 @@ export async function uploadToR2({
   contentType: string;
   cacheControl?: string;
 }): Promise<string> {
+  if (isE2eMode()) {
+    void buffer;
+    void contentType;
+    void cacheControl;
+    return `${E2E_PUBLIC_BASE_URL}/${key}`;
+  }
   const { bucket, publicBaseUrl } = getConfig();
   await getS3Client().send(
     new PutObjectCommand({
@@ -200,6 +209,10 @@ export async function uploadToR2({
 }
 
 export async function deleteFromR2(key: string): Promise<void> {
+  if (isE2eMode()) {
+    void key;
+    return;
+  }
   const { bucket } = getConfig();
   await getS3Client().send(
     new DeleteObjectCommand({
@@ -300,6 +313,11 @@ export async function uploadPrivateProof({
   contentType: string;
 }): Promise<{ key: string }> {
   assertProofKey(key);
+  if (isE2eMode()) {
+    void buffer;
+    void contentType;
+    return { key };
+  }
   const { bucket } = getPrivateConfig();
   const client = getPrivateS3Client();
   await client.send(
@@ -323,6 +341,10 @@ export async function getPrivateProofReadUrl(
   expiresInSeconds = 180,
 ): Promise<string> {
   assertProofKey(key);
+  if (isE2eMode()) {
+    void expiresInSeconds;
+    return E2E_PROOF_READ_DATA_URL;
+  }
   const { bucket } = getPrivateConfig();
   const client = getPrivateS3Client();
   const command = new GetObjectCommand({ Bucket: bucket, Key: key });
@@ -334,6 +356,9 @@ export async function getPrivateProofReadUrl(
  */
 export async function deletePrivateProof(key: string): Promise<void> {
   assertProofKey(key);
+  if (isE2eMode()) {
+    return;
+  }
   const { bucket } = getPrivateConfig();
   const client = getPrivateS3Client();
   await client.send(

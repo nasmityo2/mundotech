@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
+import { CACHE_TAG_CATEGORIES, CACHE_TAG_SITE_SHELL } from '@/lib/site-shell-cache';
 
 const categorySchema = z.object({
   name:        z.string().trim().min(1).max(80),
@@ -53,7 +55,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     // PRD-043: el catch silencioso ocultaba caídas de BD en un endpoint global.
-    console.error('[GET /api/categories]', error);
+    logError('categories_get_failed', error, { route: '/api/categories' });
     return NextResponse.json({ error: 'Error al obtener categorías' }, { status: 500 });
   }
 }
@@ -84,10 +86,11 @@ export async function POST(request: Request) {
       },
     });
     revalidatePath('/categoria/[slug]', 'page');
-    revalidateTag('categories', 'default');
+    revalidateTag(CACHE_TAG_CATEGORIES, 'default');
+    revalidateTag(CACHE_TAG_SITE_SHELL, 'default');
     return NextResponse.json(category, { status: 201 });
   } catch (error) {
-    console.error('[/api/categories][POST] Error al crear categoría:', error);
+    logError('categories_post_failed', error, { route: '/api/categories' });
     return NextResponse.json({ error: 'Error al crear categoría' }, { status: 500 });
   }
 }

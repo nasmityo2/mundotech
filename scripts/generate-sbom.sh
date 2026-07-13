@@ -9,7 +9,7 @@ mkdir -p "$OUTPUT_DIR"
 
 SBOM_FILE="$OUTPUT_DIR/cyclonedx-sbom.json"
 
-npx -y @cyclonedx/cyclonedx-npm@latest \
+npx --no-install cyclonedx-npm \
   --output-file "$SBOM_FILE" \
   --spec-version 1.6 \
   --short-PURLs \

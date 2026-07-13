@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
@@ -106,7 +107,7 @@ export async function PUT(
     revalidateTag('banners', 'default');
     return NextResponse.json(banner);
   } catch (error) {
-    console.error('[PUT /api/banners/[id]]', error);
+    logError('banners_put_failed', error, { route: '/api/banners/[id]' });
     return NextResponse.json({ error: 'Error al actualizar el banner.' }, { status: 500 });
   }
 }
@@ -128,7 +129,7 @@ export async function DELETE(
     revalidateTag('banners', 'default');
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[DELETE /api/banners/[id]]', error);
+    logError('banners_delete_failed', error, { route: '/api/banners/[id]' });
     return NextResponse.json({ error: 'Error al eliminar el banner.' }, { status: 500 });
   }
 }

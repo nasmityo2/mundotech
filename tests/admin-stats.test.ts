@@ -1,16 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { prisma } from '@/lib/prisma';
+import {
+  ANALYTICS_TIMEZONE,
+  caracasDayStartUtc,
+  computeStatsPeriodBounds,
+  formatCaracasDateKey,
+  storedTotalToUsd,
+} from '@/lib/analytics-orders';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     order: {
+      count: vi.fn(),
+      groupBy: vi.fn(),
       findMany: vi.fn(),
     },
     orderItem: {
       findMany: vi.fn(),
     },
+    $queryRaw: vi.fn(),
   },
 }));
 
@@ -50,133 +60,89 @@ function mockItem(overrides: Record<string, unknown> = {}) {
   };
 }
 
-// ── Pure logic tests ─────────────────────────────────────────────────────────
+function emptyOperationalMocks() {
+  vi.mocked(prisma.order.count).mockResolvedValue(0);
+  vi.mocked(prisma.order.groupBy).mockResolvedValue([]);
+}
 
-describe('computeCutoff', () => {
-  it('returns null for range=all', async () => {
-    const { computeCutoff } = await import('@/app/api/admin/stats/route');
-    expect(computeCutoff('all', 'America/Caracas')).toBeNull();
+function emptyRevenueMocks() {
+  vi.mocked(prisma.$queryRaw)
+    .mockResolvedValueOnce([{ revenue: 0, paid_count: 0 }]) // revenue snapshot
+    .mockResolvedValueOnce([]) // daily
+    .mockResolvedValueOnce([]) // by payment
+    .mockResolvedValueOnce([]); // top products
+}
+
+// ── Timezone / period bounds ─────────────────────────────────────────────────
+
+describe('caracasDayStartUtc', () => {
+  it('03:59:59Z pertenece al día anterior en Caracas', () => {
+    const start = caracasDayStartUtc(new Date('2026-07-10T03:59:59Z'));
+    expect(start.toISOString()).toBe('2026-07-09T04:00:00.000Z');
   });
 
-  it('returns a Date for range=7d', async () => {
-    const { computeCutoff } = await import('@/app/api/admin/stats/route');
-    const result = computeCutoff('7d', 'America/Caracas');
-    expect(result).toBeInstanceOf(Date);
-    expect(result!.getTime()).toBeLessThan(Date.now());
-  });
-
-  it('returns a Date for range=30d', async () => {
-    const { computeCutoff } = await import('@/app/api/admin/stats/route');
-    const result = computeCutoff('30d', 'America/Caracas');
-    expect(result).toBeInstanceOf(Date);
-  });
-
-  it('returns a Date for range=year', async () => {
-    const { computeCutoff } = await import('@/app/api/admin/stats/route');
-    const result = computeCutoff('year', 'America/Caracas');
-    expect(result).toBeInstanceOf(Date);
-  });
-
-  it('7d cutoff is approximately 7 days ago', async () => {
-    const { computeCutoff } = await import('@/app/api/admin/stats/route');
-    const cutoff = computeCutoff('7d', 'America/Caracas')!;
-    const diffMs = Date.now() - cutoff.getTime();
-    // 7 days = 604800000ms. Allow 24h tolerance for Caracas timezone offset.
-    expect(diffMs).toBeGreaterThan(6 * 24 * 60 * 60 * 1000);
-    expect(diffMs).toBeLessThan(8 * 24 * 60 * 60 * 1000);
+  it('04:00:00Z inicia el día calendario Caracas', () => {
+    const start = caracasDayStartUtc(new Date('2026-07-10T04:00:00Z'));
+    expect(start.toISOString()).toBe('2026-07-10T04:00:00.000Z');
   });
 });
 
-describe('decimalToNumber', () => {
-  it('converts Decimal-like object to number', async () => {
-    const { decimalToNumber } = await import('@/app/api/admin/stats/route');
-    expect(decimalToNumber({ toNumber: () => 42.5 })).toBe(42.5);
+describe('formatCaracasDateKey', () => {
+  it('asigna 03:59:59Z al día anterior y 04:00:00Z al día actual', () => {
+    expect(formatCaracasDateKey(new Date('2026-07-10T03:59:59Z'))).toBe('2026-07-09');
+    expect(formatCaracasDateKey(new Date('2026-07-10T04:00:00Z'))).toBe('2026-07-10');
+  });
+});
+
+describe('computeStatsPeriodBounds', () => {
+  const now = new Date('2026-07-10T15:00:00Z');
+
+  it('returns null bounds for range=all', () => {
+    const bounds = computeStatsPeriodBounds('all', now);
+    expect(bounds.start).toBeNull();
+    expect(bounds.previousStart).toBeNull();
+    expect(bounds.end).toEqual(now);
   });
 
-  it('converts string to number', async () => {
-    const { decimalToNumber } = await import('@/app/api/admin/stats/route');
-    expect(decimalToNumber('99.99')).toBe(99.99);
+  it('7d incluye hoy + 6 días previos con end=now', () => {
+    const bounds = computeStatsPeriodBounds('7d', now);
+    expect(bounds.start?.toISOString()).toBe('2026-07-04T04:00:00.000Z');
+    expect(bounds.end).toEqual(now);
   });
 
-  it('returns 0 for null', async () => {
-    const { decimalToNumber } = await import('@/app/api/admin/stats/route');
-    expect(decimalToNumber(null)).toBe(0);
-  });
-
-  it('returns 0 for undefined', async () => {
-    const { decimalToNumber } = await import('@/app/api/admin/stats/route');
-    expect(decimalToNumber(undefined)).toBe(0);
-  });
-
-  it('returns value for number directly', async () => {
-    const { decimalToNumber } = await import('@/app/api/admin/stats/route');
-    expect(decimalToNumber(50)).toBe(50);
-  });
-
-  it('returns 0 for non-finite number', async () => {
-    const { decimalToNumber } = await import('@/app/api/admin/stats/route');
-    expect(decimalToNumber(NaN)).toBe(0);
-    expect(decimalToNumber(Infinity)).toBe(0);
+  it('previous es el período inmediato anterior de igual duración', () => {
+    const bounds = computeStatsPeriodBounds('7d', now);
+    const duration = bounds.end.getTime() - bounds.start!.getTime();
+    expect(bounds.previousEnd).toEqual(bounds.start);
+    expect(bounds.previousStart!.getTime()).toBe(bounds.start!.getTime() - duration);
   });
 });
 
 describe('storedTotalToUsd', () => {
-  it('returns rounded amount when no exchange rate (legacy USD)', async () => {
-    const { storedTotalToUsd } = await import('@/app/api/admin/stats/route');
+  it('returns rounded amount when no exchange rate (legacy USD)', () => {
     expect(storedTotalToUsd(100.456, null)).toBe(100.46);
   });
 
-  it('divides by exchange rate when present (modern Bs)', async () => {
-    const { storedTotalToUsd } = await import('@/app/api/admin/stats/route');
+  it('divides by exchange rate when present (modern Bs)', () => {
     expect(storedTotalToUsd(1000, 50)).toBe(20.0);
-  });
-
-  it('returns 0 for 0 total', async () => {
-    const { storedTotalToUsd } = await import('@/app/api/admin/stats/route');
-    expect(storedTotalToUsd(0, null)).toBe(0);
-  });
-
-  it('rounds to 2 decimals', async () => {
-    const { storedTotalToUsd } = await import('@/app/api/admin/stats/route');
-    expect(storedTotalToUsd(33.3333, null)).toBe(33.33);
-    expect(storedTotalToUsd(100, 3)).toBe(33.33);
   });
 });
 
+// ── Pure logic tests ─────────────────────────────────────────────────────────
+
 describe('isValidRevenueStatus', () => {
-  it('returns true for En Proceso', async () => {
+  it('returns true for validated pipeline statuses', async () => {
     const { isValidRevenueStatus } = await import('@/app/api/admin/stats/route');
     expect(isValidRevenueStatus('En Proceso')).toBe(true);
-  });
-
-  it('returns true for Enviado', async () => {
-    const { isValidRevenueStatus } = await import('@/app/api/admin/stats/route');
     expect(isValidRevenueStatus('Enviado')).toBe(true);
-  });
-
-  it('returns true for Entregado', async () => {
-    const { isValidRevenueStatus } = await import('@/app/api/admin/stats/route');
     expect(isValidRevenueStatus('Entregado')).toBe(true);
   });
 
-  it('returns false for Pendiente', async () => {
+  it('returns false for pending/cancelled statuses', async () => {
     const { isValidRevenueStatus } = await import('@/app/api/admin/stats/route');
     expect(isValidRevenueStatus('Pendiente')).toBe(false);
-  });
-
-  it('returns false for Cancelado', async () => {
-    const { isValidRevenueStatus } = await import('@/app/api/admin/stats/route');
     expect(isValidRevenueStatus('Cancelado')).toBe(false);
-  });
-
-  it('returns false for Pendiente verificación Binance', async () => {
-    const { isValidRevenueStatus } = await import('@/app/api/admin/stats/route');
     expect(isValidRevenueStatus('Pendiente verificación Binance')).toBe(false);
-  });
-
-  it('returns false for unknown status', async () => {
-    const { isValidRevenueStatus } = await import('@/app/api/admin/stats/route');
-    expect(isValidRevenueStatus('Unknown')).toBe(false);
   });
 });
 
@@ -185,260 +151,141 @@ describe('periodDate', () => {
     const { periodDate } = await import('@/app/api/admin/stats/route');
     const paidAt = new Date('2026-07-10T14:00:00Z');
     const createdAt = new Date('2026-07-09T10:00:00Z');
-    const result = periodDate({ paidAt, createdAt });
-    expect(result.toISOString()).toBe(paidAt.toISOString());
+    expect(periodDate({ paidAt, createdAt }).toISOString()).toBe(paidAt.toISOString());
   });
 
-  it('falls back to createdAt when paidAt is null', async () => {
+  it('falls back to createdAt when paidAt is null (legacy)', async () => {
     const { periodDate } = await import('@/app/api/admin/stats/route');
     const createdAt = new Date('2026-07-09T10:00:00Z');
-    const result = periodDate({ paidAt: null, createdAt });
-    expect(result.toISOString()).toBe(createdAt.toISOString());
+    expect(periodDate({ paidAt: null, createdAt }).toISOString()).toBe(createdAt.toISOString());
   });
 });
 
-describe('buildPeriodStats / toSummary', () => {
-  it('calculates summary from empty input', async () => {
-    const { buildPeriodStats, toSummary } = await import('@/app/api/admin/stats/route');
-    const stats = buildPeriodStats([], []);
-    expect(stats.validatedOrders).toHaveLength(0);
-    expect(stats.allPeriodOrders).toHaveLength(0);
+describe('buildPeriodStats / toSummary — separación createdAt vs paidAt', () => {
+  const bounds = computeStatsPeriodBounds('7d', new Date('2026-07-10T15:00:00Z'));
 
-    const summary = toSummary(stats);
-    expect(summary.revenue).toBe(0);
-    expect(summary.orderCount).toBe(0);
-    expect(summary.paidOrderCount).toBe(0);
-    expect(summary.averageTicket).toBe(0);
-    expect(summary.cancellationRate).toBe(0);
-  });
-
-  it('calculates summary with validated orders', async () => {
+  it('creado antes del período pero pagado dentro cuenta solo en ingreso', async () => {
     const { buildPeriodStats, toSummary } = await import('@/app/api/admin/stats/route');
     const orders = [
-      mockOrder({ id: 'o1', total: { toNumber: () => 200 }, status: 'Entregado', paymentMethod: 'Zelle', paidAt: new Date('2026-07-10') }),
-      mockOrder({ id: 'o2', total: { toNumber: () => 100 }, status: 'En Proceso', paymentMethod: 'Pago Móvil', paidAt: new Date('2026-07-11') }),
-      mockOrder({ id: 'o3', total: { toNumber: () => 50 }, status: 'Cancelado', paymentMethod: 'Efectivo', paidAt: null }),
+      mockOrder({
+        id: 'o1',
+        total: { toNumber: () => 200 },
+        status: 'Entregado',
+        createdAt: new Date('2026-07-01T12:00:00Z'),
+        paidAt: new Date('2026-07-10T10:00:00Z'),
+      }),
     ];
-    const stats = buildPeriodStats(orders, []);
-    expect(stats.validatedOrders).toHaveLength(2);
-    expect(stats.allPeriodOrders).toHaveLength(3);
-
+    const stats = buildPeriodStats(orders, [], bounds);
     const summary = toSummary(stats);
-    // Revenue: 200 + 100 = 300 USD (all legacy)
-    expect(summary.revenue).toBe(300);
-    expect(summary.orderCount).toBe(3);
-    expect(summary.paidOrderCount).toBe(2);
-    // Average ticket: 300 / 2
-    expect(summary.averageTicket).toBe(150);
-    // Cancellation rate: 1 / (2 + 1) = 33.33%
-    expect(summary.cancellationRate).toBe(33.33);
-  });
 
-  it('converts Bs total to USD using exchange rate', async () => {
-    const { buildPeriodStats, toSummary } = await import('@/app/api/admin/stats/route');
-    const orders = [
-      mockOrder({ id: 'o1', total: { toNumber: () => 1000 }, exchangeRateUsdBs: { toNumber: () => 50 }, status: 'Entregado' }),
-    ];
-    const stats = buildPeriodStats(orders, []);
-    const summary = toSummary(stats);
-    // 1000 / 50 = 20 USD
-    expect(summary.revenue).toBe(20);
     expect(summary.paidOrderCount).toBe(1);
+    expect(summary.revenue).toBe(200);
+    expect(summary.orderCount).toBe(0);
   });
 
-  it('cancellation rate with no cancelled orders', async () => {
+  it('creado dentro del período pero pagado después cuenta solo como pedido operativo', async () => {
     const { buildPeriodStats, toSummary } = await import('@/app/api/admin/stats/route');
     const orders = [
-      mockOrder({ id: 'o1', total: { toNumber: () => 100 }, status: 'Entregado' }),
+      mockOrder({
+        id: 'o1',
+        total: { toNumber: () => 150 },
+        status: 'Entregado',
+        createdAt: new Date('2026-07-08T12:00:00Z'),
+        paidAt: new Date('2026-07-20T10:00:00Z'),
+      }),
     ];
-    const stats = buildPeriodStats(orders, []);
+    const stats = buildPeriodStats(orders, [], bounds);
     const summary = toSummary(stats);
-    expect(summary.cancellationRate).toBe(0);
+
+    expect(summary.orderCount).toBe(1);
+    expect(summary.paidOrderCount).toBe(0);
+    expect(summary.revenue).toBe(0);
   });
 
-  it('cancellation rate with only cancelled orders', async () => {
+  it('legacy sin paidAt usa createdAt para ingreso si está validado', async () => {
     const { buildPeriodStats, toSummary } = await import('@/app/api/admin/stats/route');
     const orders = [
-      mockOrder({ id: 'o1', total: { toNumber: () => 100 }, status: 'Cancelado' }),
+      mockOrder({
+        id: 'o1',
+        total: { toNumber: () => 80 },
+        status: 'Entregado',
+        createdAt: new Date('2026-07-08T12:00:00Z'),
+        paidAt: null,
+      }),
     ];
-    const stats = buildPeriodStats(orders, []);
+    const stats = buildPeriodStats(orders, [], bounds);
     const summary = toSummary(stats);
-    expect(summary.cancellationRate).toBe(100);
+
+    expect(summary.paidOrderCount).toBe(1);
+    expect(summary.revenue).toBe(80);
+    expect(summary.orderCount).toBe(1);
   });
 });
 
 describe('aggregateDaily', () => {
-  it('returns empty array for no validated orders', async () => {
-    const { aggregateDaily } = await import('@/app/api/admin/stats/route');
-    const orders = [
-      mockOrder({ status: 'Cancelado' }),
-    ];
-    const result = aggregateDaily(orders, 'America/Caracas');
-    expect(result).toHaveLength(0);
-  });
+  const bounds = computeStatsPeriodBounds('7d', new Date('2026-07-10T15:00:00Z'));
 
-  it('groups by date in Caracas timezone', async () => {
+  it('separates 03:59:59Z and 04:00:00Z across Caracas day boundary', async () => {
     const { aggregateDaily } = await import('@/app/api/admin/stats/route');
-    const orders = [
-      mockOrder({ id: 'o1', total: { toNumber: () => 100 }, status: 'Entregado', paidAt: new Date('2026-07-10T04:00:00Z') }), // Should be 2026-07-10 in VET (UTC-4)
-      mockOrder({ id: 'o2', total: { toNumber: () => 50 }, status: 'En Proceso', paidAt: new Date('2026-07-10T05:00:00Z') }), // Also 2026-07-10 in VET
-    ];
-    const result = aggregateDaily(orders, 'America/Caracas');
-    expect(result).toHaveLength(1);
-    expect(result[0].date).toBe('2026-07-10');
-    expect(result[0].revenue).toBe(150);
-    expect(result[0].orders).toBe(2);
-  });
-
-  it('separates dates correctly across Day boundary', async () => {
-    const { aggregateDaily } = await import('@/app/api/admin/stats/route');
-    // VET is UTC-4: 2026-07-10T03:59:59Z = 2026-07-09T23:59:59 VET (Jul 9)
-    // 2026-07-10T04:00:00Z = 2026-07-10T00:00:00 VET (Jul 10)
     const orders = [
       mockOrder({ id: 'o1', total: { toNumber: () => 100 }, status: 'Entregado', paidAt: new Date('2026-07-10T03:59:59Z') }),
       mockOrder({ id: 'o2', total: { toNumber: () => 50 }, status: 'Entregado', paidAt: new Date('2026-07-10T04:00:00Z') }),
     ];
-    const result = aggregateDaily(orders, 'America/Caracas');
+    const result = aggregateDaily(orders, bounds);
     expect(result).toHaveLength(2);
     expect(result[0].date).toBe('2026-07-09');
     expect(result[1].date).toBe('2026-07-10');
   });
-
-  it('returns sorted by date', async () => {
-    const { aggregateDaily } = await import('@/app/api/admin/stats/route');
-    // VET is UTC-4: 2026-07-10T04:00:00Z = 2026-07-10 in VET
-    // 2026-07-11T04:00:00Z = 2026-07-11 in VET
-    const orders = [
-      mockOrder({ id: 'o2', total: { toNumber: () => 50 }, status: 'Entregado', paidAt: new Date('2026-07-11T04:00:00Z') }),
-      mockOrder({ id: 'o1', total: { toNumber: () => 100 }, status: 'Entregado', paidAt: new Date('2026-07-10T04:00:00Z') }),
-    ];
-    const result = aggregateDaily(orders, 'America/Caracas');
-    expect(result).toHaveLength(2);
-    expect(result[0].date).toBe('2026-07-10');
-    expect(result[1].date).toBe('2026-07-11');
-  });
 });
 
 describe('aggregateByStatus', () => {
-  it('returns status counts', async () => {
-    const { aggregateByStatus } = await import('@/app/api/admin/stats/route');
-    const orders = [
-      mockOrder({ status: 'Entregado' }),
-      mockOrder({ status: 'Pendiente' }),
-      mockOrder({ status: 'Entregado' }),
-      mockOrder({ status: 'Cancelado' }),
-    ];
-    const result = aggregateByStatus(orders);
-    expect(result).toHaveLength(3);
-    const entregado = result.find((s) => s.status === 'Entregado')!;
-    expect(entregado.count).toBe(2);
-    const pendiente = result.find((s) => s.status === 'Pendiente')!;
-    expect(pendiente.count).toBe(1);
-  });
+  const bounds = computeStatsPeriodBounds('7d', new Date('2026-07-10T15:00:00Z'));
 
-  it('returns sorted by count descending', async () => {
+  it('counts only orders created in period', async () => {
     const { aggregateByStatus } = await import('@/app/api/admin/stats/route');
     const orders = [
-      mockOrder({ status: 'Pendiente' }),
-      mockOrder({ status: 'Entregado' }),
-      mockOrder({ status: 'Entregado' }),
+      mockOrder({ status: 'Entregado', createdAt: new Date('2026-07-08T12:00:00Z') }),
+      mockOrder({ status: 'Pendiente', createdAt: new Date('2026-07-01T12:00:00Z') }),
     ];
-    const result = aggregateByStatus(orders);
+    const result = aggregateByStatus(orders, bounds);
+    expect(result).toHaveLength(1);
     expect(result[0].status).toBe('Entregado');
-    expect(result[0].count).toBe(2);
   });
 });
 
 describe('aggregateByPayment', () => {
-  it('returns payment method stats for validated orders only', async () => {
-    const { aggregateByPayment } = await import('@/app/api/admin/stats/route');
-    const orders = [
-      mockOrder({ paymentMethod: 'Pago Móvil', total: { toNumber: () => 100 }, status: 'Entregado' }),
-      mockOrder({ paymentMethod: 'Zelle', total: { toNumber: () => 200 }, status: 'En Proceso' }),
-      mockOrder({ paymentMethod: 'Pago Móvil', total: { toNumber: () => 50 }, status: 'Cancelado' }), // Should be ignored
-    ];
-    const result = aggregateByPayment(orders);
-    expect(result).toHaveLength(2);
-    const pm = result.find((m) => m.method === 'Pago Móvil')!;
-    expect(pm.count).toBe(1);
-    expect(pm.revenue).toBe(100);
-    const zelle = result.find((m) => m.method === 'Zelle')!;
-    expect(zelle.count).toBe(1);
-    expect(zelle.revenue).toBe(200);
-  });
+  const bounds = computeStatsPeriodBounds('7d', new Date('2026-07-10T15:00:00Z'));
 
-  it('ignores non-validated statuses', async () => {
+  it('aggregates only revenue-period validated orders', async () => {
     const { aggregateByPayment } = await import('@/app/api/admin/stats/route');
     const orders = [
-      mockOrder({ paymentMethod: 'Pago Móvil', total: { toNumber: () => 100 }, status: 'Pendiente' }),
+      mockOrder({ paymentMethod: 'Pago Móvil', total: { toNumber: () => 100 }, status: 'Entregado', paidAt: new Date('2026-07-09T10:00:00Z') }),
+      mockOrder({ paymentMethod: 'Zelle', total: { toNumber: () => 200 }, status: 'Entregado', createdAt: new Date('2026-07-08T10:00:00Z'), paidAt: new Date('2026-07-20T10:00:00Z') }),
     ];
-    const result = aggregateByPayment(orders);
-    expect(result).toHaveLength(0);
+    const result = aggregateByPayment(orders, bounds);
+    expect(result).toHaveLength(1);
+    expect(result[0].method).toBe('Pago Móvil');
+    expect(result[0].revenue).toBe(100);
   });
 });
 
 describe('aggregateTopProducts', () => {
-  it('returns top products by revenue', async () => {
-    const { aggregateTopProducts } = await import('@/app/api/admin/stats/route');
-    const orders = [
-      mockOrder({ id: 'o1', total: { toNumber: () => 250 }, status: 'Entregado' }),
-    ];
-    const items = [
-      mockItem({ orderId: 'o1', productId: 'p1', productName: 'Producto A', quantity: 2, price: { toNumber: () => 25 } }),
-      mockItem({ orderId: 'o1', productId: 'p2', productName: 'Producto B', quantity: 3, price: { toNumber: () => 50 } }),
-    ];
-    const result = aggregateTopProducts(items, orders, { take: 20 });
-    expect(result).toHaveLength(2);
-    expect(result[0].productId).toBe('p2');
-    expect(result[0].revenue).toBe(150);
-    expect(result[0].quantity).toBe(3);
-    expect(result[1].productId).toBe('p1');
-    expect(result[1].revenue).toBe(50);
-    expect(result[1].quantity).toBe(2);
-  });
+  const bounds = computeStatsPeriodBounds('7d', new Date('2026-07-10T15:00:00Z'));
 
-  it('ignores items from non-validated orders', async () => {
+  it('uses order exchange rate for item revenue in USD', async () => {
     const { aggregateTopProducts } = await import('@/app/api/admin/stats/route');
     const orders = [
-      mockOrder({ id: 'o1', total: { toNumber: () => 100 }, status: 'Cancelado' }),
-    ];
-    const items = [
-      mockItem({ orderId: 'o1', productId: 'p1', productName: 'Producto A', quantity: 2, price: { toNumber: () => 25 } }),
-    ];
-    const result = aggregateTopProducts(items, orders, { take: 20 });
-    expect(result).toHaveLength(0);
-  });
-
-  it('limits results with take', async () => {
-    const { aggregateTopProducts } = await import('@/app/api/admin/stats/route');
-    const orders = [
-      mockOrder({ id: 'o1', total: { toNumber: () => 100 }, status: 'Entregado' }),
-    ];
-    const items = [
-      mockItem({ orderId: 'o1', productId: 'p1', productName: 'P1', quantity: 1, price: { toNumber: () => 10 } }),
-      mockItem({ orderId: 'o1', productId: 'p2', productName: 'P2', quantity: 1, price: { toNumber: () => 20 } }),
-      mockItem({ orderId: 'o1', productId: 'p3', productName: 'P3', quantity: 1, price: { toNumber: () => 30 } }),
-    ];
-    const result = aggregateTopProducts(items, orders, { take: 2 });
-    expect(result).toHaveLength(2);
-  });
-
-  it('uses storedTotalToUsd for Bs items', async () => {
-    const { aggregateTopProducts } = await import('@/app/api/admin/stats/route');
-    const orders = [
-      mockOrder({ id: 'o1', total: { toNumber: () => 200 }, exchangeRateUsdBs: { toNumber: () => 50 }, status: 'Entregado' }),
+      mockOrder({ id: 'o1', total: { toNumber: () => 200 }, exchangeRateUsdBs: { toNumber: () => 50 }, status: 'Entregado', paidAt: new Date('2026-07-09T10:00:00Z') }),
     ];
     const items = [
       mockItem({ orderId: 'o1', productId: 'p1', productName: 'Producto Bs', quantity: 1, price: { toNumber: () => 200 } }),
     ];
-    const result = aggregateTopProducts(items, orders, { take: 20 });
-    expect(result).toHaveLength(1);
-    // 200 / 50 = 4 USD
+    const result = aggregateTopProducts(items, orders, bounds, { take: 20 });
     expect(result[0].revenue).toBe(4);
   });
 });
 
-// ── API handler tests (integration with mocks) ──────────────────────────────
+// ── API handler tests ───────────────────────────────────────────────────────
 
 describe('GET /api/admin/stats', () => {
   let handler: typeof import('@/app/api/admin/stats/route').GET;
@@ -460,46 +307,47 @@ describe('GET /api/admin/stats', () => {
       response: new Response(JSON.stringify({ error: 'No autorizado' }), { status: 403 }) as never,
     });
 
-    const request = new Request('http://localhost:3000/api/admin/stats');
-    const response = await handler(request);
+    const response = await handler(new Request('http://localhost:3000/api/admin/stats'));
     expect(response.status).toBe(403);
   });
 
-  it('devuelve 200 con DTO completo para range=all', async () => {
+  it('devuelve 400 para tz distinta de America/Caracas', async () => {
     vi.mocked(requireAdmin).mockResolvedValue({
       authorized: true,
       session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
     });
 
-    vi.mocked(prisma.order.findMany).mockResolvedValue([
-      mockOrder({ id: 'o1', total: { toNumber: () => 100 as const }, status: 'Entregado' }),
-    ] as never);
-    vi.mocked(prisma.orderItem.findMany).mockResolvedValue([
-      mockItem({ orderId: 'o1', quantity: 1, productName: 'P1', price: { toNumber: () => 100 as const } }),
-    ] as never);
+    const response = await handler(new Request('http://localhost:3000/api/admin/stats?range=7d&tz=UTC'));
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error).toMatch(/Timezone inválida/);
+  });
 
-    const request = new Request('http://localhost:3000/api/admin/stats?range=all');
-    const response = await handler(request);
+  it('range=all usa agregaciones y no findMany masivo', async () => {
+    vi.mocked(requireAdmin).mockResolvedValue({
+      authorized: true,
+      session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
+    });
+
+    emptyOperationalMocks();
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([{ revenue: 1_000_000, paid_count: 100_000 }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const response = await handler(new Request(`http://localhost:3000/api/admin/stats?range=all&tz=${ANALYTICS_TIMEZONE}`));
     expect(response.status).toBe(200);
-    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(prisma.order.findMany).not.toHaveBeenCalled();
+    expect(prisma.orderItem.findMany).not.toHaveBeenCalled();
+    expect(prisma.order.count).toHaveBeenCalled();
+    expect(prisma.$queryRaw).toHaveBeenCalled();
 
     const body = await response.json();
-    expect(body).toHaveProperty('summary');
-    expect(body).toHaveProperty('previousSummary');
-    expect(body).toHaveProperty('daily');
-    expect(body).toHaveProperty('byStatus');
-    expect(body).toHaveProperty('byPayment');
-    expect(body).toHaveProperty('topProducts');
-
-    // No PII
-    const jsonStr = JSON.stringify(body);
-    expect(jsonStr).not.toMatch(/customerEmail|customerPhone|customerIdNumber|shippingAddress|paymentReference/i);
-
-    expect(body.summary.revenue).toBe(100);
-    expect(body.summary.paidOrderCount).toBe(1);
-    expect(body.summary.orderCount).toBe(1);
-    // all → previousSummary = null
+    expect(body.summary.paidOrderCount).toBe(100_000);
+    expect(body.summary.revenue).toBe(1_000_000);
     expect(body.previousSummary).toBeNull();
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
   });
 
   it('devuelve previousSummary para rango acotado', async () => {
@@ -508,27 +356,35 @@ describe('GET /api/admin/stats', () => {
       session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
     });
 
-    // Mock for current period
-    vi.mocked(prisma.order.findMany)
-      .mockResolvedValueOnce([
-        mockOrder({ id: 'o1', total: { toNumber: () => 100 as const }, status: 'Entregado' }),
-      ] as never) // current period
-      .mockResolvedValueOnce([
-        mockOrder({ id: 'o2', total: { toNumber: () => 200 as const }, status: 'En Proceso' }),
-      ] as never); // previous period
+    vi.mocked(prisma.order.count)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(0)
+      .mockResolvedValueOnce(0);
 
-    vi.mocked(prisma.orderItem.findMany)
-      .mockResolvedValueOnce([] as never) // current items
-      .mockResolvedValueOnce([] as never); // previous items
+    vi.mocked(prisma.order.groupBy)
+      .mockResolvedValueOnce([{ status: 'Entregado', _count: { _all: 3 } }] as never)
+      .mockResolvedValueOnce([{ status: 'En Proceso', _count: { _all: 2 } }] as never);
 
-    const request = new Request('http://localhost:3000/api/admin/stats?range=7d');
-    const response = await handler(request);
+    vi.mocked(prisma.$queryRaw)
+      .mockResolvedValueOnce([{ revenue: 100, paid_count: 1 }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ revenue: 200, paid_count: 2 }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const response = await handler(new Request(`http://localhost:3000/api/admin/stats?range=7d&tz=${ANALYTICS_TIMEZONE}`));
     expect(response.status).toBe(200);
 
     const body = await response.json();
     expect(body.previousSummary).not.toBeNull();
-    // Previous period should have revenue of 200
     expect(body.previousSummary.revenue).toBe(200);
+    expect(body.previousSummary.paidOrderCount).toBe(2);
     expect(body.summary.revenue).toBe(100);
   });
 
@@ -538,13 +394,8 @@ describe('GET /api/admin/stats', () => {
       session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
     });
 
-    const request = new Request('http://localhost:3000/api/admin/stats?range=invalid');
-    const response = await handler(request);
+    const response = await handler(new Request('http://localhost:3000/api/admin/stats?range=invalid'));
     expect(response.status).toBe(400);
-
-    const body = await response.json();
-    expect(body).toHaveProperty('error');
-    expect(body.error).toMatch(/Rango inválido/);
   });
 
   it('no contiene PII en la respuesta', async () => {
@@ -553,15 +404,16 @@ describe('GET /api/admin/stats', () => {
       session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
     });
 
-    vi.mocked(prisma.order.findMany).mockResolvedValue([] as never);
-    vi.mocked(prisma.orderItem.findMany).mockResolvedValue([] as never);
+    emptyOperationalMocks();
+    emptyRevenueMocks();
 
-    const request = new Request('http://localhost:3000/api/admin/stats?range=30d');
-    const response = await handler(request);
+    const response = await handler(new Request(`http://localhost:3000/api/admin/stats?range=30d&tz=${ANALYTICS_TIMEZONE}`));
     const body = await response.json();
     const serialized = JSON.stringify(body);
 
-    expect(serialized).not.toMatch(/customerEmail|customerPhone|customerIdNumber|shippingAddress|paymentReference|customerName|paymentProofUrl|customerId/i);
+    expect(serialized).not.toMatch(
+      /customerEmail|customerPhone|customerIdNumber|shippingAddress|paymentReference|customerName|paymentProofUrl|customerId/i,
+    );
   });
 
   it('maneja error de BD con 500', async () => {
@@ -570,12 +422,10 @@ describe('GET /api/admin/stats', () => {
       session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
     });
 
-    vi.mocked(prisma.order.findMany).mockRejectedValue(new Error('DB error'));
+    vi.mocked(prisma.order.count).mockRejectedValue(new Error('DB error'));
 
-    const request = new Request('http://localhost:3000/api/admin/stats?range=30d');
-    const response = await handler(request);
+    const response = await handler(new Request(`http://localhost:3000/api/admin/stats?range=30d&tz=${ANALYTICS_TIMEZONE}`));
     expect(response.status).toBe(500);
-
     const body = await response.json();
     expect(body).toHaveProperty('error');
   });

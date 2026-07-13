@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
       errors: [],
     });
   } catch (error) {
-    console.error('Error en migrate-slugs:', error);
+    logError('migrate_slugs_failed', error, { route: '/api/admin/migrate-slugs' });
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }

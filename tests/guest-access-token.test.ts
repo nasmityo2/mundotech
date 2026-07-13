@@ -48,7 +48,6 @@ describe('toGuestOrderConfirmationDto', () => {
     const row = mockGuestOrder();
     const dto = toGuestOrderConfirmationDto(row);
 
-    expect(dto.id).toBe('cmtest12345');
     expect(dto.orderNumber).toBe(42);
     expect(dto.total).toBe(150.0);
     expect(dto.status).toBe('Pendiente');
@@ -76,6 +75,7 @@ describe('toGuestOrderConfirmationDto', () => {
     const dto = toGuestOrderConfirmationDto(row as Parameters<typeof toGuestOrderConfirmationDto>[0]);
 
     // NO deben estar en el DTO
+    expect(dto).not.toHaveProperty('id');
     expect(dto).not.toHaveProperty('customerIdNumber');
     expect(dto).not.toHaveProperty('paymentReference');
     expect(dto).not.toHaveProperty('customerEmail');
@@ -158,7 +158,6 @@ describe('token SHA-256 (unitario)', () => {
 describe('GuestOrderConfirmation type', () => {
   it('satisface el tipo con valores mínimos', () => {
     const dto: GuestOrderConfirmation = {
-      id: 'test-id',
       orderNumber: 1,
       createdAt: '2026-07-11T20:00:00.000Z',
       items: [{ productName: 'Item', quantity: 1, price: 10 }],
@@ -166,13 +165,12 @@ describe('GuestOrderConfirmation type', () => {
       status: 'Pendiente',
       paymentMethod: 'Efectivo',
     };
-    expect(dto.id).toBe('test-id');
+    expect(dto.orderNumber).toBe(1);
     expect(dto.items[0].imageUrl).toBeUndefined();
   });
 
   it('acepta exchangeRateUsdBs como null', () => {
     const dto: GuestOrderConfirmation = {
-      id: 'test-id',
       orderNumber: 1,
       createdAt: '2026-07-11T20:00:00.000Z',
       items: [{ productName: 'Item', quantity: 1, price: 10 }],
@@ -187,7 +185,6 @@ describe('GuestOrderConfirmation type', () => {
   it('no permite campos sensibles en el tipo', () => {
     // Verificación en tiempo de compilación: las propiedades no existen
     const dto: GuestOrderConfirmation = {
-      id: 'test',
       orderNumber: 1,
       createdAt: '2026-07-11T20:00:00.000Z',
       items: [{ productName: 'Item', quantity: 1, price: 10 }],
@@ -198,6 +195,7 @@ describe('GuestOrderConfirmation type', () => {
     // Las siguientes líneas deben fallar en TS si se descomentan
     // (afirmación en runtime para verificar que no están en el tipo)
     const dtoKeys = Object.keys(dto) as Array<keyof GuestOrderConfirmation>;
+    expect(dtoKeys).not.toContain('id');
     expect(dtoKeys).not.toContain('customerIdNumber');
     expect(dtoKeys).not.toContain('paymentReference');
     expect(dtoKeys).not.toContain('customerEmail');

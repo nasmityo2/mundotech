@@ -264,6 +264,9 @@ model Order {
   /// El `id` es discriminante de tie-break cuando varias filas comparten createdAt.
   @@index([createdAt, id])
   @@index([paidAt])
+  /// Sesión 13: filtros operativos (status + createdAt) y de ingreso (status + paidAt).
+  @@index([status, createdAt])
+  @@index([status, paidAt])
   /// PRD-125: lookups de pedidos por email (guest, soporte, cron) sin full scan.
   @@index([customerEmail])
 }

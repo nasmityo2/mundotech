@@ -1,6 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useCallback, type RefObject } from 'react';
+import { useEffect, useRef, useCallback, useId, type RefObject } from 'react';
+import {
+  defaultIsVisible,
+  isFocusableElement,
+  type FocusTrapVisibilityStrategy,
+} from '@/lib/focus-trap-utils';
 
 /**
  * Selector CSS para elementos enfocables dentro de un contenedor.
@@ -8,6 +13,19 @@ import { useEffect, useRef, useCallback, type RefObject } from 'react';
  */
 const FOCUSABLE =
   'a[href], button:not([disabled]):not([aria-hidden="true"]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([aria-hidden="true"])';
+
+interface TrapStackEntry {
+  id: string;
+  container: HTMLElement;
+  previouslyFocused: Element | null;
+}
+
+let trapStack: TrapStackEntry[] = [];
+
+/** Solo para pruebas — vacía el stack global entre casos. */
+export function resetFocusTrapStackForTests(): void {
+  trapStack = [];
+}
 
 interface UseFocusTrapOptions {
   /** Ref del contenedor del diálogo */
@@ -29,9 +47,13 @@ interface UseFocusTrapOptions {
    * Si true (default), el foco se devuelve al trigger al cerrar.
    */
   restoreFocus?: boolean;
+  /**
+   * Estrategia de visibilidad para filtrar focusables.
+   * Por defecto usa computedStyle/getClientRects (browser).
+   * En JSDOM inyectar `jsdomFocusTrapVisibility`.
+   */
+  isVisible?: FocusTrapVisibilityStrategy;
 }
-
-let trapStack: Array<{ container: HTMLElement; previouslyFocused: Element | null }> = [];
 
 /**
  * Hook de focus trap universal para diálogos modales.
@@ -39,9 +61,9 @@ let trapStack: Array<{ container: HTMLElement; previouslyFocused: Element | null
  * - Guarda el elemento que tenía el foco antes de abrir.
  * - Enfoca el primer (o último) elemento enfocable dentro del contenedor.
  * - Escucha Tab/Shift+Tab en el contenedor y cicla dentro.
- * - Escucha Escape globalmente y llama onClose.
- * - Al cerrar, restaura el foco al trigger.
- * - Soporta stack de overlays (varios traps anidados).
+ * - Escucha Escape globalmente y llama onClose (solo el overlay superior).
+ * - Al cerrar, restaura el foco al trigger si sigue conectado y enfocable.
+ * - Soporta stack de overlays (varios traps anidados) con id único por instancia.
  * - No añade listeners duplicados (cleanup en el return).
  * - Si el contenedor no tiene elementos enfocables, enfoca el propio contenedor.
  */
@@ -51,7 +73,9 @@ export function useFocusTrap({
   focusLast = false,
   onClose,
   restoreFocus = true,
+  isVisible = defaultIsVisible,
 }: UseFocusTrapOptions) {
+  const trapId = useId();
   const previousFocusRef = useRef<Element | null>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -59,9 +83,8 @@ export function useFocusTrap({
   const getFocusables = useCallback(() => {
     const el = containerRef.current;
     if (!el) return [];
-    return Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE))
-      .filter((el) => el.offsetParent !== null || el === containerRef.current);
-  }, [containerRef]);
+    return Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(isVisible);
+  }, [containerRef, isVisible]);
 
   useEffect(() => {
     if (!enabled || !containerRef.current) return;
@@ -70,37 +93,41 @@ export function useFocusTrap({
     const previouslyFocused = document.activeElement;
     previousFocusRef.current = previouslyFocused;
 
-    // Push al stack
-    trapStack = trapStack.filter((entry) => entry.container !== container);
-    trapStack.push({ container, previouslyFocused });
+    trapStack = trapStack.filter((entry) => entry.id !== trapId);
+    trapStack.push({ id: trapId, container, previouslyFocused });
 
-    // Enfocar primer (o último) elemento
     const focusables = getFocusables();
     const target = focusLast ? focusables[focusables.length - 1] : focusables[0];
+
+    let addedTabindex = false;
     if (target) {
       target.focus();
     } else {
-      container.setAttribute('tabindex', '-1');
+      if (!container.hasAttribute('tabindex')) {
+        container.setAttribute('tabindex', '-1');
+        addedTabindex = true;
+      }
       container.focus();
     }
 
-    // Trap Tab/Shift+Tab a nivel de documento
     const handleKeyDown = (e: KeyboardEvent) => {
+      const top = trapStack[trapStack.length - 1];
+      if (!top || top.id !== trapId) return;
+
       if (e.key === 'Escape') {
+        e.preventDefault();
         onCloseRef.current?.();
         return;
       }
-      if (e.key !== 'Tab') return;
 
-      // Solo atrapamos si este contenedor es el tope del stack
-      const top = trapStack[trapStack.length - 1];
-      if (!top || top.container !== container) return;
+      if (e.key !== 'Tab') return;
 
       const focusableElements = getFocusables();
       if (focusableElements.length === 0) {
         e.preventDefault();
         return;
       }
+
       const first = focusableElements[0];
       const last = focusableElements[focusableElements.length - 1];
       const active = document.activeElement;
@@ -110,11 +137,9 @@ export function useFocusTrap({
           e.preventDefault();
           last.focus();
         }
-      } else {
-        if (active === last || !container.contains(active)) {
-          e.preventDefault();
-          first.focus();
-        }
+      } else if (active === last || !container.contains(active)) {
+        e.preventDefault();
+        first.focus();
       }
     };
 
@@ -122,16 +147,23 @@ export function useFocusTrap({
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      trapStack = trapStack.filter((entry) => entry.id !== trapId);
 
-      // Remover del stack
-      trapStack = trapStack.filter((entry) => entry.container !== container);
+      if (addedTabindex) {
+        container.removeAttribute('tabindex');
+      }
 
-      // Restaurar foco
-      if (restoreFocus && previousFocusRef.current instanceof HTMLElement) {
-        previousFocusRef.current.focus();
+      const prev = previousFocusRef.current;
+      if (
+        restoreFocus &&
+        prev instanceof HTMLElement &&
+        prev.isConnected &&
+        isFocusableElement(prev, isVisible)
+      ) {
+        prev.focus();
       }
     };
-  }, [enabled, containerRef, focusLast, getFocusables, restoreFocus]);
+  }, [enabled, containerRef, focusLast, getFocusables, restoreFocus, isVisible, trapId]);
 }
 
 export default useFocusTrap;

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
@@ -80,7 +81,7 @@ export async function GET(request: Request) {
         : { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
     });
   } catch (error) {
-    console.error('[GET /api/banners] Error inesperado:', error);
+    logError('banners_get_failed', error, { route: '/api/banners' });
     return NextResponse.json({ error: 'Error al obtener banners' }, { status: 500 });
   }
 }
@@ -117,7 +118,7 @@ export async function POST(request: Request) {
     revalidateTag('banners', 'default');
     return NextResponse.json(banner, { status: 201 });
   } catch (error) {
-    console.error('[/api/banners][POST] Error al crear banner:', error);
+    logError('banners_post_failed', error, { route: '/api/banners' });
     return NextResponse.json({ error: 'Error al crear banner' }, { status: 500 });
   }
 }

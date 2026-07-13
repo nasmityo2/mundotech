@@ -257,10 +257,8 @@ export interface SavedAddressInput {
 }
 
 /** SESIÓN 06: DTO mínimo de confirmación de pedido para invitados.
- *  NO incluye cédula, referencia, dirección, comprobante, email completo ni teléfono completo. */
+ *  NO incluye id, cédula, referencia, dirección, comprobante, email completo ni teléfono completo. */
 export interface GuestOrderConfirmation {
-  /** ID público del pedido (cuid) — necesario para enlaces de cuenta post-creación. */
-  id: string;
   orderNumber: number;
   createdAt: string;
   items: GuestOrderItem[];
@@ -278,6 +276,37 @@ export interface GuestOrderItem {
   quantity: number;
   price: number;
   imageUrl?: string;
+}
+
+/** Consulta pública /pedido: allowlist sin proof, referencia, titular de pago ni contacto. */
+export interface PublicOrderLookupItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  price: number;
+  imageUrl?: string;
+  productSlug: string;
+}
+
+export interface PublicOrderLookup {
+  orderNumber: number;
+  createdAt: string;
+  customerName: string;
+  items: PublicOrderLookupItem[];
+  total: number;
+  exchangeRateUsdBs?: number | null;
+  status: OrderStatus;
+  shippingDetails: ShippingDetails;
+  paymentMethod: string;
+  trackingNumber?: string | null;
+  trackingCarrier?: string | null;
+  trackingPhotoUrl?: string | null;
+  trackingUrl?: string | null;
+  shippedAt?: string | null;
+  paidAt?: string | null;
+  couponCode?: string | null;
+  couponDiscount?: number | null;
+  channel?: OrderChannel | null;
 }
 
 import { d, dn } from '@/lib/decimal';
@@ -391,7 +420,6 @@ export function toGuestOrderConfirmationDto(o: {
   items: { productName: string; quantity: number; price: DecimalLike; imageUrl?: string | null }[];
 }): GuestOrderConfirmation {
   return {
-    id:              o.id,
     orderNumber:     o.orderNumber,
     createdAt:       o.createdAt.toISOString(),
     total:           d(o.total),
@@ -404,6 +432,63 @@ export function toGuestOrderConfirmationDto(o: {
       quantity:    i.quantity,
       price:       d(i.price),
       imageUrl:    i.imageUrl ?? undefined,
+    })),
+  };
+}
+
+/** Mapea Order enriquecido a DTO público de consulta (sin PII de pago). */
+export function toPublicOrderLookupDto(order: {
+  orderNumber: number;
+  createdAt: string;
+  customerName: string;
+  total: number;
+  exchangeRateUsdBs?: number | null;
+  status: OrderStatus;
+  shippingDetails: ShippingDetails;
+  paymentMethod: string;
+  trackingNumber?: string | null;
+  trackingCarrier?: string | null;
+  trackingPhotoUrl?: string | null;
+  trackingUrl?: string | null;
+  shippedAt?: string | null;
+  paidAt?: string | null;
+  couponCode?: string | null;
+  couponDiscount?: number | null;
+  channel?: OrderChannel | null;
+  items: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    price: number;
+    imageUrl?: string;
+    productSlug: string;
+  }[];
+}): PublicOrderLookup {
+  return {
+    orderNumber: order.orderNumber,
+    createdAt: order.createdAt,
+    customerName: order.customerName,
+    total: order.total,
+    exchangeRateUsdBs: order.exchangeRateUsdBs ?? null,
+    status: order.status,
+    shippingDetails: order.shippingDetails,
+    paymentMethod: order.paymentMethod,
+    trackingNumber: order.trackingNumber ?? null,
+    trackingCarrier: order.trackingCarrier ?? null,
+    trackingPhotoUrl: order.trackingPhotoUrl ?? null,
+    trackingUrl: order.trackingUrl ?? null,
+    shippedAt: order.shippedAt ?? null,
+    paidAt: order.paidAt ?? null,
+    couponCode: order.couponCode ?? null,
+    couponDiscount: order.couponDiscount ?? null,
+    channel: order.channel ?? null,
+    items: order.items.map((item) => ({
+      productId: item.productId,
+      productName: item.productName,
+      quantity: item.quantity,
+      price: item.price,
+      imageUrl: item.imageUrl,
+      productSlug: item.productSlug,
     })),
   };
 }

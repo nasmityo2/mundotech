@@ -9,6 +9,7 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { reviewToClient, reviewInputSchema, readReviewsAutoApprove } from '@/lib/reviews';
 import { VALID_REVIEW_STATUSES } from '@/lib/definitions';
+import { logError } from '@/lib/safe-logger';
 
 /** Invalida la ficha pública del producto tras moderar/editar/borrar una reseña. */
 async function revalidateProductReviews(productId: string) {
@@ -20,7 +21,7 @@ async function revalidateProductReviews(productId: string) {
     // PRD-107: hay que pasar el slug REAL, no la ruta literal '/product/[slug]'.
     revalidatePath(`/product/${prod?.slug ?? productId}`);
   } catch (e) {
-    console.error('[reviews] revalidateProductReviews falló:', e);
+    logError('reviews_revalidate_failed', e, { operation: 'revalidate_product_reviews' });
   }
 }
 
@@ -85,7 +86,7 @@ export async function PATCH(
       await revalidateProductReviews(review.productId);
       return NextResponse.json(reviewToClient(review));
     } catch (error) {
-      console.error('[PATCH /api/reviews/[id]] Error inesperado:', error);
+      logError('reviews_patch_failed', error, { route: '/api/reviews/[id]' });
       return NextResponse.json({ error: 'No se pudo actualizar la reseña.' }, { status: 500 });
     }
   }
@@ -142,7 +143,7 @@ export async function PATCH(
         : 'Reseña actualizada. Será visible tras una breve revisión.',
     });
   } catch (error) {
-    console.error('[PATCH /api/reviews/[id]][autor] Error inesperado:', error);
+    logError('reviews_author_patch_failed', error, { route: '/api/reviews/[id]' });
     return NextResponse.json({ error: 'No se pudo actualizar la reseña.' }, { status: 500 });
   }
 }
@@ -200,7 +201,7 @@ export async function DELETE(
     await revalidateProductReviews(existing.productId);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[DELETE /api/reviews/[id]] Error inesperado:', error);
+    logError('reviews_delete_failed', error, { route: '/api/reviews/[id]' });
     return NextResponse.json({ error: 'No se pudo eliminar la reseña.' }, { status: 500 });
   }
 }

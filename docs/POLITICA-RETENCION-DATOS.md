@@ -28,8 +28,8 @@
 | Campo | Finalidad | Quién accede | Ubicación | Retención | Eliminación | Backup |
 |---|---|---|---|---|---|---|
 | `PaymentUpload` con `status = LINKED` | Verificación y auditoría de pago | ADMIN (URL firmada 180s) | PostgreSQL + R2 privado (`mundotech-private/proofs/`) | **Indefinida** mientras el pedido exista | **No automático.** Requiere política explícita de borrado de comprobantes vinculados (sesión futura) | Incluido en backup de BD (metadatos). R2 tiene su propia retención (Cloudflare). |
-| `PaymentUpload` con `status = PENDING` o `UPLOADING` (token expirado) | Token de upload que no se completó | Sistema (cron) | PostgreSQL + R2 privado (si `objectKey` existe) | Hasta 30 min desde creación (`expiresAt`) | Cron `purge-payment-uploads` cada 2h: reclama atómicamente, borra objeto R2, marca `DELETED` | Metadatos en backup de BD. R2: el objeto se borra al purgar. |
-| `PaymentUpload` con `status = DELETED` | Registro de auditoría de uploads huérfanos ya purgados | Sistema (cron) | PostgreSQL | 30 días desde `updatedAt` (marca `DELETED`) | Cron `purge-temporary-data` diario: borra registros `DELETED` con `updatedAt` anterior a 30 días | No (registro efímero). |
+| `PaymentUpload` con `status = PENDING` o `UPLOADING` (token expirado) | Token de upload que no se completó | Sistema (cron) | PostgreSQL + R2 privado (si `objectKey` existe) | Hasta 30 min desde creación (`expiresAt`) | Cron `purge-payment-uploads` cada hora (:15): reclama atómicamente, borra objeto R2, marca `DELETED` | Metadatos en backup de BD. R2: el objeto se borra al purgar. |
+| `PaymentUpload` con `status = DELETED` | Registro de auditoría de uploads huérfanos ya purgados | Sistema (cron) | PostgreSQL | 30 días desde `updatedAt` (marca `DELETED`) | Cron `purge-temporary-data` diario (03:00): borra registros `DELETED` con `updatedAt` anterior a 30 días | No (registro efímero). |
 
 ### 1.3 Tokens de restablecimiento de contraseña
 
@@ -75,9 +75,20 @@ Los defaults solo se aplican en desarrollo (`NODE_ENV !== 'production'`). En pro
 
 ---
 
-## 3. Cron de purga unificado
+## 3. Crons de purga
 
-### 3.1 Endpoint
+### 3.0 Purga horaria de uploads huérfanos (`purge-payment-uploads`)
+
+`GET /api/cron/purge-payment-uploads`
+
+- **Autenticación:** `Authorization: Bearer <CRON_SECRET>` (timing-safe).
+- **Frecuencia:** cada hora en el minuto :15 (crontab VPS).
+- **Acción:** reclama `PaymentUpload` con `status IN (PENDING, UPLOADING)` y `expiresAt <= now()`, borra el objeto en R2 privado si existe `objectKey`, marca `DELETED`.
+- **Estado agregado:** `AppConfig.purge_payment_uploads_last_success_at`.
+
+El job **diario** `purge-temporary-data` (sección 3.1) solo elimina **metadatos** de registros ya marcados `DELETED` tras 30 días; no toca objetos R2 ni estados `PENDING`/`UPLOADING` activos.
+
+### 3.1 Purga unificada de metadatos temporales (`purge-temporary-data`)
 
 `GET /api/cron/purge-temporary-data`
 

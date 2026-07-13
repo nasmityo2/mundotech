@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { dn } from '@/lib/decimal';
@@ -15,7 +16,7 @@ export async function GET() {
     }
     return NextResponse.json(map);
   } catch (error) {
-    console.error('[GET /api/admin/product-costs]', error);
+    logError('product_costs_get_failed', error, { route: '/api/admin/product-costs' });
     return NextResponse.json({ message: 'Error al obtener costos.' }, { status: 500 });
   }
 }

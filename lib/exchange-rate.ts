@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { logError } from '@/lib/safe-logger';
 
 export const EXCHANGE_RATE_APP_CONFIG_KEY = 'exchange_rate_usd_bs';
 export const EXCHANGE_RATE_BCV_DATE_KEY = 'exchange_rate_bcv_date';
@@ -33,17 +34,17 @@ export function parseExchangeRateFromConfigValue(value: string | null | undefine
 
   const normalized = value.trim().replace(',', '.');
   if (!EXCHANGE_RATE_VALUE_REGEX.test(value.trim())) {
-    console.error(
-      `[exchange-rate] Valor inválido en AppConfig("${EXCHANGE_RATE_APP_CONFIG_KEY}"): "${value}". Se usa el default ${DEFAULT_EXCHANGE_RATE_USD_BS}.`
-    );
+    logError('exchange_rate_invalid_config', new Error('Invalid exchange rate format'), {
+      operation: 'parse_exchange_rate',
+    });
     return DEFAULT_EXCHANGE_RATE_USD_BS;
   }
 
   const parsed = Number(normalized);
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    console.error(
-      `[exchange-rate] Tasa no positiva en AppConfig("${EXCHANGE_RATE_APP_CONFIG_KEY}"): "${value}". Se usa el default ${DEFAULT_EXCHANGE_RATE_USD_BS}.`
-    );
+    logError('exchange_rate_non_positive', new Error('Non-positive exchange rate'), {
+      operation: 'parse_exchange_rate',
+    });
     return DEFAULT_EXCHANGE_RATE_USD_BS;
   }
   return parsed;

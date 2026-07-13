@@ -3,6 +3,7 @@
  * Server Components para no arrastrar pg al bundle del browser.
  */
 import { prisma } from '@/lib/prisma';
+import { logError } from '@/lib/safe-logger';
 import {
   SHIPPING_ESTIMATES_KEY,
   shippingEstimatesSchema,
@@ -18,15 +19,14 @@ export async function readShippingEstimates(): Promise<ShippingEstimates> {
     if (!record?.value) return DEFAULT_SHIPPING_ESTIMATES;
     const parsed = shippingEstimatesSchema.safeParse(JSON.parse(record.value));
     if (!parsed.success) {
-      console.error(
-        '[shipping-estimates-db] JSON corrupto en AppConfig — usando defaults:',
-        parsed.error.flatten(),
-      );
+      logError('shipping_estimates_corrupt', new Error('Invalid JSON in AppConfig'), {
+        operation: 'read_shipping_estimates',
+      });
       return DEFAULT_SHIPPING_ESTIMATES;
     }
     return parsed.data;
   } catch (err) {
-    console.error('[shipping-estimates-db] lectura falló — usando defaults:', err);
+    logError('shipping_estimates_read_failed', err, { operation: 'read_shipping_estimates', provider: 'postgres' });
     return DEFAULT_SHIPPING_ESTIMATES;
   }
 }

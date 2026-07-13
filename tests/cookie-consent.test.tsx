@@ -81,8 +81,8 @@ beforeEach(() => {
     configurable: true,
   });
   // Inicializar gtag/dataLayer como lo haría el script inline de CookieConsent
-  // (Consent Mode v2: todo denied por defecto)
   window.dataLayer = [];
+  window.__mtAnalyticsConsent = 'denied';
   function gtagFn(...args: unknown[]) { window.dataLayer!.push(args); }
   window.gtag = gtagFn;
   window.gtag('consent', 'default', {
@@ -191,6 +191,12 @@ describe('CookieConsent — Consent Mode v2', () => {
     expect(screen.queryByRole('dialog', { name: 'Aviso de cookies' })).toBeNull();
   });
 
+  it('fija __mtAnalyticsConsent en denied por defecto al montar sin elección previa', async () => {
+    render(<CookieConsent />);
+    await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+    expect(window.__mtAnalyticsConsent).toBe('denied');
+  });
+
   it('gtag consent update cambia a granted cuando el usuario acepta', async () => {
     render(<CookieConsent />);
     await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
@@ -211,6 +217,7 @@ describe('CookieConsent — Consent Mode v2', () => {
         ad_user_data: 'granted',
         ad_personalization: 'granted',
       });
+      expect(window.__mtAnalyticsConsent).toBe('granted');
     });
   });
 
@@ -232,6 +239,7 @@ describe('CookieConsent — Consent Mode v2', () => {
         ad_user_data: 'denied',
         ad_personalization: 'denied',
       });
+      expect(window.__mtAnalyticsConsent).toBe('denied');
     });
   });
 
@@ -252,6 +260,7 @@ describe('CookieConsent — Consent Mode v2', () => {
         ad_user_data: 'granted',
         ad_personalization: 'granted',
       });
+      expect(window.__mtAnalyticsConsent).toBe('granted');
     });
 
     // Banner no debe mostrarse

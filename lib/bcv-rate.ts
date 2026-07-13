@@ -1,4 +1,5 @@
 import { tryParseExchangeRateFromString } from '@/lib/exchange-rate';
+import { logError } from '@/lib/safe-logger';
 
 const BCV_FETCH_TIMEOUT_MS = 8_000;
 const DOLLARAPI_OFICIAL_URL = 'https://ve.dolarapi.com/v1/dolares/oficial';
@@ -68,18 +69,23 @@ async function fetchFromDolarApi(): Promise<BcvRateResult | null> {
   try {
     const response = await fetchWithTimeout(DOLLARAPI_OFICIAL_URL);
     if (!response.ok) {
-      console.error(`[bcv-rate] dolarapi respondió ${response.status}`);
+      logError('bcv_dolarapi_bad_status', new Error('Non-OK response'), {
+        status: response.status,
+        operation: 'fetch_bcv_rate',
+      });
       return null;
     }
 
     const data: unknown = await response.json();
     const parsed = parseRateFromDolarApi(data);
     if (!parsed) {
-      console.error('[bcv-rate] dolarapi: respuesta inválida o tasa no positiva');
+      logError('bcv_dolarapi_invalid_response', new Error('Invalid rate payload'), {
+        operation: 'fetch_bcv_rate',
+      });
     }
     return parsed;
   } catch (error) {
-    console.error('[bcv-rate] dolarapi falló:', error);
+    logError('bcv_dolarapi_failed', error, { operation: 'fetch_bcv_rate' });
     return null;
   }
 }
@@ -88,18 +94,23 @@ async function fetchFromPyDolarVe(): Promise<BcvRateResult | null> {
   try {
     const response = await fetchWithTimeout(PYDOLARVE_BCV_URL);
     if (!response.ok) {
-      console.error(`[bcv-rate] pydolarve respondió ${response.status}`);
+      logError('bcv_pydolarve_bad_status', new Error('Non-OK response'), {
+        status: response.status,
+        operation: 'fetch_bcv_rate',
+      });
       return null;
     }
 
     const data: unknown = await response.json();
     const parsed = parseRateFromPyDolarVe(data);
     if (!parsed) {
-      console.error('[bcv-rate] pydolarve: respuesta inválida o tasa no positiva');
+      logError('bcv_pydolarve_invalid_response', new Error('Invalid rate payload'), {
+        operation: 'fetch_bcv_rate',
+      });
     }
     return parsed;
   } catch (error) {
-    console.error('[bcv-rate] pydolarve falló:', error);
+    logError('bcv_pydolarve_failed', error, { operation: 'fetch_bcv_rate' });
     return null;
   }
 }
@@ -116,7 +127,7 @@ export async function fetchBcvRate(): Promise<BcvRateResult | null> {
 
     return await fetchFromPyDolarVe();
   } catch (error) {
-    console.error('[bcv-rate] error inesperado:', error);
+    logError('bcv_unexpected_error', error, { operation: 'fetch_bcv_rate' });
     return null;
   }
 }

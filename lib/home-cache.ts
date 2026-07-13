@@ -113,31 +113,52 @@ export const getCachedFlashDeals = unstable_cache(
   { tags: ['catalog'], revalidate: REVALIDATE },
 );
 
-/** Regex para detectar productos de gaming en el catálogo. */
-const GAMING_RE =
-  /consola|gaming|retro|game|handheld|r36|portátil|portatil|nintendo|playstation|xbox|steam/;
+/** Palabras clave para la estantería gaming (consulta en BD, no filtro en memoria). */
+export const GAMING_KEYWORDS = [
+  'consola',
+  'gaming',
+  'retro',
+  'game',
+  'handheld',
+  'r36',
+  'portátil',
+  'portatil',
+  'nintendo',
+  'playstation',
+  'xbox',
+  'steam',
+] as const;
 
-function productHaystack(p: HomeShelfProduct): string {
-  return `${p.category} ${p.name} ${p.brand ?? ''}`.toLowerCase();
+export const GAMING_PRODUCTS_TAKE = 8;
+
+/** Where Prisma para productos gaming: isActive + OR insensible en category/name/brand. */
+export function buildGamingProductsWhere() {
+  const OR = GAMING_KEYWORDS.flatMap((keyword) => [
+    { category: { contains: keyword, mode: 'insensitive' as const } },
+    { name: { contains: keyword, mode: 'insensitive' as const } },
+    { brand: { contains: keyword, mode: 'insensitive' as const } },
+  ]);
+
+  return {
+    isActive: true,
+    OR,
+  };
 }
 
 /**
- * Gaming: últimos 24 productos activos, filtrados por regex en memoria.
- * Máximo 8 resultados. DB-safe: nunca catálogo completo.
- * SESIÓN 14 — take 24, filtra en memoria, máximo 8.
+ * Gaming: consulta acotada con OR en Prisma (category/name/brand), take 8.
+ * No carga los últimos N del catálogo para filtrar en memoria.
+ * SESIÓN 14 — where OR + take 8, orderBy createdAt desc.
  */
 export const getCachedGamingProducts = unstable_cache(
   async (): Promise<HomeShelfProduct[]> => {
     const rows = await prisma.product.findMany({
-      where: { isActive: true },
+      where: buildGamingProductsWhere(),
       orderBy: { createdAt: 'desc' },
-      take: 24,
+      take: GAMING_PRODUCTS_TAKE,
       select: PRODUCT_CARD_SELECT,
     });
-    return rows
-      .map(toHomeShelfProduct)
-      .filter((p) => GAMING_RE.test(productHaystack(p)))
-      .slice(0, 8);
+    return rows.map(toHomeShelfProduct);
   },
   ['home-gaming-products'],
   { tags: ['catalog'], revalidate: REVALIDATE },

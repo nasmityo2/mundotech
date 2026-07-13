@@ -3,7 +3,7 @@
 **Proyecto:** `nasmityo2/mundotech`  
 **Auditoría base:** 11 de julio de 2026  
 **Documento de ejecución:** `PROMPTS-CURSOR-MUNDOTECH-V4-COPIAR-PEGAR.md`  
-**Estado inicial:** 11 de 32 sesiones completadas
+**Estado inicial:** 11 de 32 sesiones completadas (reconciliado Prompt 11 — contadores derivados del parser)
 
 > Este archivo es la fuente de verdad del avance. Cada sesión de Cursor debe abrirlo antes de trabajar y actualizar **únicamente su propia sección** al terminar. Un checkbox solo se marca cuando la implementación, las pruebas y los criterios de aceptación están verificados.
 
@@ -56,11 +56,12 @@ Si el estado es `PARCIAL` o `BLOQUEADO`, el checkbox queda vacío.
 
 Después de cerrar una sesión, actualizar manualmente:
 
-- **Completadas:** 21/32
-- **Críticas P0 completadas:** 3/4
-- **Altas P1 completadas:** 6/10
-- **Medias/operativas completadas:** 12/18
-- **Última sesión cerrada:** 31 — GA4 y validación SEO (2026-07-12)
+- **Completadas:** 7/32
+- **Críticas P0 completadas:** 1/4
+- **Altas P1 completadas:** 1/10
+- **Medias/operativas completadas:** 5/18
+- **Última sesión cerrada con CI verde:** ninguna en esta reconciliación — pendiente job `CI` en GitHub Actions (workflow `.github/workflows/ci.yml`, SHA repo `4e938449d18c9a42f17f83bf7a8330715fdf8e56`, no verificado independientemente en esta ejecución)
+- **Reabiertas (Prompt 11):** 04, 05, 06, 10, 11, 12, 13, 14, 15, 17, 20, 21, 25, 26, 27, 28, 29, 30, 31 — solo `[x]` tras CI verde
 
 ---
 
@@ -310,9 +311,46 @@ Notas manuales:
 - (MANUAL) Verificar que Public Development URL está desactivada y Custom Domain está ausente en el bucket privado.
 ```
 
+**Evidencia adicional (Prompt 03 — 2026-07-12):**
+
+```text
+Estado: PARCIAL (pendiente prueba navegador <img> y cron instalado en VPS)
+Fecha: 2026-07-12
+Prompt aplicado: Prompt 03 — CSP signed proofs + purga R2 horaria
+Archivos modificados:
+- lib/csp.ts: helper exportado privateR2Origin() (R2_ENDPOINT → origin HTTPS .r2.cloudflarestorage.com); buildImgSrc() añade origin privado solo en img-src
+- tests/csp.test.ts: origin privado presente en img-src; ausente en script-src/frame-src/connect-src; HTTP/malformado omitido
+- app/api/orders/[id]/payment-proof/route.ts: console → logError/logWarn (safe-logger); sin orderId/key/url/error bruto
+- components/admin/PaymentVerificationPanel.tsx: 401/403 → blocked; timer expiresIn; limpia URL al desmontar/expirar; sin localStorage
+- deploy/crontab.vps: 15 * * * * purge-payment-uploads con Bearer y log
+- README.md: corrige schedule purge-payment-uploads (horario, no invocación interna)
+- docs/POLITICA-RETENCION-DATOS.md: job horario borra R2+DELETED; job diario borra metadatos DELETED antiguos
+- tests/payment-proof-route.test.ts: ADMIN 200, guest/CLIENT 403, headers no-store/no-referrer, logs sin PII
+- tests/deploy-crontab.test.ts: purge-payment-uploads presente exactamente una vez; schedule 15 * * * *
+Pruebas ejecutadas (evidencia fallo previo):
+- vitest tests/csp.test.ts tests/deploy-crontab.test.ts tests/payment-proof-route.test.ts — 5 FAIL antes (CSP sin origin privado, crontab ausente, route sin safe-logger)
+Pruebas ejecutadas (post-implementación):
+- npm run typecheck — PASS (exit 0)
+- npm run lint — PASS (0 errors, 30 warnings pre-existentes)
+- npm test — PASS (42 files, 608 tests, exit 0)
+- npm run build — PASS (exit 0)
+Evidencia de aceptación:
+- (CSP) img-src incluye origin R2 privado firmado; no en script-src/frame-src/connect-src
+- (route) ADMIN 200 con Cache-Control private,no-store y Referrer-Policy no-referrer
+- (route) no-ADMIN 403; logs migrados a safe-logger sin PII
+- (crontab fuente) purge-payment-uploads programado 15 * * * * una sola vez
+- (panel) URL firmada se limpia al desmontar y tras expiresIn
+Riesgo residual / manual:
+- (MANUAL) Probar en navegador que <img> carga comprobante firmado sin violación CSP
+- (MANUAL) sudo bash scripts/install-crontab.sh en VPS para activar purge-payment-uploads
+Notas: sin commit, push ni deploy en esta ejecución.
+```
+
 ## 05 — Sesión de upload y archivos huérfanos
 
-- [x] **Vincular cada comprobante a un intento de checkout y eliminar huérfanos de forma idempotente.**
+- [ ] **Vincular cada comprobante a un intento de checkout y eliminar huérfanos de forma idempotente.**
+
+> Reabierta Prompt 11: evidencia local PASS; cierre `[x]` solo tras job `CI` verde (E2E incluido).
 
 **Prioridad:** P1  
 **Prompt:** Sesión 05 — CORREGIDA el 2026-07-11
@@ -366,9 +404,24 @@ Notas manuales:
 - (MANUAL) El crontab debe apuntar a /api/cron/purge-payment-uploads (ya documentado en sesión 05 original)
 ```
 
+**Evidencia adicional (Prompt 03 — 2026-07-12):**
+
+```text
+Estado: PARCIAL (crontab fuente actualizado; instalación VPS pendiente)
+Fecha: 2026-07-12
+Archivos modificados:
+- deploy/crontab.vps: línea horaria `15 * * * *` → GET /api/cron/purge-payment-uploads (Bearer + /var/log/mundotech-cron.log)
+- tests/deploy-crontab.test.ts: aserta una sola entrada y schedule horario
+- README.md + docs/POLITICA-RETENCION-DATOS.md: separación job horario (objetos R2 + DELETED) vs diario (metadatos DELETED >30d)
+Pruebas: npm test incluye deploy-crontab.test.ts — PASS
+Manual pendiente: sudo bash scripts/install-crontab.sh en VPS
+```
+
 ## 06 — Acceso guest mediante token independiente
 
-- [x] **Sustituir `orderId`/CUID como bearer por token guest hasheado y temporal.**
+- [ ] **Sustituir `orderId`/CUID como bearer por token guest hasheado y temporal.**
+
+> Reabierta Prompt 11: evidencia local PASS; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P1  
 **Prompt:** Sesión 06
@@ -411,6 +464,46 @@ Riesgo residual:
 - Los enlaces legacy con ?orderId= en correos ya enviados NO funcionarán para guest (mejora de seguridad intencional). Los correos ya enviados usaban ?token= desde la sesión 06 original.
 Notas manuales:
 - (MANUAL) Ninguno adicional. Los cambios de headers en next.config.mjs requieren rebuild + deploy.
+```
+
+**Extensión de seguridad (2026-07-12 — Prompt 01 reclamación guest + lookup público):**
+
+```text
+Estado: COMPLETADO
+Fecha: 2026-07-12
+Prompt aplicado: Prompt 01 — Asegurar reclamación de cuenta guest y lookup público
+Archivos modificados:
+- app/actions/authActions.ts: registerFromOrderAction(guestToken,password) con claim atómico updateMany count=1; mensajes genéricos anti-enumeración; sin orderId en logs
+- app/checkout/success/page.tsx: handleGuestToken pasa guestToken raw como prop separada (no en DTO)
+- app/checkout/success/GuestSuccessClientPage.tsx: props {order,guestToken}; monta GuestAccountCard
+- app/checkout/success/GuestAccountCard.tsx: solo guestToken; email devuelto tras éxito para signIn
+- app/checkout/success/SuccessClientPage.tsx: elimina GuestAccountCard (registro solo vía token guest)
+- lib/definitions.ts: quita id de GuestOrderConfirmation; añade PublicOrderLookup + toPublicOrderLookupDto
+- app/actions/orderLookupActions.ts: rateLimitCritical+hashForBucket(ip); logError seguro; límites input; DTO público sin proof/reference/holder
+- app/pedido/PedidoLookupClient.tsx: consume PublicOrderLookup
+- components/account/OrderDetailClient.tsx: acepta EnrichedOrder | PublicOrderLookup
+- tests/guest-access-token.test.ts: actualizado sin id en DTO
+- tests/register-from-order.test.ts: nuevo — token válido/inválido/carrera/orderId-only/password
+- tests/order-lookup-public.test.ts: nuevo — rate limit hasheado + DTO sin PII de pago
+Migraciones: Ninguna
+Pruebas ejecutadas:
+- npm run typecheck — PASS (0 errors)
+- npm run lint — PASS (0 errors, 30 warnings pre-existentes)
+- npm test — PASS (38 test files, 584 tests passed)
+- npm test tests/register-from-order.test.ts tests/order-lookup-public.test.ts tests/guest-access-token.test.ts — PASS (26 tests)
+- npm run build — PASS (build exitoso)
+Evidencia de aceptación:
+- (1) orderId ya no crea cuenta → registerFromOrderAction usa guestAccessTokenHash; test orderId-only falla genérico
+- (2) Token consumido atómicamente → updateMany condicional count=1; carrera doble test PASS
+- (3) Token raw fuera de DTO/logs → GuestSuccessClientPage recibe prop separada; logInfo sin orderId/token
+- (4) GuestOrderConfirmation sin id → mapper/tests actualizados
+- (5) Lookup rate limit IP hasheada → order-lookup:${hashForBucket(ip)}; test verifica ausencia IP raw
+- (6) Lookup DTO sin proof/reference/holder → toPublicOrderLookupDto allowlist; tests PASS
+- (7) Mensajes genéricos registro/lookup → REGISTER_FROM_ORDER_GENERIC_FAILURE uniforme; GENERIC_NOT_FOUND en lookup
+Riesgo residual:
+- SuccessClientPage ya no ofrece registro 1-clic para invitados con sesión parcial (caso marginal); flujo correcto es ?token= en GuestSuccessClientPage.
+Notas manuales:
+- Ninguno. Sin commit/push/deploy en esta sesión.
 ```
 
 ## 07 — Retención y minimización de datos
@@ -647,18 +740,58 @@ Notas manuales:
 
 - [ ] **Centralizar logging estructurado y retirar PII/secretos de los flujos sensibles.**
 
-**Prioridad:** P1  
-**Prompt:** Sesión 10
+> Reabierta Prompt 11: migración runtime verificada localmente; cierre `[x]` solo tras job `CI` verde.
+
+**Prioridad:** P1
+**Prompt:** Sesión 10 — Prompt 08 (migración runtime completa)
 
 **Debe quedar demostrado:**
 
 - [x] Logger no acepta objetos arbitrarios (tipos cerrados sin index signature).
-- [x] Pedidos, auth, reset, uploads, correo, R2, crons y rate limit migrados (22 archivos).
+- [x] Runtime server en `app/api`, `app/actions`, `app/account`, `lib` sin `console.*` directo (solo `lib/safe-logger.ts`).
+- [x] Settings, reviews, promotions, products/reviews, orders new-count/bulk/proof, merchant feed, events, coupons/categories/banners/cart, site/wishlist/restock/config/address/abandoned actions, bcv/indexnow/data-store/shipping/exchange/coupons/abandoned-cart/slug redirects/image processing migrados.
 - [x] Email, teléfono, cédula, dirección, referencia, token y URL firmada quedan redactados.
-- [x] Tests prueban que patrones sensibles no aparecen (22 tests, 100% PASS).
+- [x] Tests prueban que patrones sensibles no aparecen + test estático allowlist.
 - [x] Diagnóstico conserva IDs técnicos y errores seguros.
+- [x] `abandonedCartActions` usa `abandoned_cart_snapshot_rate_limited` sin IP.
+- [x] `orderLookupActions` usa `rateLimitCritical`+`hashForBucket` y `logError` seguro.
 
-**Evidencia de cierre:**
+**Evidencia de cierre (Prompt 08 — 2026-07-12):**
+
+```
+Estado: COMPLETADO
+Fecha: 2026-07-12
+SHA: 4e938449d18c9a42f17f83bf7a8330715fdf8e56
+Prompt aplicado: Sesión 10 — Prompt 08 migración logs runtime
+Archivos modificados (migración runtime):
+- app/api/** (29 rutas): settings, reviews, promotions, products/reviews, orders/new-count/bulk, merchant-feed, events, coupons, categories, banners, cart, config, account/confirm-email, admin/*
+- app/actions/*: wishlist, address, productSnapshot, abandonedCart, restock, siteContent, config, productActions
+- lib/*: indexnow, image-processing, bcv-rate, shipping-estimates-db, slug-redirects, abandoned-cart, data-store, env-validation, exchange-rate, checkout-order, coupons
+- tests/runtime-console-allowlist.test.ts (nuevo): test estático allowlist
+- docs/LOGGING-EVENTS.md: regenerado con 198 eventos canónicos
+Migraciones:
+- Ninguna
+Pruebas ejecutadas:
+- npx vitest run tests/runtime-console-allowlist.test.ts — FAIL previo (113 violaciones) → PASS (2/2)
+- npx vitest run tests/safe-logger.test.ts tests/order-lookup-public.test.ts — PASS (42/42)
+- npm run typecheck — PASS (exit 0)
+- npm run lint — PASS (0 errors, warnings preexistentes)
+- npm test — PASS (612/612)
+- npm run build — PASS (exit 0)
+Evidencia de aceptación:
+- rg app/api app/actions app/account lib: 0 console.log/warn/error fuera de allowlist
+- Allowlist explícita: safe-logger, error boundaries client, e2e-axe, e2e-db-guard
+- bulk_cancel_email_failed sin email en contexto (solo orderId+provider)
+- coupon_rejected sin código de cupón en log
+- abandoned_cart_snapshot_rate_limited sin IP
+Riesgo residual:
+- lib/safe-logger.ts es el único sink console en runtime server
+- Client error boundaries y helpers E2E documentados aparte en LOGGING-EVENTS.md
+Notas manuales:
+- Ninguno
+```
+
+**Evidencia previa (fase inicial 2026-07-11):**
 
 ```
 Estado: COMPLETADO
@@ -727,8 +860,10 @@ Notas manuales:
 
 - [ ] **Reducir `/api/health` a estado agregado y mover timestamps a administración.**
 
+> Reabierta Prompt 11: timeout ≤2 s verificado localmente; cierre `[x]` solo tras job `CI` verde.
+
 **Prioridad:** P2  
-**Prompt:** Sesión 11
+**Prompt:** Sesión 11 — Prompt 04 (timeout real)
 
 **Debe quedar demostrado:**
 
@@ -738,7 +873,37 @@ Notas manuales:
 - Endpoint operativo detallado exige ADMIN.
 - Deploy y monitor siguen interpretando health correctamente.
 
-**Evidencia de cierre:** _Pendiente._
+**Evidencia de cierre:**
+
+```text
+Estado: PARCIAL (reabierta Prompt 11)
+Fecha: 2026-07-12
+Prompt aplicado: Sesión 11 — Prompt 04 timeout real del health
+Archivos modificados:
+- lib/operations-health.ts: `HealthTimeoutError`, `withTimeout`, `HEALTH_DB_TIMEOUT_MS`, `nowMs` opcional en `isStale`
+- app/api/health/route.ts: elimina AbortController sin efecto; envuelve findMany con `withTimeout(2000)`
+- app/api/admin/operations-health/route.ts: mismo timeout explícito en findMany
+- tests/health-api.test.ts: timeout con fake timers (1999 ms pendiente, 2000 ms → 503/500), limpieza de timer en éxito
+- tests/operations-health.test.ts: pruebas de `withTimeout`, `HealthTimeoutError`, `nowMs` determinista
+Migraciones:
+- Ninguna
+Pruebas ejecutadas:
+- `npm test -- tests/health-api.test.ts -t "timeout"` — FAIL previo (handler colgado >5 s sin 503) → PASS tras fix
+- `npm test -- tests/health-api.test.ts tests/operations-health.test.ts` — PASS — 51/51
+- `npm run typecheck` — PASS
+- `npm run lint` — PASS (0 errors, warnings preexistentes)
+- `npm test` — PASS — 617/617
+- `npm run build` — PASS
+Evidencia de aceptación:
+- Prisma colgado → 503 en ≤2 s → test fake timers 1999 ms pendiente, 2000 ms respuesta 503 genérica
+- Error DB → misma respuesta 503 pública; eventos `health_db_timeout` vs `health_db_down` en logger
+- Admin operations-health timeout → 500 en ≤2 s (no cuelga)
+- Deploy sin cambios: `scripts/deploy-vps.sh` sigue `curl -sf` sobre `/api/health` (503 = unhealthy, fallback homepage)
+Riesgo residual:
+- La consulta Prisma subyacente puede seguir ejecutándose tras timeout (no cancelable); el handler ya respondió
+Notas manuales:
+- Checkbox `[ ]` hasta CI verde (Prompt 11)
+```
 
 ## 12 — CSP y headers
 
@@ -766,7 +931,7 @@ Notas manuales:
 - [ ] **Eliminar descarga de todos los pedidos/PII desde `/admin/stats`.**
 
 **Prioridad:** P1  
-**Prompt:** Sesión 13
+**Prompt:** Sesión 13 — Prompt 05 periodos y agregación acotada
 
 **Debe quedar demostrado:**
 
@@ -777,11 +942,45 @@ Notas manuales:
 - Respuesta no contiene PII ni items individuales.
 - Casos vacío, cancelados y comparación anterior probados.
 
-**Evidencia de cierre:** _Pendiente._
+**Evidencia de cierre (Prompt 05 — 2026-07-12):**
+
+```text
+Estado: PARCIAL (validaciones locales PASS; EXPLAIN en producción y CI workflow pendientes)
+Fecha: 2026-07-12
+Prompt aplicado: Sesión 13 — Prompt 05 periodos correctos y agregación acotada
+Archivos modificados:
+- lib/analytics-orders.ts: ANALYTICS_TIMEZONE literal, caracasDayStartUtc (UTC-4 fijo), computeStatsPeriodBounds, createdAtPeriodWhere vs revenuePeriodWhere, storedTotalToUsd
+- app/api/admin/stats/route.ts: reescritura con count/groupBy/$queryRaw parametrizado; filtros separados createdAt (operativo) vs paidAt (ingreso); tz z.literal; range=all sin findMany masivo
+- tests/admin-stats.test.ts: 26 tests (03:59:59Z/04:00:00Z, creado≠pagado, legacy, all 100k sin findMany, previous, PII, tz rechazo)
+- prisma/schema.prisma + migración 20260712180000_order_analytics_indexes: @@index([status, createdAt]) y @@index([status, paidAt])
+- app/admin/stats/page.tsx: sin cambios (ya consume /api/admin/stats con tz=America/Caracas)
+Migraciones:
+- 20260712180000_order_analytics_indexes — índices compuestos status+fecha
+Pruebas ejecutadas:
+- npm test -- tests/admin-stats.test.ts — PASS — 26 tests
+- npm run typecheck — PASS (0 errors)
+- npm run lint — PASS (0 errors, 32 warnings pre-existentes)
+- npm test — PASS (42 files, 596 tests)
+- npm run build — PASS (migración aplicada localmente)
+Evidencia de aceptación:
+- (1) Agregados únicamente → count/groupBy/$queryRaw; DTO sin filas Order/OrderItem; Cache-Control no-store
+- (2) America/Caracas literal → QuerySchema z.literal; 400 si tz≠America/Caracas; helper UTC-4 fijo sin DST
+- (3) Revenue por paidAt + legacy sin paidAt con createdAt en periodo y status validado; Order.total + OrderItem con tasa del Order
+- (4) Frontend /admin/stats ya usa /api/admin/stats (no /api/orders fallback)
+- (5) Sin PII → test serialized no match customerEmail|paymentReference|…
+- (6) Casos borde → tests creado antes/pagado dentro, creado dentro/pagado después, legacy, previousSummary, range=all mock 100k
+Riesgo residual:
+- EXPLAIN ANALYZE de consultas $queryRaw en volumen real no ejecutado en este entorno
+- CI workflow SHA no registrado (sin commit/push en esta sesión)
+Notas manuales:
+- Checkbox permanece [ ] hasta EXPLAIN/CI según control del prompt
+```
 
 ## 14 — Consultas acotadas de home
 
 - [ ] **Evitar que ISR cargue el catálogo completo para estanterías limitadas.**
+
+> Reabierta Prompt 11: tests locales PASS; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P1  
 **Prompt:** Sesión 14
@@ -795,11 +994,38 @@ Notas manuales:
 - Caché/tags e invalidación permanecen.
 - Test verifica `take` incluso con 1.000 productos simulados.
 
-**Evidencia de cierre:** _Pendiente._
+**Evidencia de cierre:**
+
+```text
+Estado: COMPLETADO
+Fecha: 2026-07-12
+Prompt aplicado: Sesión 14 — Prompt 06 consultas acotadas (gaming OR)
+Archivos modificados:
+- lib/home-cache.ts: buildGamingProductsWhere(), GAMING_KEYWORDS, GAMING_PRODUCTS_TAKE=8; getCachedGamingProducts usa OR Prisma insensible en category/name/brand (sin take 24 + filtro memoria)
+- tests/home-cache.test.ts: tests OR, producto antiguo matching, take=8
+Migraciones: Ninguna
+Pruebas ejecutadas:
+- npm run typecheck — PASS (0 errors)
+- npm run lint — PASS (0 errors, 30 warnings pre-existentes)
+- npm test — PASS (43 files, 601 tests)
+- npm run build — PASS
+Evidencia de aceptación:
+- take controlado → newest take=8, flash take=24+filter max 10, gaming take=8 directo en Prisma
+- gaming OR → buildGamingProductsWhere() con OR insensible; test verifica category/name/brand
+- producto antiguo → test "legacy-ps2" aparece sin depender de últimos 24
+- flash deals aún filtra rebaja en memoria tras take=24 (aceptado; no es única limitación del catálogo)
+- tags catalog intactos en unstable_cache
+Riesgo residual:
+- Flash deals mantiene filtro en memoria tras take=24 (patrón preexistente, fuera de alcance gaming)
+Notas manuales:
+- Ninguno
+```
 
 ## 15 — Caché de layout y footer
 
 - [ ] **Unificar lecturas globales cacheadas sin incluir datos por usuario.**
+
+> Reabierta Prompt 11: invalidación categories+shell verificada localmente; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P1  
 **Prompt:** Sesión 15
@@ -812,7 +1038,36 @@ Notas manuales:
 - Config ausente tiene fallback seguro.
 - Test demuestra una sola lectura subyacente por ventana.
 
-**Evidencia de cierre:** _Pendiente._
+**Evidencia de cierre:**
+
+```text
+Estado: COMPLETADO
+Fecha: 2026-07-12
+Prompt aplicado: Sesión 15 — Prompt 06 tag categories en shell cache
+Archivos modificados:
+- lib/site-shell-cache.ts: categories en SHELL_CACHE_TAGS; CACHE_TAG_CATEGORIES exportado
+- app/api/categories/route.ts: POST revalida categories + site-shell
+- app/api/categories/[id]/route.ts: PUT/DELETE revalida categories + site-shell
+- app/api/categories/sync/route.ts: POST revalida categories + site-shell tras éxito
+- tests/site-shell-cache.test.ts: expect categories tag
+- tests/categories-cache-invalidation.test.ts (nuevo): 5 tests invalidación + rechazo admin
+Migraciones: Ninguna
+Pruebas ejecutadas:
+- npm run typecheck — PASS
+- npm run lint — PASS (0 errors)
+- npm test — PASS (601 tests, incl. categories-cache-invalidation)
+- npm run build — PASS
+Evidencia de aceptación:
+- DTO unificado → getCachedSiteShellData sin cookies/session (preexistente, tests site-shell-cache)
+- categories tag → SHELL_CACHE_TAGS incluye 'categories'; unstable_cache tags alineados
+- mutaciones → create/update/delete/sync revalidan CACHE_TAG_CATEGORIES y CACHE_TAG_SITE_SHELL
+- fallback seguro → tests site-shell-cache sin BD
+- sin PII en DTO → test JSON no contiene pagoMovil/binancePayId
+Riesgo residual:
+- productActions.ts aún revalida solo 'categories' string literal (fuera de alcance Prompt 06)
+Notas manuales:
+- Ninguno
+```
 
 ## 16 — Zoom cargado bajo demanda
 
@@ -861,7 +1116,9 @@ Notas manuales:
 
 ## 17 — Tasa inicial y refresco eficiente
 
-- [x] **Eliminar fetch inicial redundante y polling global de 60 segundos.**
+- [ ] **Eliminar fetch inicial redundante y polling global de 60 segundos.**
+
+> Reabierta Prompt 11: 11 tests exchange-rate-provider PASS local; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P2  
 **Prompt:** Sesión 17
@@ -882,22 +1139,18 @@ Estado: COMPLETADO
 Fecha: 2026-07-12
 Prompt aplicado: Sesión 17 — Tasa inicial y refresco eficiente
 Archivos modificados:
-- context/ExchangeRateContext.tsx: reescrito — acepta initialRate/initialUpdatedAt, fetchRate con dedup (Promise ref), STALE_THRESHOLD_MS=15min, timer 15min solo visible, visibilitychange refresca solo si stale y pasó >=15min, error conserva última tasa válida
-- app/layout.tsx: añadido getExchangeRateWithTimestamp() server-side; pasa initialRate/initialUpdatedAt a ExchangeRateProvider
-- lib/load-exchange-rate-ssr.ts (nuevo): getExchangeRateWithTimestamp() en server-only para no arrastrar prisma al bundle cliente
-- lib/exchange-rate.ts: revertido — getExchangeRateWithTimestamp movido a load-exchange-rate-ssr.ts (evitaba build por import de prisma desde client component vía order-pricing.ts)
-- vitest.config.ts: include ampliado a 'tests/**/*.test.{ts,tsx}'
-- tests/exchange-rate-provider.test.tsx (nuevo): 10 tests con fake timers
+- context/ExchangeRateContext.tsx: staleRef sincronizado con stale; mountedRef evita setState post-unmount; visibilitychange lee staleRef; timer no fetch en hidden
+- tests/exchange-rate-provider.test.tsx: test stale false→true + visibilidad con setSystemTime
 Migraciones: Ninguna
 Pruebas ejecutadas:
-- npx tsc --noEmit — PASS (0 errors)
-- npm run lint — PASS (0 errors, 28 warnings pre-existentes, 0 nuevos)
-- npx vitest run — PASS (27 test files, 434 tests passed; 10 nuevos en exchange-rate-provider.test.tsx)
-- npm run build — PASS (build exitoso, todas las rutas compilan)
+- npm run typecheck — PASS (0 errors)
+- npm run lint — PASS (0 errors, 30 warnings pre-existentes)
+- npm test — PASS (43 files, 601 tests; 11 en exchange-rate-provider incl. staleRef)
+- npm run build — PASS
 Evidencia de aceptación:
 - (1) Provider acepta tasa SSR inicial → ExchangeRateProvider recibe initialRate:number, initialUpdatedAt:string|null por props; layout llama getExchangeRateWithTimestamp() server-side y pasa al provider
 - (2) Tasa fresca no dispara fetch al montar → Provider: si initialRate>0 y lastRefreshedAt en los últimos 15 min, loading=false y stale=false sin fetch; test "usa initialRate fresca y no dispara fetch" verifica fetchCalls.length=0
-- (3) Refresco por visibilidad y ventana >=15 min → onVisibility: al volver visible, si stale o pasaron >=15 min desde lastRefreshedAt, fetchRate(); timer cada 15 min solo en visible; test "sin polling en hidden" verifica 0 fetches en 16 min hidden + fetch al volver visible; "timer refresca cada 15 min mientras visible" verifica fetch adicional tras 15 min
+- (3) Refresco por visibilidad → onVisibility usa staleRef.current (Prompt 06 corrige stale closure); test "stale pasó de false a true" verifica fetch con elapsed < 15 min
 - (4) Requests simultáneos deduplicados → currentFetchRef: si hay una promise activa (no-null), fetchRate retorna la misma; test "deduplica requests concurrentes" verifica 1 fetch y 1 solo fetch tras 15 min de timer mientras la promise aún corre
 - (5) Fallo conserva última tasa válida → catch en fetchRate: setStale(true) pero NO modifica rate; test "error no sustituye la última tasa válida" verifica rate=60.0 con stale=true tras error
 - (6) Tasa congelada de pedidos no cambia → No se modificaron checkout-order.ts (loadExchangeRateUsdBsFromTx), order-pricing.ts (DualOrderMoney), definitions.ts (Order.exchangeRateUsdBs). La tasa se sigue congelando en executeCheckoutInTransaction.
@@ -1004,7 +1257,9 @@ Notas manuales:
 
 ## 20 — Reducción controlada de Client Components
 
-- [x] **Inventariar 113 Client Components y convertir un primer lote seguro.**
+- [ ] **Inventariar 113 Client Components y convertir un primer lote seguro.**
+
+> Reabierta Prompt 11: inventario 117 entradas; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P2  
 **Prompt:** Sesión 20
@@ -1026,17 +1281,18 @@ Prompt aplicado: Sesión 20 — Reducción controlada de Client Components
 Archivos modificados:
 - app/buscar/SearchPagination.tsx: quitado 'use client' (CONVERT). Sin hooks/browser APIs/events/context — pure Link rendering desde Server Component padre.
 - components/order/DualOrderMoney.tsx: quitado 'use client' (CONVERT). Sin hooks/browser APIs/events/context — pure rendering de montos en doble moneda.
-- docs/CLIENT-COMPONENT-INVENTORY.md: inventario completo de 113 archivos con clasificación KEEP/CONVERT/SPLIT/STALE, razones y riesgos.
+- docs/CLIENT-COMPONENT-INVENTORY.md: regenerado — **117** archivos `'use client'` (cobertura completa; no implica reducción vs 113 previo)
 Migraciones:
 - Ninguna
 Pruebas ejecutadas:
 - npm run typecheck — PASS (0 errors)
-- npm run lint — PASS (0 errors, 28 warnings pre-existing)
-- npm test — PASS (444 tests, 28 files)
-- npm run build — PASS (build exitoso sin cambios de ruta)
+- npm run lint — PASS (0 errors, 30 warnings pre-existentes)
+- npm test — PASS (601 tests, 43 files)
+- npm run build — PASS
 Evidencia de aceptación:
-- Inventario KEEP/SPLIT/CONVERT → docs/CLIENT-COMPONENT-INVENTORY.md clasifica los 113 archivos: 108 KEEP, 2 STALE (dead code), 2 CONVERT, 1 blocked-by-forwardRef, 3 future SPLIT candidates.
-- Máximo 10 conversiones → solo 2 convertidas (SearchPagination, DualOrderMoney).
+- Inventario KEEP/SPLIT/CONVERT → 117 entradas regeneradas desde código; 115 KEEP, 2 STALE
+- Máximo 10 conversiones → 2 convertidas previamente (SearchPagination, DualOrderMoney) — fuera del conteo 117
+- Sin afirmar reducción por número viejo → nota explícita en doc: conteo sube por hooks/componentes omitidos antes
 - Sin serialización incorrecta → ambos componentes solo reciben primitivas (string, number) y tipos de lib/order-pricing compatibles con RSC. No hay Date, Decimal ni funciones en las props.
 - Providers/forms/drawers siguen cliente → AuthProvider, CartContext, PaymentForm, ShippingForm, etc. intactos.
 - Bundle antes/después → conversión de 2 componentes puros (< 1KB cada uno) no produce diferencia medible en JS chunks. SearchPagination ahora es SSR puro (no aparece en client bundle). Se recomienda bundle analyzer en próxima iteración cuando se conviertan más componentes.
@@ -1050,7 +1306,9 @@ Notas manuales:
 
 ## 21 — Imágenes raw y privacidad
 
-- [x] **Clasificar los 24 `<img>` y optimizar solo los apropiados.**
+- [ ] **Clasificar los 16 `<img>` y optimizar solo los apropiados.**
+
+> Reabierta Prompt 11: IMAGE-AUDIT regenerado; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P2  
 **Prompt:** Sesión 21
@@ -1069,35 +1327,25 @@ Notas manuales:
 ```text
 Estado: COMPLETADO
 Fecha: 2026-07-12
-Prompt aplicado: Sesión 21 — Imágenes raw y privacidad
+Prompt aplicado: Sesión 21 — Prompt 06 regeneración IMAGE-AUDIT (16 usos)
 Archivos modificados:
-- docs/IMAGE-AUDIT.md: auditoría completa de 24 <img> en 9 archivos
-- app/components/checkout/PaymentForm.tsx: referrerPolicy no-referrer en QR Binance; loading lazy + decoding async en blob previews
-- app/components/checkout/ReviewStep.tsx: loading lazy + decoding async en proof preview
-- app/components/AddProductModal.tsx: loading lazy + decoding async en SortableSlot img
-- app/admin/orders/[id]/page.tsx: referrerPolicy no-referrer; alt descriptivo "Comprobante de envío / guía"; loading lazy + decoding async
-- app/admin/reviews/page.tsx: decoding async en thumbnail y detail img
-- app/product/[slug]/ProductGallery.tsx: alt="" + loading lazy + decoding async en CarouselVideo blur poster; loading lazy + decoding async en Lightbox slides no activos
-- app/product/[slug]/ZoomLightbox.tsx: loading lazy + decoding async
-- components/admin/PaymentVerificationPanel.tsx: referrerPolicy no-referrer + loading lazy + decoding async en comprobantes privado y legacy
-- tests/image-audit.test.ts: 24 tests nuevos de auditoría de imágenes
+- docs/IMAGE-AUDIT.md: regenerado — 16 `<img>` en 9 archivos; líneas/decisiones corregidas; CSP no soporta hosts externos arbitrarios; Binance QR → R2/allowlist
+- tests/image-audit.test.ts: expect 16 entradas; test ausencia afirmación CSP externa genérica
 Migraciones: Ninguna
 Pruebas ejecutadas:
-- npm run typecheck — PASS — tsc --noEmit sin errores
-- npm run lint — PASS — 0 errors, 28 warnings pre-existentes (no introducidos)
-- npm test — PASS — 468 tests, 29 files (24 nuevos image-audit + 444 pre-existentes)
-- npm run build — PASS — build exitoso, todas las rutas compilan correctamente
+- npm run typecheck — PASS
+- npm run lint — PASS (0 errors, 30 warnings pre-existentes)
+- npm test — PASS (601 tests, 43 files)
+- npm run build — PASS
 Evidencia de aceptación:
-- (1) Tabla por uso/origen/decisión → docs/IMAGE-AUDIT.md: inventario completo con 24 entradas, columnas #/Línea/Origen/Decisión/alt/Dimensiones/loading/decoding; tabla Decisiones globales con 6 categorías
-- (2) Blob/zoom se conserva → PaymentForm.tsx: 2 previews blob con eslint no-img-element; ProductGallery.tsx: ZoomLightbox con react-zoom-pan-pinch require img nativo; AddProductModal.tsx: SortableSlot con drag-and-drop
-- (3) Recursos públicos permanentes usan optimización segura → ProductGallery.tsx: slides activos y thumbnails ya usan next/image (pre-existente)
-- (4) Comprobantes privados no pasan por optimizador público → PaymentVerificationPanel.tsx: <img> directo con URL firmada corta (180s TTL); referrerPolicy=no-referrer; no pasa por next/image optimizer ni cache público
-- (5) Alt contextúales, dimensiones estables y lazy correctos → cada <img> verificado: alt descriptivo o vacío decorativo, w/h CSS (o aspect-ratio contenedor), loading=lazy, decoding=async añadidos donde faltaban
-- (6) Hosts arbitrarios no habilitan SSRF → next.config.mjs: remotePatterns solo contiene R2 público; Binance QR y tracking de terceros no añadidos; CSP manejado en middleware
+- (1) Tabla 16 entradas con líneas actuales del código (rg `<img` en .tsx)
+- (2) Blob/zoom conservados — sin cambios de código en esta sesión (decisiones documentadas)
+- (4) Comprobantes privados — PaymentVerificationPanel conserva `<img>` firmado
+- (6) Hosts arbitrarios → doc corrige: `buildImgSrc()` solo self/data/blob/R2/GA; QR Binance debe migrarse a R2 público validado, no URL arbitraria
 Riesgo residual:
-- Ninguno conocido. Todos los <img> raw están justificados (blob efímero, URL firmada corta, zoom/drag que requiere DOM nativo, lightbox no activo). No se añadieron hosts externos a remotePatterns.
+- binanceQrUrl en settings aún acepta URL externa en runtime; CSP la bloqueará salvo R2/allowlist — migración admin pendiente
 Notas manuales:
-- Ninguno. Todos los cambios son de código y tests, sin infraestructura externa.
+- Ninguno
 ```
 
 ## 22 — Índices Prisma
@@ -1302,7 +1550,9 @@ Notas manuales:
 
 ## 25 — Reduced motion global
 
-- [x] **Respetar `prefers-reduced-motion` globalmente.**
+- [ ] **Respetar `prefers-reduced-motion` globalmente.**
+
+> Reabierta Prompt 11: 23 tests estáticos PASS; E2E reduced-motion pendiente CI (Sesión 27). No marcar `[x]` hasta CI verde.
 
 **Prioridad:** P2  
 **Prompt:** Sesión 25
@@ -1317,9 +1567,9 @@ Notas manuales:
 **Evidencia de cierre:**
 
 ```text
-Estado: COMPLETADO (con bloqueo conocido)
+Estado: PARCIAL
 Fecha: 2026-07-12
-Prompt aplicado: Sesión 25 — Reduced motion global
+Prompt aplicado: Sesión 25 — Reduced motion global (reabierta Prompt 11)
 Archivos modificados:
 - lib/motion.ts: se añadió re-export de useReducedMotion, helper withReducedMotion, constante reducedTransition
 - components/MotionProvider.tsx: nuevo — MotionConfig reducedMotion="user" envuelve providers cliente
@@ -1348,7 +1598,7 @@ Pruebas ejecutadas:
 - npm run typecheck — PASS (0 errors)
 - npm run lint — PASS (0 errors nuevos; 27 warnings pre-existentes)
 - npm test (full suite) — PASS (504 tests, 32 files, incluidos 23 nuevos)
-- npm run build — BLOQUEADO (no se ejecutó: solo cambios en componentes cliente + CSS, sin cambios en Server Components, runtime o rutas Next.js)
+- npm run build — PASS (exit 0, verificado Prompt 11)
 Evidencia de aceptación:
 - MotionConfig → MotionProvider.tsx línea 3: <MotionConfig reducedMotion="user">
 - Hero autoplay detenido con reduced → HomeHeroCyber.tsx línea 144: if (prefersReduced) return;
@@ -1361,29 +1611,19 @@ Evidencia de aceptación:
 - CSS global reset → globals.css: @media (prefers-reduced-motion: reduce) con animation/transition 0.01ms
 - Skeleton desactivado → globals.css: .skeleton { animation: none; background-image: none }
 - 23 tests unitarios estáticos → tests/reduced-motion.test.ts: PASS
-- Playwright E2E → ⛔ Bloqueado (infraestructura ausente)
+- Playwright E2E → Pendiente CI (Sesión 27); no verificado independientemente en esta ejecución
 Riesgo residual:
 - MotionConfig reducedMotion="user" necesita framer-motion ≥6.5 (presente en el proyecto, no se verificó versión exacta). Si la versión es anterior, el comportamiento será no-op (no rompe nada).
 - Playwright E2E no implementado. El comportamiento con prefers-reduced-motion solo se verificó estáticamente.
 - Algunos motion.div con `initial={false}` (CheckoutStepper) no pueden usar variable condicional; se usa transition condicional en su lugar (aceptable).
 Notas manuales:
 - Verificar framer-motion version >= 6.5 en package-lock.json (requerido para MotionConfig reducedMotion="user").
-- Playwright E2E con emulateMedia reducedMotion queda pendiente para sesión 27 (Playwright E2E) o sesión 32 (reauditoría).
+- Playwright E2E con emulateMedia reducedMotion queda pendiente para CI verde (Sesión 27).
 ```
-
-### Contador de avance
-
-Actualizar manualmente:
-
-- **Completadas:** 18/32
-- **Críticas P0 completadas:** 3/4
-- **Altas P1 completadas:** 6/10
-- **Medias/operativas completadas:** 9/18
-- **Última sesión cerrada:** 27 — Playwright E2E aislado (PARCIAL, 2026-07-12)
 
 ## 26 — Foco y modales
 
-- [x] **Aplicar contrato accesible a dialogs y drawers críticos.**
+- [ ] **Aplicar contrato accesible a dialogs y drawers críticos.** (PARCIAL — E2E teclado pendiente de CI verde, Sesión 27)
 
 **Prioridad:** P1  
 **Prompt:** Sesión 26
@@ -1401,7 +1641,8 @@ Actualizar manualmente:
 
 | Archivo | Responsabilidad |
 |---|---|
-| `hooks/useFocusTrap.ts` | Hook universal de focus trap con stack, restore, dirty guard, focusLast |
+| `hooks/useFocusTrap.ts` | Stack con id (`useId`), Escape/Tab solo en topmost, `isVisible` inyectable, tabindex fallback restaurable, restore focus si conectado/enfocable |
+| `lib/focus-trap-utils.ts` | `defaultIsVisible`, `jsdomFocusTrapVisibility`, `isFocusableElement` |
 | `hooks/useBodyScrollLock.ts` | Scroll lock con compensación scrollbar (sin salto) |
 | `components/SearchMobileOverlay.tsx` | Migrado a useFocusTrap + useBodyScrollLock |
 | `components/layout/CategoryDrawer.tsx` | Migrado a useFocusTrap, removido setTimeout manual |
@@ -1416,7 +1657,9 @@ Actualizar manualmente:
 | `app/components/ProductGridAndFilters.tsx` | Filter drawer migrado a useFocusTrap |
 | `app/buscar/SearchFiltersBar.tsx` | Filter drawer migrado a useFocusTrap |
 | `components/admin/ConfirmDialog.tsx` | Nuevo: role alertdialog, focusLast, destruye no recibe foco |
-| `tests/focus-trap.test.tsx` | Tests unitarios de useFocusTrap |
+| `tests/focus-trap.test.tsx` | 11 tests: stack Escape topmost, Tab/Shift+Tab, tabindex fallback, restore focus |
+| `tests/focus-trap-utils.test.ts` | 3 tests de visibilidad/foco restaurable |
+| `e2e/specs/focus-trap.spec.ts` | E2E teclado CategoryDrawer/CartDrawer (requiere CI + chunks dinámicos) |
 | `tests/confirm-dialog.test.tsx` | Tests unitarios de ConfirmDialog |
 | `tests/zoom-lightbox.test.ts` | Actualizado a nuevo patrón source |
 
@@ -1426,34 +1669,27 @@ Actualizar manualmente:
 
 | Comando | Resultado |
 |---|---|
-| `npx tsc --noEmit` | PASS (0 errors) |
-| `npm run lint` | PASS (0 errors, 28 pre-existing warnings) |
-| `npx vitest run` | PASS (34 files, 520 tests) |
-| `npm run build` | BLOQUEADO (no se puede ejecutar build porque requiere BD PostgreSQL con migraciones y variables de entorno reales — ambiente local sin BD configurada) |
+| `npm run typecheck` | PASS (0 errors) |
+| `npm run lint` | PASS (0 errors, 30 warnings pre-existentes) |
+| `npm test` | PASS (44 files, 610 tests) |
+| `npm run build` | PASS (exit 0) |
+| `npx playwright test e2e/specs/focus-trap.spec.ts` | BLOQUEADO local — chunk CategoryDrawer 500/MIME; sin BD `mundotech_e2e` para fixtures |
 
 **Evidencia por criterio:**
 
 1. **Nombre accesible + aria-modal + foco inicial + trap**: Todos los componentes refactorados tienen `role="dialog"` (o `alertdialog` en ConfirmDialog), `aria-modal="true"`, y `aria-label`/`aria-labelledby`. `useFocusTrap` maneja foco inicial (primer o último), Tab/Shift+Tab cíclico, y prevención de fuga.
-2. **ESC y retorno de foco**: `useFocusTrap` escucha Escape globalmente y llama `onClose`. Al desmontar, restaura `document.activeElement` previo. Verificado en test `Escape llama onClose`.
-3. **Scroll lock sin salto**: `useBodyScrollLock` ahora calcula scrollbar width y aplica `paddingRight` compensatorio. Previene salto de layout al ocultar overflow.
-4. **Backdrop no pierde formularios sucios**: `AddressFormModal` tiene dirty guard: verifica `dirtyFields` antes de cerrar y confirma con `window.confirm`. También aplica en Escape.
-5. **Destructivos no enfocan acción peligrosa**: `ConfirmDialog` usa `focusLast: true` → el foco inicial va al botón Cancelar (último en DOM), no al botón de confirmación destructivo.
-6. **E2E teclado**: Pendiente. Los tests unitarios verifican el hook en lo que JSDOM permite. E2E completo con Playwright cubierto en Sesión 27.
+2. **ESC y retorno de foco**: Solo el overlay superior del `trapStack` (entrada con `id` de `useId`) responde a Escape. Cleanup elimina por `id` exacto. Restore solo si `isConnected` + `isFocusableElement`. Tests: `Escape llama onClose solo en el overlay superior`, `stack real: Escape cierra superior y luego inferior`.
+3. **Focusables visibles**: `offsetParent` reemplazado por `defaultIsVisible` (hidden/aria-hidden/computedStyle/getClientRects); JSDOM usa `jsdomFocusTrapVisibility` inyectable.
+4. **Scroll lock sin salto**: `useBodyScrollLock` ahora calcula scrollbar width y aplica `paddingRight` compensatorio. Previene salto de layout al ocultar overflow.
+5. **Backdrop no pierde formularios sucios**: `AddressFormModal` tiene dirty guard: verifica `dirtyFields` antes de cerrar y confirma con `window.confirm`. También aplica en Escape.
+6. **Destructivos no enfocan acción peligrosa**: `ConfirmDialog` usa `focusLast: true` → el foco inicial va al botón Cancelar (último en DOM), no al botón de confirmación destructivo.
+7. **E2E teclado**: Spec `e2e/specs/focus-trap.spec.ts` añadido (2 tests). BLOQUEADO local; pendiente CI verde.
 
 **Riesgo residual:**
-- `useFocusTrap` usa un módulo global `trapStack` para el stack de overlays. Si hay múltiples instancias independientes del hook en el mismo documento, el stack puede desincronizarse si un overlay se desmonta sin llamar cleanup (ej: error boundary). Mitigación: cleanup siempre en el `useEffect` return.
-- JSDOM no puede probar el foco cíclico Tab/Shift+Tab con elementos reales. Verificación confiable requiere Playwright E2E (Sesión 27).
+- `trapStack` global: mitigado con cleanup por `id` en `useEffect` return.
+- E2E teclado/Axe: specs listos (`focus-trap.spec.ts`, `axe-a11y.spec.ts`); ejecución verde pendiente de CI con `mundotech_e2e` y chunks `_next/static` servidos correctamente.
 
-**Pasos manuales post-despliegue:**
-1. Verificar que cada overlay/drawer recibe foco inicial al abrirse.
-2. Verificar Tab y Shift+Tab no salen del diálogo.
-3. Verificar Escape cierra cada overlay.
-4. Verificar que scroll del body está bloqueado con overlay abierto y se restaura al cerrar.
-5. Verificar AddressFormModal: llenar campos, cerrar → confirmación aparece.
-6. Verificar que ConfirmDialog (destructivo) enfoca Cancelar, no Confirmar.
-7. Verificar que SearchMobileOverlay no salta layout al abrir (scrollbar compensation).
-
-**Evidencia de cierre:** Todos los criterios demostrados excepto E2E Playwright (sesión 27). Typecheck PASS, Lint PASS, Tests 520/520 PASS.
+**Evidencia de cierre:** PARCIAL (Prompt 07, 2026-07-12). Criterios unitarios PASS; E2E teclado pendiente Sesión 27 CI verde. No marcar `[x]` principal hasta E2E real verde.
 
 ---
 
@@ -1478,57 +1714,40 @@ Actualizar manualmente:
 **Evidencia de cierre:**
 
 ```text
-Estado: PARCIAL (E2E no ejecutado — requiere BD Postgres dedicada con "_e2e" en nombre)
+Estado: PARCIAL (focus trap + axe specs reparados; ejecución E2E pendiente CI verde)
 Fecha: 2026-07-12
-Prompt aplicado: Sesión 27 — Playwright E2E aislado
+Prompt aplicado: Prompt 07 — Reparar focus stack y Axe sin skips
 Archivos modificados:
-- playwright.config.ts: configuración con guard de seguridad (aborta si URL contiene mundotechve.com), webServer con NODE_ENV=E2E, retries CI=2, trace on-first-retry, screenshot/video only-on-failure
-- .github/workflows/ci.yml: nuevo job "e2e" con Postgres 16 service, migrations, seed, npx playwright test, artifact upload al fallar
-- lib/resend.tsx: guard explícito para NODE_ENV=E2E (no-op en getResend)
-- lib/r2.ts: guard explícito para NODE_ENV=E2E (assertR2Env no lanza error)
-- scripts/e2e-reset-db.ts: reset/seed de BD E2E con guard destructivo (aborta si DATABASE_URL no contiene "_e2e" ni "test" y no es CI)
-- e2e/fixtures/constants.ts: datos deterministas (admin, client, productos, cupón) + helpers (doLogin, addToCart, applyCoupon, tryLogin)
-- e2e/specs/home-search-pdp-cart.spec.ts: 5 tests — homepage carga, búsqueda, PDP, agregar al carrito, producto sin stock
-- e2e/specs/guest-checkout.spec.ts: 1 test — checkout invitado con comprobante mock
-- e2e/specs/auth-roles.spec.ts: 5 tests — login CLIENT, login ADMIN, CLIENT 403, formulario login, logout
-- e2e/specs/coupon.spec.ts: 2 tests — cupón válido e inválido
-- e2e/specs/stock-double-submit.spec.ts: 3 tests — stock visual, botón activo, doble submit
-- e2e/specs/reset-password.spec.ts: 3 tests — página carga, solicitar reset, enlace login
-- package.json: scripts test:e2e, test:e2e:ui, db:e2e:reset
+- hooks/useFocusTrap.ts: stack con id, Escape/Tab topmost, isVisible, tabindex/restore focus seguros
+- lib/focus-trap-utils.ts (nuevo): defaultIsVisible, jsdomFocusTrapVisibility, isFocusableElement
+- tests/focus-trap.test.tsx: 11 tests stack/Tab/tabindex/restore
+- tests/focus-trap-utils.test.ts (nuevo): 3 tests
+- e2e/specs/focus-trap.spec.ts (nuevo): CategoryDrawer Tab/Escape, CartDrawer Escape
+- e2e/specs/axe-a11y.spec.ts: rutas /product/; viewport mobile antes de goto en overlays; sin test.skip/.catch/isVisible
 Migraciones: Ninguna
 Pruebas ejecutadas:
-- npm run typecheck — PASS — 0 errors (TS strict)
-- npm run lint — PASS — 0 errors, 28 warnings (todos pre-existentes)
-- npm test — PASS — 520 tests en 34 files
-- npm run build — PASS — build de producción completo
-- npx playwright test --list — PASS — 19 tests listados en 6 spec files
-- npx playwright test — BLOQUEADO — requiere Postgres con DB "mundotech_e2e" y dev server corriendo; se ejecutará en CI
+- npm run typecheck — PASS — exit 0
+- npm run lint — PASS — 0 errors, 30 warnings pre-existentes
+- npm test — PASS — 610 tests (44 suites)
+- npm run build — PASS — exit 0
+- npx playwright test --list — PASS — 50 tests en 8 spec files
+- npx playwright test e2e/specs/focus-trap.spec.ts — BLOQUEADO local — chunk CategoryDrawer 500/MIME type text/plain
+- npx playwright test --grep "Axe" — BLOQUEADO local — mismo entorno (drawers dinámicos + sin mundotech_e2e)
 Evidencia de aceptación:
-- Nunca apunta a producción → playwright.config.ts lanza Error si baseURL contiene "mundotechve.com"; webServer usa NODE_ENV=E2E ✓
-- BD E2E aislada con guard destructivo → scripts/e2e-reset-db.ts aborta si DATABASE_URL no contiene "_e2e" ni "test" y no es CI ✓
-- Email/R2 externos mockeados → lib/resend.tsx getResend() retorna null en NODE_ENV=E2E; lib/r2.ts assertR2Env() no lanza en NODE_ENV=E2E ✓
-- Cubre home→PDP→carrito → home-search-pdp-cart.spec.ts (homepage, búsqueda, PDP, add-to-cart, sin-stock) ✓
-- Cubre checkout guest → guest-checkout.spec.ts (formulario invitado, upload mock, confirmación) ✓
-- Cubre login → auth-roles.spec.ts (CLIENT y ADMIN login, logout) ✓
-- Cubre roles → auth-roles.spec.ts (CLIENT 403 en /admin) ✓
-- Cubre cupón → coupon.spec.ts (válido e inválido) ✓
-- Cubre stock → stock-double-submit.spec.ts (sin stock visual, botón activo, doble submit) ✓
-- Cubre reset → reset-password.spec.ts (formulario, solicitud, enlace login) ✓
-- Traces/capturas solo al fallar e ignorados → playwright.config.ts trace/screenshot/video only-on-failure; .gitignore ya tiene playwright-report/ y test-results/ ✓
-- CI ejecuta suite reproducible → .github/workflows/ci.yml job "e2e" con Postgres service, migrations, seed, test, artifacts al fallar ✓
-- 19 tests E2E total en 6 spec files ✓
+- Escape solo cierra topmost del stack ✓ (unit)
+- Tab/Shift+Tab ciclan ✓ (unit + spec E2E listo)
+- isVisible reemplaza offsetParent ✓
+- tabindex fallback restaurable ✓
+- Axe sin skip/catches silenciosos ✓
+- Rutas PDP /product/{slug} ✓
 Riesgo residual:
-- Los tests E2E no fueron ejecutados localmente (requieren BD Postgres dedicada). Se ejecutarán en GitHub Actions CI.
-- Los selectores usan expresiones i18n y texto flexible; podrían requerir ajuste fino si el markup real difiere del esperado.
-Notas manuales:
-- Crear BD PostgreSQL manual: CREATE DATABASE mundotech_e2e;
-- Ejecutar local: DATABASE_URL=postgresql://user:pass@localhost:5432/mundotech_e2e npx tsx scripts/e2e-reset-db.ts && npm run test:e2e
-- En CI la BD se crea automáticamente via service postgres.
+- Sesión permanece abierta hasta run CI verde (job e2e/axe con mundotech_e2e)
+Notas: ConfirmDialog, CartDrawer, CategoryDrawer sin cambios de API — consumen hook actualizado por defecto
 ```
 
 ## 28 — Axe y accesibilidad automatizada
 
-- [x] **Añadir escaneo Axe en rutas y estados críticos.**
+- [ ] **Añadir escaneo Axe en rutas y estados críticos.**
 
 **Prioridad:** P2  
 **Prompt:** Sesión 28
@@ -1543,47 +1762,28 @@ Notas manuales:
 **Evidencia de cierre:**
 
 ```text
-Estado: COMPLETADO
+Estado: PARCIAL (specs axe reparados Prompt 07; ejecución --grep Axe pendiente CI verde)
 Fecha: 2026-07-12
-Prompt aplicado: Sesión 28 — Axe automatizado
-Archivos modificados:
-- lib/e2e-axe.ts: helper de escaneo axe; AxeBuilder sin HTML (no PII); scanAxe() devuelve resumen; AXE_EXCEPTIONS con expiración; filterExceptions()
-- e2e/specs/axe-a11y.spec.ts: 24 tests axe en describe "Axe — Accesibilidad automatizada" con subgrupos: páginas públicas (14), drawers/overlays (3), checkout (2), admin (3), auth forms (3), account pages (3)
-- docs/A11Y-CHECKLIST.md: checklist manual: teclado (12 ítems), lectores pantalla (14), zoom 200%/400% (8), contraste (13), reduced motion (4), formularios (6), errores (3), orientación (3)
-- .github/workflows/ci.yml: nuevo job "axe" corre --grep "Axe" con BD E2E aislada; artifact axe-report al fallar
-- package.json: +@axe-core/playwright@^4.12.1 (dev)
-Migraciones: Ninguna
-Pruebas ejecutadas:
-- npm run typecheck — PASS — 0 errores
-- npm run lint — PASS — 0 errores (28 warnings pre-existentes)
-- npm test — PASS — 520 tests (34 suites)
-- npx playwright test --list (verificación estructural de los 24 tests axe):
-  - 14 tests de páginas públicas navegables (/, /productos, PDP con/sin stock, /cart, /login, /registro, /ofertas, /nosotros, /devoluciones, /shipping-policy, /privacy-policy, /terms-of-service, /tienda-barquisimeto)
-  - 3 tests de drawers/overlays (CartDrawer, CategoryDrawer, SearchMobileOverlay)
-  - 2 tests de checkout (checkout page, checkout/success sin orden)
-  - 3 tests de admin (dashboard, products, orders)
-  - 3 tests de auth (login relleno, registro, forgot-password)
-  - 3 tests de account (dashboard, orders, details) — autenticado como admin
-  - Tests E2E no ejecutados localmente por falta de BD Postgres E2E dedicada (misma limitación que Sesión 27)
-Evidencia de aceptación:
-- scanAxe() en lib/e2e-axe.ts devuelve AxeViolationSummary[] sin HTML ni PII → criterio "Helper devuelve detalles regla/impact/targets sin HTML con PII" ✓
-- AXE_EXCEPTIONS = {} vacío (sin excepciones activas) con sistema de expiración por fecha → criterio "Excepciones son puntuales, documentadas y con expiración" ✓
-- assertNoCriticalSerious() filtra por impact='critical'|'serious' + filterExceptions(), falla test si hay violaciones → criterio "Falla critical/serious" ✓
-- 14 páginas públicas + 3 overlays/drawers + 2 checkout + 3 admin + 3 auth + 3 account = 28 tests (24 efectivos + sub-tests) → criterio "Escanea páginas y overlays abiertos" ✓
-- docs/A11Y-CHECKLIST.md: 35+ ítems manuales para VoiceOver/TalkBack (2 secciones con 14 ítems), teclado (12 ítems), zoom 200%/400% (8 ítems), contraste (13 ítems), reduced motion (4 ítems) → criterio "Existe checklist manual VoiceOver/TalkBack/zoom/contraste" ✓
-- CI job "axe" con --grep "Axe", artifact axe-report al fallar → criterio "Integra job después de E2E setup" ✓
+Prompt aplicado: Prompt 07 — Reparar focus stack y Axe sin skips
+Archivos tocados en este prompt:
+- e2e/specs/axe-a11y.spec.ts: rutas /product/; viewport 390×844 antes de goto en CartDrawer/CategoryDrawer/SearchMobile; expect obligatorios; sin test.skip/isVisible/.catch
+- lib/e2e-axe.ts: sin cambios (ya sin PII ni catches silenciosos)
+Pruebas ejecutadas (compartidas con Sesión 27):
+- npm run typecheck — PASS
+- npm run lint — PASS
+- npm test — PASS — 610 tests
+- npx playwright test --list — PASS — 28 tests Axe listados (50 total suite)
+- npx playwright test --grep "Axe" — BLOQUEADO local — drawers dinámicos (chunk 500) + sin BD mundotech_e2e
 Riesgo residual:
-- tests E2E (incluyendo axe) no ejecutados localmente por falta de BD Postgres E2E dedicada (misma limitación documentada en Sesión 27)
-- Los tests axefallarán en CI si hay violaciones critical/serious — es el comportamiento deseado
-Notas manuales:
-- Ejecutar tests Axe localmente: PLAYWRIGHT_BASE_URL=http://localhost:3000 npx playwright test --grep "Axe"
-- Requiere BD E2E con _e2e en el nombre y datos sembrados (npm run db:e2e:reset)
-- docs/A11Y-CHECKLIST.md debe ser revisado manualmente por un humano con lectores de pantalla reales
+- Sesión permanece abierta hasta run CI verde de job axe
+Notas: No marcar [x] hasta E2E Axe verde en CI (Sesión 27)
 ```
 
 ## 29 — Dependencias y supply chain
 
-- [x] **Incorporar auditoría runtime/dev, secret scanning y actualizaciones controladas.**
+- [ ] **Incorporar auditoría runtime/dev, secret scanning y actualizaciones controladas.**
+
+> Reabierta Prompt 11: supply-chain tests PASS local; Gitleaks en `.github/workflows/secrets.yml` — cierre `[x]` solo tras run CI verde en GitHub Actions.
 
 **Prioridad:** P1  
 **Prompt:** Sesión 29
@@ -1602,46 +1802,51 @@ Notas manuales:
 ```text
 Estado: COMPLETADO
 Fecha: 2026-07-12
-Prompt aplicado: Sesión 29 — Supply chain y dependencias
+Prompt aplicado: Sesión 29 — Prompt 09 supply chain (pins SHA, Dependabot, SBOM, docs)
 Archivos modificados:
-- .github/workflows/ci.yml: permisos explícitos, SHA documentados, steps audit runtime + dev + SBOM
-- .github/workflows/secrets.yml: SHA checkout documentado, checksum SHA-256 en descarga Gitleaks
-- .github/dependabot.yml: CREADO
-- package.json: scripts security:audit:runtime, security:audit:dev, security:sbom
-- .gitignore: sbom/, docs/DEV-DEPENDENCY-AUDIT.md
-- scripts/audit-dev-dependencies.sh: CREADO
-- scripts/generate-sbom.sh: CREADO
-- docs/ACTION-PINNING-POLICY.md: CREADO
-- docs/PRISMA-DEPENDENCY-NOTES.md: CREADO
+- .github/workflows/ci.yml: acciones fijadas a SHA (checkout 11bd719…, setup-node 49933…, upload-artifact ea165…)
+- .github/workflows/secrets.yml: checkout SHA + checksum Gitleaks 8.30.1 verificado (551f6fc…)
+- .github/dependabot.yml: eliminado ignore semver-major; grupos solo minor/patch; sin automerge
+- package.json: @cyclonedx/cyclonedx-npm@6.0.0 (exacta) en devDependencies
+- package-lock.json: lock de cyclonedx-npm y transitivas
+- scripts/generate-sbom.sh: npx --no-install cyclonedx-npm (sin @latest, sin npx -y)
+- docs/ACTION-PINNING-POLICY.md: política SHA obligatorio, tabla de pins
+- docs/DEPENDENCY-SECURITY.md: CREADO — runtime/dev, advisories, Prisma transitivas, SLA, overrides
+- README.md: Gitleads → Gitleaks
+- tests/supply-chain.test.ts: CREADO — 12 tests (pins, dependabot, SBOM, checksum, docs)
 Migraciones: Ninguna
 Pruebas ejecutadas:
+- npx vitest run tests/supply-chain.test.ts — PASS (12/12; 11 fallaban antes del fix)
 - npm run typecheck — PASS
-- npm run lint — PASS (0 errors, 28 pre-existing warnings)
-- npm test — PASS (520 tests, 34 files)
+- npm run lint — PASS (0 errors, 32 warnings pre-existing)
+- npm test — PASS (624 tests, 46 files)
+- npm ci — PASS
 - npm run security:versions — PASS
-- npm run security:audit:runtime — PASS (exit 0, 0 high/critical)
-- npm run security:audit:dev — PASS (generó artifact)
-- bash scripts/generate-sbom.sh — PASS (CycloneDX 1.6, 963 comps, sin secretos)
-- actionlint — PASS (0 errores ambos workflows)
-- npm ls — PASS (package.json/lock consistentes)
+- npm run security:audit:runtime — PASS (exit 0, 0 high/critical; 8 moderate documentados)
+- npm run security:audit:dev — PASS (generó docs/DEV-DEPENDENCY-AUDIT.md)
+- npm run security:sbom — PASS (CycloneDX 1.6, ~1.7 MB, binario local)
+- actionlint .github/workflows/*.yml — PASS (0 errores)
+- npm run build — PASS (migrate deploy + next build)
 Evidencia de aceptación:
-- Criterio 1 → npm audit --omit=dev --audit-level=high bloquea high/critical (exit 0 porque solo moderate). Dev audit separado con artifact.
-- Criterio 2 → secrets.yml: fetch-depth:0, GITLEAKS_VERSION fija, .gitleaks.toml allowlist minimal.
-- Criterio 3 → .github/dependabot.yml: semanal sábado, grupos patch/minor, major ignorado, sin automerge.
-- Criterio 4 → docs/ACTION-PINNING-POLICY.md. workflows con SHA documentados + permissions explícitos.
-- Criterio 5 → npm ls sin errores. SBOM CycloneDX 1.6 generado en build CI.
-- Criterio 6 → docs/PRISMA-DEPENDENCY-NOTES.md documenta transitivas Prisma 7 + overrides con test.
-- Criterio 7 → actionlint 0 errores. secrets.yml: sha256sum --check antes de extraer Gitleaks.
+- Criterio 1 → npm audit --omit=dev --audit-level=high bloquea high/critical (exit 0). Dev audit separado.
+- Criterio 2 → secrets.yml: fetch-depth:0, GITLEAKS_VERSION 8.30.1, checksum SHA-256 verificado contra release real.
+- Criterio 3 → dependabot.yml: sin ignore semver-major; majors como PR individual; grupos minor/patch; sin automerge.
+- Criterio 4 → workflows usan SHA completos (no @v4 tags); ACTION-PINNING-POLICY.md actualizado.
+- Criterio 5 → package.json/lock coherentes; SBOM con @cyclonedx/cyclonedx-npm@6.0.0 lockeado.
+- Criterio 6 → DEPENDENCY-SECURITY.md: advisories actuales, Prisma transitivas, SLA, overrides probados.
+- Criterio 7 → actionlint 0 errores; Gitleaks checksum verificado: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb.
 Riesgo residual:
-- Bajo: moderate vulnerabilities en postcss, uuid, @hono/node-server (no bloqueantes en política --audit-level=high).
-- Bajo: extraneous packages locales no afectan CI limpia.
+- Bajo: 8 moderate (postcss, uuid, @hono/node-server) documentados; no bloquean política --audit-level=high.
+- Bajo: cyclonedx-npm emite npm error por @img/sharp-wasm32 inválido pero genera SBOM (--ignore-npm-errors).
 Notas manuales:
-- Subir .github/dependabot.yml a GitHub para activar Dependabot.
+- Subir .github/dependabot.yml a GitHub para activar Dependabot si aún no está en remoto.
 ```
 
 ## 30 — Documentación operativa
 
-- [x] **Sincronizar README/runbooks con el deploy y los servicios reales.**
+- [ ] **Sincronizar README/runbooks con el deploy y los servicios reales.**
+
+> Reabierta Prompt 11: `docs/OPERATIONS-RUNBOOK.md` creado; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P2  
 **Prompt:** Sesión 30
@@ -1690,58 +1895,54 @@ Notas manuales:
 
 ## 31 — GA4 y validación SEO
 
-- [x] **Activar/validar analítica y SEO sin enviar PII.**
+- [ ] **Activar/validar analítica y SEO sin enviar PII.**
+
+> Reabierta Prompt 11: GA4 enforcement verificado en repo; validación externa (GSC/Merchant/GA4 prod) marcada NO VERIFICADO en `docs/SEO-VALIDATION.md`. Cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P2  
 **Prompt:** Sesión 31
 
 **Debe quedar demostrado:**
 
-- Consent Mode precede eventos. ✓ (37 tests lib/ga4.ts + 16 tests CookieConsent)
-- Eventos ecommerce no contienen PII. ✓ (hasPii/hasSensitiveKeys validators en ga4 tests)
-- Purchase deduplicado y moneda/tasa documentadas. ✓ (trackPurchaseOnce con sessionStorage, limit 20, documentada limitación entre pestañas)
-- Sitemap, robots, canonical, JSON-LD, Merchant e IndexNow validados. ✓ (existentes pre-sesión, verificados en docs/SEO-MEJORAS-2026-07-02.md)
-- IDs externos quedan como pasos manuales, nunca inventados. ✓ (NEXT_PUBLIC_GA4_ID, INDEXNOW_KEY, GOOGLE_SITE_VERIFICATION son variables de entorno documentadas en .env.example)
+- Consent Mode precede eventos. ✓ (getGtag exige __mtAnalyticsConsent=granted; 22 tests ga4 + 17 CookieConsent)
+- Eventos ecommerce no contienen PII. ✓ (rechazo runtime en sanitizeParams/sanitizeItems + tests)
+- Purchase deduplicado y moneda/tasa documentadas. ✓ (trackPurchaseOnce: track primero, marca visto solo si éxito, dedupe memoria/sessionStorage)
+- Sitemap, robots, canonical, JSON-LD, Merchant e IndexNow validados en repo. ✓ (docs/SEO-VALIDATION.md + código existente)
+- IDs externos quedan como pasos manuales, nunca inventados. ✓ (docs/SEO-VALIDATION.md marca NO VERIFICADO externamente)
 
 **Evidencia de cierre:**
 
 ```text
 Estado: COMPLETADO
 Fecha: 2026-07-12
-Prompt aplicado: Sesión 31 — GA4 y validación SEO
+Prompt aplicado: Sesión 31 — Prompt 10 enforcement GA4 y documentación SEO
 Archivos modificados:
-- lib/ga4.test.ts (NUEVO): 37 tests — toGa4Item, ga4ItemsValue, track (no-op/PII-free/gtag), trackPurchaseOnce (dedupe/sessionStorage/limit 20), Payload allowlist (view_item/add_to_cart/purchase sin campos extra), GA4_ID ausente
-- tests/cookie-consent.test.tsx (NUEVO): 16 tests — consent default denied, anonymize_ip, banner show/hide, initialConsent SSR, accept/reject persiste y gtag update, admin no muestra banner, waitFor assertions
-- vitest.config.ts: NEXT_PUBLIC_GA4_ID y NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION añadidos como env vars dummy para que CookieConsent y sitemap tengan GA_ID/GSC_ID en tiempo de import (módulo lee process.env a nivel de módulo en CookieConsent.tsx)
+- lib/ga4.ts: __mtAnalyticsConsent, getGtag con consent granted, track→boolean, union Ga4Event + allowlist params/items, rechazo PII runtime, trackPurchaseOnce (track primero, marca visto solo si éxito, dedupe memoria si sessionStorage falla)
+- lib/ga4.test.ts: 22 tests — denied→0, grant→event, keys desconocidas eliminadas, PII rechazada, purchase antes/después consent, dedupe sessionStorage/memoria
+- app/components/CookieConsent.tsx: setAnalyticsConsent + __mtAnalyticsConsent denied por defecto en script inline
+- tests/cookie-consent.test.tsx: +2 tests __mtAnalyticsConsent denied/granted (17 total)
+- app/checkout/success/SuccessClientPage.tsx: reintenta trackPurchaseOnce al cambiar consent
+- docs/SEO-VALIDATION.md (NUEVO): resultados repo + pasos manuales Search Console/Merchant/IndexNow/Rich Results/GA4 (sin afirmar validación externa)
 Migraciones: Ninguna
 Pruebas ejecutadas:
-- npx vitest run lib/ga4.test.ts — PASS — 37/37 tests (toGa4Item, ga4ItemsValue, track, trackPurchaseOnce, no-op sin GA4_ID, PII-free, payload allowlist)
-- npx vitest run tests/cookie-consent.test.tsx — PASS — 16/16 tests (consent default, banner SSR, aceptar/rechazar, gtag update, admin, accesibilidad)
-- npx vitest run — PASS — 573/573 tests (36 files, sin regresiones)
-- npx tsc --noEmit — PASS — 0 errors
-- npm run lint — PASS — 0 errors (31 warnings pre-existing)
+- npx vitest run lib/ga4.test.ts — PASS — 22/22 (consent enforcement, allowlist, PII runtime, purchase dedupe)
+- npx vitest run tests/cookie-consent.test.tsx — PASS — 17/17 (__mtAnalyticsConsent + Consent Mode v2)
+- npm run typecheck — PASS — 0 errors
+- npm run lint — PASS — 0 errors (31 warnings preexistentes)
+- npm test — PASS — 610/610 tests (46 files)
+- npm run build — PASS — 61/61 páginas
 Evidencia de aceptación:
-- Consent Mode precede eventos → test "gtag se inicializa con consent default: denied para todos" verifica analytics_storage=denied, ad_storage=denied, ad_user_data=denied, ad_personalization=denied en dataLayer
-- Eventos sin PII → tests "no pasa PII en view_item/add_to_cart/remove_from_cart/begin_checkout/add_shipping_info/add_payment_info" verifican payloads contra hasPii() y hasSensitiveKeys(); test "NUNCA incluye PII como campos propios" en toGa4Item; tests "items/purchase nunca contienen PII" en payload allowlist
-- Purchase deduplicado → tests "NO llama gtag si mismo transaction_id", "limita historial a 20 IDs", "permite trackear ID diferente", "es no-op si sessionStorage falla", "documenta limitación entre pestañas"
-- Sitemap → app/sitemap.ts verificado (productos isActive, categorías, /ofertas, estáticas con prioridades, imágenes)
-- robots → app/robots.ts verificado (allow /, /productos, /product/, /categoria/; disallow /admin, /api, /checkout, /account, /cart, /wishlist; sitemap URL, GPTBot disallow /)
-- canonical → cada página indexable declara canonical propio; layout no hereda canonical global
-- JSON-LD → layout.tsx: WebSite+SearchAction, LocalBusiness con @id estable, Organization con logo/contactPoint; ProductJsonLd.tsx con Product+Offer+Breadcrumb+MerchantReturnPolicy
-- Merchant feed → GET /api/merchant-feed existente con rate limit, taxonomía Google, solo isActive, cache 1h, XML RSS 2.0
-- IndexNow → lib/indexnow.ts + app/indexnow.txt/route.ts: ping best-effort con timeout 5s, key en /indexnow.txt
-- noindex → páginas sensibles (cart, checkout, checkout/success, account, admin, auth, wishlist, buscar filtrado)
-- IDs externos → .env.example documenta NEXT_PUBLIC_GA4_ID, NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION, INDEXNOW_KEY como opcionales
+- Consent Mode precede eventos → getGtag exige __mtAnalyticsConsent=granted; test "denied → 0 eventos"
+- Eventos sin PII → sanitizeParams rechaza keys/valores sensibles; test "elimina campos extra en items" + "rechaza payload con PII en coupon"
+- Purchase deduplicado → trackPurchaseOnce marca visto solo tras track() true; dedupe memoria si sessionStorage falla
+- Allowlist eventos → union Ga4Event; test "rechaza eventos arbitrarios"
+- Purchase no se pierde → test "purchase no se pierde antes de consent — reintenta tras grant" + SuccessClientPage escucha consent
+- SEO doc → docs/SEO-VALIDATION.md con pasos manuales explícitos NO VERIFICADO externamente
 Riesgo residual:
-- sessionStorage dedupe no cruza pestañas/ventanas (limitación documentada en test y comentario en trackPurchaseOnce). Una solución server-side requeriría endpoint /api/ga4-dedupe que añadiría latencia al checkout — decisión consciente.
-- anonymize_ip se envía en gtag('config') pero no hay verificación server-side del IP truncado — Google lo maneja del lado receptor.
-- Merchant Center feed no verificado con cuenta real — requiere URL pública registrada en Merchant Center.
+- sessionStorage dedupe no cruza pestañas/ventanas (limitación documentada). Dedupe en memoria solo cubre la pestaña actual.
+- Validación Search Console, Merchant Center, IndexNow y Rich Results requiere URLs públicas — pasos manuales en docs/SEO-VALIDATION.md.
 Notas manuales:
-- Crear propiedad GA4 en analytics.google.com, copiar ID de medición (G-XXXXXXXXXX) a NEXT_PUBLIC_GA4_ID en .env del VPS, rebuild + deploy.
-- Registrar /api/merchant-feed como feed XML en Google Merchant Center.
-- Si CF Analytics ya registra métricas, decidir si mantener ambos (GA4 duplica pero da ecommerce tracking); documentar en docs/.
-- IndexNow: generar clave con openssl rand -hex 16 y añadir INDEXNOW_KEY al .env.
-- Search Console: verificar propiedad y añadir NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION.
+- Ver docs/SEO-VALIDATION.md para GA4_ID, GSC verification, Merchant feed e IndexNow en producción.
 ```
 
 ## 32 — Reauditoría final
@@ -1761,7 +1962,48 @@ Notas manuales:
 - Git sin `.next*`, backups, credenciales ni `.env.bak` trackeados.
 - `docs/RE-AUDITORIA-POST-CORRECCIONES.md` contiene estado CLOSED/PARTIAL/OPEN con evidencia.
 
-**Evidencia de cierre:** _Pendiente._
+**Evidencia de cierre:** _Pendiente — ejecutar solo en Sesión 32._
+
+### Preparación Sesión 32 (Prompt 11 — no ejecutar reauditoría aún)
+
+Checklist de entrada para auditoría humana. **No crear `docs/RE-AUDITORIA-POST-CORRECCIONES.md` hasta iniciar Sesión 32.**
+
+```text
+Estado: PENDIENTE (preparado Prompt 11)
+Fecha: 2026-07-12
+SHA repo local: 4e938449d18c9a42f17f83bf7a8330715fdf8e56
+Workflow CI: .github/workflows/ci.yml (jobs quality, build, e2e, axe)
+Workflow secrets: .github/workflows/secrets.yml (Gitleaks 8.30.1)
+Script plan: scripts/check-plan-consistency.mjs (npm run plan:check)
+Runbook ops: docs/OPERATIONS-RUNBOOK.md
+Supply chain: docs/DEPENDENCY-SECURITY.md
+SEO manual: docs/SEO-VALIDATION.md (externos NO VERIFICADO)
+Prerrequisitos antes de marcar [x]:
+1. Push/PR dispara CI verde en los 4 jobs + secrets scan
+2. Registrar URL/run-id del workflow (sin secretos) en evidencia Sesión 32
+3. Revisar cada sesión reabierta (04–31) y marcar [x] solo con exit 0 en todas las validaciones requeridas
+4. npm ci en clon limpio reproducible
+5. Migraciones limpias (job build) + E2E + Axe verdes
+6. Generar docs/RE-AUDITORIA-POST-CORRECCIONES.md con CLOSED/PARTIAL/OPEN
+Validaciones locales Prompt 11 (2026-07-12, no sustituyen CI):
+- npm run plan:check — PASS (7/32; parser alineado con encabezado)
+- npm run typecheck — PASS
+- npm run lint — PASS (0 errors, 31 warnings preexistentes)
+- npm test — PASS (617 tests, 47 files)
+- npm ci — PASS
+- npm run security:versions — PASS (next 16.2.10)
+- npm run security:audit:runtime — PASS (8 moderate documentados; 0 high/critical)
+- npm run security:api-guards — PASS
+- npm run security:sbom — PASS (sbom/cyclonedx-sbom.json ~1.7 MB)
+- actionlint .github/workflows/*.yml — PASS
+- npm run build — PASS (migrate deploy + next build)
+- npx playwright test (E2E) — BLOQUEADO local (BD mundotech_e2e sin seed/servidor; CI job e2e pendiente)
+- Gitleaks — BLOQUEADO local (no instalado; CI secrets.yml)
+Riesgo residual:
+- Historial git puede contener PII legacy (sesión 03) — no verificado independientemente sin Gitleaks remoto
+Notas:
+- Sin commit, push ni deploy en Prompt 11
+```
 
 ---
 
@@ -1804,6 +2046,9 @@ Añadir una fila por sesión cerrada:
 | 2026-07-12 | 25 | COMPLETADO | Sin commit | typecheck PASS, lint PASS, 504 tests PASS (23 nuevos reduced-motion) | MotionProvider, lib/motion.ts, 17 componentes con reducedMotion condicional, CSS reset global. Playwright E2E: Bloqueado. |
 | 2026-07-12 | 27 | PARCIAL | Sin commit | typecheck PASS, lint PASS, 520 tests PASS, build PASS, 19 E2E tests listados (no ejecutados localmente) | playwright.config.ts con guard; BD E2E con guard destructivo; Resend/R2 mockeados; fixtures deterministas; 6 spec files (19 tests): home-search-PDP-cart, guest checkout, auth/roles, coupon, stock/doble-submit, reset-password; CI job "e2e" completo. Tests no ejecutados localmente por falta de BD Postgres dedicada.
 | 2026-07-12 | 28 | COMPLETADO | Sin commit | typecheck PASS, lint PASS, 520 tests PASS | @axe-core/playwright@^4.12.1; lib/e2e-axe.ts; 24 tests Axe; docs/A11Y-CHECKLIST.md; CI job "axe"
-| 2026-07-12 | 29 | COMPLETADO | Sin commit | typecheck PASS, lint PASS, 520 tests PASS, security:versions PASS, security:audit:runtime PASS, actionlint PASS | Dependabot config; action pinning policy; audit runtime/dev; SBOM CycloneDX; Prisma transitivas doc; checksum Gitleaks
+| 2026-07-12 | 29 | COMPLETADO | Sin commit | typecheck PASS, lint PASS, 624 tests PASS (12 supply-chain), security:versions PASS, security:audit:runtime PASS, npm ci PASS, actionlint PASS, build PASS | Prompt 09: SHA pins reales; Dependabot sin ignore major; SBOM cyclonedx-npm@6.0.0 local; DEPENDENCY-SECURITY.md; Gitleaks checksum verificado
 | 2026-07-12 | 30 | COMPLETADO | Sin commit | typecheck PASS, lint PASS, 520 tests PASS, security:versions PASS, link checker PASS | README sincronizado con producción: deploy atómico, 6 crons, backup/restore, health, CI 4 jobs, R2 público+privado, 25 scripts, 9 auditorías snapshot; todos los links y scripts verificados
-| 2026-07-12 | 31 | COMPLETADO | Sin commit | typecheck PASS, lint PASS, 573 tests PASS (53 nuevos: 37 ga4 + 16 cookie-consent) | GA4: 37 tests unitarios lib/ga4 (no-op, PII-free, dedupe, payload allowlist, currency USD). CookieConsent: 16 tests (Consent Mode v2 defaults, banner SSR, accept/reject gtag update, admin no-show, accesibilidad). SEO existente verificado: sitemap, robots, canonical, JSON-LD, Merchant feed, IndexNow, noindex. vitest.config con GA4_ID dummy. Sin migraciones.
+| 2026-07-12 | 31 | COMPLETADO | Sin commit | typecheck PASS, lint PASS (0 errors), 610 tests PASS, build PASS | Prompt 10: GA4 enforcement (__mtAnalyticsConsent, allowlist, PII runtime, track→boolean, trackPurchaseOnce mejorado). CookieConsent + SuccessClientPage migrados. docs/SEO-VALIDATION.md creado. 22 tests ga4 + 17 cookie-consent.
+| 2026-07-12 | 11 | COMPLETADO | Sin commit | typecheck PASS, lint PASS, 617 tests PASS, build PASS | HealthTimeoutError + withTimeout(2000ms) en /api/health y admin/operations-health; AbortController eliminado; test fake timers 1999ms pendiente / 2000ms → 503; deploy-vps.sh sin cambios (contrato status/http).
+| 2026-07-12 | 31 | REABIERTA | Sin commit | GA4 local PASS; externo NO VERIFICADO | Prompt 11: checkbox `[ ]` hasta CI verde |
+| 2026-07-12 | — | RECONCILIACIÓN | Sin commit | plan:check PASS; typecheck PASS; lint PASS (0 errors, 31 warnings); npm test PASS (617); npm ci PASS; security:versions/audit:runtime/api-guards PASS; actionlint PASS; build PASS; SBOM PASS; E2E/Axe/Gitleaks BLOQUEADO local | Prompt 11: reabiertas 04–31 (cerradas con CI: 01,16,18,19,22,23,24); script check-plan-consistency.mjs + CI; docs/OPERATIONS-RUNBOOK.md; Sesión 32 preparada; SHA 4e938449 |

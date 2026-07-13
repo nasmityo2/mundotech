@@ -8,17 +8,9 @@ import { registerFromOrderAction } from '@/app/actions/authActions';
 
 /**
  * FASE 4.1 (MEJORA 1.2): "Crea tu cuenta en 1 clic" tras la compra invitada.
- * Reutiliza los datos ya capturados en el pedido (email/nombre/teléfono/cédula);
- * el cliente solo define contraseña. Al crearla se vinculan automáticamente
- * este pedido y cualquier pedido previo con el mismo email, y se inicia sesión.
+ * Consume el token guest (?token=) como bearer; el cliente solo define contraseña.
  */
-export default function GuestAccountCard({
-  orderId,
-  customerEmail,
-}: {
-  orderId: string;
-  customerEmail: string;
-}) {
+export default function GuestAccountCard({ guestToken }: { guestToken: string }) {
   const { status } = useSession();
   const router = useRouter();
   const [password, setPassword] = useState('');
@@ -27,7 +19,6 @@ export default function GuestAccountCard({
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Si ya hay sesión (compró logueado o acaba de crear la cuenta), no se muestra.
   if (status === 'authenticated' && !done) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,21 +31,19 @@ export default function GuestAccountCard({
     setSubmitting(true);
     setError(null);
     try {
-      const result = await registerFromOrderAction(orderId, password);
-      if (!result.success) {
+      const result = await registerFromOrderAction(guestToken, password);
+      if (!result.success || !result.email) {
         setError(result.message);
         return;
       }
       setDone(true);
-      // Inicio de sesión automático con las credenciales recién creadas.
       const login = await signIn('credentials', {
-        email: result.email ?? customerEmail,
+        email: result.email,
         password,
         redirect: false,
       });
       if (login?.ok) router.refresh();
-    } catch (err) {
-      console.error('[GuestAccountCard]', err);
+    } catch {
       setError('No pudimos crear la cuenta. Intenta de nuevo.');
     } finally {
       setSubmitting(false);
@@ -84,8 +73,8 @@ export default function GuestAccountCard({
         <div className="min-w-0">
           <p className="text-sm font-bold text-navy">Crea tu cuenta en 1 clic</p>
           <p className="text-[12.5px] text-slate-600 mt-0.5 leading-snug">
-            Guardamos tus datos de esta compra ({customerEmail}). Solo elige una
-            contraseña y podrás seguir tus pedidos y comprar más rápido la próxima vez.
+            Guardamos tus datos de esta compra. Solo elige una contraseña y podrás
+            seguir tus pedidos y comprar más rápido la próxima vez.
           </p>
         </div>
       </div>

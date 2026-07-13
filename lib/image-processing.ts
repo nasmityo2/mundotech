@@ -2,6 +2,7 @@ import {
   detectImageMimeFromBuffer,
   type DetectedImageMime,
 } from '@/lib/detect-image-mime';
+import { logError, logWarn } from '@/lib/safe-logger';
 
 export interface ProcessedImage {
   buffer: Buffer;
@@ -29,7 +30,7 @@ async function loadSharp(): Promise<SharpFactory | null> {
     const mod = await import('sharp');
     sharpCache = mod.default;
   } catch (err) {
-    console.error('[image-processing] sharp module failed to load:', err);
+    logError('image_processing_sharp_load_failed', err, { operation: 'load_sharp' });
     sharpCache = null;
   }
   return sharpCache;
@@ -96,14 +97,14 @@ export async function processImageWithFallback(
 
   const sharp = await loadSharp();
   if (!sharp) {
-    console.error('[upload-proof] sharp unavailable, storing original');
+    logWarn('upload_proof_sharp_unavailable', { operation: 'process_image_fallback' });
     return originalImagePayload(buffer, detectedMime);
   }
 
   try {
     return await processImageWithSharp(sharp, buffer, options);
   } catch (err) {
-    console.error('[upload-proof] sharp failed, storing original:', err);
+    logError('upload_proof_sharp_failed', err, { operation: 'process_image_fallback' });
     return originalImagePayload(buffer, detectedMime);
   }
 }

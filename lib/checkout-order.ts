@@ -4,6 +4,7 @@ import { loadExchangeRateUsdBsFromTx, roundMoney2 } from '@/lib/exchange-rate';
 import type { OrderStatus } from '@/lib/definitions';
 import { CheckoutError } from '@/lib/checkout-error';
 import { d } from '@/lib/decimal';
+import { logWarn } from '@/lib/safe-logger';
 import {
   validateCouponForCheckout,
   redeemCouponInTransaction,
@@ -524,9 +525,10 @@ export async function restoreOrderStockInTransaction(
       // devolver estas unidades. Se registra para auditoría de inventario.
       // DEPENDENCIA-05 (PRD-231): deleteProductAction debería bloquear/avisar al
       // eliminar productos con pedidos abiertos.
-      console.warn(
-        `[restore-stock] Producto ${item.productId} ya no existe; no se restauraron ${item.quantity} unidades.`
-      );
+      logWarn('checkout_restore_stock_product_missing', {
+        operation: 'restore_stock_on_cancel',
+        count: item.quantity,
+      });
     }
   }
 }

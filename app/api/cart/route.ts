@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { requireUser } from '@/lib/api-auth';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { getUserCart, clearUserCart } from '@/lib/cart';
@@ -12,7 +13,7 @@ export async function GET() {
     const items = await getUserCart(auth.session.user.id);
     return NextResponse.json({ items });
   } catch (error) {
-    console.error('[GET /api/cart]', error);
+    logError('cart_get_failed', error, { route: '/api/cart' });
     return NextResponse.json({ error: 'Error al obtener el carrito.' }, { status: 500 });
   }
 }
@@ -30,7 +31,7 @@ export async function DELETE(request: Request) {
     await clearUserCart(auth.session.user.id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[DELETE /api/cart]', error);
+    logError('cart_delete_failed', error, { route: '/api/cart' });
     return NextResponse.json({ error: 'Error al vaciar el carrito.' }, { status: 500 });
   }
 }

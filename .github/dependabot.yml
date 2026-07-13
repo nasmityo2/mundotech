@@ -22,11 +22,7 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    # Major individual sin automerge
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
+    # Major: PR individual (sin ignore semver-major; sin automerge)
     # Etiquetas para identificar el tipo
     labels:
       - "dependencies"
@@ -52,10 +48,7 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - "version-update:semver-major"
+    # Major: PR individual (sin ignore semver-major; sin automerge)
     labels:
       - "dependencies"
       - "github-actions"

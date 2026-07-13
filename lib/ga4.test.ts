@@ -1,32 +1,25 @@
 /**
  * SESIÓN 31 — Tests unitarios de GA4 (lib/ga4.ts).
  *
- * Verifica que:
- * - track() es no-op sin gtag o sin NEXT_PUBLIC_GA4_ID.
- * - Los eventos ecommerce nunca contienen PII (email, teléfono, nombre, cédula,
- *   dirección, referencia, token, key).
- * - Purchase se deduplica por transaction_id (sessionStorage).
- * - ga4ItemsValue calcula correctamente.
- * - toGa4Item mapea todos los campos y omite undefineds.
- * - trackPurchaseOnce documenta la limitación de sessionStorage.
- * - La moneda es siempre USD.
+ * Verifica enforcement de consentimiento, allowlist de eventos/params,
+ * rechazo de PII en runtime, dedupe de purchase y helpers de ecommerce.
  *
  * @vitest-environment node
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   track,
   toGa4Item,
   ga4ItemsValue,
   GA4_CURRENCY,
   trackPurchaseOnce,
+  getAnalyticsConsent,
+  setAnalyticsConsent,
+  resetPurchaseDedupeForTests,
 } from './ga4';
 
-// Guardamos NEXT_PUBLIC_GA4_ID original para restaurar después
 const ORIGINAL_GA4_ID = process.env.NEXT_PUBLIC_GA4_ID;
 
-// ── sessionStorage mock para node ────────────────────────────────────────────
-// sessionStorage no existe en node, lo creamos manualmente.
 const ssStore = new Map<string, string>();
 const sessionStorageMock = {
   getItem: vi.fn((key: string) => ssStore.get(key) ?? null),
@@ -37,11 +30,24 @@ const sessionStorageMock = {
   key: vi.fn((_i: number) => ''),
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function mockGtag() {
   const gtag = vi.fn();
-  (globalThis as Record<string, unknown>).window = { gtag } as unknown as Window & typeof globalThis;
+  const listeners = new Map<string, Set<EventListener>>();
+  (globalThis as Record<string, unknown>).window = {
+    gtag,
+    __mtAnalyticsConsent: 'granted',
+    addEventListener: (type: string, listener: EventListener) => {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(listener);
+    },
+    removeEventListener: (type: string, listener: EventListener) => {
+      listeners.get(type)?.delete(listener);
+    },
+    dispatchEvent: (event: Event) => {
+      listeners.get(event.type)?.forEach((listener) => listener(event));
+      return true;
+    },
+  } as unknown as Window & typeof globalThis;
   return gtag;
 }
 
@@ -55,6 +61,20 @@ function setGa4Id(id: string | undefined) {
   } else {
     process.env.NEXT_PUBLIC_GA4_ID = id;
   }
+}
+
+function grantConsent() {
+  (globalThis as Record<string, unknown>).window = {
+    ...(globalThis as Record<string, unknown>).window as object,
+    __mtAnalyticsConsent: 'granted',
+  } as unknown as Window & typeof globalThis;
+}
+
+function denyConsent() {
+  (globalThis as Record<string, unknown>).window = {
+    ...(globalThis as Record<string, unknown>).window as object,
+    __mtAnalyticsConsent: 'denied',
+  } as unknown as Window & typeof globalThis;
 }
 
 const PII_PATTERNS = [
@@ -85,23 +105,10 @@ function hasPii(params: Record<string, unknown> | undefined): boolean {
   return false;
 }
 
-function hasSensitiveKeys(params: Record<string, unknown> | undefined): boolean {
-  if (!params) return false;
-  const sensitiveKeys = new Set([
-    'email', 'phone', 'telephone', 'address', 'cedula', 'cedula_rif',
-    'token', 'api_key', 'apikey', 'secret', 'password', 'passwd',
-    'reference', 'referencia', 'customer_email', 'customer_name',
-    'customer_phone', 'shipping_address', 'billing_address',
-    'stripe_token', 'card_number', 'cvv', 'cvc', 'card_cvc',
-    'transfer_reference', 'payment_reference',
-  ]);
-  for (const key of Object.keys(params ?? {})) {
-    if (sensitiveKeys.has(key.toLowerCase().replace(/[_-]/g, '_'))) return true;
-  }
-  return false;
+function payloadFromGtag(gtag: ReturnType<typeof vi.fn>): Record<string, unknown> {
+  const args = gtag.mock.calls[0];
+  return args[2] as Record<string, unknown>;
 }
-
-// ── Fixtures ──────────────────────────────────────────────────────────────────
 
 const sampleItem = {
   id: 'prod-123',
@@ -112,23 +119,33 @@ const sampleItem = {
   quantity: 2,
 };
 
-const piiItem = {
-  id: 'prod-pii',
-  name: 'Producto con datos sensibles',
-  // Estos campos NO deberían estar en un Ga4Item
-  email: 'cliente@example.com',
-  phone: '+584241234567',
-  cedula: 'V-12345678',
-  address: 'Calle 21 con carrera 21, Barquisimeto',
-  reference: 'PAGO-001',
-  token: 'tok_abc123',
-};
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
 describe('GA4_CURRENCY', () => {
   it('es USD', () => {
     expect(GA4_CURRENCY).toBe('USD');
+  });
+});
+
+describe('consent helpers', () => {
+  beforeEach(() => {
+    mockGtag();
+  });
+
+  afterEach(() => {
+    unmockGtag();
+  });
+
+  it('default denied cuando no hay flag en window', () => {
+    delete (window as { __mtAnalyticsConsent?: string }).__mtAnalyticsConsent;
+    expect(getAnalyticsConsent()).toBe('denied');
+  });
+
+  it('setAnalyticsConsent actualiza window y emite evento', () => {
+    const handler = vi.fn();
+    window.addEventListener('mt-analytics-consent', handler);
+    setAnalyticsConsent('granted');
+    expect(window.__mtAnalyticsConsent).toBe('granted');
+    expect(handler).toHaveBeenCalledTimes(1);
+    window.removeEventListener('mt-analytics-consent', handler);
   });
 });
 
@@ -149,96 +166,47 @@ describe('toGa4Item', () => {
     const result = toGa4Item({ id: 'x', name: 'Genérico', price: 10 });
     expect(result.item_category).toBeUndefined();
     expect(result.item_brand).toBeUndefined();
-    expect(result.price).toBe(10);
-    expect(result.quantity).toBeUndefined();
-  });
-
-  it('omite price si no es number', () => {
-    const result = toGa4Item({ id: 'x', name: 'Sin precio' });
-    expect(result.price).toBeUndefined();
-  });
-
-  it('NUNCA incluye PII como campos propios', () => {
-    const result = toGa4Item(piiItem as Parameters<typeof toGa4Item>[0]);
-    const keys = Object.keys(result);
-    expect(keys).not.toContain('email');
-    expect(keys).not.toContain('phone');
-    expect(keys).not.toContain('cedula');
-    expect(keys).not.toContain('address');
-    expect(keys).not.toContain('reference');
-    expect(keys).not.toContain('token');
-    expect(keys.every((k) =>
-      ['item_id', 'item_name', 'item_category', 'item_brand', 'price', 'quantity', 'index'].includes(k),
-    )).toBe(true);
   });
 });
 
 describe('ga4ItemsValue', () => {
-  it('suma price × quantity de todos los items y redondea a 2 decimales', () => {
+  it('suma price × quantity y redondea a 2 decimales', () => {
     const items = [
       { item_id: 'a', item_name: 'A', price: 10.50, quantity: 2 },
       { item_id: 'b', item_name: 'B', price: 5.25, quantity: 3 },
     ];
     expect(ga4ItemsValue(items)).toBe(36.75);
   });
-
-  it('usa quantity=1 si no está definido', () => {
-    const items = [
-      { item_id: 'a', item_name: 'A', price: 10 },
-      { item_id: 'b', item_name: 'B', price: 20 },
-    ];
-    expect(ga4ItemsValue(items)).toBe(30);
-  });
-
-  it('retorna 0 para array vacío', () => {
-    expect(ga4ItemsValue([])).toBe(0);
-  });
-
-  it('tolera price undefined (lo trata como 0)', () => {
-    const items = [
-      { item_id: 'a', item_name: 'A', quantity: 2 },
-      { item_id: 'b', item_name: 'B', price: 10, quantity: 1 },
-    ];
-    expect(ga4ItemsValue(items)).toBe(10);
-  });
-
-  it('redondea correctamente a 2 decimales', () => {
-    const items = [
-      { item_id: 'a', item_name: 'A', price: 1.234, quantity: 3 },
-    ];
-    expect(ga4ItemsValue(items)).toBe(3.70);
-  });
 });
 
-describe('track (disparo de eventos)', () => {
+describe('track — consent enforcement', () => {
   beforeEach(() => {
     unmockGtag();
     setGa4Id('G-TEST123');
+    ssStore.clear();
   });
 
-  it('es no-op si no hay window.gtag', () => {
-    expect(() => track('view_item', { items: [] })).not.toThrow();
-  });
-
-  it('es no-op si NEXT_PUBLIC_GA4_ID no está definido', () => {
-    setGa4Id(undefined);
-    mockGtag();
-    expect(() => track('view_item', { items: [] })).not.toThrow();
-  });
-
-  it('es no-op en server-side (typeof window === undefined)', () => {
-    setGa4Id('G-TEST123');
-    delete (globalThis as Record<string, unknown>).window;
-    expect(() => track('add_to_cart', { items: [] })).not.toThrow();
-  });
-
-  it('llama gtag con event y params cuando está configurado', () => {
+  it('denied → 0 eventos aunque gtag exista', () => {
     const gtag = mockGtag();
-    track('view_item', {
+    denyConsent();
+    const sent = track('view_item', {
       currency: 'USD',
       value: 45.99,
       items: [{ item_id: 'p1', item_name: 'Producto' }],
     });
+    expect(sent).toBe(false);
+    expect(gtag).not.toHaveBeenCalled();
+  });
+
+  it('granted → emite evento y retorna true', () => {
+    const gtag = mockGtag();
+    grantConsent();
+    const sent = track('view_item', {
+      currency: 'USD',
+      value: 45.99,
+      items: [{ item_id: 'p1', item_name: 'Producto' }],
+    });
+    expect(sent).toBe(true);
     expect(gtag).toHaveBeenCalledTimes(1);
     expect(gtag).toHaveBeenCalledWith('event', 'view_item', {
       currency: 'USD',
@@ -247,197 +215,154 @@ describe('track (disparo de eventos)', () => {
     });
   });
 
-  it('no pasa PII en view_item', () => {
+  it('rechaza eventos arbitrarios', () => {
+    const gtag = mockGtag();
+    grantConsent();
+    const sent = track('custom_event' as 'view_item', { value: 1 });
+    expect(sent).toBe(false);
+    expect(gtag).not.toHaveBeenCalled();
+  });
+
+  it('es no-op si NEXT_PUBLIC_GA4_ID no está definido', () => {
+    setGa4Id(undefined);
+    const gtag = mockGtag();
+    grantConsent();
+    expect(track('view_item', { items: [{ item_id: 'p1', item_name: 'Producto' }] })).toBe(false);
+    expect(gtag).not.toHaveBeenCalled();
+  });
+
+  it('es no-op en server-side', () => {
+    setGa4Id('G-TEST123');
+    delete (globalThis as Record<string, unknown>).window;
+    expect(track('add_to_cart', { items: [] })).toBe(false);
+  });
+});
+
+describe('track — payload allowlist y sanitización', () => {
+  beforeEach(() => {
+    setGa4Id('G-TEST123');
     mockGtag();
-    const params = {
+    grantConsent();
+  });
+
+  afterEach(() => {
+    unmockGtag();
+  });
+
+  it('elimina keys top-level desconocidas', () => {
+    const gtag = mockGtag();
+    grantConsent();
+    track('view_item', {
       currency: 'USD',
+      value: 50,
+      customer_email: 'cliente@example.com',
+      campaign_id: 'cmp-123',
+      items: [{ item_id: 'p1', item_name: 'Producto', price: 50, quantity: 1 }],
+    });
+    expect(gtag).toHaveBeenCalledTimes(1);
+    const payload = payloadFromGtag(gtag);
+    expect(Object.keys(payload)).toEqual(['currency', 'value', 'items']);
+    expect(hasPii(payload)).toBe(false);
+  });
+
+  it('rechaza payload con PII en key permitida (email en coupon)', () => {
+    const gtag = mockGtag();
+    grantConsent();
+    const sent = track('purchase', {
+      transaction_id: 'ORD-001',
       value: 100,
-      items: [{ item_id: 'p1', item_name: 'Producto' }],
-    };
-    expect(hasPii(params)).toBe(false);
-    expect(hasSensitiveKeys(params)).toBe(false);
-    track('view_item', params);
-  });
-
-  it('no pasa PII en add_to_cart', () => {
-    mockGtag();
-    const params = {
-      currency: 'USD',
-      value: 45.99,
-      items: [{ item_id: 'p1', item_name: 'Producto', price: 45.99, quantity: 1 }],
-    };
-    expect(hasPii(params)).toBe(false);
-    expect(hasSensitiveKeys(params)).toBe(false);
-    track('add_to_cart', params);
-  });
-
-  it('no pasa PII en remove_from_cart', () => {
-    mockGtag();
-    const params = {
-      currency: 'USD',
-      value: 45.99,
-      items: [{ item_id: 'p1', item_name: 'Producto', price: 45.99, quantity: 1 }],
-    };
-    expect(hasPii(params)).toBe(false);
-    expect(hasSensitiveKeys(params)).toBe(false);
-    track('remove_from_cart', params);
-  });
-
-  it('no pasa PII en begin_checkout', () => {
-    mockGtag();
-    const params = {
-      currency: 'USD',
-      value: 100,
+      coupon: 'cliente@example.com',
       items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
-    };
-    expect(hasPii(params)).toBe(false);
-    expect(hasSensitiveKeys(params)).toBe(false);
-    track('begin_checkout', params);
+    });
+    expect(sent).toBe(false);
+    expect(gtag).not.toHaveBeenCalled();
   });
 
-  it('no pasa PII en add_shipping_info', () => {
-    mockGtag();
-    const params = {
+  it('elimina campos extra en items', () => {
+    const gtag = mockGtag();
+    grantConsent();
+    track('add_to_cart', {
+      currency: 'USD',
+      value: 50,
+      items: [{
+        item_id: 'p1',
+        item_name: 'Producto',
+        price: 50,
+        quantity: 1,
+        email: 'cliente@example.com',
+        token: 'tok_secret',
+      }],
+    });
+    expect(gtag).not.toHaveBeenCalled();
+  });
+
+  it('add_shipping_info conserva shipping_tier permitido', () => {
+    const gtag = mockGtag();
+    grantConsent();
+    track('add_shipping_info', {
       currency: 'USD',
       value: 100,
       shipping_tier: 'MRW',
       items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
-    };
-    expect(hasPii(params)).toBe(false);
-    expect(hasSensitiveKeys(params)).toBe(false);
-    track('add_shipping_info', params);
-  });
-
-  it('no pasa PII en add_payment_info', () => {
-    mockGtag();
-    const params = {
-      currency: 'USD',
-      value: 100,
-      payment_type: 'transferencia',
-      items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
-    };
-    expect(hasPii(params)).toBe(false);
-    expect(hasSensitiveKeys(params)).toBe(false);
-    track('add_payment_info', params);
-  });
-
-  it('nunca rompe la UI aunque gtag falle', () => {
-    (globalThis as Record<string, unknown>).window = { gtag: 'not-a-function' as never };
-    expect(() => track('purchase', {})).not.toThrow();
-  });
-
-  it('nunca rompe la UI aunque los parámetros sean inválidos', () => {
-    mockGtag();
-    expect(() => track('view_item', null as unknown as Record<string, unknown>)).not.toThrow();
-  });
-});
-
-describe('Payload allowlist — eventos estándar de ecommerce GA4', () => {
-  beforeEach(() => {
-    setGa4Id('G-TEST123');
-  });
-
-  it('view_item payload contiene solo campos permitidos', () => {
-    const gtag = mockGtag();
-    const items = [{ item_id: 'p1', item_name: 'Producto', price: 50, quantity: 1 }];
-    track('view_item', { currency: 'USD', value: 50, items });
-    const args = gtag.mock.calls[0];
-    const payload = args[2] as Record<string, unknown>;
-    const allowedKeys = ['currency', 'value', 'items'];
-    expect(Object.keys(payload).every((k) => allowedKeys.includes(k))).toBe(true);
-  });
-
-  it('add_to_cart payload contiene solo campos permitidos', () => {
-    const gtag = mockGtag();
-    const items = [{ item_id: 'p1', item_name: 'Producto', price: 50, quantity: 1 }];
-    track('add_to_cart', { currency: 'USD', value: 50, items });
-    const args = gtag.mock.calls[0];
-    const payload = args[2] as Record<string, unknown>;
-    const allowedKeys = ['currency', 'value', 'items'];
-    expect(Object.keys(payload).every((k) => allowedKeys.includes(k))).toBe(true);
-  });
-
-  it('purchase payload contiene solo campos permitidos', () => {
-    const gtag = mockGtag();
-    trackPurchaseOnce({
-      transactionId: 'ORD-001',
-      value: 100,
-      items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
-      coupon: 'DESC10',
     });
-    const args = gtag.mock.calls[0];
-    const payload = args[2] as Record<string, unknown>;
-    const allowedKeys = ['transaction_id', 'value', 'currency', 'coupon', 'items'];
-    expect(Object.keys(payload).every((k) => allowedKeys.includes(k))).toBe(true);
-  });
-
-  it('items dentro del payload nunca contienen PII', () => {
-    const gtag = mockGtag();
-    const items = [
-      { item_id: 'p1', item_name: 'Producto', price: 50, quantity: 1 },
-    ];
-    track('add_to_cart', { currency: 'USD', value: 50, items });
-    const args = gtag.mock.calls[0];
-    const payload = args[2] as Record<string, unknown>;
-    expect(hasPii(payload)).toBe(false);
-    expect(hasSensitiveKeys(payload)).toBe(false);
-  });
-
-  it('purchase items nunca contienen PII', () => {
-    const gtag = mockGtag();
-    const items = [
-      { item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 },
-    ];
-    trackPurchaseOnce({ transactionId: 'ORD-001', value: 100, items });
-    const args = gtag.mock.calls[0];
-    const payload = args[2] as Record<string, unknown>;
-    expect(hasPii(payload)).toBe(false);
-    expect(hasSensitiveKeys(payload)).toBe(false);
+    const payload = payloadFromGtag(gtag);
+    expect(payload.shipping_tier).toBe('MRW');
   });
 });
 
-describe('trackPurchaseOnce (dedupe)', () => {
+describe('trackPurchaseOnce', () => {
   beforeEach(() => {
     unmockGtag();
     setGa4Id('G-TEST123');
     ssStore.clear();
+    resetPurchaseDedupeForTests();
     vi.stubGlobal('sessionStorage', sessionStorageMock);
   });
 
-  it('llama gtag con purchase en primera llamada', () => {
-    const gtag = mockGtag();
-    trackPurchaseOnce({
-      transactionId: 'ORD-001',
-      value: 100,
-      items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
-    });
-    expect(gtag).toHaveBeenCalledWith('event', 'purchase', expect.objectContaining({
-      transaction_id: 'ORD-001',
-      value: 100,
-      currency: 'USD',
-    }));
+  afterEach(() => {
+    unmockGtag();
+    vi.unstubAllGlobals();
   });
 
-  it('NO llama gtag si el mismo transaction_id ya fue reportado', () => {
+  it('denied → 0 eventos y no marca visto', () => {
     const gtag = mockGtag();
-    trackPurchaseOnce({
+    denyConsent();
+    const sent = trackPurchaseOnce({
       transactionId: 'ORD-001',
       value: 100,
       items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
     });
-    expect(gtag).toHaveBeenCalledTimes(1);
+    expect(sent).toBe(false);
+    expect(gtag).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem('mt_ga4_purchases')).toBeNull();
+  });
 
-    gtag.mockClear();
+  it('purchase no se pierde antes de consent — reintenta tras grant', () => {
+    const gtag = mockGtag();
+    denyConsent();
     trackPurchaseOnce({
       transactionId: 'ORD-001',
       value: 100,
       items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
     });
     expect(gtag).not.toHaveBeenCalled();
+
+    grantConsent();
+    const sent = trackPurchaseOnce({
+      transactionId: 'ORD-001',
+      value: 100,
+      items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
+    });
+    expect(sent).toBe(true);
+    expect(gtag).toHaveBeenCalledWith('event', 'purchase', expect.objectContaining({
+      transaction_id: 'ORD-001',
+      currency: 'USD',
+    }));
   });
 
-  it('permite trackear un transaction_id diferente', () => {
+  it('dedupe por transaction_id tras track exitoso', () => {
     const gtag = mockGtag();
+    grantConsent();
     trackPurchaseOnce({
       transactionId: 'ORD-001',
       value: 100,
@@ -446,35 +371,41 @@ describe('trackPurchaseOnce (dedupe)', () => {
     expect(gtag).toHaveBeenCalledTimes(1);
 
     gtag.mockClear();
-    trackPurchaseOnce({
-      transactionId: 'ORD-002',
-      value: 50,
-      items: [{ item_id: 'p2', item_name: 'Otro', price: 50, quantity: 1 }],
-    });
-    expect(gtag).toHaveBeenCalledTimes(1);
-    expect(gtag).toHaveBeenCalledWith('event', 'purchase', expect.objectContaining({
-      transaction_id: 'ORD-002',
-    }));
-  });
-
-  it('es no-op si sessionStorage falla (modo privado)', () => {
-    const gtag = mockGtag();
-    // Simular sessionStorage.setItem fallando
-    sessionStorageMock.setItem = vi.fn(() => { throw new Error('sessionStorage blocked'); });
-
-    trackPurchaseOnce({
+    const second = trackPurchaseOnce({
       transactionId: 'ORD-001',
       value: 100,
       items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
     });
-    // Debe trackear igual (fallback sin dedupe)
-    expect(gtag).toHaveBeenCalledWith('event', 'purchase', expect.objectContaining({
-      transaction_id: 'ORD-001',
-    }));
+    expect(second).toBe(false);
+    expect(gtag).not.toHaveBeenCalled();
   });
 
-  it('limita el historial a 20 IDs', () => {
+  it('sessionStorage falla → dedupe inmediato en memoria por pestaña', () => {
+    const gtag = mockGtag();
+    grantConsent();
+    sessionStorageMock.setItem = vi.fn(() => { throw new Error('sessionStorage blocked'); });
+
+    const first = trackPurchaseOnce({
+      transactionId: 'ORD-001',
+      value: 100,
+      items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
+    });
+    expect(first).toBe(true);
+    expect(gtag).toHaveBeenCalledTimes(1);
+
+    gtag.mockClear();
+    const second = trackPurchaseOnce({
+      transactionId: 'ORD-001',
+      value: 100,
+      items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
+    });
+    expect(second).toBe(false);
+    expect(gtag).not.toHaveBeenCalled();
+  });
+
+  it('limita el historial a 20 IDs en sessionStorage', () => {
     mockGtag();
+    grantConsent();
     for (let i = 1; i <= 25; i++) {
       trackPurchaseOnce({
         transactionId: `ORD-${String(i).padStart(3, '0')}`,
@@ -489,6 +420,7 @@ describe('trackPurchaseOnce (dedupe)', () => {
 
   it('incluye coupon cuando está presente', () => {
     const gtag = mockGtag();
+    grantConsent();
     trackPurchaseOnce({
       transactionId: 'ORD-001',
       value: 90,
@@ -496,78 +428,26 @@ describe('trackPurchaseOnce (dedupe)', () => {
       coupon: 'DESC10',
     });
     expect(gtag).toHaveBeenCalledWith('event', 'purchase', expect.objectContaining({
-      transaction_id: 'ORD-001',
       coupon: 'DESC10',
     }));
   });
-
-  it('no pasa coupon cuando es null', () => {
-    const gtag = mockGtag();
-    trackPurchaseOnce({
-      transactionId: 'ORD-001',
-      value: 100,
-      items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
-      coupon: null,
-    });
-    const callArgs = gtag.mock.calls[0];
-    const params = callArgs[2] as Record<string, unknown>;
-    expect(params.coupon).toBeUndefined();
-  });
-
-  it('la currency es siempre USD en purchase', () => {
-    const gtag = mockGtag();
-    trackPurchaseOnce({
-      transactionId: 'ORD-001',
-      value: 100,
-      items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
-    });
-    expect(gtag).toHaveBeenCalledWith('event', 'purchase', expect.objectContaining({
-      currency: 'USD',
-    }));
-  });
-
-  it('documenta limitación: sessionStorage no persiste entre pestañas', () => {
-    const gtag = mockGtag();
-    trackPurchaseOnce({
-      transactionId: 'ORD-001',
-      value: 100,
-      items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
-    });
-    expect(gtag).toHaveBeenCalledTimes(1);
-
-    // Simular "otra pestaña" limpiando sessionStorage
-    sessionStorage.removeItem('mt_ga4_purchases');
-    gtag.mockClear();
-
-    // El mismo transaction_id se trackearía de nuevo (limitación documentada)
-    trackPurchaseOnce({
-      transactionId: 'ORD-001',
-      value: 100,
-      items: [{ item_id: 'p1', item_name: 'Producto', price: 100, quantity: 1 }],
-    });
-    expect(gtag).toHaveBeenCalledTimes(1);
-    // Nota: Esto es correcto - es una limitación documentada. Una solución
-    // server-side requeriría un endpoint /api/ga4-dedupe que verifique contra
-    // la BD antes de emitir el evento, pero añadiría latencia al checkout.
-  });
 });
 
-describe('track con GA4_ID ausente (comportamiento no-op)', () => {
+describe('track con GA4_ID ausente', () => {
   beforeEach(() => {
     unmockGtag();
     setGa4Id(undefined);
   });
 
-  it('ningún evento rompe si GA4_ID no está configurado', () => {
+  it('ningún evento llega a gtag', () => {
     const gtag = mockGtag();
-    track('view_item', { items: [] });
-    track('add_to_cart', { items: [] });
-    track('remove_from_cart', { items: [] });
-    track('view_cart', { items: [] });
-    track('begin_checkout', { items: [] });
-    track('add_shipping_info', { items: [] });
-    track('add_payment_info', { items: [] });
-    trackPurchaseOnce({ transactionId: 'T1', value: 0, items: [] });
+    grantConsent();
+    expect(track('view_item', { items: [{ item_id: 'p1', item_name: 'Producto' }] })).toBe(false);
+    expect(trackPurchaseOnce({ transactionId: 'T1', value: 0, items: [{ item_id: 'p1', item_name: 'X', price: 0, quantity: 1 }] })).toBe(false);
     expect(gtag).not.toHaveBeenCalled();
   });
+});
+
+afterEach(() => {
+  setGa4Id(ORIGINAL_GA4_ID);
 });

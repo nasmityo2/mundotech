@@ -22,6 +22,7 @@ import { WelcomeEmail } from '@/emails/mundotech/WelcomeEmail';
 import { render } from '@react-email/render';
 import { Resend } from 'resend';
 import * as React from 'react';
+import { isE2eMode } from '@/lib/e2e-mode';
 import { logError, logWarn } from '@/lib/safe-logger';
 
 export type { OrderConfirmationPayload, OrderConfirmationLineItem } from '@/emails/mundotech/types';
@@ -56,9 +57,12 @@ const FROM_ADDRESS = resolveFromAddress();
 const REPLY_TO_ADDRESS = emailContactAddress();
 
 function getResend(): Resend | null {
-  // PRD-E2E: en pruebas E2E nunca se hacen llamadas externas a Resend.
+  // PRD-E2E: en pruebas E2E (E2E_MODE=1) nunca se hacen llamadas externas a Resend.
+  if (isE2eMode()) {
+    return null;
+  }
   const nodeEnv = (process.env.NODE_ENV ?? '').trim();
-  if (nodeEnv === 'E2E' || nodeEnv === 'test') {
+  if (nodeEnv === 'test') {
     return null;
   }
   const key = process.env.RESEND_API_KEY;

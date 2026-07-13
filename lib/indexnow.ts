@@ -10,6 +10,8 @@
  * de catálogo que lo disparó.
  */
 
+import { logWarn, logError } from '@/lib/safe-logger';
+
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://mundotechve.com';
 
 export async function pingIndexNow(paths: string[]): Promise<void> {
@@ -36,9 +38,9 @@ export async function pingIndexNow(paths: string[]): Promise<void> {
       signal: AbortSignal.timeout(5_000),
     });
     if (!res.ok && res.status !== 202) {
-      console.warn('[indexnow] respuesta no OK:', res.status);
+      logWarn('indexnow_response_not_ok', { status: res.status, operation: 'indexnow_ping' });
     }
   } catch (err) {
-    console.warn('[indexnow] ping falló (no crítico):', err instanceof Error ? err.message : err);
+    logError('indexnow_ping_failed', err, { operation: 'indexnow_ping' });
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
@@ -9,8 +9,11 @@ import { useReducedMotion, reducedTransition } from '@/lib/motion';
 import { MUNDOTECH_SOCIAL } from '@/lib/mundotech-social';
 import type { EnrichedOrder } from './page';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
-import { trackPurchaseOnce } from '@/lib/ga4';
-import GuestAccountCard from './GuestAccountCard';
+import {
+  getAnalyticsConsent,
+  onAnalyticsConsentChange,
+  trackPurchaseOnce,
+} from '@/lib/ga4';
 
 interface Props {
   order: EnrichedOrder;
@@ -25,9 +28,13 @@ export default function SuccessClientPage({ order }: Props) {
   const prefersReduced = useReducedMotion();
   const isWhatsAppOrder = order.channel === 'whatsapp';
   const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const [analyticsConsent, setAnalyticsConsent] = useState(getAnalyticsConsent);
+
+  useEffect(() => onAnalyticsConsentChange(setAnalyticsConsent), []);
 
   // FASE 4.4: purchase con dedupe por transaction_id (recargas de la página no
   // duplican). Los montos congelados en Bs se convierten a USD con la tasa del pedido.
+  // Si el consentimiento aún no está granted, no marca visto y reintenta al aceptar.
   useEffect(() => {
     const rate = order.exchangeRateUsdBs;
     const toUsd = (amount: number) =>
@@ -43,8 +50,7 @@ export default function SuccessClientPage({ order }: Props) {
         quantity: i.quantity,
       })),
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [order.orderNumber]);
+  }, [order.orderNumber, order.exchangeRateUsdBs, order.total, order.couponCode, order.items, analyticsConsent]);
 
   return (
     <div className="py-10 sm:py-14 max-w-3xl mx-auto">
@@ -133,12 +139,7 @@ export default function SuccessClientPage({ order }: Props) {
           </motion.a>
         )}
 
-        {/* FASE 4.1: registro post-compra para invitados (sin fricción) */}
-        {!order.customerId && order.customerEmail ? (
-          <motion.div variants={fadeUp}>
-            <GuestAccountCard orderId={order.id} customerEmail={order.customerEmail} />
-          </motion.div>
-        ) : null}
+        {/* FASE 4.1: registro post-compra solo vía token guest en GuestSuccessClientPage */}
 
         {/* Próximos pasos — condicional según canal */}
         <motion.div

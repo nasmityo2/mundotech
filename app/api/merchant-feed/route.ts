@@ -27,6 +27,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { readSettings } from '@/lib/data-store';
@@ -169,7 +170,7 @@ ${items.join('\n')}
       },
     });
   } catch (error) {
-    console.error('[/api/merchant-feed][GET] Error generando feed XML:', error);
+    logError('merchant_feed_get_failed', error, { route: '/api/merchant-feed' });
     return new NextResponse('Error interno del servidor', { status: 500 });
   }
 }

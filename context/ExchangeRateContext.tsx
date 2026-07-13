@@ -54,6 +54,19 @@ export function ExchangeRateProvider({
     initialUpdatedAt ? new Date(initialUpdatedAt).getTime() : 0,
   );
   const currentFetchRef = useRef<Promise<void> | null>(null);
+  const staleRef = useRef(stale);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    staleRef.current = stale;
+  }, [stale]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const fetchRate = useCallback(async (): Promise<void> => {
     // SESIÓN 17: deduplicar requests concurrentes compartiendo la misma Promise
@@ -67,6 +80,7 @@ export function ExchangeRateProvider({
         return r.json() as Promise<{ rate: number }>;
       })
       .then(data => {
+        if (!mountedRef.current) return;
         if (typeof data.rate === 'number' && data.rate > 0) {
           setRate(data.rate);
           setStale(false);
@@ -77,11 +91,15 @@ export function ExchangeRateProvider({
       })
       .catch(() => {
         // SESIÓN 17: conservar última tasa válida, solo marcar stale
-        setStale(true);
+        if (mountedRef.current) {
+          setStale(true);
+        }
       })
       .finally(() => {
         currentFetchRef.current = null;
-        setLoading(false);
+        if (mountedRef.current) {
+          setLoading(false);
+        }
       });
 
     currentFetchRef.current = promise;
@@ -110,6 +128,7 @@ export function ExchangeRateProvider({
     const startTimer = () => {
       if (intervalId) return;
       intervalId = setInterval(() => {
+        if (document.visibilityState === 'hidden') return;
         fetchRate();
       }, REFRESH_INTERVAL_MS);
     };
@@ -121,13 +140,13 @@ export function ExchangeRateProvider({
       }
     };
 
-    // SESIÓN 17: sin polling en hidden
+    // SESIÓN 17: sin polling en hidden; visibilitychange lee staleRef (no closure)
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') {
         stopTimer();
       } else {
-        // Al volver visible: refrescar solo si stale y pasó suficiente tiempo
-        if (stale || (Date.now() - lastRefreshedAtRef.current) >= STALE_THRESHOLD_MS) {
+        const elapsed = Date.now() - lastRefreshedAtRef.current;
+        if (staleRef.current || elapsed >= STALE_THRESHOLD_MS) {
           fetchRate();
         }
         startTimer();

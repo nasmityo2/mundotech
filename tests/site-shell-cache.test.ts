@@ -234,19 +234,29 @@ describe('getCachedSiteShellData', () => {
   });
 
   it('tags de caché están correctamente exportados', async () => {
-    const { SHELL_CACHE_TAGS, CACHE_TAG_SITE_SHELL, CACHE_TAG_SETTINGS, CACHE_TAG_SITE_CONTENT, CACHE_TAG_SEO_LOCAL, CACHE_TAG_ANNOUNCEMENT } = await import('@/lib/site-shell-cache');
+    const {
+      SHELL_CACHE_TAGS,
+      CACHE_TAG_SITE_SHELL,
+      CACHE_TAG_SETTINGS,
+      CACHE_TAG_SITE_CONTENT,
+      CACHE_TAG_SEO_LOCAL,
+      CACHE_TAG_ANNOUNCEMENT,
+      CACHE_TAG_CATEGORIES,
+    } = await import('@/lib/site-shell-cache');
 
     expect(SHELL_CACHE_TAGS).toContain('site-shell');
     expect(SHELL_CACHE_TAGS).toContain('settings');
     expect(SHELL_CACHE_TAGS).toContain('site-content');
     expect(SHELL_CACHE_TAGS).toContain('seo-local');
     expect(SHELL_CACHE_TAGS).toContain('announcement');
+    expect(SHELL_CACHE_TAGS).toContain('categories');
 
     expect(CACHE_TAG_SITE_SHELL).toBe('site-shell');
     expect(CACHE_TAG_SETTINGS).toBe('settings');
     expect(CACHE_TAG_SITE_CONTENT).toBe('site-content');
     expect(CACHE_TAG_SEO_LOCAL).toBe('seo-local');
     expect(CACHE_TAG_ANNOUNCEMENT).toBe('announcement');
+    expect(CACHE_TAG_CATEGORIES).toBe('categories');
   });
 });
 
@@ -270,11 +280,19 @@ describe('buildContactFromShellData', () => {
 
 describe('RevalidateTag en mutaciones', () => {
   it('los tags de shell están siendo exportados correctamente desde lib/site-shell-cache', async () => {
-    const { CACHE_TAG_SITE_SHELL, CACHE_TAG_SETTINGS, CACHE_TAG_SITE_CONTENT, CACHE_TAG_SEO_LOCAL, CACHE_TAG_ANNOUNCEMENT } = await import('@/lib/site-shell-cache');
+    const {
+      CACHE_TAG_SITE_SHELL,
+      CACHE_TAG_SETTINGS,
+      CACHE_TAG_SITE_CONTENT,
+      CACHE_TAG_SEO_LOCAL,
+      CACHE_TAG_ANNOUNCEMENT,
+      CACHE_TAG_CATEGORIES,
+    } = await import('@/lib/site-shell-cache');
     expect(CACHE_TAG_SITE_SHELL).toBe('site-shell');
     expect(CACHE_TAG_SETTINGS).toBe('settings');
     expect(CACHE_TAG_SITE_CONTENT).toBe('site-content');
     expect(CACHE_TAG_SEO_LOCAL).toBe('seo-local');
     expect(CACHE_TAG_ANNOUNCEMENT).toBe('announcement');
+    expect(CACHE_TAG_CATEGORIES).toBe('categories');
   });
 });

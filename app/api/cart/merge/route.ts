@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { requireUser } from '@/lib/api-auth';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Datos inválidos.', details: error.issues }, { status: 400 });
     }
-    console.error('[POST /api/cart/merge]', error);
+    logError('cart_merge_failed', error, { route: '/api/cart/merge' });
     return NextResponse.json({ error: 'Error al fusionar el carrito.' }, { status: 500 });
   }
 }

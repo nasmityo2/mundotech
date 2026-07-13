@@ -5,11 +5,13 @@ import Link from 'next/link';
 import Script from 'next/script';
 import { usePathname } from 'next/navigation';
 import { Cookie } from 'lucide-react';
+import { setAnalyticsConsent, type AnalyticsConsent } from '@/lib/ga4';
 
 declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void;
     dataLayer?: unknown[];
+    __mtAnalyticsConsent?: AnalyticsConsent;
   }
 }
 
@@ -61,8 +63,13 @@ export default function CookieConsent({ initialConsent = null }: Props) {
   // PRD-286: actualizar gtag consent cuando cambia el estado (tanto al cargar
   // con valor previo como tras elección nueva del usuario).
   useEffect(() => {
-    if (!GA_ID || typeof window.gtag !== 'function' || consent === null) return;
+    if (consent === null) {
+      setAnalyticsConsent('denied');
+      return;
+    }
     const granted = consent === 'accepted' ? 'granted' : 'denied';
+    setAnalyticsConsent(granted);
+    if (!GA_ID || typeof window.gtag !== 'function') return;
     window.gtag('consent', 'update', {
       analytics_storage: granted,
       ad_storage: granted,
@@ -91,6 +98,7 @@ export default function CookieConsent({ initialConsent = null }: Props) {
               El useEffect de arriba dispara el update cuando consent se resuelve. */}
           <Script id="ga4-consent-init" strategy="afterInteractive">
             {`
+              window.__mtAnalyticsConsent = 'denied';
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('consent', 'default', {

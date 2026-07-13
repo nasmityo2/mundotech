@@ -14,12 +14,14 @@ describe('IMAGE-AUDIT.md existe y tiene contenido', () => {
     expect(content.length).toBeGreaterThan(500);
   });
 
-  it('cubre al menos 14 instancias de <img> según el inventario', () => {
+  it('cubre las 16 instancias de <img> según el inventario actual', () => {
     const content = fs.readFileSync(auditPath, 'utf-8');
+    const totalMatch = content.match(/Total `<img>` encontrados:\*\* (\d+)/);
+    expect(totalMatch).not.toBeNull();
+    expect(Number(totalMatch![1])).toBe(16);
     const numberedItems = content.match(/\| \d+ \|/g);
     expect(numberedItems).not.toBeNull();
-    // At least 14 entries (there are 21 total, some grouped)
-    expect(numberedItems!.length).toBeGreaterThanOrEqual(14);
+    expect(numberedItems!.length).toBe(16);
   });
 
   it('incluye secciones de decisión y mejoras aplicadas', () => {
@@ -158,12 +160,14 @@ describe('documentación de auditoría de imágenes', () => {
     expect(content).toContain('público');
   });
 
-  it('especifica que hosts externos no están en remotePatterns', () => {
+  it('no afirma que CSP ya permite hosts externos arbitrarios', () => {
     const content = fs.readFileSync(
       path.resolve(__dirname, '../docs/IMAGE-AUDIT.md'),
       'utf-8',
     );
-    expect(content).toContain('remotePatterns');
+    expect(content).toContain('No');
+    expect(content).not.toMatch(/CSP existente las maneja via `img-src`/);
+    expect(content).toContain('buildImgSrc');
   });
 
   it('lista qué archivos ya usan next/image correctamente', () => {

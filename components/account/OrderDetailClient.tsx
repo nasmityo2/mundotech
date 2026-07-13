@@ -9,6 +9,7 @@ import {
   ExternalLink, Copy, Check, Camera, Store, Building2, MessageCircle,
 } from 'lucide-react';
 import { EnrichedOrder } from '@/app/account/orders/[id]/page';
+import type { PublicOrderLookup } from '@/lib/definitions';
 import { MUNDOTECH_SOCIAL } from '@/lib/mundotech-social';
 import { Badge } from '@/components/ui/Badge';
 import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
@@ -16,7 +17,7 @@ import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import type { OrderStatus } from '@/lib/definitions';
 
 interface OrderDetailClientProps {
-  order: EnrichedOrder;
+  order: EnrichedOrder | PublicOrderLookup;
 }
 
 const formatDate = (dateString: string) =>

@@ -25,6 +25,7 @@ import {
   DEFAULT_PROFIT_MARGIN_PCT,
   DEFAULT_BCV_BINANCE_FACTOR,
 } from '@/lib/pricing-formula';
+import { logError } from '@/lib/safe-logger';
 
 const exchangeRateSchema = z
   .number({ error: 'La tasa debe ser un número.' })
@@ -41,7 +42,7 @@ export async function getExchangeRate(): Promise<number> {
   } catch (err) {
     // RUN-07 / PRD-139: degradación visible en logs — la tasa de fallback (36.5)
     // es ficticia y sin traza ops no detecta la caída de BD.
-    console.error('[getExchangeRate] fallo de BD — usando DEFAULT_EXCHANGE_RATE_USD_BS:', err);
+    logError('exchange_rate_read_failed', err, { operation: 'get_exchange_rate', provider: 'postgres' });
     return DEFAULT_EXCHANGE_RATE_USD_BS;
   }
 }
@@ -78,7 +79,7 @@ export async function getPricingParams(): Promise<{ marginPct: number; factor: n
     const factor = rawFactor != null && Number.isFinite(Number(rawFactor)) && Number(rawFactor) > 0 ? Number(rawFactor) : DEFAULT_BCV_BINANCE_FACTOR;
     return { marginPct, factor };
   } catch (err) {
-    console.error('[getPricingParams] fallo de BD — usando defaults:', err);
+    logError('pricing_params_read_failed', err, { operation: 'get_pricing_params', provider: 'postgres' });
     return { marginPct: DEFAULT_PROFIT_MARGIN_PCT, factor: DEFAULT_BCV_BINANCE_FACTOR };
   }
 }
@@ -123,7 +124,7 @@ export async function getMarginPresets(): Promise<number[]> {
     const parsed = marginPresetsSchema.safeParse(JSON.parse(record.value));
     return parsed.success ? parsed.data : DEFAULT_MARGIN_PRESETS;
   } catch (err) {
-    console.error('[getMarginPresets] fallo de BD — usando defaults:', err);
+    logError('margin_presets_read_failed', err, { operation: 'get_margin_presets', provider: 'postgres' });
     return DEFAULT_MARGIN_PRESETS;
   }
 }

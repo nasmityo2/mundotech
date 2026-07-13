@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { couponInputSchema, couponToClient, normalizeCouponCode } from '@/lib/coupons';
@@ -17,7 +18,7 @@ export async function GET() {
       headers: { 'Cache-Control': 'no-store' },
     });
   } catch (error) {
-    console.error('[GET /api/coupons] Error inesperado:', error);
+    logError('coupons_get_failed', error, { route: '/api/coupons' });
     return NextResponse.json({ error: 'Error al obtener los cupones.' }, { status: 500 });
   }
 }
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(couponToClient(coupon), { status: 201 });
   } catch (error) {
-    console.error('[POST /api/coupons] Error inesperado:', error);
+    logError('coupons_post_failed', error, { route: '/api/coupons' });
     return NextResponse.json({ error: 'Error al crear el cupón.' }, { status: 500 });
   }
 }

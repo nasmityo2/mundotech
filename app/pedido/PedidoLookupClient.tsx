@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PackageSearch, Loader2, Search } from 'lucide-react';
 import { lookupPublicOrderAction } from '@/app/actions/orderLookupActions';
-import type { EnrichedOrder } from '@/app/account/orders/[id]/page';
+import type { PublicOrderLookup } from '@/lib/definitions';
 import OrderDetailClient from '@/components/account/OrderDetailClient';
 
 /**
@@ -18,7 +18,7 @@ export default function PedidoLookupClient() {
   const [idNumber, setIdNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [order, setOrder] = useState<EnrichedOrder | null>(null);
+  const [order, setOrder] = useState<PublicOrderLookup | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

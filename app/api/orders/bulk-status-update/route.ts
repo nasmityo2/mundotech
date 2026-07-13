@@ -7,6 +7,7 @@ import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order
 import { orderPathSegment } from '@/lib/order-ref';
 import { sendOrderCancelledEmail } from '@/lib/resend';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
+import { logError } from '@/lib/safe-logger';
 
 /** PRD-200: el bulk no puede avanzar a estados que requieren acción individual.
  *  'Enviado' exige tracking + email por pedido.
@@ -132,11 +133,11 @@ export async function POST(request: Request) {
       try {
         await sendOrderCancelledEmail(recipientEmail, firstName, ref);
       } catch (emailErr) {
-        console.error(
-          '[bulk-cancel-email] Fallo no crítico — pedido cancelado en BD.',
-          `orderId=${order.id} email=${recipientEmail}`,
-          emailErr,
-        );
+        logError('bulk_cancel_email_failed', emailErr, {
+          orderId: order.id,
+          provider: 'resend',
+          operation: 'send_cancellation',
+        });
       }
     }
   }

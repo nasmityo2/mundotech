@@ -6,6 +6,8 @@ import {
   OPS_APP_CONFIG_KEYS,
   buildAdminOperationsHealth,
   buildOpsMap,
+  withTimeout,
+  HEALTH_DB_TIMEOUT_MS,
 } from '@/lib/operations-health';
 
 /**
@@ -26,10 +28,13 @@ export async function GET(): Promise<NextResponse> {
   if (!auth.authorized) return auth.response;
 
   try {
-    const opsRows = await prisma.appConfig.findMany({
-      where: { key: { in: [...OPS_APP_CONFIG_KEYS] } },
-      select: { key: true, value: true },
-    });
+    const opsRows = await withTimeout(
+      prisma.appConfig.findMany({
+        where: { key: { in: [...OPS_APP_CONFIG_KEYS] } },
+        select: { key: true, value: true },
+      }),
+      HEALTH_DB_TIMEOUT_MS,
+    );
 
     const opsMap = buildOpsMap(opsRows);
     const operationsHealth = buildAdminOperationsHealth(opsMap);

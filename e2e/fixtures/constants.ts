@@ -43,64 +43,78 @@ export const E2E_COUPON = {
   maxDiscount: 10,
 } as const;
 
-// ── Test fixture extendido ──
+/** Tokens de reset precargados en BD (hash en passwordResetToken). */
+export const E2E_RESET_TOKENS = {
+  valid: 'e2e-valid-reset-token-00000001',
+  expired: 'e2e-expired-reset-token-00000002',
+} as const;
+
+/** PNG 1×1 con magic bytes válidos para upload de comprobante. */
+export const E2E_PNG_1X1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+export function productPdpPath(slug: string): string {
+  return `/product/${slug}`;
+}
+
+export async function addProductToCart(page: Page, slug: string) {
+  await page.goto(productPdpPath(slug));
+  const addBtn = page.getByRole('button', { name: /¡Me lo llevo!/i });
+  await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
+  await addBtn.click();
+  await page.waitForTimeout(800);
+}
 
 /**
  * Realiza login con el form de credenciales (email + password).
- * Asume que la página está en /login o que el form está visible.
  */
 export async function doLogin(page: Page, email: string, password: string) {
   await page.goto('/login');
-  // Esperar a que el formulario esté listo
   await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
   await page.click('button[type="submit"]');
-  // Esperar a que redirija al home (o dashboard según rol)
-  await page.waitForURL(/^\/($|admin)/, { timeout: 15_000 });
+  await page.waitForURL(/^\/($|admin|account)/, { timeout: 15_000 });
 }
 
-/**
- * Agrega un producto al carrito desde la PDP.
- * Asume estar en /productos/<slug>.
- */
-export async function addToCart(page: Page) {
-  const addBtn = page.locator('button:has-text("Agregar al carrito")');
-  await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
-  await addBtn.click();
-  // Esperar toast o badge del carrito
-  await page.waitForTimeout(1000);
+export async function fillGuestShippingStep(page: Page) {
+  await page.locator('#firstName').fill('Invitado');
+  await page.locator('#lastName').fill('E2E');
+  await page.locator('#idNumber').fill('12345678');
+  await page.locator('#phoneNumber').fill('04121234567');
+  await page.locator('#email').fill('invitado@e2e.test');
+  await page.getByRole('button', { name: /Continuar al pago/i }).click();
+  await page.getByRole('heading', { name: /Método de pago/i }).waitFor({ timeout: 10_000 });
 }
 
-/**
- * Aplica un cupón en la página del carrito.
- * Asume estar en /cart con al menos un item.
- */
-export async function applyCoupon(page: Page, code: string) {
-  const input = page.locator('input[placeholder*="cupón" i], input[aria-label*="cupón" i]');
-  await input.waitFor({ state: 'visible', timeout: 10_000 });
-  await input.fill(code);
-  await page.locator('button:has-text("Aplicar")').click();
-  await page.waitForTimeout(1500);
+export async function fillPagoMovilPaymentStep(page: Page) {
+  await page.getByRole('button', { name: 'Pago Móvil' }).click();
+  await page.locator('#bank').selectOption({ index: 1 });
+  await page.locator('#holderIdNumber').fill('V-12345678');
+  await page.locator('#holderPhone').fill('04121234567');
+  await page.locator('#referenceNumber').fill('1234567890');
+  const fileInput = page.locator('input[type="file"]').first();
+  await fileInput.setInputFiles({
+    name: 'comprobante-e2e.png',
+    mimeType: 'image/png',
+    buffer: E2E_PNG_1X1,
+  });
+  await page.getByRole('button', { name: /Revisar pedido/i }).click();
+  await page.getByRole('heading', { name: /Revisión final/i }).waitFor({ timeout: 10_000 });
 }
 
-/**
- * Login helper que retorna true si el login fue exitoso (redirigió).
- */
-export async function tryLogin(page: Page, email: string, password: string): Promise<boolean> {
-  await page.goto('/login');
-  await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
-  await page.click('button[type="submit"]');
-  try {
-    await page.waitForURL(/^\/($|admin|account)/, { timeout: 10_000 });
-    return true;
-  } catch {
-    return false;
+export async function readProductStock(page: Page, slug: string): Promise<number> {
+  await page.goto(productPdpPath(slug));
+  const stockText = page.locator('text=/En stock \\(\\d+ unidades\\)/');
+  await stockText.waitFor({ state: 'visible', timeout: 10_000 });
+  const match = (await stockText.innerText()).match(/\((\d+) unidades\)/);
+  if (!match) {
+    throw new Error('No se pudo leer el stock del producto en PDP');
   }
+  return Number(match[1]);
 }
 
-// Extender el test base con helpers si es necesario
 export const test = base;
 export { expect } from '@playwright/test';

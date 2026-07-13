@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
@@ -54,7 +55,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ autoApprove: parsed.data.autoApprove });
   } catch (error) {
-    console.error('[PUT /api/reviews/auto-approve] Error inesperado:', error);
+    logError('reviews_auto_approve_failed', error, { route: '/api/reviews/auto-approve' });
     return NextResponse.json({ error: 'No se pudo actualizar la configuración.' }, { status: 500 });
   }
 }

@@ -8,6 +8,7 @@ import type { SavedAddress, SavedAddressInput, ShippingMethod } from '@/lib/defi
 import { mrwOffices } from '@/lib/mrw-offices';
 import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
 import { tealcaOffices, type TealcaOffice } from '@/lib/tealca-offices';
+import { logError } from '@/lib/safe-logger';
 
 interface ActionResult {
   success: boolean;
@@ -111,7 +112,7 @@ export async function getSavedAddresses(): Promise<SavedAddress[]> {
     // Cambiar el contrato exige actualizar consumidores ajenos a este segmento:
     // // DEPENDENCIA-02: app/components/checkout/ShippingForm.tsx (checkout)
     // // DEPENDENCIA-04: app/account/addresses/page.tsx (cuenta cliente)
-    console.error('[addressActions] getSavedAddresses:', error);
+    logError('address_get_failed', error, { operation: 'get_saved_addresses' });
     return [];
   }
 }
@@ -185,7 +186,7 @@ export async function createSavedAddress(
     revalidatePath('/account/addresses');
     return { success: true, message: 'Dirección guardada.', address: toSavedAddress(created) };
   } catch (error) {
-    console.error('[addressActions] createSavedAddress:', error);
+    logError('address_create_failed', error, { operation: 'create_saved_address' });
     return { success: false, message: 'Error al guardar la dirección.' };
   }
 }
@@ -255,7 +256,7 @@ export async function updateSavedAddress(
     revalidatePath('/account/addresses');
     return { success: true, message: 'Dirección actualizada.', address: toSavedAddress(updated) };
   } catch (error) {
-    console.error('[addressActions] updateSavedAddress:', error);
+    logError('address_update_failed', error, { operation: 'update_saved_address' });
     return { success: false, message: 'Error al actualizar la dirección.' };
   }
 }
@@ -287,7 +288,7 @@ export async function deleteSavedAddress(id: string): Promise<ActionResult> {
     revalidatePath('/account/addresses');
     return { success: true, message: 'Dirección eliminada.' };
   } catch (error) {
-    console.error('[addressActions] deleteSavedAddress:', error);
+    logError('address_delete_failed', error, { operation: 'delete_saved_address' });
     return { success: false, message: 'Error al eliminar la dirección.' };
   }
 }
@@ -310,7 +311,7 @@ export async function setDefaultAddress(id: string): Promise<ActionResult> {
     revalidatePath('/account/addresses');
     return { success: true, message: 'Dirección predeterminada actualizada.' };
   } catch (error) {
-    console.error('[addressActions] setDefaultAddress:', error);
+    logError('address_set_default_failed', error, { operation: 'set_default_address' });
     return { success: false, message: 'Error al actualizar la dirección predeterminada.' };
   }
 }

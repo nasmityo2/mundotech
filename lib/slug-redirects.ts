@@ -6,6 +6,7 @@
  * consulta `resolveSlugRedirect()` antes de responder 404.
  */
 import { prisma } from '@/lib/prisma';
+import { logError } from '@/lib/safe-logger';
 
 const SLUG_REDIRECT_PREFIX = 'slug_redirect:';
 
@@ -36,7 +37,7 @@ export async function saveSlugRedirect(oldSlug: string, newSlug: string): Promis
     ]);
   } catch (error) {
     // Best-effort: el rename del producto ya se aplicó; un redirect fallido no debe romper el guardado
-    console.error('[slug-redirects] saveSlugRedirect:', error);
+    logError('slug_redirect_save_failed', error, { operation: 'save_slug_redirect' });
   }
 }
 
@@ -51,7 +52,7 @@ export async function resolveSlugRedirect(slug: string): Promise<string | null> 
     });
     return rec?.value && rec.value !== s ? rec.value : null;
   } catch (error) {
-    console.error('[slug-redirects] resolveSlugRedirect:', error);
+    logError('slug_redirect_resolve_failed', error, { operation: 'resolve_slug_redirect' });
     return null;
   }
 }

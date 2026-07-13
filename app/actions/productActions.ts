@@ -18,6 +18,7 @@ import { deleteFromR2, isR2PublicUrl, keyFromR2PublicUrl } from '@/lib/r2';
 import { calcSellingPriceUsd, roundUpToStep } from '@/lib/pricing-formula';
 import { getPricingParams } from '@/app/actions/configActions';
 import { pingIndexNow } from '@/lib/indexnow';
+import { logError } from '@/lib/safe-logger';
 import { rateLimit } from '@/lib/rate-limit';
 import { getActionClientIp } from '@/lib/security';
 
@@ -122,7 +123,7 @@ async function safeDeleteR2ByUrl(url: string, context: string): Promise<void> {
   try {
     await deleteFromR2(key);
   } catch (err) {
-    console.error(`[${context}] R2 delete failed for ${url}:`, err);
+    logError('product_r2_delete_failed', err, { operation: context, provider: 'r2' });
   }
 }
 
@@ -133,7 +134,7 @@ async function markVideoJobDeleted(videoUrl: string, context: string): Promise<v
       data: { status: 'DELETED' },
     });
   } catch (err) {
-    console.error(`[${context}] VideoJob mark DELETED failed for ${videoUrl}:`, err);
+    logError('product_video_job_mark_failed', err, { operation: context });
   }
 }
 
@@ -284,7 +285,7 @@ export async function createProductAction(formData: FormData) {
     void pingIndexNow([`/product/${slug}`, '/productos']);
     return { success: true, message: 'Producto añadido con éxito.' };
   } catch (error) {
-    console.error('Error al crear el producto:', error);
+    logError('product_create_failed', error, { operation: 'create_product' });
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No tienes permiso para realizar esta acción.' };
     }
@@ -419,7 +420,7 @@ export async function updateProductAction(productId: string, formData: FormData)
     void pingIndexNow([`/product/${slug}`]);
     return { success: true, message: 'Producto actualizado con éxito.' };
   } catch (error) {
-    console.error('Error al actualizar el producto:', error);
+    logError('product_update_failed', error, { operation: 'update_product' });
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No tienes permiso para realizar esta acción.' };
     }
@@ -483,7 +484,7 @@ export async function deleteProductAction(productId: string) {
     revalidatePath('/admin/products');
     return { success: true, softDeleted: false, message: 'Producto eliminado con éxito.' };
   } catch (error) {
-    console.error('Error al eliminar el producto:', error);
+    logError('product_delete_failed', error, { operation: 'delete_product' });
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No tienes permiso para realizar esta acción.' };
     }
@@ -515,7 +516,7 @@ export async function setProductActiveAction(productId: string, isActive: boolea
         : 'Producto despublicado.',
     };
   } catch (error) {
-    console.error('Error al cambiar la visibilidad del producto:', error);
+    logError('product_visibility_failed', error, { operation: 'toggle_product_visibility' });
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No tienes permiso para realizar esta acción.' };
     }
@@ -748,7 +749,7 @@ export async function importProductsFromCSV(csvData: string) {
       { timeout: 60_000 },
     );
   } catch (dbError) {
-    console.error('[importProductsFromCSV] transacción revertida:', dbError);
+    logError('product_csv_import_failed', dbError, { operation: 'import_products_csv' });
     return {
       success: false,
       createdCount: 0,
@@ -824,7 +825,7 @@ export async function quickUpdateStockAction(productId: string, stock: number) {
       return { success: false, message: 'No autorizado.' };
     }
     // RUN-08: sin log, un fallo de Prisma en producción es indiagnosticable.
-    console.error('[quickUpdateStockAction]', productId, error);
+    logError('product_stock_update_failed', error, { operation: 'quick_update_stock' });
     return { success: false, message: 'Error al actualizar stock.' };
   }
 }
@@ -853,7 +854,7 @@ export async function quickUpdatePriceAction(productId: string, price: number) {
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No autorizado.' };
     }
-    console.error('[quickUpdatePriceAction]', productId, error);
+    logError('product_price_update_failed', error, { operation: 'quick_update_price' });
     return { success: false, message: 'Error al actualizar precio.' };
   }
 }
@@ -1006,7 +1007,7 @@ export async function recalculateAllProductPrices() {
       message: `Listo: ${updated} producto(s) actualizado(s)${skipped ? `, ${skipped} omitido(s)/calibrado(s)` : ''}.`,
     };
   } catch (error) {
-    console.error('Error al recalcular precios:', error);
+    logError('product_recalculate_prices_failed', error, { operation: 'recalculate_prices' });
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No tienes permiso para realizar esta acción.' };
     }

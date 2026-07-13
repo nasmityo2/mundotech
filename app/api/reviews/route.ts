@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
 import { reviewToClient, readReviewsAutoApprove } from '@/lib/reviews';
@@ -64,7 +65,7 @@ export async function GET(request: Request) {
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
-    console.error('[GET /api/reviews] Error inesperado:', error);
+    logError('reviews_get_failed', error, { route: '/api/reviews' });
     return NextResponse.json({ error: 'No se pudieron cargar las reseñas.' }, { status: 500 });
   }
 }

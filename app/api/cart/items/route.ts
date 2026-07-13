@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { requireUser } from '@/lib/api-auth';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
@@ -30,7 +31,7 @@ export async function PATCH(request: Request) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Datos inválidos.', details: error.issues }, { status: 400 });
     }
-    console.error('[PATCH /api/cart/items]', error);
+    logError('cart_items_patch_failed', error, { route: '/api/cart/items' });
     return NextResponse.json({ error: 'Error al actualizar el carrito.' }, { status: 500 });
   }
 }

@@ -38,6 +38,7 @@ export const SHELL_CACHE_TAGS = [
   'site-content',
   'seo-local',
   'announcement',
+  'categories',
 ] as const;
 
 export const SHELL_CACHE_KEY = 'site-shell-data';
@@ -48,6 +49,7 @@ export const CACHE_TAG_SETTINGS = 'settings';
 export const CACHE_TAG_SITE_CONTENT = 'site-content';
 export const CACHE_TAG_SEO_LOCAL = 'seo-local';
 export const CACHE_TAG_ANNOUNCEMENT = 'announcement';
+export const CACHE_TAG_CATEGORIES = 'categories';
 
 // ── DTO público (sin datos bancarios) ──────────────────────────────────────
 

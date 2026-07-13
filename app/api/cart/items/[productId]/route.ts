@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { requireUser } from '@/lib/api-auth';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { removeCartItem } from '@/lib/cart';
@@ -26,7 +27,7 @@ export async function DELETE(
     await removeCartItem(auth.session.user.id, productId);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error('[DELETE /api/cart/items/[productId]]', error);
+    logError('cart_item_delete_failed', error, { route: '/api/cart/items/[productId]' });
     return NextResponse.json({ error: 'Error al eliminar el ítem.' }, { status: 500 });
   }
 }

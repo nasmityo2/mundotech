@@ -8,6 +8,7 @@ import {
 import { mergeCart } from '@/lib/cart';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { emailSiteBaseUrl } from '@/emails/mundotech/site';
+import { logError } from '@/lib/safe-logger';
 
 function siteUrl(path: string): string {
   return `${emailSiteBaseUrl().replace(/\/$/, '')}${path}`;
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       snapshotItems.map((item) => ({ productId: item.id, quantity: item.quantity }))
     );
   } catch (error) {
-    console.error('[cart/recover] Error rehidratando carrito:', error);
+    logError('cart_recover_failed', error, { route: '/api/cart/recover' });
     return NextResponse.redirect(siteUrl('/cart?recover=error'));
   }
 

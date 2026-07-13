@@ -20,8 +20,10 @@ import React, { useEffect } from 'react';
 // Helper para trackear URLs solicitadas al fetch mock
 let fetchCalls: string[] = [];
 
-function setupFetchMock(respondWith?: { rate: number } | 'error') {
-  fetchCalls = [];
+function setupFetchMock(respondWith?: { rate: number } | 'error', options?: { resetCalls?: boolean }) {
+  if (options?.resetCalls !== false) {
+    fetchCalls = [];
+  }
   const mockImpl = (url: string) => {
     fetchCalls.push(url);
     if (respondWith === 'error') {
@@ -219,6 +221,46 @@ describe('ExchangeRateProvider — SESIÓN 17', () => {
 
     // Debe haber al menos 1 fetch adicional (el del timer)
     expect(fetchCalls.length).toBeGreaterThanOrEqual(initialCalls + 1);
+  });
+
+  it('al volver visible refresca cuando stale pasó de false a true (lee staleRef, no closure)', async () => {
+    const onRender = vi.fn();
+    const baseTime = Date.now();
+
+    render(
+      <ExchangeRateProvider initialRate={60.0} initialUpdatedAt={new Date(baseTime).toISOString()}>
+        <Consumer onRender={onRender} />
+      </ExchangeRateProvider>
+    );
+
+    await act(async () => { vi.advanceTimersByTime(10); });
+    expect(fetchCalls).toHaveLength(0);
+
+    await act(async () => { vi.advanceTimersByTime(15 * 60 * 1000); });
+    expect(onRender).toHaveBeenLastCalledWith(
+      expect.objectContaining({ stale: false })
+    );
+
+    setupFetchMock('error', { resetCalls: false });
+    await act(async () => { vi.advanceTimersByTime(15 * 60 * 1000); });
+    expect(onRender).toHaveBeenLastCalledWith(
+      expect.objectContaining({ stale: true })
+    );
+    const callsAfterFail = fetchCalls.length;
+
+    // 1 min después del último éxito: solo staleRef debe disparar fetch (no el tiempo)
+    vi.setSystemTime(baseTime + 16 * 60 * 1000);
+    setupFetchMock({ rate: 51.0 }, { resetCalls: false });
+
+    await act(async () => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await act(async () => { vi.advanceTimersByTime(10); });
+
+    expect(fetchCalls.length).toBeGreaterThan(callsAfterFail);
   });
 
   it('sin polling en hidden', async () => {

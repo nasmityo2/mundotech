@@ -2,151 +2,170 @@
  * e2e-reset-db.ts
  *
  * Resetea y siembra la BD de E2E con datos deterministas.
- * SEGURIDAD: aborta si DATABASE_URL NO contiene "_e2e" ni "test" y no es CI.
+ * SEGURIDAD: aborta si DATABASE_URL no apunta a BD/host con "_e2e" o "test".
  * Uso: tsx scripts/e2e-reset-db.ts
  */
 import 'dotenv/config';
+import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
+import { assertE2eDatabaseUrl, confirmE2eDatabaseSchema } from '@/lib/e2e-db-guard';
+import { hashToken } from '@/lib/security';
+import {
+  E2E_ADMIN,
+  E2E_CLIENT,
+  E2E_COUPON,
+  E2E_PRODUCTS,
+  E2E_RESET_TOKENS,
+} from '../e2e/fixtures/constants';
 
-const DATABASE_URL = process.env.DATABASE_URL || '';
-const IS_CI = !!process.env.CI;
-
-if (!DATABASE_URL.includes('_e2e') && !DATABASE_URL.includes('test') && !IS_CI) {
-  console.error(
-    `[E2E-SAFETY] DATABASE_URL (${DATABASE_URL.slice(0, 40)}…) no contiene "_e2e" ni "test". ` +
-    'Este script solo puede ejecutarse contra BD de E2E. Abortando.',
-  );
-  process.exit(1);
-}
+assertE2eDatabaseUrl(process.env.DATABASE_URL ?? '');
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('[e2e-reset] Limpiando BD...');
-
-  // Orden de borrado respetando FKs
-  await prisma.couponRedemption.deleteMany();
-  await prisma.cartItem.deleteMany();
-  await prisma.cart.deleteMany();
-  await prisma.wishlistItem.deleteMany();
-  await prisma.review.deleteMany();
-  await prisma.productView.deleteMany();
-  await prisma.passwordResetToken.deleteMany();
-  await prisma.abandonedCart.deleteMany();
-  await prisma.restockSubscription.deleteMany();
-  await prisma.videoJob.deleteMany();
-  await prisma.paymentUpload.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.coupon.deleteMany();
-  await prisma.appConfig.deleteMany();
-  await prisma.productMedia.deleteMany();
-  await prisma.product.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.promotion.deleteMany();
-  await prisma.banner.deleteMany();
-  await prisma.savedAddress.deleteMany();
-
-  console.log('[e2e-reset] BD limpiada. Sembrando datos...');
-
-  // ── Admin ──
-  const admin = await prisma.user.create({
-    data: {
-      name: 'Admin Test',
-      email: 'admin@mundotechtest.com',
-      password: '$2b$06$e2e.admin.hashed.password.deterministic.abc123',
-      role: 'ADMIN',
-    },
+  await confirmE2eDatabaseSchema(async () => {
+    const rows = await prisma.$queryRaw<{ current_database: string }[]>`
+      SELECT current_database()
+    `;
+    return rows[0]?.current_database ?? '';
   });
-  console.log(`  Admin: ${admin.email} (id=${admin.id})`);
 
-  // ── CLIENT ──
-  const client = await prisma.user.create({
-    data: {
-      name: 'Cliente Test',
-      email: 'cliente@mundotechtest.com',
-      password: '$2b$06$e2e.client.hashed.password.deterministic.xyz789',
-      role: 'CLIENT',
-    },
-  });
-  console.log(`  CLIENT: ${client.email} (id=${client.id})`);
+  console.log('[e2e-reset] Limpiando y sembrando BD E2E...');
 
-  // ── Productos ──
-  const product1 = await prisma.product.create({
-    data: {
-      name: 'Audífonos Bluetooth Test',
-      slug: 'audifonos-bluetooth-test',
-      description: 'Audífonos inalámbricos con cancelación de ruido para pruebas E2E.',
-      price: 45.99,
-      stock: 10,
-      category: 'Electrónicos',
-      brand: 'TestBrand',
-      images: ['https://cdn.e2e.test/audifonos.jpg'],
-      isActive: true,
-    },
-  });
-  console.log(`  Producto 1: ${product1.name} (stock=${product1.stock})`);
+  const [adminHash, clientHash] = await Promise.all([
+    bcrypt.hash(E2E_ADMIN.password, 12),
+    bcrypt.hash(E2E_CLIENT.password, 12),
+  ]);
 
-  const product2 = await prisma.product.create({
-    data: {
-      name: 'Cargador USB-C Test',
-      slug: 'cargador-usb-c-test',
-      description: 'Cargador rápido 65W para pruebas E2E.',
-      price: 15.50,
-      stock: 0, // sin stock — probar flujo sin stock
-      category: 'Accesorios',
-      brand: 'TestBrand',
-      images: ['https://cdn.e2e.test/cargador.jpg'],
-      isActive: true,
-    },
-  });
-  console.log(`  Producto 2: ${product2.name} (stock=${product2.stock})`);
+  await prisma.$transaction(async (tx) => {
+    await tx.couponRedemption.deleteMany();
+    await tx.paymentUpload.deleteMany();
+    await tx.orderItem.deleteMany();
+    await tx.order.deleteMany();
+    await tx.cartItem.deleteMany();
+    await tx.cart.deleteMany();
+    await tx.wishlistItem.deleteMany();
+    await tx.review.deleteMany();
+    await tx.productView.deleteMany();
+    await tx.passwordResetToken.deleteMany();
+    await tx.abandonedCart.deleteMany();
+    await tx.restockSubscription.deleteMany();
+    await tx.videoJob.deleteMany();
+    await tx.coupon.deleteMany();
+    await tx.productMedia.deleteMany();
+    await tx.product.deleteMany();
+    await tx.category.deleteMany();
+    await tx.promotion.deleteMany();
+    await tx.banner.deleteMany();
+    await tx.savedAddress.deleteMany();
+    await tx.user.deleteMany();
+    await tx.appConfig.deleteMany();
 
-  // ── Cupón ──
-  const coupon = await prisma.coupon.create({
-    data: {
-      code: 'E2E10',
-      description: '10% off para pruebas E2E',
-      discountType: 'PERCENT',
-      discountValue: 10,
-      minPurchase: 20,
-      maxDiscount: 10,
-      maxUses: 100,
-      usedCount: 0,
-      active: true,
-    },
-  });
-  console.log(`  Cupón: ${coupon.code}`);
+    const admin = await tx.user.create({
+      data: {
+        name: E2E_ADMIN.name,
+        email: E2E_ADMIN.email,
+        password: adminHash,
+        role: 'ADMIN',
+      },
+    });
 
-  // ── AppConfig settings ──
-  await prisma.appConfig.create({
-    data: {
-      key: 'store_settings',
-      value: JSON.stringify({
-        storeName: 'MundoTech E2E',
-        tagline: 'Tienda de pruebas E2E',
-        phone: '0412-0000000',
-        email: 'e2e@mundotechtest.com',
-        address: 'Dirección de prueba E2E',
-        pagoMovil: { bank: 'TestBank', phone: '0412-0000000', idNumber: 'V-00000000' },
-        transferencia: { bank: 'TestBank', accountNumber: '0000-0000-00-00000000', accountHolder: 'Test E2E', rif: 'J-00000000-0' },
-        binancePayId: '',
-        binanceQrUrl: '',
-        labelWidthMm: 100,
-        labelHeightMm: 150,
-        whatsappOrderPhone: '',
-      }),
-    },
+    const client = await tx.user.create({
+      data: {
+        name: E2E_CLIENT.name,
+        email: E2E_CLIENT.email,
+        password: clientHash,
+        role: 'CLIENT',
+      },
+    });
+
+    await tx.passwordResetToken.create({
+      data: {
+        token: hashToken(E2E_RESET_TOKENS.valid),
+        userId: client.id,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    });
+
+    await tx.passwordResetToken.create({
+      data: {
+        token: hashToken(E2E_RESET_TOKENS.expired),
+        userId: client.id,
+        expiresAt: new Date(Date.now() - 60 * 60 * 1000),
+      },
+    });
+
+    await tx.product.create({
+      data: {
+        name: E2E_PRODUCTS.inStock.name,
+        slug: E2E_PRODUCTS.inStock.slug,
+        description: 'Audífonos inalámbricos con cancelación de ruido para pruebas E2E.',
+        price: E2E_PRODUCTS.inStock.price,
+        stock: E2E_PRODUCTS.inStock.stock,
+        category: E2E_PRODUCTS.inStock.category,
+        brand: 'TestBrand',
+        images: ['https://cdn.e2e.test/audifonos.jpg'],
+        isActive: true,
+      },
+    });
+
+    await tx.product.create({
+      data: {
+        name: E2E_PRODUCTS.noStock.name,
+        slug: E2E_PRODUCTS.noStock.slug,
+        description: 'Cargador rápido 65W para pruebas E2E.',
+        price: E2E_PRODUCTS.noStock.price,
+        stock: E2E_PRODUCTS.noStock.stock,
+        category: E2E_PRODUCTS.noStock.category,
+        brand: 'TestBrand',
+        images: ['https://cdn.e2e.test/cargador.jpg'],
+        isActive: true,
+      },
+    });
+
+    await tx.coupon.create({
+      data: {
+        code: E2E_COUPON.code,
+        description: '10% off para pruebas E2E',
+        discountType: 'PERCENT',
+        discountValue: E2E_COUPON.discountPercent,
+        minPurchase: E2E_COUPON.minPurchase,
+        maxDiscount: E2E_COUPON.maxDiscount,
+        maxUses: 100,
+        usedCount: 0,
+        active: true,
+      },
+    });
+
+    await tx.appConfig.create({
+      data: {
+        key: 'store_settings',
+        value: JSON.stringify({
+          storeName: 'MundoTech E2E',
+          tagline: 'Tienda de pruebas E2E',
+          phone: '0412-0000000',
+          email: 'e2e@mundotechtest.com',
+          address: 'Dirección de prueba E2E',
+          pagoMovil: { bank: 'TestBank', phone: '0412-0000000', idNumber: 'V-00000000' },
+          transferencia: {
+            bank: 'TestBank',
+            accountNumber: '0000-0000-00-00000000',
+            accountHolder: 'Test E2E',
+            rif: 'J-00000000-0',
+          },
+          binancePayId: '',
+          binanceQrUrl: '',
+          labelWidthMm: 100,
+          labelHeightMm: 150,
+          whatsappOrderPhone: '',
+        }),
+      },
+    });
+
+    void admin;
   });
-  console.log('[e2e-reset] AppConfig sembrado.');
 
   console.log('[e2e-reset] Seed completado.');
-  console.log('  Admin email: admin@mundotechtest.com');
-  console.log('  Admin password: admin-e2e-pass (login manual)');
-  console.log('  CLIENT email: cliente@mundotechtest.com');
-  console.log('  CLIENT password: cliente-e2e-pass (login manual)');
-  console.log('  Cupón: E2E10 (10% hasta $10 de descuento, min $20)');
-  console.log('  Producto con stock:  "Audífonos Bluetooth Test" (stock=10)');
-  console.log('  Producto sin stock:   "Cargador USB-C Test" (stock=0)');
 }
 
 main()

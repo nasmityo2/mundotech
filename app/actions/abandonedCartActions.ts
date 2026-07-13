@@ -6,6 +6,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { upsertAbandonedCart, markCartRecovered } from '@/lib/abandoned-cart';
 import { rateLimit } from '@/lib/rate-limit';
 import { getActionClientIp } from '@/lib/security';
+import { logWarn, logError } from '@/lib/safe-logger';
 import type { AbandonedCartItem } from '@/lib/definitions';
 
 const snapshotSchema = z.object({
@@ -60,7 +61,7 @@ export async function saveCartSnapshotAction(
 
     const ip = await getActionClientIp();
     if (await rateLimit(`cart-snapshot:${ip}`, { limit: 10, windowMs: 10 * 60_000 })) {
-      console.warn('[saveCartSnapshotAction] Rate limit alcanzado para IP:', ip);
+      logWarn('abandoned_cart_snapshot_rate_limited', { operation: 'save_cart_snapshot' });
       return;
     }
 
@@ -71,14 +72,13 @@ export async function saveCartSnapshotAction(
       totalUsd,
     });
     if (!parsed.success) {
-      console.warn('[saveCartSnapshotAction] Payload inválido; snapshot ignorado.');
+      logWarn('abandoned_cart_snapshot_invalid_payload', { operation: 'save_cart_snapshot' });
       return;
     }
 
     await upsertAbandonedCart(parsed.data);
   } catch (error) {
-    // Best-effort: nunca interrumpe el checkout
-    console.error('[saveCartSnapshotAction] Error no crítico:', error);
+    logError('abandoned_cart_snapshot_failed', error, { operation: 'save_cart_snapshot' });
   }
 }
 
@@ -103,6 +103,6 @@ export async function markCartRecoveredAction(_email: string): Promise<void> {
 
     await markCartRecovered(sessionEmail);
   } catch (error) {
-    console.error('[markCartRecoveredAction] Error no crítico:', error);
+    logError('abandoned_cart_recovered_action_failed', error, { operation: 'mark_cart_recovered' });
   }
 }

@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { logWarn, logError } from '@/lib/safe-logger';
 
 export const storeSettingsSchema = z.object({
   storeName:     z.string().min(1, 'El nombre de la tienda es requerido.'),
@@ -124,7 +125,7 @@ export async function readSettings(): Promise<StoreSettings> {
       // BD accesible pero sin settings guardados: estado esperado en tienda
       // recién instalada — no es un error, pero conviene dejar rastro en prod.
       if (process.env.NODE_ENV === 'production') {
-        console.warn('[data-store] AppConfig sin "store_settings" — usando DEFAULT_SETTINGS (sin datos bancarios). Configura Admin → Configuración.');
+        logWarn('data_store_settings_missing', { operation: 'read_settings' });
       }
       return DEFAULT_SETTINGS;
     }
@@ -132,14 +133,14 @@ export async function readSettings(): Promise<StoreSettings> {
     // contenido está corrupto se registra el motivo y se degrada a DEFAULT.
     const parsed = storeSettingsSchema.safeParse(JSON.parse(record.value));
     if (!parsed.success) {
-      console.error('[data-store] store_settings corrupto en AppConfig — usando DEFAULT_SETTINGS:', parsed.error.flatten().fieldErrors);
+      logError('data_store_settings_corrupt', new Error('Invalid store_settings JSON'), {
+        operation: 'read_settings',
+      });
       return DEFAULT_SETTINGS;
     }
     return parsed.data;
   } catch (err) {
-    // PRD-106: antes este catch tragaba el error en silencio → settings ficticios
-    // sin ninguna señal. Se mantiene el fallback (no romper la página) pero con log.
-    console.error('[data-store] readSettings falló (BD inaccesible?) — usando DEFAULT_SETTINGS:', err);
+    logError('data_store_read_failed', err, { operation: 'read_settings', provider: 'postgres' });
     return DEFAULT_SETTINGS;
   }
 }

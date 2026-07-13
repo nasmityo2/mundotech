@@ -10,7 +10,7 @@
  */
 import { test, expect } from '../fixtures/constants';
 import { scanAxe, filterExceptions } from '../../lib/e2e-axe';
-import { E2E_PRODUCTS, E2E_ADMIN, doLogin } from '../fixtures/constants';
+import { E2E_PRODUCTS, E2E_ADMIN, doLogin, addProductToCart } from '../fixtures/constants';
 import type { AxeViolationSummary } from '../../lib/e2e-axe';
 
 /**
@@ -55,8 +55,8 @@ test.describe('Axe — Accesibilidad automatizada', () => {
     const publicPages = [
       { path: '/', label: 'Home' },
       { path: '/productos', label: 'Productos (listado)' },
-      { path: `/productos/${E2E_PRODUCTS.inStock.slug}`, label: 'PDP (con stock)' },
-      { path: `/productos/${E2E_PRODUCTS.noStock.slug}`, label: 'PDP (sin stock)' },
+      { path: `/product/${E2E_PRODUCTS.inStock.slug}`, label: 'PDP (con stock)' },
+      { path: `/product/${E2E_PRODUCTS.noStock.slug}`, label: 'PDP (sin stock)' },
       { path: '/cart', label: 'Carrito' },
       { path: '/login', label: 'Login' },
       { path: '/registro', label: 'Registro' },
@@ -84,81 +84,55 @@ test.describe('Axe — Accesibilidad automatizada', () => {
 
   test.describe('Drawers y overlays abiertos', () => {
     test('CartDrawer abierto — sin violaciones critical/serious', async ({ page }) => {
-      // Primero agregar un producto al carrito para que el drawer no esté vacío
-      await page.goto(`/productos/${E2E_PRODUCTS.inStock.slug}`);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await addProductToCart(page, E2E_PRODUCTS.inStock.slug);
+      await page.goto('/');
       await page.waitForLoadState('networkidle');
-      const addBtn = page.locator('button:has-text("Agregar al carrito")');
-      await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
-      await addBtn.click();
-      await page.waitForTimeout(1500);
 
-      // Abrir el cart drawer desde el botón de la navbar
-      const cartBtn = page.locator('button[aria-label*="carrito" i], [aria-label*="cart" i], button:has-text("Carrito")').first();
-      await cartBtn.waitFor({ state: 'visible', timeout: 10_000 });
+      const cartBtn = page.getByRole('button', { name: /Carrito de compras/i });
+      await expect(cartBtn).toBeVisible();
       await cartBtn.click();
-      await page.waitForTimeout(1500);
-
-      // Esperar a que el drawer esté visible
-      await page.waitForSelector('[role="dialog"], [role="region"]', { timeout: 10_000 }).catch(() => {});
+      await expect(page.getByRole('dialog', { name: /Carrito de compras/i })).toBeVisible({ timeout: 15_000 });
 
       const result = await scanAxe(page, 'CartDrawer');
       await assertNoCriticalSerious(result.violations, 'CartDrawer');
     });
 
     test('CategoryDrawer abierto — sin violaciones critical/serious', async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
       await page.goto('/');
       await page.waitForLoadState('networkidle');
 
-      // El botón de menú hamburguesa (abre CategoryDrawer)
-      const menuBtn = page.locator('button[aria-label*="menú" i], button[aria-label*="menu" i], button:has(svg.lucide-menu), [aria-label*="categorías" i]').first();
-      if (await menuBtn.isVisible()) {
-        await menuBtn.click();
-        await page.waitForTimeout(1500);
+      const menuBtn = page.getByRole('button', { name: /Abrir menú de categorías/i });
+      await expect(menuBtn).toBeVisible();
+      await menuBtn.click();
+      await expect(page.getByRole('dialog', { name: /Menú de categorías/i })).toBeVisible({ timeout: 20_000 });
 
-        // Esperar a que el drawer esté visible
-        await page.waitForSelector('[role="dialog"], [aria-label*="categorías" i]', { timeout: 10_000 }).catch(() => {});
-
-        const result = await scanAxe(page, 'CategoryDrawer');
-        await assertNoCriticalSerious(result.violations, 'CategoryDrawer');
-      } else {
-        console.log('[AXE-SKIP] CategoryDrawer: botón menú no visible — puede estar oculto en desktop');
-        test.skip();
-      }
+      const result = await scanAxe(page, 'CategoryDrawer');
+      await assertNoCriticalSerious(result.violations, 'CategoryDrawer');
     });
 
     test('SearchMobileOverlay abierto — sin violaciones critical/serious', async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
       await page.goto('/');
       await page.waitForLoadState('networkidle');
 
-      // Reducir viewport a tamaño mobile para que el overlay sea accesible
-      await page.setViewportSize({ width: 390, height: 844 });
+      const searchBtn = page.locator('button[aria-label*="buscar" i], button[aria-label*="search" i]').first();
+      await expect(searchBtn).toBeVisible();
+      await searchBtn.click();
+      await expect(page.locator('input[type="search"], input[placeholder*="buscar" i]').first()).toBeVisible({
+        timeout: 10_000,
+      });
 
-      // Botón de búsqueda mobile
-      const searchBtn = page.locator('button[aria-label*="buscar" i], button[aria-label*="search" i], button:has(svg.lucide-search)').first();
-      if (await searchBtn.isVisible()) {
-        await searchBtn.click();
-        await page.waitForTimeout(1500);
-
-        const result = await scanAxe(page, 'SearchMobileOverlay');
-        await assertNoCriticalSerious(result.violations, 'SearchMobileOverlay');
-      } else {
-        console.log('[AXE-SKIP] SearchMobileOverlay: botón búsqueda no visible');
-        test.skip();
-      }
+      const result = await scanAxe(page, 'SearchMobileOverlay');
+      await assertNoCriticalSerious(result.violations, 'SearchMobileOverlay');
     });
   });
 
   test.describe('Checkout flow', () => {
     test('Checkout página — sin violaciones critical/serious', async ({ page }) => {
       // Agregar producto al carrito primero
-      await page.goto(`/productos/${E2E_PRODUCTS.inStock.slug}`);
-      await page.waitForLoadState('networkidle');
-      const addBtn = page.locator('button:has-text("Agregar al carrito")');
-      await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
-      await addBtn.click();
-      await page.waitForTimeout(1500);
-
-      // Ir al checkout
+      await addProductToCart(page, E2E_PRODUCTS.inStock.slug);
       await page.goto('/checkout');
       await page.waitForLoadState('networkidle');
       await page.waitForTimeout(2000);
@@ -222,15 +196,12 @@ test.describe('Axe — Accesibilidad automatizada', () => {
       await page.goto('/login');
       await page.waitForLoadState('networkidle');
 
-      // Escribir algo en los campos para que los labels no estén vacíos
       const emailInput = page.locator('input[type="email"]');
       const passwordInput = page.locator('input[type="password"]');
-      if (await emailInput.isVisible()) {
-        await emailInput.fill('test@example.com');
-      }
-      if (await passwordInput.isVisible()) {
-        await passwordInput.fill('somepassword');
-      }
+      await expect(emailInput).toBeVisible();
+      await expect(passwordInput).toBeVisible();
+      await emailInput.fill('test@example.com');
+      await passwordInput.fill('somepassword');
       await page.waitForTimeout(500);
 
       const result = await scanAxe(page, 'Login Form (relleno)');

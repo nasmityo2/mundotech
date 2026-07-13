@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/api-auth';
@@ -57,7 +58,7 @@ export async function PUT(
     revalidateTag('promotions', 'default');
     return NextResponse.json(promo);
   } catch (error) {
-    console.error('[PUT /api/promotions/[id]]', error);
+    logError('promotions_put_failed', error, { route: '/api/promotions/[id]' });
     return NextResponse.json({ error: 'Error al actualizar la promoción.' }, { status: 500 });
   }
 }
@@ -79,7 +80,7 @@ export async function DELETE(
     revalidateTag('promotions', 'default');
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[DELETE /api/promotions/[id]]', error);
+    logError('promotions_delete_failed', error, { route: '/api/promotions/[id]' });
     return NextResponse.json({ error: 'Error al eliminar la promoción.' }, { status: 500 });
   }
 }

@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/api-auth';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { CACHE_TAG_SITE_SHELL, CACHE_TAG_SETTINGS } from '@/lib/site-shell-cache';
+import { logError } from '@/lib/safe-logger';
 
 /**
  * GET /api/settings
@@ -60,7 +61,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ success: true, message: 'Configuración guardada.' });
   } catch (error) {
     // PRD-043: logging del fallo (antes el catch tragaba el error).
-    console.error('[PUT /api/settings]', error);
+    logError('settings_put_failed', error, { route: '/api/settings', operation: 'put_settings' });
     return NextResponse.json(
       { success: false, message: 'Error al guardar la configuración.' },
       { status: 500 }

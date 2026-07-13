@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import type { Coupon as CouponClient, CouponDiscountType } from '@/lib/definitions';
 import { roundMoney2 } from '@/lib/exchange-rate';
+import { logWarn } from '@/lib/safe-logger';
 import { d, dn } from '@/lib/decimal';
 type Decimal = Prisma.Decimal;
 
@@ -159,8 +160,8 @@ export type CouponValidationResult =
   | { ok: true; coupon: ValidatedCoupon; discountUsd: number }
   | { ok: false; reason: string };
 
-function rejectCouponGeneric(detail: string, code: string): CouponValidationResult {
-  console.warn(`[coupon] rechazado: ${detail}`, { code });
+function rejectCouponGeneric(_detail: string, _code: string): CouponValidationResult {
+  logWarn('coupon_rejected', { operation: 'validate_coupon' });
   return { ok: false, reason: COUPON_GENERIC_INVALID_REASON };
 }
 
