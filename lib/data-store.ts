@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { logWarn, logError } from '@/lib/safe-logger';
+import { isR2PublicHttpsUrl } from '@/lib/r2-public-url';
 
 export const storeSettingsSchema = z.object({
   storeName:     z.string().min(1, 'El nombre de la tienda es requerido.'),
@@ -33,7 +34,16 @@ export const storeSettingsSchema = z.object({
    * (evita mostrar instrucciones de pago sin destino real configurado).
    */
   binancePayId:  z.string().optional().default(''),
-  binanceQrUrl:  z.string().optional().default(''),
+  binanceQrUrl: z
+    .string()
+    .trim()
+    .max(2048, 'La URL del QR Binance es demasiado larga.')
+    .optional()
+    .default('')
+    .refine(
+      (value) => value === '' || isR2PublicHttpsUrl(value),
+      'El QR Binance debe estar alojado en el R2 público configurado.',
+    ),
   // Etiqueta de envío: tamaño de la HOJA de impresión en mm. Default térmica 4×6".
   labelWidthMm:  z.coerce.number().min(40).max(300).default(100),
   labelHeightMm: z.coerce.number().min(40).max(400).default(150),

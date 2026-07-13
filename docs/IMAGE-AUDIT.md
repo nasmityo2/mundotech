@@ -24,7 +24,7 @@
 | 4 | 419 | Blob URL local (preview Binance) | **Conservar** — blob efímero | `"Captura Binance"` | `w-40 h-40` | `lazy` | `async` |
 | 5 | 580 | Blob URL local (preview comprobante) | **Conservar** — blob efímero | `"Comprobante"` | `w-40 h-40` | `lazy` | `async` |
 
-**Binance QR:** hoy el admin puede pegar cualquier URL en settings. Eso **no** está cubierto por CSP (`img-src` solo permite `'self'`, `data:`, `blob:`, R2 público/privado y GA). Una URL externa arbitraria **fallará en el navegador** salvo que se migre el QR a R2 o se añada un hostname explícito y acotado — nunca un comodín abierto.
+**Binance QR:** cerrado. Admin usa `PhotoUploader` con `purpose="binance-qr"`; `/api/upload` guarda en `assets/` y `storeSettingsSchema` rechaza cualquier URL que no sea HTTPS del hostname exacto de `R2_PUBLIC_BASE_URL`.
 
 ### 3. `app/components/checkout/ReviewStep.tsx` — 1 `<img>`
 

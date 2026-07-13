@@ -9,7 +9,7 @@ interface PhotoUploaderProps {
   value: string | null | undefined;
   onChange: (url: string | null) => void;
   /** Carpeta lógica en R2 (vía /api/upload?purpose=...). */
-  purpose?: 'banner' | 'product' | 'tracking' | 'seo' | 'category';
+  purpose?: 'banner' | 'product' | 'tracking' | 'seo' | 'category' | 'binance-qr';
   /** Texto del label/title. */
   label?: string;
   /** Texto descriptivo bajo el label. */

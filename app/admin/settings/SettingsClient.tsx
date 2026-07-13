@@ -13,6 +13,7 @@ import { recalculateAllProductPrices } from '@/app/actions/productActions';
 import type { StoreSettings } from '@/lib/data-store';
 import type { ShippingEstimates } from '@/lib/shipping-estimates';
 import { mrwOffices } from '@/lib/mrw-offices';
+import PhotoUploader from '@/components/admin/PhotoUploader';
 
 /** Estados con cobertura (mismas llaves que usa el checkout MRW). */
 const VE_STATES = Object.keys(mrwOffices).sort();
@@ -529,12 +530,15 @@ export default function SettingsClient({
             onChange={v => set(['binancePayId'], v)}
             placeholder="Ej. 12345678"
           />
-          <Field
-            label="URL del código QR (imagen pública)"
+          <PhotoUploader
+            label="Código QR de Binance Pay"
+            hint="Sube PNG, JPG o WEBP. Se guarda en R2 público; no se aceptan URLs externas."
             value={settings.binanceQrUrl ?? ''}
-            onChange={v => set(['binanceQrUrl'], v)}
-            placeholder="https://..."
-            type="url"
+            onChange={(url) => set(['binanceQrUrl'], url ?? '')}
+            purpose="binance-qr"
+            optional
+            maxSizeMB={2}
+            previewHeight="h-44"
           />
         </SectionCard>
 

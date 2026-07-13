@@ -11,7 +11,14 @@ import { logError } from '@/lib/safe-logger';
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 
 /** PRD-047: enum estricto de destinos — un purpose libre permitía elegir folder arbitrario. */
-const purposeSchema = z.enum(['banner', 'product', 'products', 'category', 'tracking']);
+const purposeSchema = z.enum([
+  'banner',
+  'product',
+  'products',
+  'category',
+  'tracking',
+  'binance-qr',
+]);
 
 const UPLOAD_BY_PURPOSE: Record<
   z.infer<typeof purposeSchema>,
@@ -22,6 +29,7 @@ const UPLOAD_BY_PURPOSE: Record<
   products: { folder: 'products', maxWidth: 1200 },
   category: { folder: 'assets',   maxWidth: 1920 },
   tracking: { folder: 'assets',   maxWidth: 1600 },
+  'binance-qr': { folder: 'assets', maxWidth: 800 },
 };
 
 export async function POST(request: Request) {

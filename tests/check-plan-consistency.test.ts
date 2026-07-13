@@ -10,6 +10,8 @@ import {
 
 const MINIMAL_PLAN = `# Plan
 
+**Estado actual:** 1 de 32 sesiones completadas
+
 - **Completadas:** 1/32
 - **Críticas P0 completadas:** 1/4
 - **Altas P1 completadas:** 0/10
@@ -223,6 +225,24 @@ describe('check-plan-consistency', () => {
     expect(parsed.sessions[0]?.checked).toBe(true);
     expect(parsed.counts.total).toBe(1);
     expect(parsed.counts.p0).toBe(1);
+  });
+
+  it('detecta Estado actual desalineado aunque los contadores coincidan', () => {
+    const badPlan = MINIMAL_PLAN.replace(
+      '**Estado actual:** 1 de 32 sesiones completadas',
+      '**Estado actual:** 11 de 32 sesiones completadas',
+    );
+    const errors = validatePlanConsistency(parsePlan(badPlan));
+    expect(errors).toContain('Resumen Estado actual: 11/32, parseado 1/32.');
+  });
+
+  it('revisa todo el cuerpo de una sesión completada', () => {
+    const badPlan = MINIMAL_PLAN.replace(
+      '## 02 — Demo P0 pendiente',
+      'Riesgo residual: E2E no ejecutado\n\n## 02 — Demo P0 pendiente',
+    );
+    const errors = validatePlanConsistency(parsePlan(badPlan));
+    expect(errors.some((error) => error.includes('Sesión 01'))).toBe(true);
   });
 
   it('detecta contador de encabezado desalineado', () => {

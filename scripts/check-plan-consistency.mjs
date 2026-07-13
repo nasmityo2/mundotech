@@ -32,34 +32,33 @@ const SESSION_HEADING_RE = /^## (\d{2}) — /;
 const MAIN_CHECKBOX_RE = /^- \[([ x])\] \*\*/;
 const COUNTER_RE =
   /^- \*\*(Completadas|Críticas P0 completadas|Altas P1 completadas|Medias\/operativas completadas):\*\* (\d+)\/(\d+)/;
+const STATUS_SUMMARY_RE =
+  /^\*\*Estado actual:\*\* (\d+) de 32 sesiones completadas/;
 
-/**
- * @param {string} content
- */
 export function parsePlan(content) {
   const lines = content.split('\n');
-  /** @type {{ id: string; title: string; checked: boolean | null; priority: string | null; evidence: string }[]} */
   const sessions = [];
-  /** @type {Record<string, number>} */
   const headerCounters = {};
-
+  let statusSummaryCount = null;
   let current = null;
-  let inEvidence = false;
-  /** @type {string[]} */
-  let evidenceLines = [];
+  let sectionLines = [];
+
+  const flushCurrent = () => {
+    if (!current) return;
+    current.evidence = sectionLines.join('\n').trim();
+    sessions.push(current);
+  };
 
   for (const line of lines) {
+    const statusMatch = line.match(STATUS_SUMMARY_RE);
+    if (statusMatch) statusSummaryCount = Number(statusMatch[1]);
+
     const counterMatch = line.match(COUNTER_RE);
-    if (counterMatch) {
-      headerCounters[counterMatch[1]] = Number(counterMatch[2]);
-    }
+    if (counterMatch) headerCounters[counterMatch[1]] = Number(counterMatch[2]);
 
     const headingMatch = line.match(SESSION_HEADING_RE);
     if (headingMatch) {
-      if (current) {
-        current.evidence = evidenceLines.join('\n').trim();
-        sessions.push(current);
-      }
+      flushCurrent();
       current = {
         id: headingMatch[1],
         title: line.replace(SESSION_HEADING_RE, '').trim(),
@@ -67,66 +66,46 @@ export function parsePlan(content) {
         priority: null,
         evidence: '',
       };
-      inEvidence = false;
-      evidenceLines = [];
+      sectionLines = [];
       continue;
     }
 
-    if (!current) {
-      continue;
-    }
+    if (!current) continue;
+    sectionLines.push(line);
 
     if (current.checked === null) {
       const checkboxMatch = line.match(MAIN_CHECKBOX_RE);
-      if (checkboxMatch) {
-        current.checked = checkboxMatch[1] === 'x';
-        continue;
-      }
+      if (checkboxMatch) current.checked = checkboxMatch[1] === 'x';
     }
 
     if (/^\*\*Prioridad:\*\*/.test(line)) {
-      const prio = line.match(/\*\*Prioridad:\*\*\s*(P0|P1|P2|Cierre obligatorio)/);
-      if (prio) {
-        current.priority = prio[1];
-      }
-      continue;
-    }
-
-    if (/^\*\*Evidencia de cierre/.test(line) || /^Estado: COMPLETADO/.test(line)) {
-      inEvidence = true;
-    }
-
-    if (inEvidence) {
-      evidenceLines.push(line);
-      if (line.trim() === '```' && evidenceLines.length > 1) {
-        inEvidence = false;
-      }
+      const priorityMatch = line.match(
+        /\*\*Prioridad:\*\*\s*(P0|P1|P2|Cierre obligatorio)/,
+      );
+      if (priorityMatch) current.priority = priorityMatch[1];
     }
   }
 
-  if (current) {
-    current.evidence = evidenceLines.join('\n').trim();
-    sessions.push(current);
-  }
+  flushCurrent();
 
-  const completed = sessions.filter((s) => s.checked === true);
-  const p0Sessions = sessions.filter((s) => s.priority === 'P0');
-  const p1Sessions = sessions.filter((s) => P1_SESSION_IDS.has(s.id));
+  const completed = sessions.filter((session) => session.checked === true);
+  const p0Sessions = sessions.filter((session) => session.priority === 'P0');
+  const p1Sessions = sessions.filter((session) => P1_SESSION_IDS.has(session.id));
   const mediaSessions = sessions.filter(
-    (s) => s.priority !== 'P0' && !P1_SESSION_IDS.has(s.id),
+    (session) => session.priority !== 'P0' && !P1_SESSION_IDS.has(session.id),
   );
 
   const counts = {
     total: completed.length,
-    p0: p0Sessions.filter((s) => s.checked).length,
-    p1: p1Sessions.filter((s) => s.checked).length,
-    media: mediaSessions.filter((s) => s.checked).length,
+    p0: p0Sessions.filter((session) => session.checked).length,
+    p1: p1Sessions.filter((session) => session.checked).length,
+    media: mediaSessions.filter((session) => session.checked).length,
     p0Total: p0Sessions.length,
     p1Total: p1Sessions.length,
     mediaTotal: mediaSessions.length,
   };
 
-  return { sessions, headerCounters, counts };
+  return { sessions, headerCounters, statusSummaryCount, counts };
 }
 
 /** @returns {string[]} */
@@ -146,10 +125,18 @@ export function forbiddenPhrasesInDoneSession(session) {
 /** @returns {string[]} */
 export function validatePlanConsistency(parsed) {
   const errors = [];
-  const { sessions, headerCounters, counts } = parsed;
+  const { sessions, headerCounters, statusSummaryCount, counts } = parsed;
 
   if (sessions.length !== 32) {
     errors.push(`Se esperaban 32 sesiones, se parsearon ${sessions.length}.`);
+  }
+
+  if (statusSummaryCount === null) {
+    errors.push('Falta el resumen **Estado actual:** N de 32 sesiones completadas.');
+  } else if (statusSummaryCount !== counts.total) {
+    errors.push(
+      `Resumen Estado actual: ${statusSummaryCount}/32, parseado ${counts.total}/32.`,
+    );
   }
 
   for (const session of sessions) {
