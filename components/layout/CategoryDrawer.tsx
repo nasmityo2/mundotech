@@ -150,7 +150,7 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
             animate={prefersReduced ? { opacity: 1 } : { x: 0 }}
             exit={prefersReduced ? { opacity: 0 } : { x: '-100%' }}
             transition={prefersReduced ? reducedTransition : { type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed top-0 left-0 h-[100dvh] w-[88vw] max-w-[340px] bg-white z-[56] flex flex-col shadow-lift overscroll-contain"
+            className="fixed top-0 left-0 h-screen h-[100dvh] w-[88vw] max-w-[340px] bg-white z-[56] flex flex-col shadow-lift overscroll-contain"
             style={{ paddingTop: 'env(safe-area-inset-top)' }}
           >
             {/* ── Header ─────────────────────────────────────────── */}
@@ -209,7 +209,7 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
                     <Link
                       href={display.link}
                       onClick={onClose}
-                      className="inline-flex items-center gap-1.5 bg-brand-yellow text-navy text-xs font-bold px-4 h-9 rounded-xl hover:bg-[#FFE03A] shadow-soft transition-all"
+                      className="inline-flex items-center gap-1.5 bg-brand-yellow text-navy text-xs font-bold px-4 min-h-[44px] rounded-xl hover:bg-[#FFE03A] shadow-soft transition-all"
                     >
                       <Zap size={12} /> Ver oferta
                     </Link>

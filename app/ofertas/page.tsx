@@ -82,8 +82,8 @@ export default async function OfertasPage({ searchParams }: PageProps) {
       <JsonLd data={offersBreadcrumbSchema} />
 
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-soft p-4 sm:p-6 lg:p-8 mb-5 sm:mb-8">
-        <nav className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 mb-3 truncate" aria-label="Breadcrumb">
-          <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
+        <nav className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-500 mb-3 truncate" aria-label="Breadcrumb">
+          <Link href="/" className="text-slate-600 hover:text-navy transition-colors">Inicio</Link>
           <ChevronRight size={12} className="flex-shrink-0" />
           <span className="text-navy font-medium">Ofertas</span>
         </nav>

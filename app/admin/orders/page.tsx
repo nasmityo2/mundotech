@@ -289,7 +289,7 @@ function OrdersPageContent() {
             <Truck size={12} /> {o.trackingNumber}
           </span>
         ) : (
-          <span className="text-gray-300 text-xs">—</span>
+          <span className="text-gray-500 text-xs">—</span>
         ),
     },
   ];
@@ -436,7 +436,7 @@ function OrdersPageContent() {
       />
 
       <div className="flex items-center justify-between mt-2">
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-slate-600">
           Mostrando {orders.length} de {totalFiltered} pedidos{nextCursor ? ' (hay más)' : ''}
         </p>
         {nextCursor && (

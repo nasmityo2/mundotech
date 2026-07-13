@@ -123,7 +123,7 @@ export default function AddressListClient({ initialAddresses }: AddressListClien
         <button
           type="button"
           onClick={openCreate}
-          className="inline-flex items-center gap-2 bg-navy text-white font-semibold text-sm h-10 px-4 rounded-xl hover:bg-navy-700 shadow-soft transition-all"
+          className="inline-flex items-center gap-2 bg-navy text-white font-semibold text-sm min-h-[44px] px-4 rounded-xl hover:bg-navy-700 shadow-soft transition-all"
         >
           <Plus size={15} /> Nueva
         </button>

@@ -298,7 +298,7 @@ function ReviewDetailDialog({
   return (
     <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-      <div className="relative z-10 w-full sm:w-[520px] sm:max-w-[92vw] bg-white sm:rounded-2xl shadow-2xl flex flex-col max-h-[100dvh] sm:max-h-[88vh]">
+      <div className="relative z-10 w-full sm:w-[520px] sm:max-w-[92vw] bg-white sm:rounded-2xl shadow-2xl flex flex-col max-h-screen max-h-[100dvh] sm:max-h-[88vh]">
         <header className="border-b border-gray-100 px-4 py-3.5 flex items-center justify-between gap-3">
           <h2 className="text-base font-black text-navy truncate">Reseña completa</h2>
           <button type="button" onClick={onClose} aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100">
@@ -374,7 +374,7 @@ function ReplyDialog({
   return (
     <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-      <div className="relative z-10 w-full sm:w-[460px] sm:max-w-[92vw] bg-white sm:rounded-2xl shadow-2xl flex flex-col max-h-[100dvh] sm:max-h-[88vh]">
+      <div className="relative z-10 w-full sm:w-[460px] sm:max-w-[92vw] bg-white sm:rounded-2xl shadow-2xl flex flex-col max-h-screen max-h-[100dvh] sm:max-h-[88vh]">
         <header className="border-b border-gray-100 px-4 py-3.5 flex items-center justify-between gap-3">
           <h2 className="text-base font-black text-navy truncate">Responder reseña</h2>
           <button type="button" onClick={onClose} aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100">

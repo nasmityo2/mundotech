@@ -104,7 +104,7 @@ export function DataTable<T>({
 
   if (data.length === 0) {
     return (
-      <div className="bg-white border border-dashed border-gray-200 rounded-2xl py-12 text-center text-sm text-gray-400">
+      <div className="bg-white border border-dashed border-gray-200 rounded-2xl py-12 text-center text-sm text-gray-600">
         {emptyState ?? 'No hay datos para mostrar.'}
       </div>
     );

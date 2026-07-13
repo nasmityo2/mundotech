@@ -43,7 +43,7 @@ async function getEnrichedOrder(orderId: string): Promise<EnrichedOrder | null> 
 
 function InvalidOrderMessage() {
   return (
-    <div className="text-center py-20 text-red-500">
+    <div className="text-center py-20 text-red-700">
       No encontramos este pedido. Verifica el enlace o contáctanos con tu
       número de pedido.
     </div>

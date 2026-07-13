@@ -325,10 +325,10 @@ export default async function ProductDetailPage({ params }: PageProps) {
       />
 
       {/* ── Breadcrumb ── */}
-      <nav className="flex items-center gap-1.5 text-xs text-slate-400 mt-1 mb-4 sm:mb-6 overflow-hidden whitespace-nowrap" aria-label="Breadcrumb">
-        <Link href="/" className="hover:text-navy transition-colors flex-shrink-0">Inicio</Link>
+      <nav className="flex items-center gap-1.5 text-xs text-slate-500 mt-1 mb-4 sm:mb-6 overflow-hidden whitespace-nowrap" aria-label="Breadcrumb">
+        <Link href="/" className="text-slate-600 hover:text-navy transition-colors flex-shrink-0">Inicio</Link>
         <ChevronRight size={12} className="flex-shrink-0" />
-        <Link href="/productos" className="hover:text-navy transition-colors flex-shrink-0">Catálogo</Link>
+        <Link href="/productos" className="text-slate-600 hover:text-navy transition-colors flex-shrink-0">Catálogo</Link>
         <ChevronRight size={12} className="flex-shrink-0 hidden xs:block" />
         <Link
           href={categoryPath}
@@ -381,7 +381,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
           ) : (
             <a
               href="#reviews"
-              className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-slate-400 hover:text-navy transition-colors"
+              className="mt-3 inline-flex items-center gap-1.5 text-[12px] text-slate-600 hover:text-navy transition-colors"
             >
               <Star size={13} className="text-slate-300" />
               <span>Sé el primero en reseñar este producto</span>
@@ -426,9 +426,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
               <>
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-green opacity-75 motion-reduce:animate-none" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-green" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600" />
                 </span>
-                <span className="inline-flex items-center gap-1.5 text-brand-green text-sm font-semibold">
+                <span className="inline-flex items-center gap-1.5 text-emerald-700 text-sm font-semibold">
                   <CheckCircle2 size={15} /> En stock — {product.stock} disponibles
                 </span>
               </>

@@ -467,7 +467,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
 
       <div
-        className="relative z-10 bg-white text-left shadow-2xl w-full sm:w-[640px] sm:max-w-[95vw] sm:my-6 sm:rounded-2xl flex flex-col max-h-[100dvh] sm:max-h-[88vh]"
+        className="relative z-10 bg-white text-left shadow-2xl w-full sm:w-[640px] sm:max-w-[95vw] sm:my-6 sm:rounded-2xl flex flex-col max-h-screen max-h-[100dvh] sm:max-h-[88vh]"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {/* Header sticky */}

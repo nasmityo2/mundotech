@@ -23,6 +23,12 @@ interface ReviewStepProps {
   whatsappOrderPhone?: string;
   /** Nombre de la tienda para el mensaje. */
   storeName?: string;
+  /**
+   * PRD-04: CheckoutFlow es el dueño del object URL de la captura del
+   * comprobante. Se invoca justo antes de abandonar el checkout tras un
+   * pedido exitoso para que revoque la URL y no filtre memoria.
+   */
+  onOrderSuccess?: () => void;
 }
 
 /** Equivalente referencial en bolívares (PRD-022). El monto autoritativo en Bs lo congela el servidor con la tasa de BD. */
@@ -33,7 +39,7 @@ function formatBsApprox(amountUsd: number, rate: number): string {
   }).format(amountUsd * rate)}`;
 }
 
-const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappOrderPhone = '' }: ReviewStepProps) => {
+const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappOrderPhone = '', onOrderSuccess }: ReviewStepProps) => {
   const { data: session } = useSession();
   const { cart, clearCart, getCartTotal, isCartLoading } = useCart();
   const { rate: exchangeRate } = useExchangeRate();
@@ -307,6 +313,7 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
       if (whatsappMode) {
         if (!whatsappOrderPhone) {
           // Sin número configurado: redirigir a success con aviso
+          onOrderSuccess?.();
           router.push(`/checkout/success?orderId=${body.id}`);
           return;
         }
@@ -346,11 +353,13 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
           rate: exchangeRate,
         };
         const waUrl = buildWhatsAppOrderUrl(whatsappOrderPhone, waInput);
+        onOrderSuccess?.();
         // eslint-disable-next-line react-hooks/immutability
         window.location.href = waUrl;
         return;
       }
 
+      onOrderSuccess?.();
       router.push(`/checkout/success?orderId=${body.id}`);
     } catch (err) {
       console.error('[checkout] handleConfirmOrder:', err);

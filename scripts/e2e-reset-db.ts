@@ -7,9 +7,9 @@
  */
 import 'dotenv/config';
 import bcrypt from 'bcrypt';
-import { PrismaClient } from '@prisma/client';
 import { assertE2eDatabaseUrl, confirmE2eDatabaseSchema } from '@/lib/e2e-db-guard';
 import { hashToken } from '@/lib/security';
+import { createScriptPrisma } from './lib/script-prisma';
 import {
   E2E_ADMIN,
   E2E_CLIENT,
@@ -20,7 +20,7 @@ import {
 
 assertE2eDatabaseUrl(process.env.DATABASE_URL ?? '');
 
-const prisma = new PrismaClient();
+const prisma = createScriptPrisma();
 
 async function main() {
   await confirmE2eDatabaseSchema(async () => {

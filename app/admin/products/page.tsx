@@ -380,7 +380,7 @@ function AdminProductsContent() {
       cell: p => (
         <span className="block truncate">
           {p.name}
-          {p.brand && <span className="text-gray-400 font-normal text-xs ml-1">· {p.brand}</span>}
+          {p.brand && <span className="text-gray-500 font-normal text-xs ml-1">· {p.brand}</span>}
           {p.isActive === false && (
             <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-200 text-gray-600 align-middle">
               Despublicado
@@ -640,7 +640,7 @@ function AdminProductsContent() {
         )}
       />
 
-      <p className="text-[11px] text-gray-400 text-center pt-2">
+      <p className="text-[11px] text-gray-600 text-center pt-2">
         Toca el precio o stock para editar rápido. Doble clic en escritorio.
       </p>
 

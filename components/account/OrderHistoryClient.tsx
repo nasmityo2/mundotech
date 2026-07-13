@@ -92,7 +92,7 @@ export default function OrderHistoryClient({ orders }: OrderHistoryClientProps) 
             <button
               type="submit"
               disabled={!guestRef.trim()}
-              className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-bold px-4 rounded-xl h-10 hover:bg-navy-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 bg-navy text-white text-xs font-bold px-4 rounded-xl min-h-[44px] hover:bg-navy-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Buscar
             </button>

@@ -86,6 +86,24 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // SESIÓN 04 / Prompt 05 — refuerzo estático a nivel de plataforma para
+        // el comprobante de pago privado. El handler ya envía estos mismos
+        // headers por request (app/api/orders/[id]/payment-proof/route.ts);
+        // esta regla es defensa en profundidad (p.ej. si el handler cambiara
+        // sin actualizar sus headers) y no depende del código de la ruta.
+        source: '/api/orders/:id/payment-proof',
+        headers: [
+          {
+            key: 'Referrer-Policy',
+            value: 'no-referrer',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'private, no-store',
+          },
+        ],
+      },
     ];
   },
 

@@ -4,6 +4,11 @@
  * - Parsea sesiones 01–32 y solo el checkbox principal (no subcriterios).
  * - Compara contadores del encabezado con el conteo real.
  * - Falla si una sesión [x] incluye frases de evidencia inválidas.
+ * - Parsea **Cierre vigente:** exactamente una vez por sesión (la primera
+ *   aparición, justo tras **Prioridad:**); el histórico posterior (evidencia
+ *   de prompts siguientes) nunca altera el estado canónico.
+ * - checkbox [x] exige **Cierre vigente:** COMPLETADO.
+ * - checkbox [ ] no puede declarar **Cierre vigente:** COMPLETADO.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -34,6 +39,10 @@ const COUNTER_RE =
   /^- \*\*(Completadas|Críticas P0 completadas|Altas P1 completadas|Medias\/operativas completadas):\*\* (\d+)\/(\d+)/;
 const STATUS_SUMMARY_RE =
   /^\*\*Estado actual:\*\* (\d+) de 32 sesiones completadas/;
+const CIERRE_VIGENTE_RE = /^\*\*Cierre vigente:\*\*\s*(COMPLETADO|PARCIAL|BLOQUEADO)\s*$/;
+
+/** Valores canónicos permitidos para el campo `**Cierre vigente:**`. */
+export const CIERRE_VIGENTE_VALUES = ['COMPLETADO', 'PARCIAL', 'BLOQUEADO'];
 
 export function parsePlan(content) {
   const lines = content.split('\n');
@@ -64,6 +73,8 @@ export function parsePlan(content) {
         title: line.replace(SESSION_HEADING_RE, '').trim(),
         checked: null,
         priority: null,
+        cierreVigente: null,
+        cierreVigenteCount: 0,
         evidence: '',
       };
       sectionLines = [];
@@ -83,6 +94,17 @@ export function parsePlan(content) {
         /\*\*Prioridad:\*\*\s*(P0|P1|P2|Cierre obligatorio)/,
       );
       if (priorityMatch) current.priority = priorityMatch[1];
+    }
+
+    const cierreVigenteMatch = line.match(CIERRE_VIGENTE_RE);
+    if (cierreVigenteMatch) {
+      current.cierreVigenteCount += 1;
+      // El histórico (evidencia de prompts posteriores) nunca sobreescribe el
+      // estado canónico: solo cuenta la primera aparición (inmediatamente
+      // después de **Prioridad:**).
+      if (current.cierreVigente === null) {
+        current.cierreVigente = cierreVigenteMatch[1];
+      }
     }
   }
 
@@ -147,6 +169,26 @@ export function validatePlanConsistency(parsed) {
     for (const phrase of forbidden) {
       errors.push(
         `Sesión ${session.id} está [x] pero la evidencia contiene frase prohibida (${phrase}).`,
+      );
+    }
+
+    if (session.cierreVigenteCount === 0) {
+      errors.push(`Sesión ${session.id}: falta el campo **Cierre vigente:**.`);
+    } else if (session.cierreVigenteCount > 1) {
+      errors.push(
+        `Sesión ${session.id}: **Cierre vigente:** aparece ${session.cierreVigenteCount} veces (debe ser exactamente 1).`,
+      );
+    }
+
+    if (session.checked === true && session.cierreVigente !== 'COMPLETADO') {
+      errors.push(
+        `Sesión ${session.id} está [x] pero **Cierre vigente:** es ${session.cierreVigente ?? 'ausente'} (exige COMPLETADO).`,
+      );
+    }
+
+    if (session.checked === false && session.cierreVigente === 'COMPLETADO') {
+      errors.push(
+        `Sesión ${session.id} está [ ] pero **Cierre vigente:** es COMPLETADO (checkbox pendiente no puede declararse COMPLETADO).`,
       );
     }
   }

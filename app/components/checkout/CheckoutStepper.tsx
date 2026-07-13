@@ -49,7 +49,7 @@ const CheckoutStepper = ({ currentStep }: CheckoutStepperProps) => {
                     ? 'bg-navy text-white shadow-soft'
                     : isActive
                       ? 'bg-white border-2 border-navy text-navy shadow-card ring-4 ring-navy/10'
-                      : 'bg-white border-2 border-slate-200 text-slate-400'
+                      : 'bg-white border-2 border-slate-200 text-slate-600'
                 }`}
                 aria-current={isActive ? 'step' : undefined}
               >
@@ -58,12 +58,12 @@ const CheckoutStepper = ({ currentStep }: CheckoutStepperProps) => {
               <div className="min-w-0 pt-1.5">
                 <p
                   className={`text-[13px] font-semibold leading-tight ${
-                    isActive || isComplete ? 'text-navy' : 'text-slate-400'
+                    isActive || isComplete ? 'text-navy' : 'text-slate-600'
                   }`}
                 >
                   {step.label}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">{step.sub}</p>
+                <p className="text-[11px] text-slate-600 mt-0.5">{step.sub}</p>
               </div>
             </li>
           );
@@ -93,7 +93,7 @@ const CheckoutStepper = ({ currentStep }: CheckoutStepperProps) => {
                     ? 'bg-navy text-white shadow-soft'
                     : isActive
                       ? 'bg-white border-2 border-navy text-navy shadow-card ring-4 ring-navy/10'
-                      : 'bg-white border-2 border-slate-200 text-slate-400'
+                      : 'bg-white border-2 border-slate-200 text-slate-600'
                 }`}
                 aria-current={isActive ? 'step' : undefined}
               >
@@ -101,12 +101,12 @@ const CheckoutStepper = ({ currentStep }: CheckoutStepperProps) => {
               </div>
               <p
                 className={`mt-2.5 text-[13px] font-semibold transition-colors ${
-                  isActive || isComplete ? 'text-navy' : 'text-slate-400'
+                  isActive || isComplete ? 'text-navy' : 'text-slate-600'
                 }`}
               >
                 {step.label}
               </p>
-              <p className="hidden md:block text-[11px] text-slate-400 mt-0.5">{step.sub}</p>
+              <p className="hidden md:block text-[11px] text-slate-600 mt-0.5">{step.sub}</p>
             </li>
           );
         })}

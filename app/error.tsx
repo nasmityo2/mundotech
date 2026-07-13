@@ -35,7 +35,7 @@ export default function GlobalError({ error, reset }: ErrorProps) {
 
         {/* Icono */}
         <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-red-50 border-2 border-red-100 mb-6">
-          <AlertTriangle className="w-9 h-9 text-red-500" strokeWidth={1.5} />
+          <AlertTriangle className="w-9 h-9 text-red-700" strokeWidth={1.5} />
         </div>
 
         {/* Título */}
@@ -44,19 +44,19 @@ export default function GlobalError({ error, reset }: ErrorProps) {
         </h1>
 
         {/* Descripción */}
-        <p className="text-navy-400 text-base leading-relaxed mb-2">
+        <p className="text-slate-600 text-base leading-relaxed mb-2">
           Ocurrió un error inesperado. Puedes intentar recargar la página o
           volver al inicio.
         </p>
 
         {/* Digest visible solo en desarrollo */}
         {process.env.NODE_ENV === "development" && error?.digest && (
-          <p className="text-xs text-navy-300 font-mono bg-navy-50 border border-navy-100 rounded-lg px-3 py-2 mb-4 break-all">
+          <p className="text-xs text-slate-600 font-mono bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 mb-4 break-all">
             digest: {error.digest}
           </p>
         )}
         {process.env.NODE_ENV === "development" && error?.message && (
-          <p className="text-xs text-red-500 font-mono bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-6 break-all text-left">
+          <p className="text-xs text-red-700 font-mono bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-6 break-all text-left">
             {error.message}
           </p>
         )}
@@ -84,7 +84,7 @@ export default function GlobalError({ error, reset }: ErrorProps) {
               tienda física tiene teléfonos, correo, horario y mapa */}
           <Link
             href="/tienda-barquisimeto"
-            className="inline-flex items-center gap-2 text-navy-400 hover:text-navy text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-2 text-slate-600 hover:text-navy text-sm font-medium transition-colors"
           >
             <MessageCircle className="w-4 h-4" />
             Contactar soporte
@@ -92,9 +92,9 @@ export default function GlobalError({ error, reset }: ErrorProps) {
         </div>
 
         {/* Branding sutil */}
-        <p className="mt-10 text-xs text-navy-300">
+        <p className="mt-10 text-xs text-slate-600">
           <span className="font-black tracking-tight">
-            Mundo<span className="text-brand-yellow">Tech</span>
+            Mundo<span className="text-amber-700">Tech</span>
           </span>{" "}
           — Si el problema persiste, contáctanos.
         </p>

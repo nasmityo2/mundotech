@@ -38,8 +38,19 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'chromium',
+      name: 'desktop-chromium',
       use: { ...devices['Desktop Chrome'] },
+      testIgnore: /mobile-smoke\.spec\.ts/,
+    },
+    {
+      name: 'mobile-android',
+      testMatch: /mobile-smoke\.spec\.ts/,
+      use: { ...devices['Pixel 7'] },
+    },
+    {
+      name: 'mobile-ios',
+      testMatch: /mobile-smoke\.spec\.ts/,
+      use: { ...devices['iPhone 13'] },
     },
   ],
   outputDir: path.join(process.cwd(), 'test-results'),
@@ -52,6 +63,7 @@ export default defineConfig({
     env: {
       ...process.env,
       E2E_MODE: '1',
+      NEXT_PUBLIC_CHECKOUT_MODE: 'full',
     },
   },
 });

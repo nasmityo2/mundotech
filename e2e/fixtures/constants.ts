@@ -55,6 +55,38 @@ export const E2E_PNG_1X1 = Buffer.from(
   'base64',
 );
 
+/**
+ * "HEIC" simulado: no es un HEIF real (Playwright no puede generar uno; sharp
+ * tampoco puede codificar HEIC por licencia de HEVC). Solo se usa como bytes
+ * de origen para `setInputFiles` — la conversión real se mockea con
+ * `mockHeicConversion()`, que nunca inspecciona estos bytes.
+ */
+export const E2E_HEIC_FIXTURE = Buffer.from([
+  0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, // size + "ftyp"
+  0x68, 0x65, 0x69, 0x63, 0x00, 0x00, 0x00, 0x00, // "heic"
+  0x6d, 0x69, 0x66, 0x31, 0x68, 0x65, 0x69, 0x63, // "mif1heic"
+]);
+
+/**
+ * Mockea `lib/client-image-normalize.ts` para que la conversión HEIC→JPEG no
+ * dependa de un HEIF real ni del chunk empaquetado de `heic2any` (frágil de
+ * interceptar por URL). Debe llamarse ANTES de `page.goto()`.
+ */
+export async function mockHeicConversion(page: Page) {
+  const jpegLikeBase64 = E2E_PNG_1X1.toString('base64');
+  await page.addInitScript(
+    ({ base64 }) => {
+      window.__E2E_HEIC_DECODER__ = async () => {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return new Blob([bytes], { type: 'image/jpeg' });
+      };
+    },
+    { base64: jpegLikeBase64 },
+  );
+}
+
 export function productPdpPath(slug: string): string {
   return `/product/${slug}`;
 }
@@ -75,8 +107,12 @@ export async function doLogin(page: Page, email: string, password: string) {
   await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
   await page.fill('input[type="email"]', email);
   await page.fill('input[type="password"]', password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/^\/($|admin|account)/, { timeout: 15_000 });
+  // Selector específico: `button[type="submit"]` es ambiguo (coincide también
+  // con el submit del buscador del Navbar), lo que provocaba clicks erróneos.
+  await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+  await page.waitForURL((url) => {
+    return url.pathname === '/' || url.pathname.startsWith('/admin') || url.pathname.startsWith('/account');
+  }, { timeout: 20_000 });
 }
 
 export async function fillGuestShippingStep(page: Page) {
@@ -89,18 +125,24 @@ export async function fillGuestShippingStep(page: Page) {
   await page.getByRole('heading', { name: /Método de pago/i }).waitFor({ timeout: 10_000 });
 }
 
-export async function fillPagoMovilPaymentStep(page: Page) {
+export async function fillPagoMovilPaymentStep(
+  page: Page,
+  proofFixture: { name: string; mimeType: string; buffer: Buffer } = {
+    name: 'comprobante-e2e.png',
+    mimeType: 'image/png',
+    buffer: E2E_PNG_1X1,
+  },
+) {
   await page.getByRole('button', { name: 'Pago Móvil' }).click();
   await page.locator('#bank').selectOption({ index: 1 });
   await page.locator('#holderIdNumber').fill('V-12345678');
   await page.locator('#holderPhone').fill('04121234567');
   await page.locator('#referenceNumber').fill('1234567890');
   const fileInput = page.locator('input[type="file"]').first();
-  await fileInput.setInputFiles({
-    name: 'comprobante-e2e.png',
-    mimeType: 'image/png',
-    buffer: E2E_PNG_1X1,
-  });
+  await fileInput.setInputFiles(proofFixture);
+  // La normalización (HEIC→JPEG o compresión) es async — esperar a que el
+  // preview reemplace el botón "Subir comprobante" antes de continuar.
+  await page.getByText(/comprobante listo/i).waitFor({ timeout: 15_000 });
   await page.getByRole('button', { name: /Revisar pedido/i }).click();
   await page.getByRole('heading', { name: /Revisión final/i }).waitFor({ timeout: 10_000 });
 }

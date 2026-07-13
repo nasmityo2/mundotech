@@ -6,7 +6,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   return (
     <div className="pb-12">
       <nav className="flex items-center gap-2 text-xs text-slate-400 mb-6" aria-label="Breadcrumb">
-        <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
+        <Link href="/" className="text-slate-600 hover:text-navy transition-colors">Inicio</Link>
         <ChevronRight size={12} />
         <span className="text-navy font-medium">Mi cuenta</span>
       </nav>

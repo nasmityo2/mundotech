@@ -23,7 +23,7 @@ export default function SidebarDesktop() {
       <nav className="flex-grow overflow-y-auto px-3 py-3 space-y-4">
         {ADMIN_NAV_GROUPS.map(group => (
           <div key={group.id}>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-3 mb-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 px-3 mb-1.5">
               {group.label}
             </p>
             <ul className="space-y-0.5">
@@ -58,11 +58,11 @@ export default function SidebarDesktop() {
       <div className="p-3 border-t border-gray-100 flex-shrink-0">
         <Link
           href="/"
-          className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-1.5"
+          className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 transition-colors px-2 py-1.5"
         >
           ← Volver a la tienda
         </Link>
-        <p className="px-2 pt-1 text-[10px] leading-relaxed text-gray-300">
+        <p className="px-2 pt-1 text-[10px] leading-relaxed text-gray-600">
           Carrera 21 con esquina calle 21, Centro · Barquisimeto 3001
         </p>
       </div>

@@ -16,10 +16,10 @@ export default function LegalPageLayout({
   return (
     <div className="pb-14 w-full max-w-full">
       <nav
-        className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400 mb-6"
+        className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 mb-6"
         aria-label="Breadcrumb"
       >
-        <Link href="/" className="hover:text-navy transition-colors">
+        <Link href="/" className="text-slate-600 hover:text-navy transition-colors">
           Inicio
         </Link>
         <ChevronRight size={12} className="flex-shrink-0" aria-hidden />

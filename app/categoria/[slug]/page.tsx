@@ -237,9 +237,9 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
             className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 mb-4 truncate"
             aria-label="Breadcrumb"
           >
-            <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
+            <Link href="/" className="text-slate-600 hover:text-navy transition-colors">Inicio</Link>
             <ChevronRight size={12} className="flex-shrink-0" />
-            <Link href="/productos" className="hover:text-navy transition-colors">Catálogo</Link>
+            <Link href="/productos" className="text-slate-600 hover:text-navy transition-colors">Catálogo</Link>
             <ChevronRight size={12} className="flex-shrink-0" />
             <span className="text-navy font-medium capitalize">{category.name}</span>
           </nav>

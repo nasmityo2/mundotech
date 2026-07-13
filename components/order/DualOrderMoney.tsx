@@ -24,7 +24,7 @@ export function DualOrderMoney({
   const ves = hasFrozenBsPricing(order);
   const primaryColor = variant === 'admin' ? 'text-gray-900' : 'text-navy';
   const secondaryColor = variant === 'admin' ? 'text-gray-500' : 'text-slate-500';
-  const hintColor = variant === 'admin' ? 'text-gray-400' : 'text-slate-400';
+  const hintColor = variant === 'admin' ? 'text-gray-600' : 'text-slate-600';
   const primaryCls =
     emphasis === 'total'
       ? `text-xl sm:text-2xl font-bold ${primaryColor} nums tracking-tight leading-tight`

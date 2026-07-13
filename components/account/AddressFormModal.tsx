@@ -187,7 +187,7 @@ export default function AddressFormModal({
         role="dialog"
         aria-modal="true"
         aria-label="Formulario de dirección"
-        className="relative w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl max-h-[90dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]"
+        className="relative w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl max-h-screen max-h-[90dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]"
       >
         {/* Header */}
         <div className="sticky top-0 bg-white/95 backdrop-blur-sm z-10 flex items-center justify-between px-5 py-4 border-b border-slate-100">

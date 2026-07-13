@@ -48,6 +48,32 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
   const [shippingData, setShippingData] = useState<ShippingFormData | null>(null);
   const [paymentData, setPaymentData]   = useState<PaymentFormData  | null>(null);
 
+  // Object URL de la captura del comprobante: PaymentForm la crea con
+  // URL.createObjectURL y la mantiene viva mientras el usuario navega entre
+  // pasos (ReviewStep la muestra al volver). CheckoutFlow es el único dueño
+  // del ciclo de vida real: guarda la URL vigente en un ref y la revoca al
+  // desmontar el flujo o justo antes de salir tras un pedido exitoso.
+  const proofPreviewUrlRef = useRef('');
+  useEffect(() => {
+    proofPreviewUrlRef.current = paymentData?.proofPreviewUrl ?? '';
+  }, [paymentData?.proofPreviewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (proofPreviewUrlRef.current) {
+        URL.revokeObjectURL(proofPreviewUrlRef.current);
+        proofPreviewUrlRef.current = '';
+      }
+    };
+  }, []);
+
+  const handleOrderSuccess = () => {
+    if (proofPreviewUrlRef.current) {
+      URL.revokeObjectURL(proofPreviewUrlRef.current);
+      proofPreviewUrlRef.current = '';
+    }
+  };
+
   const { cart, getCartTotal, isCartLoading, refreshCart } = useCart();
   const { rate: exchangeRate } = useExchangeRate();
   const { data: session } = useSession();
@@ -175,6 +201,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
           whatsappMode={whatsappMode}
           whatsappOrderPhone={whatsappOrderPhone}
           storeName={storeName}
+          onOrderSuccess={handleOrderSuccess}
         />
       );
       default: return null;
@@ -193,10 +220,10 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
         </div>
       </div>
 
-      <nav className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6" aria-label="Breadcrumb">
-        <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
+      <nav className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-500 mb-4 sm:mb-6" aria-label="Breadcrumb">
+        <Link href="/" className="text-slate-600 hover:text-navy transition-colors">Inicio</Link>
         <ChevronRight size={12} />
-        <Link href="/cart" className="hover:text-navy transition-colors">Carrito</Link>
+        <Link href="/cart" className="text-slate-600 hover:text-navy transition-colors">Carrito</Link>
         <ChevronRight size={12} />
         <span className="text-navy font-medium">Pago</span>
       </nav>
@@ -318,8 +345,8 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
 
             {/* PRD-067: teléfono vivo desde settings — solo se muestra si existe */}
             {supportPhone ? (
-              <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 text-center">
-                <ShieldCheck size={11} className="text-emerald-500 flex-shrink-0" />
+              <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-600 text-center">
+                <ShieldCheck size={11} className="text-emerald-700 flex-shrink-0" />
                 ¿Dudas con tu pago? Escríbenos al {supportPhone} y te acompañamos.
               </div>
             ) : null}

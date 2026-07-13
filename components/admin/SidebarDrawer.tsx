@@ -54,7 +54,7 @@ export default function SidebarDrawer({ open, onClose, userName, userEmail }: Si
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
           <div>
             <h2 className="text-lg font-black text-navy tracking-tight">MundoTech</h2>
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider">Administración</p>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Administración</p>
           </div>
           <button
             type="button"
@@ -76,7 +76,7 @@ export default function SidebarDrawer({ open, onClose, userName, userEmail }: Si
         <nav className="flex-1 overflow-y-auto px-3 py-3">
           {ADMIN_NAV_GROUPS.map(group => (
             <div key={group.id} className="mb-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-3 mb-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 px-3 mb-1.5">
                 {group.label}
               </p>
               <ul className="space-y-0.5">

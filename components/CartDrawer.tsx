@@ -66,7 +66,7 @@ const CartDrawer = () => {
               animate={prefersReduced ? { opacity: 1 } : { x: 0 }}
               exit={prefersReduced ? { opacity: 0 } : { x: '100%' }}
               transition={prefersReduced ? reducedTransition : { type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              className="fixed top-0 right-0 z-[66] flex h-[100dvh] w-full sm:max-w-md flex-col bg-white border-l border-slate-200 shadow-lift overscroll-contain"
+              className="fixed top-0 right-0 z-[66] flex h-screen h-[100dvh] w-full sm:max-w-md flex-col bg-white border-l border-slate-200 shadow-lift overscroll-contain"
               style={{
                 paddingTop: 'env(safe-area-inset-top)',
               }}
@@ -195,7 +195,7 @@ const CartDrawer = () => {
                     </div>
                     <div className="flex justify-between items-center text-sm text-slate-500">
                       <span>Envío</span>
-                      <span className="text-emerald-600 font-medium">Calculado al pagar</span>
+                      <span className="text-emerald-700 font-medium">Calculado al pagar</span>
                     </div>
                     <div className="flex justify-between items-end pt-2 border-t border-slate-100">
                       <span className="text-sm font-semibold text-navy">Total estimado</span>
@@ -228,7 +228,7 @@ const CartDrawer = () => {
                         Ver carrito completo
                       </span>
                     </Link>
-                    <p className="flex items-center justify-center gap-1.5 pt-1 text-[11px] text-slate-400">
+                    <p className="flex items-center justify-center gap-1.5 pt-1 text-[11px] text-slate-600">
                       <ShieldCheck size={12} className="text-emerald-500" />
                       Pago Móvil · Transferencia · Binance
                     </p>

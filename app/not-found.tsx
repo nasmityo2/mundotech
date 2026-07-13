@@ -41,9 +41,6 @@ export default async function NotFound() {
         >
           404
         </span>
-        <span className="absolute inset-0 flex items-center justify-center text-[120px] sm:text-[160px] font-black tracking-tightest leading-none text-brand-yellow opacity-10 blur-sm block">
-          404
-        </span>
       </div>
 
       {/* Texto principal */}
@@ -127,9 +124,9 @@ export default async function NotFound() {
       )}
 
       {/* Branding */}
-      <p className="mt-14 text-xs text-navy-300">
+      <p className="mt-14 text-xs text-slate-600">
         <span className="font-black tracking-tight">
-          Mundo<span className="text-brand-yellow">Tech</span>
+          Mundo<span className="text-amber-700">Tech</span>
         </span>{" "}
         — Conectados Contigo · Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001
       </p>

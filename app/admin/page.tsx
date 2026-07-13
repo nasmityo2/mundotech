@@ -119,7 +119,7 @@ const AdminHomePage = () => {
         return (
           <span className="whitespace-nowrap text-right leading-tight">
             <span className="block font-bold text-gray-900">{money.usd}</span>
-            <span className="block text-[11px] text-gray-400">{money.bs}</span>
+            <span className="block text-[11px] text-gray-500">{money.bs}</span>
           </span>
         );
       },
@@ -182,7 +182,7 @@ const AdminHomePage = () => {
               ≈ {formatBs(revenueBs)}{hasLegacyUsdRevenue ? ' + pedidos legado USD' : ''}
             </p>
           )}
-          <p className="text-[11px] opacity-60 mt-1">Solo pagos validados · USD principal, Bs según la tasa congelada de cada pedido</p>
+          <p className="text-[11px] text-white/80 mt-1">Solo pagos validados · USD principal, Bs según la tasa congelada de cada pedido</p>
         </div>
       </div>
 

@@ -54,7 +54,7 @@ export default function AuthSplitLayout({
       <nav className="text-sm text-slate-500 mb-5" aria-label="Migas de pan">
         <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
           <li>
-            <Link href="/" className="font-medium hover:text-navy transition-colors">
+            <Link href="/" className="font-medium text-slate-600 hover:text-navy transition-colors">
               Inicio
             </Link>
           </li>
@@ -62,7 +62,7 @@ export default function AuthSplitLayout({
             /
           </li>
           <li>
-            <span className="text-slate-400">Cuenta</span>
+            <span className="text-slate-600">Cuenta</span>
           </li>
           <li className="text-slate-300" aria-hidden>
             /
@@ -110,7 +110,7 @@ export default function AuthSplitLayout({
           </div>
         </motion.div>
 
-        <p className="mt-4 text-center text-[12px] text-slate-400">
+        <p className="mt-4 text-center text-[12px] text-slate-600">
           ¿Trancado con algo?{' '}
           <a
             href={waHref}

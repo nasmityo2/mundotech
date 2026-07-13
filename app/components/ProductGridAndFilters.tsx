@@ -328,7 +328,7 @@ function FilterPanel({
           <button
             type="button"
             onClick={onClear}
-            className="w-full h-10 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 hover:text-navy transition-colors"
+            className="w-full min-h-[44px] rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 hover:text-navy transition-colors"
           >
             Limpiar filtros
           </button>

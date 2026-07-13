@@ -23,8 +23,8 @@ const WishlistClient = () => {
 
   return (
     <div className="pb-10 sm:pb-12 w-full max-w-full">
-      <nav className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6" aria-label="Breadcrumb">
-        <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
+      <nav className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-500 mb-4 sm:mb-6" aria-label="Breadcrumb">
+        <Link href="/" className="text-slate-600 hover:text-navy transition-colors">Inicio</Link>
         <ChevronRight size={12} />
         <span className="text-navy font-medium">Favoritos</span>
       </nav>
@@ -82,7 +82,7 @@ const WishlistClient = () => {
                   />
 
                   {discount && (
-                    <span className="absolute top-3 left-3 bg-rose-500 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-soft">
+                    <span className="absolute top-3 left-3 bg-rose-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-soft">
                       -{discount}%
                     </span>
                   )}
@@ -94,7 +94,7 @@ const WishlistClient = () => {
                       e.stopPropagation();
                       removeFromWishlist(product.id);
                     }}
-                    className="absolute top-2 right-2 min-w-[40px] min-h-[40px] rounded-full bg-white/90 backdrop-blur border border-slate-200/70 shadow-soft flex items-center justify-center text-slate-400 hover:text-rose-500 active:text-rose-600 active:scale-95 hover:bg-white transition-all"
+                    className="absolute top-2 right-2 min-w-[44px] min-h-[44px] rounded-full bg-white/90 backdrop-blur border border-slate-200/70 shadow-soft flex items-center justify-center text-slate-400 hover:text-rose-500 active:text-rose-600 active:scale-95 hover:bg-white transition-all"
                     aria-label="Quitar de favoritos"
                   >
                     <X size={16} />
@@ -123,7 +123,7 @@ const WishlistClient = () => {
                       type="button"
                       onClick={() => handleAddToCart(product)}
                       disabled={isOut || addedIds.has(product.id)}
-                      className="mt-2.5 sm:mt-3 w-full inline-flex items-center justify-center gap-1.5 min-h-[42px] sm:min-h-[44px] rounded-xl bg-brand-yellow text-navy text-[12px] sm:text-sm font-semibold hover:bg-[#FFE03A] active:scale-[0.97] shadow-soft hover:shadow-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="mt-2.5 sm:mt-3 w-full inline-flex items-center justify-center gap-1.5 min-h-[44px] rounded-xl bg-brand-yellow text-navy text-[12px] sm:text-sm font-semibold hover:bg-[#FFE03A] active:scale-[0.97] shadow-soft hover:shadow-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {addedIds.has(product.id) ? (
                         <>

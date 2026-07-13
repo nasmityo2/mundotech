@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { Camera, ImagePlus, X, Loader2, Check } from 'lucide-react';
+import { normalizeImageForUpload } from '@/lib/client-image-normalize';
 
 interface PhotoUploaderProps {
   /** URL actual (cuando ya hay una foto subida). */
@@ -27,8 +28,9 @@ interface PhotoUploaderProps {
  * Subida de foto optimizada para iOS y Android:
  * - Botón "Tomar foto" usa `capture="environment"` (cámara trasera).
  * - Botón "Galería" no usa `capture`, dejando elegir desde el carrete.
- * - Compresión client-side ligera (canvas, sin libs externas) si la foto > 1.5 MB.
- * - HEIC/HEIF: el servidor convierte a WebP vía sharp en /api/upload.
+ * - HEIC/HEIF (fotos de iPhone) y compresión >1.5 MB se normalizan en cliente
+ *   vía lib/client-image-normalize.ts antes de subir — el servidor solo
+ *   acepta JPEG/PNG/WEBP/GIF por magic bytes (ver lib/detect-image-mime.ts).
  */
 export default function PhotoUploader({
   value,
@@ -47,46 +49,20 @@ export default function PhotoUploader({
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const compressIfNeeded = async (file: File): Promise<Blob> => {
-    if (file.size <= 1.5 * 1024 * 1024) return file;
-    try {
-      const bitmap = await createImageBitmap(file);
-      const maxSide = 1800;
-      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-      const w = Math.round(bitmap.width * scale);
-      const h = Math.round(bitmap.height * scale);
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return file;
-      ctx.drawImage(bitmap, 0, 0, w, h);
-      return await new Promise<Blob>((resolve) => {
-        canvas.toBlob(b => resolve(b ?? file), 'image/jpeg', 0.85);
-      });
-    } catch {
-      return file;
-    }
-  };
-
   const handleFile = async (file: File | undefined | null) => {
     if (!file) return;
     setError(null);
-
-    if (file.size > maxSizeMB * 1024 * 1024) {
-      setError(`El archivo supera ${maxSizeMB} MB.`);
-      return;
-    }
-
     setUploading(true);
     setProgress(10);
 
     try {
-      const blob = await compressIfNeeded(file);
+      const normalized = await normalizeImageForUpload(file, {
+        maxOutputBytes: maxSizeMB * 1024 * 1024,
+      });
       setProgress(35);
 
       const fd = new FormData();
-      fd.append('file', blob, file.name || 'photo.jpg');
+      fd.append('file', normalized, normalized.name || 'photo.jpg');
       fd.append('purpose', purpose);
 
       const xhr = new XMLHttpRequest();
@@ -163,7 +139,7 @@ export default function PhotoUploader({
             type="button"
             onClick={() => onChange(null)}
             aria-label="Quitar foto"
-            className="absolute top-2 right-2 w-9 h-9 bg-black/60 backdrop-blur-sm text-white rounded-full flex items-center justify-center"
+            className="absolute top-2 right-2 min-w-[44px] min-h-[44px] bg-black/60 backdrop-blur-sm text-white rounded-full flex items-center justify-center"
           >
             <X size={16} />
           </button>

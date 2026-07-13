@@ -38,7 +38,7 @@ interface ProductShelfProps {
 
 const BADGE_COLORS: Record<string, string> = {
   yellow: 'bg-brand-yellow text-navy',
-  red:    'bg-rose-500 text-white',
+  red:    'bg-rose-600 text-white',
   blue:   'bg-sky-500 text-white',
   green:  'bg-emerald-500 text-white',
 };

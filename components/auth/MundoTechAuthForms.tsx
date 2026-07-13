@@ -365,12 +365,12 @@ export function AuthLoginForm({ callbackUrl, defaultEmail }: LoginPanelProps) {
 
       <p className="mt-8 text-center text-sm text-slate-600">
         ¿No tienes cuenta?{' '}
-        <Link href="/registro" className="font-semibold text-brand-yellow hover:underline">
+        <Link href="/registro" className="font-semibold text-amber-700 hover:text-amber-800">
           Crear cuenta
         </Link>
       </p>
 
-      <p className="mt-5 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+      <p className="mt-5 flex items-center justify-center gap-1.5 text-[11px] text-slate-600">
         <ShieldCheck size={12} className="text-brand-green shrink-0" />
         Tus datos solo se usan para tus pedidos — nada de spam
       </p>
@@ -500,7 +500,7 @@ export function AuthRegisterForm({ callbackUrl }: RegisterPanelProps) {
         >
           Ir a iniciar sesión
         </Link>
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-slate-600">
           ¿No llegó el correo?{' '}
           <button
             type="button"
@@ -753,12 +753,12 @@ export function AuthRegisterForm({ callbackUrl }: RegisterPanelProps) {
 
       <p className="mt-8 text-center text-sm text-slate-600">
         ¿Ya tienes cuenta?{' '}
-        <Link href="/login" className="font-semibold text-brand-yellow hover:underline">
+        <Link href="/login" className="font-semibold text-amber-700 hover:text-amber-800">
           Inicia sesión
         </Link>
       </p>
 
-      <p className="mt-5 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+      <p className="mt-5 flex items-center justify-center gap-1.5 text-[11px] text-slate-600">
         <ShieldCheck size={12} className="text-brand-green shrink-0" />
         Registro gratuito · Sin cargos ocultos
       </p>

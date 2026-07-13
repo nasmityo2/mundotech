@@ -3,7 +3,7 @@
 **Proyecto:** `nasmityo2/mundotech`  
 **Auditoría base:** 11 de julio de 2026  
 **Documento de ejecución:** `PROMPTS-CURSOR-MUNDOTECH-V4-COPIAR-PEGAR.md`  
-**Estado actual:** 28 de 32 sesiones completadas (derivado de checkboxes principales por `npm run plan:check`)
+**Estado actual:** 24 de 32 sesiones completadas (derivado de checkboxes principales por `npm run plan:check`)
 
 > Este archivo es la fuente de verdad del avance. Cada sesión de Cursor debe abrirlo antes de trabajar y actualizar **únicamente su propia sección** al terminar. Un checkbox solo se marca cuando la implementación, las pruebas y los criterios de aceptación están verificados.
 
@@ -56,12 +56,13 @@ Si el estado es `PARCIAL` o `BLOQUEADO`, el checkbox queda vacío.
 
 Después de cerrar una sesión, actualizar manualmente:
 
-- **Completadas:** 28/32
-- **Críticas P0 completadas:** 3/4
-- **Altas P1 completadas:** 10/10
-- **Medias/operativas completadas:** 15/18
+- **Completadas:** 24/32
+- **Críticas P0 completadas:** 2/4
+- **Altas P1 completadas:** 9/10
+- **Medias/operativas completadas:** 13/18
 - **Última sesión cerrada con CI verde:** ninguna en esta reconciliación — pendiente job `CI` en GitHub Actions (workflow `.github/workflows/ci.yml`, SHA repo `4e938449d18c9a42f17f83bf7a8330715fdf8e56`, no verificado independientemente en esta ejecución)
 - **Reabiertas (Prompt 11):** 04, 05, 13, 21, 25, 26, 27, 28, 31 — solo `[x]` tras CI verde (06, 10, 11, 12, 14, 15, 17, 20, 29, 30 cerradas localmente Prompt 03 — 2026-07-12)
+- **Reabiertas (Prompt 05, cierres falsos):** 04, 05, 21, 31 — tenían nota "Reabierta" pero el checkbox seguía `[x]` sin evidencia real de CI/E2E/Axe verde; corregido a `[ ]`. 27, 28, 32 ya estaban `[ ]` y permanecen así.
 
 ---
 
@@ -72,6 +73,7 @@ Después de cerrar una sesión, actualizar manualmente:
 - [x] **Eliminar `.next-previous`, backups temporales de Vercel y `sudo-credencial.md` sin romper el deploy atómico.**
 
 **Prioridad:** P0  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 01  
 **Hallazgos cubiertos:** higiene del repositorio; 74.437.832 bytes innecesarios; posible credencial en texto plano.
 
@@ -124,6 +126,7 @@ Notas manuales:
 > Estado: PARCIAL — El validador original solo comprobaba parsed.patch < 6, permitiendo 16.1.99 y rechazando 16.3.0. Corregido en revisión.
 
 **Prioridad:** P0  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 02  
 **Hallazgos cubiertos:** SSRF self-hosted, bypass de middleware, DoS, cache poisoning y XSS de la publicación de mayo de 2026.
 
@@ -206,6 +209,7 @@ Pruebas ejecutadas:
 > Estado: BLOQUEADO — Gitleaks detecta 36 leaks en historial completo (30 secretos reales en `.env.bak*` y `.next-previous/**`). Workflow Secret scanning falla en GitHub Actions (run 29219609910, SHA d6ea07f). Purga histórica pendiente: rotación de credenciales + confirmación humana para force-push (Prompt 07).
 
 **Prioridad:** P0  
+**Cierre vigente:** BLOQUEADO
 **Prompt:** Sesión 03  
 **Hallazgos cubiertos:** `.env.bak`, `lib/db.json`, `sudo-credencial.md`, capturas con posible PII y secretos históricos.
 
@@ -287,9 +291,12 @@ Pendiente manual:
 
 ## 04 — Comprobantes privados en R2
 
-- [x] **Separar almacenamiento público y privado; los comprobantes nuevos no deben tener URL pública permanente.**
+- [ ] **Separar almacenamiento público y privado; los comprobantes nuevos no deben tener URL pública permanente.**
+
+> Reabierta Prompt 05: el checkbox estaba en `[x]` pero la evidencia VPS real (Prompt 05 — 2026-07-12) documenta FAIL en guest/CSP/CSP live img-src, crontab no instalado y R2_ENDPOINT ausente en runtime. Cierre falso corregido a `[ ]`; solo vuelve a `[x]` con evidencia real verificada.
 
 **Prioridad:** P0  
+**Cierre vigente:** PARCIAL
 **Prompt:** Sesión 04 — CORREGIDA el 2026-07-11
 
 **Debe quedar demostrado:**
@@ -427,13 +434,51 @@ Manual pendiente (sudo/root):
 - Cloudflare: bucket mundotech-private, Public Development URL Disabled, Custom Domains vacío (dashboard)
 ```
 
+**Evidencia VPS real (Prompt 05 — reejecución 2026-07-13):**
+
+```text
+Estado: PARCIAL — no marcar [x] (falta QR Binance real; sin falsos PASS)
+Fecha: 2026-07-13
+Host: mundotech-prod (verificado hostname)
+Cambios de código en este prompt:
+- next.config.mjs: regla de headers estáticos para /api/orders/:id/payment-proof (Referrer-Policy no-referrer, Cache-Control private,no-store) DESPUÉS de headers globales — defensa en profundidad sobre el handler.
+- app/api/orders/[id]/payment-proof/route.ts: comentario actualizado con contrato real (guest 401 middleware, CLIENT 403 requireAdmin, ADMIN 200).
+- tests/payment-proof-route.test.ts: test de guest renombrado — ya no afirma "403 guest" como contrato; documenta que middleware intercepta con 401 antes del handler.
+- e2e/specs/auth-roles.spec.ts: nuevo test API guest 401 / CLIENT 403 sobre /api/orders/:id/payment-proof.
+- tests/next-config-payment-proof-headers.test.ts (nuevo): verifica la regla estática y su orden tras headers globales.
+Pruebas locales:
+- npm run typecheck — PASS (0 errors)
+- npm run lint — PASS (0 errors, 31 warnings pre-existentes)
+- npm test — PASS (647 tests, 52 files)
+- npm run build — PASS (prisma migrate deploy + next build, exit 0)
+VPS (sudo con password proporcionada por el operador):
+- R2_ENDPOINT: ya presente en /etc/mundotech/mundotech.env (1 ocurrencia, coincide con .env) — no requirió escritura nueva.
+- systemctl restart mundotech — PASS (servicio activo, build recién generado)
+- curl -sI http://127.0.0.1:3000/ — 200; CSP img-src incluye https://dc79dd490f505d5b3fc32271bfc2b749.r2.cloudflarestorage.com — PASS (antes ausente)
+- curl -sI http://127.0.0.1:3000/api/orders/test-id/payment-proof (guest, sin cookie) — 401, Cache-Control: private, no-store, Referrer-Policy: no-referrer — PASS (contrato guest=401 confirmado en producción; header no-referrer confirma la nueva regla de next.config.mjs activa incluso sobre el 401 emitido por middleware)
+- CLIENT 403 / ADMIN 200 en producción real: NO verificado en esta ejecución — no se dispone de credenciales de cuenta CLIENT/ADMIN de producción para el operador de este prompt. Cubierto por: unit test (tests/payment-proof-route.test.ts, ADMIN 200 con headers correctos) + e2e/specs/auth-roles.spec.ts (CLIENT 403 vía login E2E, pendiente ejecución de suite E2E en CI/BD e2e).
+- sudo bash scripts/install-crontab.sh — PASS (instalado sin error)
+- crontab -l | grep -oE '/api/cron/[a-z-]+' | sort | uniq -c — 6 endpoints, cada uno exactamente 1 vez: abandoned-cart, purge-payment-uploads, purge-product-views, purge-temporary-data, review-request, update-bcv-rate — PASS
+- QR Binance: binanceQrUrl sigue vacío en BD (verificado con lib/data-store.readSettings vía tsx) — NO subido. Requiere el archivo real del QR Binance de la tienda, que no está disponible para este prompt. El bug de app/api/upload/route.ts (rejectInvalidMutationOrigin invertido) ya está corregido en el código actual (verificado por lectura de lib/security.ts: retorna null si el origen es válido) — el pipeline de subida ya no está bloqueado, pero la subida del asset real sigue pendiente de acción humana en Admin → Settings.
+Riesgo residual:
+- QR Binance real pendiente de subida manual (no se fabrica un asset falso).
+- Contrato CLIENT=403/ADMIN=200 no verificado end-to-end contra producción real (solo vía unit/E2E); requiere credenciales de prueba en producción o ejecución de e2e/specs/auth-roles.spec.ts contra un entorno con sesión real.
+- Cloudflare Dashboard (Public Development URL Disabled, Custom Domains vacío) no verificado en esta ejecución (fuera del alcance de shell del VPS).
+Notas manuales:
+- (MANUAL) Admin → Settings → subir QR Binance real; confirmar que la URL resultante usa el prefijo R2_PUBLIC_BASE_URL/assets/.
+- (MANUAL) Verificar en Cloudflare Dashboard: bucket mundotech-private con Public Development URL Disabled y Custom Domains vacío.
+Decisión: Sesiones 04, 05, 21 permanecen `[ ]` (Cierre vigente: PARCIAL) hasta cerrar el QR Binance real y correr E2E/CI en verde.
+```
+
 ## 05 — Sesión de upload y archivos huérfanos
 
-- [x] **Vincular cada comprobante a un intento de checkout y eliminar huérfanos de forma idempotente.**
+- [ ] **Vincular cada comprobante a un intento de checkout y eliminar huérfanos de forma idempotente.**
 
 > Reabierta Prompt 11: evidencia local PASS; cierre `[x]` solo tras job `CI` verde (E2E incluido).
+> Reabierta Prompt 05 (cierre falso): el checkbox seguía en `[x]` a pesar de la nota anterior y de la evidencia VPS real (Prompt 05 — 2026-07-12) que documenta crontab root no instalado (`sudo bash scripts/install-crontab.sh` bloqueado por falta de password). Corregido a `[ ]`.
 
 **Prioridad:** P1  
+**Cierre vigente:** PARCIAL
 **Prompt:** Sesión 05 — CORREGIDA el 2026-07-11
 
 **Debe quedar demostrado:**
@@ -509,6 +554,16 @@ Fecha: 2026-07-12 | SHA: d6ea07f
 Manual: ejecutar install-crontab.sh como root en VPS
 ```
 
+**Evidencia VPS real (Prompt 05 — reejecución 2026-07-13):**
+
+```text
+Estado: PARCIAL — no marcar [x] (pendiente CI verde; ver evidencia completa en Sesión 04)
+Fecha: 2026-07-13
+- sudo bash scripts/install-crontab.sh — PASS
+- crontab -l | grep -oE '/api/cron/[a-z-]+' | sort | uniq -c — 6/6 endpoints, 1 vez cada uno (incluye purge-payment-uploads 15 * * * *)
+Riesgo residual: cierre [x] sigue condicionado a job CI verde (E2E incluido) según nota "Reabierta Prompt 11".
+```
+
 ## 06 — Acceso guest mediante token independiente
 
 - [x] **Sustituir `orderId`/CUID como bearer por token guest hasheado y temporal.**
@@ -516,6 +571,7 @@ Manual: ejecutar install-crontab.sh como root en VPS
 > Reabierta Prompt 11: evidencia local PASS; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P1  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 06
 
 **Debe quedar demostrado:**
@@ -627,6 +683,7 @@ Pruebas ejecutadas:
 > Estado: PARCIAL — El cron tenía `totalDeleted > 0 || true` (condición siempre verdadera) y el log de error exponía `err.message`. Tests de cutoff incompletos. Corregido en revisión.
 
 **Prioridad:** P1  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 07
 
 **Debe quedar demostrado:**
@@ -717,6 +774,7 @@ Pruebas ejecutadas:
 > Estado: PARCIAL — `getBucketSecret()` usaba fallback predecible `'mundotech-rate-limit-fallback'` si NEXTAUTH_SECRET faltaba. Tests no cubrían `hashForBucket` sin secret ni `buildRateLimitedResponse`. Corregido en revisión.
 
 **Prioridad:** P1  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 08
 
 **Debe quedar demostrado:**
@@ -805,6 +863,7 @@ Pruebas ejecutadas:
 > Estado: PARCIAL — `verifySameOrigin` confiaba en `x-forwarded-host`/`x-forwarded-proto`/`host` (manipulables). `verifyBearerSecret` usaba `token.length` en lugar de `Buffer.byteLength`. Tests no cubrían spoofing ni `expected` vacío con Bearer vacío. Corregido en revisión.
 
 **Prioridad:** P1  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 09
 
 **Debe quedar demostrado:**
@@ -923,6 +982,7 @@ Pruebas ejecutadas:
 > Reabierta Prompt 11: migración runtime verificada localmente; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P1
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 10 — Prompt 08 (migración runtime completa)
 
 **Debe quedar demostrado:**
@@ -1065,6 +1125,7 @@ Pruebas ejecutadas:
 > Reabierta Prompt 11: timeout ≤2 s verificado localmente; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P2  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 11 — Prompt 04 (timeout real)
 
 **Debe quedar demostrado:**
@@ -1134,6 +1195,7 @@ Pruebas ejecutadas:
 - [x] **Endurecer y probar CSP sin romper hidratación estática/ISR.**
 
 **Prioridad:** P1  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 12
 
 **Debe quedar demostrado:**
@@ -1184,6 +1246,7 @@ Notas manuales:
 - [x] **Eliminar descarga de todos los pedidos/PII desde `/admin/stats`.**
 
 **Prioridad:** P1  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 13 — Prompt 06 EXPLAIN real (cierre)
 
 **Debe quedar demostrado:**
@@ -1283,6 +1346,7 @@ Notas manuales:
 > Reabierta Prompt 11: tests locales PASS; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P1  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 14
 
 **Debe quedar demostrado:**
@@ -1350,6 +1414,7 @@ Pruebas ejecutadas:
 > Reabierta Prompt 11: invalidación categories+shell verificada localmente; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P1  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 15
 
 **Debe quedar demostrado:**
@@ -1418,6 +1483,7 @@ Pruebas ejecutadas:
 - [x] **Sacar `react-zoom-pan-pinch` del bundle inicial de PDP.**
 
 **Prioridad:** P2  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 16
 
 **Debe quedar demostrado:**
@@ -1465,6 +1531,7 @@ Notas manuales:
 > Reabierta Prompt 11: 11 tests exchange-rate-provider PASS local; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P2  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 17
 
 **Debe quedar demostrado:**
@@ -1534,6 +1601,7 @@ Pruebas ejecutadas:
 - [x] **Dejar un solo preload de imagen principal en home.**
 
 **Prioridad:** P2  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 18
 
 **Debe quedar demostrado:**
@@ -1577,6 +1645,7 @@ Notas manuales:
 - [x] **Retirar `force-dynamic` innecesario sin cachear datos personales.**
 
 **Prioridad:** P2  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 19
 
 **Debe quedar demostrado:**
@@ -1628,6 +1697,7 @@ Notas manuales:
 > Reabierta Prompt 11: inventario 117 entradas; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P2  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 20
 
 **Debe quedar demostrado:**
@@ -1693,11 +1763,13 @@ Pruebas ejecutadas:
 
 ## 21 — Imágenes raw y privacidad
 
-- [x] **Clasificar los 16 `<img>` y optimizar solo los apropiados.**
+- [ ] **Clasificar los 16 `<img>` y optimizar solo los apropiados.**
 
 > Reabierta Prompt 11: IMAGE-AUDIT regenerado; cierre `[x]` solo tras job `CI` verde.
+> Reabierta Prompt 05 (cierre falso): el checkbox seguía en `[x]` a pesar de la nota anterior y de la evidencia VPS real (Prompt 05 — 2026-07-12) que documenta QR Binance R2 pendiente (binanceQrUrl vacío, upload admin roto en prod). Corregido a `[ ]`.
 
 **Prioridad:** P2  
+**Cierre vigente:** PARCIAL
 **Prompt:** Sesión 21
 
 **Debe quedar demostrado:**
@@ -1747,11 +1819,24 @@ Fecha: 2026-07-12 | SHA: d6ea07f
 Manual: Admin → Settings → QR Binance tras restart; confirmar prefix assets/
 ```
 
+**Evidencia VPS real (Prompt 05 — reejecución 2026-07-13):**
+
+```text
+Estado: PARCIAL — no marcar [x] (QR Binance real aún no subido; ver evidencia completa en Sesión 04)
+Fecha: 2026-07-13
+- Bug app/api/upload/route.ts (rejectInvalidMutationOrigin invertido) — confirmado corregido en código actual (lib/security.ts retorna null si origen válido)
+- systemctl restart mundotech — PASS
+- curl -sI http://127.0.0.1:3000/ — CSP img-src incluye origin R2 privado (dc79dd490f505d5b3fc32271bfc2b749.r2.cloudflarestorage.com) — PASS
+- binanceQrUrl en BD: sigue vacío (readSettings vía tsx) — pendiente subida manual del asset real por el operador de la tienda
+Riesgo residual: binanceQrUrl vacío en runtime; hasta que se suba el QR real, checkout con Binance en Admin queda incompleto para ese método de pago.
+```
+
 ## 22 — Índices Prisma
 
 - [x] **Eliminar índices redundantes sin perder restricciones UNIQUE y ajustar índices demostrados.**
 
 **Prioridad:** P2  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 22
 
 **Debe quedar demostrado:**
@@ -1815,6 +1900,7 @@ Notas manuales:
 - [x] **Corregir botones sin tipo y sustituir `div/span onClick` por semántica nativa.**
 
 **Prioridad:** P1  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 23
 
 **Debe quedar demostrado:**
@@ -1887,6 +1973,7 @@ Notas manuales:
 - [x] **Añadir una región aria-live global sin duplicados.**
 
 **Prioridad:** P2  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 24
 
 **Debe quedar demostrado:**
@@ -1954,6 +2041,7 @@ Notas manuales:
 > Reabierta Prompt 11: 23 tests estáticos PASS; E2E reduced-motion pendiente CI (Sesión 27). No marcar `[x]` hasta CI verde.
 
 **Prioridad:** P2  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 25
 
 **Debe quedar demostrado:**
@@ -2025,6 +2113,7 @@ Notas manuales:
 - [x] **Aplicar contrato accesible a dialogs y drawers críticos.**
 
 **Prioridad:** P1  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 26
 
 **Debe quedar demostrado:**
@@ -2099,6 +2188,7 @@ Notas manuales:
 - [ ] **Crear suite E2E aislada para los flujos críticos.**
 
 **Prioridad:** P1  
+**Cierre vigente:** PARCIAL
 **Prompt:** Sesión 27
 
 **Debe quedar demostrado:**
@@ -2149,6 +2239,7 @@ Notas: ConfirmDialog, CartDrawer, CategoryDrawer sin cambios de API — consumen
 - [ ] **Añadir escaneo Axe en rutas y estados críticos.**
 
 **Prioridad:** P2  
+**Cierre vigente:** PARCIAL
 **Prompt:** Sesión 28
 
 **Debe quedar demostrado:**
@@ -2185,6 +2276,7 @@ Notas: No marcar [x] hasta E2E Axe verde en CI (Sesión 27)
 > Reabierta Prompt 11: supply-chain tests PASS local; Gitleaks en `.github/workflows/secrets.yml` — cierre `[x]` solo tras run CI verde en GitHub Actions.
 
 **Prioridad:** P1  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 29
 
 **Debe quedar demostrado:**
@@ -2270,6 +2362,7 @@ Pruebas ejecutadas:
 > Reabierta Prompt 11: `docs/OPERATIONS-RUNBOOK.md` creado; cierre `[x]` solo tras job `CI` verde.
 
 **Prioridad:** P2  
+**Cierre vigente:** COMPLETADO
 **Prompt:** Sesión 30
 
 **Debe quedar demostrado:**
@@ -2337,11 +2430,13 @@ Pruebas ejecutadas:
 
 ## 31 — GA4 y validación SEO
 
-- [x] **Activar/validar analítica y SEO sin enviar PII.**
+- [ ] **Activar/validar analítica y SEO sin enviar PII.**
 
 > Reabierta Prompt 11: GA4 enforcement verificado en repo; validación externa (GSC/Merchant/GA4 prod) marcada NO VERIFICADO en `docs/SEO-VALIDATION.md`. Cierre `[x]` solo tras job `CI` verde.
+> Reabierta Prompt 05 (cierre falso): el checkbox seguía en `[x]` a pesar de la nota anterior sin evidencia de job `CI` verde. Corregido a `[ ]`.
 
 **Prioridad:** P2  
+**Cierre vigente:** PARCIAL
 **Prompt:** Sesión 31
 
 **Debe quedar demostrado:**
@@ -2392,6 +2487,7 @@ Notas manuales:
 - [ ] **Repetir toda la auditoría y cerrar únicamente hallazgos con evidencia reproducible.**
 
 **Prioridad:** Cierre obligatorio  
+**Cierre vigente:** PARCIAL
 **Prompt:** Sesión 32
 
 **Debe quedar demostrado:**

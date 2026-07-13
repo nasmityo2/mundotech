@@ -353,7 +353,7 @@ export default function AdminBannersPage() {
         <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center" onClick={(e) => { if (e.target === e.currentTarget) closeForm(); }}>
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
-            className="relative bg-white sm:rounded-2xl shadow-2xl w-full sm:w-[520px] sm:max-w-[92vw] sm:my-6 max-h-[100dvh] sm:max-h-[88vh] flex flex-col"
+            className="relative bg-white sm:rounded-2xl shadow-2xl w-full sm:w-[520px] sm:max-w-[92vw] sm:my-6 max-h-screen max-h-[100dvh] sm:max-h-[88vh] flex flex-col"
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
 

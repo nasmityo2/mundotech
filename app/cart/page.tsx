@@ -53,8 +53,8 @@ export default async function CartPage() {
       </div>
 
       {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-400 mb-4 sm:mb-6" aria-label="Breadcrumb">
-        <Link href="/" className="hover:text-navy transition-colors">Inicio</Link>
+      <nav className="flex items-center gap-2 text-[11px] sm:text-xs text-slate-500 mb-4 sm:mb-6" aria-label="Breadcrumb">
+        <Link href="/" className="text-slate-600 hover:text-navy transition-colors">Inicio</Link>
         <ChevronRight size={12} />
         <span className="text-navy font-medium">Carrito</span>
       </nav>

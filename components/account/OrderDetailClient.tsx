@@ -198,7 +198,7 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
                     type="button"
                     onClick={copyTrackingNumber}
                     aria-label="Copiar número de seguimiento"
-                    className="min-h-[36px] inline-flex items-center gap-1 px-2.5 text-[11px] font-semibold rounded-lg border border-slate-200 bg-white active:bg-slate-100"
+                    className="min-h-[44px] inline-flex items-center gap-1 px-2.5 text-[11px] font-semibold rounded-lg border border-slate-200 bg-white active:bg-slate-100"
                   >
                     {trackingCopied
                       ? <><Check size={12} className="text-green-600" /> Copiado</>

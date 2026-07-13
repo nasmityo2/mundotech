@@ -8,7 +8,7 @@ const badgeVariants = cva(
     variants: {
       variant: {
         new:        "bg-navy text-white",
-        sale:       "bg-rose-500 text-white",
+        sale:       "bg-rose-600 text-white",
         soft:       "bg-brand-yellowSft text-navy",
         solid:      "bg-brand-yellow text-navy",
         outline:    "border border-slate-200 bg-white text-navy",

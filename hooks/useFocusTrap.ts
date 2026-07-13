@@ -101,13 +101,13 @@ export function useFocusTrap({
 
     let addedTabindex = false;
     if (target) {
-      target.focus();
+      target.focus({ preventScroll: true });
     } else {
       if (!container.hasAttribute('tabindex')) {
         container.setAttribute('tabindex', '-1');
         addedTabindex = true;
       }
-      container.focus();
+      container.focus({ preventScroll: true });
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -135,11 +135,11 @@ export function useFocusTrap({
       if (e.shiftKey) {
         if (active === first || !container.contains(active)) {
           e.preventDefault();
-          last.focus();
+          last.focus({ preventScroll: true });
         }
       } else if (active === last || !container.contains(active)) {
         e.preventDefault();
-        first.focus();
+        first.focus({ preventScroll: true });
       }
     };
 
@@ -160,7 +160,10 @@ export function useFocusTrap({
         prev.isConnected &&
         isFocusableElement(prev, isVisible)
       ) {
-        prev.focus();
+        // preventScroll: sin esto, restaurar el foco al trigger reintroduce
+        // el mismo salto de scroll que useBodyScrollLock acaba de corregir
+        // al cerrar el overlay (ver hooks/useBodyScrollLock.ts).
+        prev.focus({ preventScroll: true });
       }
     };
   }, [enabled, containerRef, focusLast, getFocusables, restoreFocus, isVisible, trapId]);

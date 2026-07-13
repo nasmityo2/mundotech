@@ -8,6 +8,7 @@ import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 import type { StoreSettings } from '@/lib/data-store';
 import { VENEZUELAN_BANKS } from '@/lib/venezuela-banks';
+import { isHeicFile, normalizeImageForUpload } from '@/lib/client-image-normalize';
 
 export type PaymentMethod = 'pagomovil' | 'transferencia' | 'binancepay' | 'cashea';
 
@@ -53,6 +54,9 @@ interface PaymentFormProps {
 /** Límites espejo de /api/checkout/upload-proof para fallar temprano en cliente. */
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 
+/** El servidor solo acepta JPEG/PNG/WEBP; HEIC/HEIF se normaliza en cliente antes de subir. */
+const PROOF_FILE_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif';
+
 const selectCls =
   'block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy';
 
@@ -67,6 +71,7 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
   const [proofFile,       setProofFile]        = useState<File | null>(initialData?.proofFile ?? null);
   const [proofPreviewUrl, setProofPreviewUrl]  = useState(initialData?.proofPreviewUrl ?? '');
   const [uploadError,     setUploadError]      = useState<string | null>(null);
+  const [normalizingProof, setNormalizingProof] = useState(false);
   const [errors,          setErrors]           = useState<Partial<Record<'paymentMethod' | 'bank' | 'holderIdNumber' | 'holderPhone' | 'referenceNumber' | 'proofFile', string>>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -96,21 +101,25 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
     setTimeout(() => setCopiedField(null), 1500);
   };
 
-  const selectProof = useCallback((file: File) => {
+  const selectProof = useCallback(async (file: File) => {
     setUploadError(null);
-    if (!file.type.startsWith('image/')) {
-      setUploadError('El comprobante debe ser una imagen (JPG, PNG o WEBP).');
+    if (!file.type.startsWith('image/') && !isHeicFile(file)) {
+      setUploadError('El comprobante debe ser una imagen (JPG, PNG, WEBP o HEIC).');
       return;
     }
-    if (file.size > MAX_PROOF_BYTES) {
-      setUploadError(`La imagen supera el máximo permitido (${MAX_PROOF_BYTES / (1024 * 1024)} MB).`);
-      return;
+    setNormalizingProof(true);
+    try {
+      const normalized = await normalizeImageForUpload(file, { maxOutputBytes: MAX_PROOF_BYTES });
+      setProofFile(normalized);
+      setProofPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(normalized);
+      });
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'No pudimos procesar la imagen.');
+    } finally {
+      setNormalizingProof(false);
     }
-    setProofFile(file);
-    setProofPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
-    });
   }, []);
 
   const clearProof = useCallback(() => {
@@ -279,7 +288,7 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
         })}
       </div>
       {errors.paymentMethod && (
-        <p className="text-xs text-rose-500 -mt-4">{errors.paymentMethod}</p>
+        <p className="text-xs text-rose-700 -mt-4">{errors.paymentMethod}</p>
       )}
 
       {/* ── Datos de la tienda para pagar ── */}
@@ -405,11 +414,11 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                 <input
                   ref={fileRef}
                   type="file"
-                  accept="image/*"
+                  accept={PROOF_FILE_ACCEPT}
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) selectProof(file);
+                    if (file) void selectProof(file);
                     e.target.value = '';
                   }}
                 />
@@ -429,7 +438,7 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                       className="absolute -top-4 -right-4 w-11 h-11 flex items-center justify-center"
                       aria-label="Eliminar captura"
                     >
-                      <span className="w-7 h-7 bg-rose-500 text-white rounded-full flex items-center justify-center hover:bg-rose-600 transition-colors shadow">
+                      <span className="w-7 h-7 bg-rose-600 text-white rounded-full flex items-center justify-center hover:bg-rose-700 transition-colors shadow">
                         <X size={14} />
                       </span>
                     </button>
@@ -441,14 +450,15 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                   <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-2 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-navy/40 hover:bg-slate-100 rounded-xl py-5 text-sm font-medium text-slate-600 transition"
+                    disabled={normalizingProof}
+                    className="w-full flex items-center justify-center gap-2 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-navy/40 hover:bg-slate-100 rounded-xl py-5 text-sm font-medium text-slate-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
                   >
-                    <UploadCloud size={16} /> Subir captura
+                    <UploadCloud size={16} /> {normalizingProof ? 'Preparando imagen…' : 'Subir captura'}
                   </button>
                 )}
-                {uploadError && <p className="mt-1.5 text-xs text-rose-500">{uploadError}</p>}
+                {uploadError && <p className="mt-1.5 text-xs text-rose-700">{uploadError}</p>}
                 {errors.proofFile && !proofFile && (
-                  <p className="mt-1.5 text-xs text-rose-500">{errors.proofFile}</p>
+                  <p className="mt-1.5 text-xs text-rose-700">{errors.proofFile}</p>
                 )}
               </div>
             </div>
@@ -565,11 +575,11 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
+              accept={PROOF_FILE_ACCEPT}
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) selectProof(file);
+                if (file) void selectProof(file);
                 e.target.value = '';
               }}
             />
@@ -590,7 +600,7 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                   className="absolute -top-4 -right-4 w-11 h-11 flex items-center justify-center"
                   aria-label="Eliminar comprobante"
                 >
-                  <span className="w-7 h-7 bg-rose-500 text-white rounded-full flex items-center justify-center hover:bg-rose-600 transition-colors shadow">
+                  <span className="w-7 h-7 bg-rose-600 text-white rounded-full flex items-center justify-center hover:bg-rose-700 transition-colors shadow">
                     <X size={14} />
                   </span>
                 </button>
@@ -602,17 +612,18 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-navy/40 hover:bg-slate-100 rounded-xl py-5 text-sm font-medium text-slate-600 transition"
+                disabled={normalizingProof}
+                className="w-full flex items-center justify-center gap-2 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-navy/40 hover:bg-slate-100 rounded-xl py-5 text-sm font-medium text-slate-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <UploadCloud size={16} /> Subir comprobante
+                <UploadCloud size={16} /> {normalizingProof ? 'Preparando imagen…' : 'Subir comprobante'}
               </button>
             )}
 
             {uploadError && (
-              <p className="mt-1.5 text-xs text-rose-500">{uploadError}</p>
+              <p className="mt-1.5 text-xs text-rose-700">{uploadError}</p>
             )}
             {errors.proofFile && !proofFile && (
-              <p className="mt-1.5 text-xs text-rose-500">{errors.proofFile}</p>
+              <p className="mt-1.5 text-xs text-rose-700">{errors.proofFile}</p>
             )}
           </div>
         </motion.div>

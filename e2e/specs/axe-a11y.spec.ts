@@ -117,12 +117,12 @@ test.describe('Axe — Accesibilidad automatizada', () => {
       await page.goto('/');
       await page.waitForLoadState('networkidle');
 
-      const searchBtn = page.locator('button[aria-label*="buscar" i], button[aria-label*="search" i]').first();
+      const searchBtn = page.getByRole('button', { name: /Abrir búsqueda/i });
       await expect(searchBtn).toBeVisible();
       await searchBtn.click();
-      await expect(page.locator('input[type="search"], input[placeholder*="buscar" i]').first()).toBeVisible({
-        timeout: 10_000,
-      });
+      const overlay = page.getByRole('dialog', { name: /Buscar productos/i });
+      await expect(overlay).toBeVisible({ timeout: 10_000 });
+      await expect(overlay.locator('input[type="search"]')).toBeVisible();
 
       const result = await scanAxe(page, 'SearchMobileOverlay');
       await assertNoCriticalSerious(result.violations, 'SearchMobileOverlay');

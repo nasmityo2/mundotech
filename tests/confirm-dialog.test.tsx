@@ -13,10 +13,16 @@
  *
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act, cleanup, screen } from '@testing-library/react';
 import React from 'react';
 import ConfirmDialog from '../components/admin/ConfirmDialog';
+
+beforeEach(() => {
+  // useBodyScrollLock restaura window.scrollY al desmontar; jsdom no implementa
+  // scrollTo por defecto y sin este stub cada test imprime un warning ruidoso.
+  window.scrollTo = vi.fn();
+});
 
 afterEach(() => {
   cleanup();

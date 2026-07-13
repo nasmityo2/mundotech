@@ -58,7 +58,11 @@ describe('GET /api/orders/[id]/payment-proof', () => {
     expect(prisma.order.findUnique).not.toHaveBeenCalled();
   });
 
-  it('devuelve 403 si no hay sesión (guest)', async () => {
+  it('defensa en profundidad: si el handler se invoca sin sesión, requireAdmin también rechaza', async () => {
+    // Contrato real end-to-end: guest sin sesión recibe 401 en middleware.ts
+    // (isUserTokenApi) y NUNCA llega a este handler. Este test cubre solo la
+    // capa interna: si por error middleware no interceptara, requireAdmin()
+    // sigue rechazando sin sesión (403, misma respuesta que CLIENT no-ADMIN).
     vi.mocked(requireAdmin).mockResolvedValue({
       authorized: false,
       response: new Response(JSON.stringify({ error: 'No autorizado' }), { status: 403 }) as never,
@@ -68,6 +72,7 @@ describe('GET /api/orders/[id]/payment-proof', () => {
       params: Promise.resolve({ id: 'o1' }),
     });
     expect(response.status).toBe(403);
+    expect(prisma.order.findUnique).not.toHaveBeenCalled();
   });
 
   it('devuelve 200 con URL firmada y headers no-store/no-referrer para ADMIN', async () => {

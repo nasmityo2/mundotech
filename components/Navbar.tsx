@@ -171,7 +171,7 @@ const Navbar = ({ onCartClick, contact }: { onCartClick: () => void; contact: Na
                     aria-hidden="true"
                   >
                     {!isWishlistLoading && wishlist.length > 0 ? (
-                      <span className="bg-rose-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+                      <span className="bg-rose-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
                         {wishlist.length}
                       </span>
                     ) : null}

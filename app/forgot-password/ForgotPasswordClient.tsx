@@ -112,7 +112,7 @@ export default function ForgotPasswordClient() {
 
         <p className="mt-8 text-center text-sm text-slate-600">
           ¿Recordaste tu contraseña?{' '}
-          <Link href="/login" className="font-semibold text-brand-yellow hover:underline">
+          <Link href="/login" className="font-semibold text-amber-700 hover:text-amber-800">
             Inicia sesión
           </Link>
         </p>

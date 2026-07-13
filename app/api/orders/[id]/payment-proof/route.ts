@@ -14,7 +14,11 @@ export const dynamic = 'force-dynamic';
  * comprobante de pago. Los nuevos comprobantes se almacenan en el bucket privado;
  * los legacy (paymentProofUrl) se sirven temporalmente si el host es válido.
  *
- * SESIÓN 04 — solo ADMIN. Los guests/CLIENT reciben 403.
+ * SESIÓN 04 — solo ADMIN accede al comprobante.
+ * Contrato de autenticación (verificado end-to-end):
+ *   - Guest sin sesión: 401 (middleware.ts, isUserTokenApi intercepta antes de llegar aquí).
+ *   - CLIENT autenticado sin rol ADMIN: 403 (requireAdmin() en este handler).
+ *   - ADMIN: 200 con URL firmada.
  */
 export async function GET(
   _request: Request,
