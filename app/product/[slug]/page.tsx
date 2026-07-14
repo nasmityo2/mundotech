@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { readSiteContent, type TrustIcon } from '@/lib/site-content';
+import { isWhatsAppCheckout } from '@/lib/checkout-mode';
 import ProductActions from './ProductActions';
 import ProductGallery from './ProductGallery';
 import { firstCardImage, productToGalleryItems } from '@/lib/product-media';
@@ -437,7 +438,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
 
           {/* Acciones */}
           <div className="mt-5">
-            <ProductActions product={productForClient} />
+            <ProductActions product={productForClient} isWhatsAppCheckout={isWhatsAppCheckout} />
           </div>
 
           <ProductShare name={product.name} />

@@ -12,7 +12,16 @@ import { subscribeRestockAction } from '@/app/actions/restockActions';
 // incompleta que obligaba a castear `product as never` hacia el carrito.
 import type { Product } from '@/context/ProductContext';
 
-export default function ProductActions({ product }: { product: Product }) {
+export default function ProductActions({
+  product,
+  isWhatsAppCheckout,
+}: {
+  product: Product;
+  /** Decidido en el servidor (lib/checkout-mode.ts) y pasado por props:
+   *  en modo whatsapp el checkout es de invitado y "Comprar ahora" no
+   *  debe forzar login. En modo full sí lo exige, igual que /checkout. */
+  isWhatsAppCheckout: boolean;
+}) {
   const { addToCart, silentAddToCart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const router = useRouter();
@@ -39,13 +48,12 @@ export default function ProductActions({ product }: { product: Product }) {
 
   const handleBuyNow = () => {
     if (isOut) return;
-    if (status !== 'authenticated') {
-      silentAddToCart(product, qty);
+    silentAddToCart(product, qty);
+    if (!isWhatsAppCheckout && status !== 'authenticated') {
       stashLoginRedirectForPathname('/checkout');
       router.push('/login');
       return;
     }
-    silentAddToCart(product, qty);
     router.push('/checkout');
   };
 
@@ -150,7 +158,7 @@ export default function ProductActions({ product }: { product: Product }) {
               </>
             ) : (
               <>
-                <ShoppingCart size={16} /> ¡Me lo llevo!
+                <ShoppingCart size={16} /> Añadir al carrito
               </>
             )}
           </button>
