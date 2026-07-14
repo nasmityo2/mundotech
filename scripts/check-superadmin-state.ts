@@ -11,9 +11,10 @@
  * No imprime emails por defecto. Para diagnóstico manual usar --verbose.
  */
 
-import { PrismaClient } from '@prisma/client';
+import 'dotenv/config';
+import { createScriptPrisma } from './lib/script-prisma';
 
-const prisma = new PrismaClient();
+const prisma = createScriptPrisma();
 const VERBOSE = process.argv.includes('--verbose');
 
 async function main() {

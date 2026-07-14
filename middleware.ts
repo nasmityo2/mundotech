@@ -5,7 +5,6 @@ import { getToken } from 'next-auth/jwt';
 import { pathnameToLoginNextSlug, pathFromLoginNextSlug } from '@/lib/auth-path';
 import { buildPublicCachedCsp, buildStrictCsp } from '@/lib/csp';
 import { isFullCheckout, isWhatsAppCheckout } from '@/lib/checkout-mode';
-import { isAdminRole } from '@/lib/is-admin-role';
 import { slugify } from '@/lib/slugify';
 import {
   LOGIN_RETURN_COOKIE_NAME,
@@ -234,6 +233,12 @@ export async function middleware(req: NextRequest) {
     });
 
     if (isAdminUiPath || isApiAdminPath || isAdminWriteApi) {
+      /*
+       * La autorización administrativa definitiva se consulta en BD dentro de
+       * cada página, Route Handler y Server Action. Middleware solo exige identidad.
+       * Esto permite que permisos otorgados o retirados tengan efecto en la siguiente
+       * petición, sin esperar la revalidación del JWT.
+       */
       const isApiResponse = isApiAdminPath || isAdminWriteApi;
 
       if (!token) {
@@ -244,22 +249,6 @@ export async function middleware(req: NextRequest) {
                 headers: { 'Content-Type': 'application/json' },
               })
             : NextResponse.redirect(new URL('/login', req.url)),
-        );
-      }
-
-      const role        = (token as { role?: unknown }).role as string | undefined;
-      // RBAC: permitir si isSuperAdmin=true (barrera JWT general; la auth definitiva
-      // vive en cada handler/página consultando la BD).
-      const isSuperAdminToken = (token as { isSuperAdmin?: unknown }).isSuperAdmin === true;
-
-      if (!isAdminRole(role) && !isSuperAdminToken) {
-        return withCsp(
-          isApiResponse
-            ? new NextResponse(JSON.stringify({ error: 'Forbidden' }), {
-                status: 403,
-                headers: { 'Content-Type': 'application/json' },
-              })
-            : NextResponse.redirect(new URL('/', req.url)),
         );
       }
 

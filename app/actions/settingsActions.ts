@@ -4,12 +4,31 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 import { requirePermissionAction } from '@/lib/admin-access-server';
 import { storeSettingsSchema, writeSettings, type StoreSettings } from '@/lib/data-store';
 import {
+  pickGeneralSettingsDto,
+  pickFinancialSettingsDto,
+} from '@/lib/settings-api-schemas';
+import {
   shippingEstimatesSchema,
   type ShippingEstimates,
 } from '@/lib/shipping-estimates';
 import { writeShippingEstimates } from '@/lib/shipping-estimates-db';
 import { z } from 'zod';
 
+export type GeneralSettingsActionResult = {
+  success: boolean;
+  message: string;
+  errors?: Record<string, string[]>;
+  data?: ReturnType<typeof pickGeneralSettingsDto>;
+};
+
+export type FinancialSettingsActionResult = {
+  success: boolean;
+  message: string;
+  errors?: Record<string, string[]>;
+  data?: ReturnType<typeof pickFinancialSettingsDto>;
+};
+
+/** @deprecated Usar GeneralSettingsActionResult o FinancialSettingsActionResult según dominio. */
 export interface SettingsActionResult {
   success: boolean;
   message: string;
@@ -21,7 +40,11 @@ export interface SettingsActionResult {
 // Schemas separados por dominio
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Campos de configuración general: datos de contacto, redes sociales y envío. */
+/**
+ * Campos de configuración general: datos de contacto, redes sociales y envío.
+ * `.strict()` garantiza que campos de otro dominio (pagoMovil, binancePayId…)
+ * produzcan error en lugar de ser descartados silenciosamente.
+ */
 const generalSettingsSchema = z.object({
   storeName:          z.string().min(1, 'El nombre de la tienda es requerido.'),
   tagline:            z.string().optional().default(''),
@@ -34,9 +57,13 @@ const generalSettingsSchema = z.object({
   labelWidthMm:       z.coerce.number().min(40).max(300).default(100),
   labelHeightMm:      z.coerce.number().min(40).max(400).default(150),
   whatsappOrderPhone: z.string().trim().optional().default(''),
-});
+}).strict();
 
-/** Campos financieros: cuentas de pago y configuración de Binance. */
+/**
+ * Campos financieros: cuentas de pago y configuración de Binance.
+ * `.strict()` garantiza que campos generales (storeName, phone…)
+ * produzcan error en lugar de ser descartados silenciosamente.
+ */
 const financialSettingsSchema = z.object({
   pagoMovil: z.object({
     bank:     z.string().optional().default(''),
@@ -51,7 +78,7 @@ const financialSettingsSchema = z.object({
   }),
   binancePayId: z.string().optional().default(''),
   binanceQrUrl: z.string().trim().optional().default(''),
-});
+}).strict();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Actions separadas por permiso
@@ -61,7 +88,7 @@ const financialSettingsSchema = z.object({
  * Actualiza configuración general de la tienda (contacto, redes, envío).
  * Requiere permiso STORE_SETTINGS.
  */
-export async function updateGeneralStoreSettings(input: unknown): Promise<SettingsActionResult> {
+export async function updateGeneralStoreSettings(input: unknown): Promise<GeneralSettingsActionResult> {
   await requirePermissionAction('STORE_SETTINGS');
 
   const parsed = generalSettingsSchema.safeParse(input);
@@ -107,7 +134,11 @@ export async function updateGeneralStoreSettings(input: unknown): Promise<Settin
   revalidatePath('/admin/settings');
   revalidateTag('store-settings', 'default');
 
-  return { success: true, message: 'Configuración general guardada.', data: fullParsed.data };
+  return {
+    success: true,
+    message: 'Configuración general guardada.',
+    data: pickGeneralSettingsDto(fullParsed.data),
+  };
 }
 
 /**
@@ -115,7 +146,7 @@ export async function updateGeneralStoreSettings(input: unknown): Promise<Settin
  * Requiere permiso FINANCIAL_SETTINGS.
  * STORE_SETTINGS no puede modificar estos campos enviándolos manualmente.
  */
-export async function updateFinancialSettings(input: unknown): Promise<SettingsActionResult> {
+export async function updateFinancialSettings(input: unknown): Promise<FinancialSettingsActionResult> {
   await requirePermissionAction('FINANCIAL_SETTINGS');
 
   const parsed = financialSettingsSchema.safeParse(input);
@@ -153,7 +184,11 @@ export async function updateFinancialSettings(input: unknown): Promise<SettingsA
   revalidatePath('/admin/settings');
   revalidateTag('store-settings', 'default');
 
-  return { success: true, message: 'Configuración financiera guardada.', data: fullParsed.data };
+  return {
+    success: true,
+    message: 'Configuración financiera guardada.',
+    data: pickFinancialSettingsDto(fullParsed.data),
+  };
 }
 
 export interface ShippingEstimatesResult {

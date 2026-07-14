@@ -33,13 +33,30 @@ async function main() {
 
   console.log('[e2e-reset] Limpiando y sembrando BD E2E...');
 
-  const [adminHash, clientHash, pedidosHash, finanzasHash, catalogoHash, sinPermisosHash] = await Promise.all([
+  const [
+    adminHash,
+    clientHash,
+    pedidosHash,
+    pedidosYPagosHash,
+    catalogoHash,
+    finanzasHash,
+    settingsGeneralHash,
+    analiticaHash,
+    exportacionHash,
+    sinPermisosHash,
+    legacyAdminHash,
+  ] = await Promise.all([
     bcrypt.hash(E2E_ADMIN.password, 12),
     bcrypt.hash(E2E_CLIENT.password, 12),
     bcrypt.hash(E2E_RBAC.pedidos.password, 12),
-    bcrypt.hash(E2E_RBAC.finanzas.password, 12),
+    bcrypt.hash(E2E_RBAC.pedidosYPagos.password, 12),
     bcrypt.hash(E2E_RBAC.catalogo.password, 12),
+    bcrypt.hash(E2E_RBAC.finanzas.password, 12),
+    bcrypt.hash(E2E_RBAC.settingsGeneral.password, 12),
+    bcrypt.hash(E2E_RBAC.analitica.password, 12),
+    bcrypt.hash(E2E_RBAC.exportacion.password, 12),
     bcrypt.hash(E2E_RBAC.sinPermisos.password, 12),
+    bcrypt.hash(E2E_RBAC.legacyAdminSinPermisos.password, 12),
   ]);
 
   await prisma.$transaction(async (tx) => {
@@ -78,26 +95,29 @@ async function main() {
       },
     });
 
+    // SoloPedidos — solo ORDERS
     await tx.user.create({
       data: {
         name: E2E_RBAC.pedidos.name,
         email: E2E_RBAC.pedidos.email,
         password: pedidosHash,
         role: 'ADMIN',
+        adminPermissions: ['ORDERS'],
+      },
+    });
+
+    // PedidosYPagos — ORDERS + PAYMENTS
+    await tx.user.create({
+      data: {
+        name: E2E_RBAC.pedidosYPagos.name,
+        email: E2E_RBAC.pedidosYPagos.email,
+        password: pedidosYPagosHash,
+        role: 'ADMIN',
         adminPermissions: ['ORDERS', 'PAYMENTS'],
       },
     });
 
-    await tx.user.create({
-      data: {
-        name: E2E_RBAC.finanzas.name,
-        email: E2E_RBAC.finanzas.email,
-        password: finanzasHash,
-        role: 'ADMIN',
-        adminPermissions: ['FINANCIAL_SETTINGS'],
-      },
-    });
-
+    // SoloCatalogo — CATALOG
     await tx.user.create({
       data: {
         name: E2E_RBAC.catalogo.name,
@@ -108,11 +128,67 @@ async function main() {
       },
     });
 
+    // SoloFinanzas — FINANCIAL_SETTINGS
+    await tx.user.create({
+      data: {
+        name: E2E_RBAC.finanzas.name,
+        email: E2E_RBAC.finanzas.email,
+        password: finanzasHash,
+        role: 'ADMIN',
+        adminPermissions: ['FINANCIAL_SETTINGS'],
+      },
+    });
+
+    // SoloSettingsGeneral — STORE_SETTINGS
+    await tx.user.create({
+      data: {
+        name: E2E_RBAC.settingsGeneral.name,
+        email: E2E_RBAC.settingsGeneral.email,
+        password: settingsGeneralHash,
+        role: 'ADMIN',
+        adminPermissions: ['STORE_SETTINGS'],
+      },
+    });
+
+    // SoloAnalitica — ANALYTICS
+    await tx.user.create({
+      data: {
+        name: E2E_RBAC.analitica.name,
+        email: E2E_RBAC.analitica.email,
+        password: analiticaHash,
+        role: 'ADMIN',
+        adminPermissions: ['ANALYTICS'],
+      },
+    });
+
+    // SoloExportacion — ORDERS + CUSTOMER_DATA_EXPORT
+    await tx.user.create({
+      data: {
+        name: E2E_RBAC.exportacion.name,
+        email: E2E_RBAC.exportacion.email,
+        password: exportacionHash,
+        role: 'ADMIN',
+        adminPermissions: ['ORDERS', 'CUSTOMER_DATA_EXPORT'],
+      },
+    });
+
+    // SinPermisos — role CLIENT (invariante: CLIENT sin permisos, no ADMIN)
     await tx.user.create({
       data: {
         name: E2E_RBAC.sinPermisos.name,
         email: E2E_RBAC.sinPermisos.email,
         password: sinPermisosHash,
+        role: 'CLIENT',
+        adminPermissions: [],
+      },
+    });
+
+    // LegacyAdminSinPermisos — role ADMIN pero sin permisos (fixture separado para pruebas de invariante)
+    await tx.user.create({
+      data: {
+        name: E2E_RBAC.legacyAdminSinPermisos.name,
+        email: E2E_RBAC.legacyAdminSinPermisos.email,
+        password: legacyAdminHash,
         role: 'ADMIN',
         adminPermissions: [],
       },

@@ -18,22 +18,57 @@ export const E2E_RBAC = {
   pedidos: {
     email: 'pedidos@mundotechtest.com',
     password: 'pedidos-e2e-pass',
-    name: 'Pedidos RBAC',
+    name: 'SoloPedidos RBAC',
+    permissions: ['ORDERS'] as const,
   },
-  finanzas: {
-    email: 'finanzas@mundotechtest.com',
-    password: 'finanzas-e2e-pass',
-    name: 'Finanzas RBAC',
+  pedidosYPagos: {
+    email: 'pedidospagos@mundotechtest.com',
+    password: 'pedidospagos-e2e-pass',
+    name: 'PedidosYPagos RBAC',
+    permissions: ['ORDERS', 'PAYMENTS'] as const,
   },
   catalogo: {
     email: 'catalogo@mundotechtest.com',
     password: 'catalogo-e2e-pass',
-    name: 'Catálogo RBAC',
+    name: 'SoloCatalogo RBAC',
+    permissions: ['CATALOG'] as const,
+  },
+  finanzas: {
+    email: 'finanzas@mundotechtest.com',
+    password: 'finanzas-e2e-pass',
+    name: 'SoloFinanzas RBAC',
+    permissions: ['FINANCIAL_SETTINGS'] as const,
+  },
+  settingsGeneral: {
+    email: 'settingsgeneral@mundotechtest.com',
+    password: 'settingsgeneral-e2e-pass',
+    name: 'SoloSettingsGeneral RBAC',
+    permissions: ['STORE_SETTINGS'] as const,
+  },
+  analitica: {
+    email: 'analitica@mundotechtest.com',
+    password: 'analitica-e2e-pass',
+    name: 'SoloAnalitica RBAC',
+    permissions: ['ANALYTICS'] as const,
+  },
+  exportacion: {
+    email: 'exportacion@mundotechtest.com',
+    password: 'exportacion-e2e-pass',
+    name: 'SoloExportacion RBAC',
+    permissions: ['ORDERS', 'CUSTOMER_DATA_EXPORT'] as const,
   },
   sinPermisos: {
     email: 'sinpermisos@mundotechtest.com',
     password: 'sinpermisos-e2e-pass',
-    name: 'Admin Vacío RBAC',
+    name: 'SinPermisos RBAC',
+    permissions: [] as const,
+  },
+  /** ADMIN legacy sin permisos — para probar el invariante de role ADMIN sin permisos. */
+  legacyAdminSinPermisos: {
+    email: 'legacyadmin@mundotechtest.com',
+    password: 'legacyadmin-e2e-pass',
+    name: 'LegacyAdmin SinPermisos',
+    permissions: [] as const,
   },
 } as const;
 

@@ -266,14 +266,39 @@ export async function deleteAdminUser(
   if (access.userId === userId) {
     return { success: false, message: 'No puedes eliminar tu propio usuario.' };
   }
-  const target = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      role:        true,
-      isSuperAdmin: true,
-      _count:      { select: { orders: true, reviews: true } },
-    },
-  });
+  let target: {
+    role: string;
+    isSuperAdmin: boolean;
+    _count: {
+      orders: number;
+      reviews: number;
+      permissionChangesAuthored: number;
+      permissionChangesReceived: number;
+    };
+  } | null;
+
+  try {
+    target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        role:         true,
+        isSuperAdmin: true,
+        _count: {
+          select: {
+            orders:                    true,
+            reviews:                   true,
+            permissionChangesAuthored: true,
+            permissionChangesReceived: true,
+          },
+        },
+      },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[deleteAdminUser] Error al consultar usuario ${userId}: ${msg}\n`);
+    return { success: false, message: 'Error al consultar el usuario. Inténtalo de nuevo.' };
+  }
+
   if (!target) return { success: false, message: 'Usuario no encontrado.' };
   if (target.isSuperAdmin) {
     return { success: false, message: 'No se puede eliminar al Superadmin.' };
@@ -286,7 +311,16 @@ export async function deleteAdminUser(
     }
   }
 
-  const { orders: orderCount, reviews: reviewCount } = target._count;
+  const { orders: orderCount, reviews: reviewCount, permissionChangesAuthored, permissionChangesReceived } = target._count;
+
+  if (permissionChangesAuthored > 0 || permissionChangesReceived > 0) {
+    return {
+      success: false,
+      message:
+        'No se puede eliminar este usuario porque forma parte del historial de cambios de permisos. Conserva la cuenta para mantener la auditoría.',
+    };
+  }
+
   if (orderCount > 0 || reviewCount > 0) {
     return {
       success: false,
@@ -294,7 +328,17 @@ export async function deleteAdminUser(
     };
   }
 
-  await prisma.user.delete({ where: { id: userId } });
+  try {
+    await prisma.user.delete({ where: { id: userId } });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+      return { success: false, message: 'No se puede eliminar: el usuario tiene registros asociados en la base de datos.' };
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[deleteAdminUser] Error al eliminar usuario ${userId}: ${msg}\n`);
+    return { success: false, message: 'Error al eliminar el usuario. Inténtalo de nuevo.' };
+  }
+
   revalidatePath('/admin/settings/users');
   return { success: true, message: 'Usuario eliminado.' };
 }

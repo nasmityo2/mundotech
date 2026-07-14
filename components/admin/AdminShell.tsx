@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import type { CurrentAdminAccess } from '@/lib/admin-access-server';
 import { ADMIN_BOTTOM_NAV, ADMIN_NAV_GROUPS, filterBottomNav, filterNavGroups, type NavGroup } from '@/lib/admin-nav';
+import { hasAdminPermission } from '@/lib/admin-permissions';
 import { ADMIN_CHUNK_RELOAD_KEY, clearChunkReloadFlag } from '@/lib/chunk-load-error';
 import SidebarDesktop from './SidebarDesktop';
 import SidebarDrawer from './SidebarDrawer';
@@ -63,9 +64,11 @@ export default function AdminShell({ children, access, userName, userEmail }: Ad
         <div className="contents print:hidden">
           <MobileBottomNav items={filteredBottomNav} />
         </div>
-        <div className="contents print:hidden">
-          <NewOrdersWatcher />
-        </div>
+        {hasAdminPermission(access, 'ORDERS') ? (
+          <div className="contents print:hidden">
+            <NewOrdersWatcher />
+          </div>
+        ) : null}
       </div>
     </div>
   );
