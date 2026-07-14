@@ -2,17 +2,7 @@
 
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { isAdminRole } from '@/lib/api-auth';
-
-/** SEC-06 (R3): un solo helper de guard admin para las mutaciones de este módulo
- *  (variante que devuelve resultado en vez de lanzar, para no romper la UI). */
-async function isAdminSession(): Promise<boolean> {
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string } | undefined)?.role;
-  return Boolean(session && isAdminRole(role));
-}
+import { requirePermissionAction } from '@/lib/admin-access-server';
 import {
   DEFAULT_EXCHANGE_RATE_USD_BS,
   EXCHANGE_RATE_APP_CONFIG_KEY,
@@ -40,15 +30,15 @@ export async function getExchangeRate(): Promise<number> {
     });
     return parseExchangeRateFromConfigValue(record?.value);
   } catch (err) {
-    // RUN-07 / PRD-139: degradación visible en logs — la tasa de fallback (36.5)
-    // es ficticia y sin traza ops no detecta la caída de BD.
     logError('exchange_rate_read_failed', err, { operation: 'get_exchange_rate', provider: 'postgres' });
     return DEFAULT_EXCHANGE_RATE_USD_BS;
   }
 }
 
 export async function updateExchangeRate(rate: unknown) {
-  if (!(await isAdminSession())) {
+  try {
+    await requirePermissionAction('FINANCIAL_SETTINGS');
+  } catch {
     return { success: false, message: 'No autorizado.' };
   }
 
@@ -85,7 +75,9 @@ export async function getPricingParams(): Promise<{ marginPct: number; factor: n
 }
 
 export async function updatePricingParams(input: { marginPct: unknown; factor: unknown }) {
-  if (!(await isAdminSession())) {
+  try {
+    await requirePermissionAction('FINANCIAL_SETTINGS');
+  } catch {
     return { success: false, message: 'No autorizado.' };
   }
 
@@ -130,7 +122,9 @@ export async function getMarginPresets(): Promise<number[]> {
 }
 
 export async function updateMarginPresets(presets: unknown) {
-  if (!(await isAdminSession())) {
+  try {
+    await requirePermissionAction('FINANCIAL_SETTINGS');
+  } catch {
     return { success: false, message: 'No autorizado.' };
   }
   const parsed = marginPresetsSchema.safeParse(presets);

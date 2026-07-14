@@ -13,6 +13,30 @@ export const E2E_ADMIN = {
   name: 'Admin Test',
 } as const;
 
+export const E2E_RBAC = {
+  superadmin: E2E_ADMIN,
+  pedidos: {
+    email: 'pedidos@mundotechtest.com',
+    password: 'pedidos-e2e-pass',
+    name: 'Pedidos RBAC',
+  },
+  finanzas: {
+    email: 'finanzas@mundotechtest.com',
+    password: 'finanzas-e2e-pass',
+    name: 'Finanzas RBAC',
+  },
+  catalogo: {
+    email: 'catalogo@mundotechtest.com',
+    password: 'catalogo-e2e-pass',
+    name: 'Catálogo RBAC',
+  },
+  sinPermisos: {
+    email: 'sinpermisos@mundotechtest.com',
+    password: 'sinpermisos-e2e-pass',
+    name: 'Admin Vacío RBAC',
+  },
+} as const;
+
 export const E2E_CLIENT = {
   email: 'cliente@mundotechtest.com',
   password: 'cliente-e2e-pass',

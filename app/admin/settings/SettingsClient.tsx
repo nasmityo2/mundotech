@@ -7,10 +7,10 @@ import {
   Save, Check, DollarSign, RefreshCw, TrendingUp, Share2, Wallet, Calculator, Printer,
   Truck, Plus, Trash2,
 } from 'lucide-react';
-import { updateSettings, updateShippingEstimates } from '@/app/actions/settingsActions';
+import { updateGeneralStoreSettings, updateFinancialSettings, updateShippingEstimates } from '@/app/actions/settingsActions';
 import { updateExchangeRate, updatePricingParams, getPricingParams } from '@/app/actions/configActions';
 import { recalculateAllProductPrices } from '@/app/actions/productActions';
-import type { StoreSettings } from '@/lib/data-store';
+import type { FinancialSettingsDto, GeneralSettingsDto } from '@/lib/settings-api-schemas';
 import type { ShippingEstimates } from '@/lib/shipping-estimates';
 import { mrwOffices } from '@/lib/mrw-offices';
 import { normalizeWhatsAppPhone, isValidWhatsAppPhone } from '@/lib/whatsapp-phone';
@@ -68,20 +68,58 @@ function formatBcvDate(iso: string): string {
   });
 }
 
+const EMPTY_ESTIMATES: ShippingEstimates = {
+  tienda: '',
+  mrw: '',
+  zoom: '',
+  tealca: '',
+  states: [],
+};
+
 export default function SettingsClient({
-  initial,
+  canStoreSettings,
+  canFinancialSettings,
+  initialGeneral,
+  initialFinancial,
   initialEstimates,
   bcvDate,
 }: {
-  initial: StoreSettings;
-  initialEstimates: ShippingEstimates;
+  canStoreSettings: boolean;
+  canFinancialSettings: boolean;
+  initialGeneral: GeneralSettingsDto | null;
+  initialFinancial: FinancialSettingsDto | null;
+  initialEstimates: ShippingEstimates | null;
   bcvDate: string | null;
 }) {
   const router = useRouter();
 
-  const [settings, setSettings] = useState<StoreSettings>(initial);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [generalSettings, setGeneralSettings] = useState<GeneralSettingsDto>(
+    initialGeneral ?? {
+      storeName: '',
+      tagline: '',
+      phone: '',
+      phone2: '',
+      email: '',
+      address: '',
+      instagram: '',
+      facebook: '',
+      labelWidthMm: 100,
+      labelHeightMm: 150,
+      whatsappOrderPhone: '',
+    },
+  );
+  const [financialSettings, setFinancialSettings] = useState<FinancialSettingsDto>(
+    initialFinancial ?? {
+      pagoMovil: { bank: '', phone: '', idNumber: '' },
+      transferencia: { bank: '', accountNumber: '', accountHolder: '', rif: '' },
+      binancePayId: '',
+      binanceQrUrl: '',
+    },
+  );
+  const [savingGeneral, setSavingGeneral] = useState(false);
+  const [savedGeneral, setSavedGeneral] = useState(false);
+  const [savingFinancial, setSavingFinancial] = useState(false);
+  const [savedFinancial, setSavedFinancial] = useState(false);
   // ADM-06: errores Zod por campo ("pagoMovil.bank") + mensaje global visible.
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -94,7 +132,7 @@ export default function SettingsClient({
   const [isUpdatingRate, startRateTransition] = useTransition();
 
   // MEJORA 2.3: estimados de envío (tabla por método + overrides por estado).
-  const [estimates, setEstimates] = useState<ShippingEstimates>(initialEstimates);
+  const [estimates, setEstimates] = useState<ShippingEstimates>(initialEstimates ?? EMPTY_ESTIMATES);
   const [estimatesMsg, setEstimatesMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [isSavingEstimates, startEstimatesTransition] = useTransition();
 
@@ -106,7 +144,7 @@ export default function SettingsClient({
   const [recalcMsg, setRecalcMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
-    // RUN-12: validar res.ok — antes un 500 dejaba los campos vacíos sin traza.
+    if (!canFinancialSettings) return;
     fetch('/api/config/exchange-rate')
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(data => {
@@ -119,17 +157,18 @@ export default function SettingsClient({
         console.error('[admin/settings] error cargando tasa:', err);
         setRateMsg({ ok: false, text: 'No se pudo cargar la tasa actual. Recarga la página.' });
       });
-  }, []);
+  }, [canFinancialSettings]);
 
   useEffect(() => {
+    if (!canFinancialSettings) return;
     getPricingParams()
       .then(({ marginPct, factor }) => { setMarginPct(String(marginPct)); setFactor(String(factor)); })
       .catch(err => console.error('[admin/settings] error cargando fórmula:', err));
-  }, []);
+  }, [canFinancialSettings]);
 
-  const set = (path: string[], value: string) => {
-    setSettings(prev => {
-      const next = JSON.parse(JSON.stringify(prev)) as StoreSettings;
+  const setGeneral = (path: string[], value: string) => {
+    setGeneralSettings(prev => {
+      const next = JSON.parse(JSON.stringify(prev)) as GeneralSettingsDto;
       let obj: Record<string, unknown> = next as unknown as Record<string, unknown>;
       for (let i = 0; i < path.length - 1; i++) obj = obj[path[i]] as Record<string, unknown>;
       obj[path[path.length - 1]] = value;
@@ -137,21 +176,31 @@ export default function SettingsClient({
     });
   };
 
-  const handleSave = async () => {
+  const setFinancial = (path: string[], value: string) => {
+    setFinancialSettings(prev => {
+      const next = JSON.parse(JSON.stringify(prev)) as FinancialSettingsDto;
+      let obj: Record<string, unknown> = next as unknown as Record<string, unknown>;
+      for (let i = 0; i < path.length - 1; i++) obj = obj[path[i]] as Record<string, unknown>;
+      obj[path[path.length - 1]] = value;
+      return next;
+    });
+  };
+
+  const handleSaveGeneral = async () => {
+    if (!canStoreSettings) return;
     if (!whatsappPhoneValid) {
       setSaveError('Algunos campos no son válidos. Revisa los marcados en rojo.');
       setFieldErrors({ whatsappOrderPhone: WHATSAPP_PHONE_INVALID_MESSAGE });
       return;
     }
-    setSaving(true);
+    setSavingGeneral(true);
     setSaveError(null);
     setFieldErrors({});
     try {
-      const result = await updateSettings(settings);
+      const result = await updateGeneralStoreSettings(generalSettings);
       if (result.success) {
-        setSaved(true);
-        if (result.data) setSettings(result.data);
-        setTimeout(() => setSaved(false), 3000);
+        setSavedGeneral(true);
+        setTimeout(() => setSavedGeneral(false), 3000);
         router.refresh();
       } else {
         setSaveError(result.message);
@@ -164,10 +213,39 @@ export default function SettingsClient({
         }
       }
     } catch (err) {
-      console.error('[admin/settings] error guardando:', err);
+      console.error('[admin/settings] error guardando general:', err);
       setSaveError('Error de conexión. Revisa tu internet e inténtalo de nuevo.');
     } finally {
-      setSaving(false);
+      setSavingGeneral(false);
+    }
+  };
+
+  const handleSaveFinancial = async () => {
+    if (!canFinancialSettings) return;
+    setSavingFinancial(true);
+    setSaveError(null);
+    setFieldErrors({});
+    try {
+      const result = await updateFinancialSettings(financialSettings);
+      if (result.success) {
+        setSavedFinancial(true);
+        setTimeout(() => setSavedFinancial(false), 3000);
+        router.refresh();
+      } else {
+        setSaveError(result.message);
+        if (result.errors) {
+          const flat: Record<string, string> = {};
+          for (const [path, msgs] of Object.entries(result.errors)) {
+            if (msgs[0]) flat[path] = msgs[0];
+          }
+          setFieldErrors(flat);
+        }
+      }
+    } catch (err) {
+      console.error('[admin/settings] error guardando financiero:', err);
+      setSaveError('Error de conexión. Revisa tu internet e inténtalo de nuevo.');
+    } finally {
+      setSavingFinancial(false);
     }
   };
 
@@ -225,11 +303,11 @@ export default function SettingsClient({
     { id: 'letter',  label: 'Hoja Carta 216×279 mm',     w: 216, h: 279 },
     { id: 'a4',      label: 'Hoja A4 210×297 mm',         w: 210, h: 297 },
   ];
-  const curLabelW = Number(settings.labelWidthMm) || 100;
-  const curLabelH = Number(settings.labelHeightMm) || 150;
+  const curLabelW = Number(generalSettings.labelWidthMm) || 100;
+  const curLabelH = Number(generalSettings.labelHeightMm) || 150;
   const activeLabelPreset = LABEL_PRESETS.find(p => p.w === curLabelW && p.h === curLabelH)?.id ?? 'custom';
 
-  const whatsappPhoneNormalized = normalizeWhatsAppPhone(settings.whatsappOrderPhone ?? '');
+  const whatsappPhoneNormalized = normalizeWhatsAppPhone(generalSettings.whatsappOrderPhone ?? '');
   const whatsappPhoneValid = whatsappPhoneNormalized === '' || isValidWhatsAppPhone(whatsappPhoneNormalized);
 
   return (
@@ -239,20 +317,44 @@ export default function SettingsClient({
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Settings size={22} className="text-navy" /> Configuración
           </h1>
-          <p className="text-gray-500 mt-1 text-sm">Datos de la tienda, pagos y tasa cambiaria.</p>
+          <p className="text-gray-500 mt-1 text-sm">
+            {canStoreSettings && canFinancialSettings
+              ? 'Datos de la tienda, pagos y tasa cambiaria.'
+              : canStoreSettings
+                ? 'Datos generales de contacto y envío.'
+                : 'Cuentas de pago, tasa y fórmula de precios.'}
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving || !whatsappPhoneValid}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-            saved
-              ? 'bg-green-500 text-white'
-              : 'bg-brand-yellow border border-yellow-400 text-navy font-black uppercase tracking-wide hover:bg-yellow-300 disabled:opacity-60'
-          }`}
-        >
-          {saved ? <><Check size={16} /> Guardado</> : saving ? 'Guardando...' : <><Save size={16} /> Guardar Cambios</>}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {canStoreSettings && (
+            <button
+              type="button"
+              onClick={handleSaveGeneral}
+              disabled={savingGeneral || !whatsappPhoneValid}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                savedGeneral
+                  ? 'bg-green-500 text-white'
+                  : 'bg-brand-yellow border border-yellow-400 text-navy font-black uppercase tracking-wide hover:bg-yellow-300 disabled:opacity-60'
+              }`}
+            >
+              {savedGeneral ? <><Check size={16} /> General guardado</> : savingGeneral ? 'Guardando...' : <><Save size={16} /> Guardar general</>}
+            </button>
+          )}
+          {canFinancialSettings && (
+            <button
+              type="button"
+              onClick={handleSaveFinancial}
+              disabled={savingFinancial}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                savedFinancial
+                  ? 'bg-green-500 text-white'
+                  : 'bg-navy text-white hover:bg-navy/90 disabled:opacity-60'
+              }`}
+            >
+              {savedFinancial ? <><Check size={16} /> Financiero guardado</> : savingFinancial ? 'Guardando...' : <><Save size={16} /> Guardar financiero</>}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-6 max-w-2xl">
@@ -263,6 +365,8 @@ export default function SettingsClient({
           </div>
         )}
 
+        {canFinancialSettings && (
+          <>
         <SectionCard title="Tasa de Cambio USD / Bs" icon={TrendingUp} accent>
           <div className="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <DollarSign size={18} className="text-yellow-700 flex-shrink-0" />
@@ -357,16 +461,20 @@ export default function SettingsClient({
             )}
           </div>
         </SectionCard>
+          </>
+        )}
 
+        {canStoreSettings && (
+          <>
         <SectionCard title="Información de la Tienda" icon={Store}>
-          <Field label="Nombre de la tienda" value={settings.storeName} onChange={v => set(['storeName'], v)} placeholder="MundoTech" error={fieldError('storeName')} />
-          <Field label="Eslogan / Tagline" value={settings.tagline ?? ''} onChange={v => set(['tagline'], v)} placeholder="Tu tienda de tecnología en Venezuela." />
-          <Field label="Dirección / Ubicación" value={settings.address ?? ''} onChange={v => set(['address'], v)} placeholder="Barquisimeto, Lara — Venezuela" />
+          <Field label="Nombre de la tienda" value={generalSettings.storeName} onChange={v => setGeneral(['storeName'], v)} placeholder="MundoTech" error={fieldError('storeName')} />
+          <Field label="Eslogan / Tagline" value={generalSettings.tagline ?? ''} onChange={v => setGeneral(['tagline'], v)} placeholder="Tu tienda de tecnología en Venezuela." />
+          <Field label="Dirección / Ubicación" value={generalSettings.address ?? ''} onChange={v => setGeneral(['address'], v)} placeholder="Barquisimeto, Lara — Venezuela" />
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Teléfono principal" value={settings.phone} onChange={v => set(['phone'], v)} type="tel" placeholder="0412-1471338" error={fieldError('phone')} />
-            <Field label="Teléfono secundario" value={settings.phone2 ?? ''} onChange={v => set(['phone2'], v)} type="tel" placeholder="0414-5709470" />
+            <Field label="Teléfono principal" value={generalSettings.phone} onChange={v => setGeneral(['phone'], v)} type="tel" placeholder="0412-1471338" error={fieldError('phone')} />
+            <Field label="Teléfono secundario" value={generalSettings.phone2 ?? ''} onChange={v => setGeneral(['phone2'], v)} type="tel" placeholder="0414-5709470" />
           </div>
-          <Field label="Correo electrónico" value={settings.email} onChange={v => set(['email'], v)} type="email" placeholder="ventas@mundotechve.com" error={fieldError('email')} />
+          <Field label="Correo electrónico" value={generalSettings.email} onChange={v => setGeneral(['email'], v)} type="email" placeholder="ventas@mundotechve.com" error={fieldError('email')} />
         </SectionCard>
 
         <SectionCard title="Etiqueta de envío" icon={Printer}>
@@ -376,7 +484,7 @@ export default function SettingsClient({
               value={activeLabelPreset}
               onChange={e => {
                 const p = LABEL_PRESETS.find(x => x.id === e.target.value);
-                if (p) { set(['labelWidthMm'], String(p.w)); set(['labelHeightMm'], String(p.h)); }
+                if (p) { setGeneral(['labelWidthMm'], String(p.w)); setGeneral(['labelHeightMm'], String(p.h)); }
               }}
               className="w-full px-3 py-2 border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-1 focus:ring-navy/30 focus:border-navy"
             >
@@ -385,8 +493,8 @@ export default function SettingsClient({
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Ancho (mm)" type="number" value={String(settings.labelWidthMm ?? '')} onChange={v => set(['labelWidthMm'], v)} placeholder="100" />
-            <Field label="Alto (mm)"  type="number" value={String(settings.labelHeightMm ?? '')} onChange={v => set(['labelHeightMm'], v)} placeholder="150" />
+            <Field label="Ancho (mm)" type="number" value={String(generalSettings.labelWidthMm ?? '')} onChange={v => setGeneral(['labelWidthMm'], v)} placeholder="100" />
+            <Field label="Alto (mm)"  type="number" value={String(generalSettings.labelHeightMm ?? '')} onChange={v => setGeneral(['labelHeightMm'], v)} placeholder="150" />
           </div>
           <p className="text-xs text-gray-500">
             Térmica estándar = 100×150 mm. Cuando imprimas en hoja normal, elige Carta o A4.
@@ -396,30 +504,10 @@ export default function SettingsClient({
 
         <SectionCard title="Redes Sociales" icon={Share2}>
           <p className="text-xs text-gray-500">URL completa de tus perfiles. Aparecen en el Footer de la tienda.</p>
-          <Field label="Instagram (URL)" value={settings.instagram ?? ''} onChange={v => set(['instagram'], v)} type="url" placeholder="https://instagram.com/mundotech" />
-          <Field label="Facebook (URL)" value={settings.facebook ?? ''} onChange={v => set(['facebook'], v)} type="url" placeholder="https://facebook.com/mundotech" />
+          <Field label="Instagram (URL)" value={generalSettings.instagram ?? ''} onChange={v => setGeneral(['instagram'], v)} type="url" placeholder="https://instagram.com/mundotech" />
+          <Field label="Facebook (URL)" value={generalSettings.facebook ?? ''} onChange={v => setGeneral(['facebook'], v)} type="url" placeholder="https://facebook.com/mundotech" />
         </SectionCard>
 
-        <SectionCard title="Pago Móvil" icon={Phone}>
-          <div className="p-3 bg-gray-50 border border-gray-200 text-xs text-navy font-medium">
-            Datos mostrados al cliente cuando elige &ldquo;Pago Móvil&rdquo; en el checkout.
-          </div>
-          <Field label="Banco" value={settings.pagoMovil.bank} onChange={v => set(['pagoMovil', 'bank'], v)} placeholder="Banesco" error={fieldError('pagoMovil.bank')} />
-          <Field label="Teléfono" value={settings.pagoMovil.phone} onChange={v => set(['pagoMovil', 'phone'], v)} type="tel" placeholder="0412-1234567" error={fieldError('pagoMovil.phone')} />
-          <Field label="Cédula" value={settings.pagoMovil.idNumber} onChange={v => set(['pagoMovil', 'idNumber'], v)} placeholder="V-12.345.678" error={fieldError('pagoMovil.idNumber')} />
-        </SectionCard>
-
-        <SectionCard title="Transferencia Bancaria" icon={Building2}>
-          <div className="p-3 bg-green-50 rounded-lg text-xs text-green-700 font-medium">
-            Datos mostrados al cliente cuando elige &ldquo;Transferencia Bancaria&rdquo; en el checkout.
-          </div>
-          <Field label="Banco" value={settings.transferencia.bank} onChange={v => set(['transferencia', 'bank'], v)} placeholder="Mercantil" error={fieldError('transferencia.bank')} />
-          <Field label="Número de cuenta" value={settings.transferencia.accountNumber} onChange={v => set(['transferencia', 'accountNumber'], v)} placeholder="0105-0000-00-1234567890" error={fieldError('transferencia.accountNumber')} />
-          <Field label="Titular" value={settings.transferencia.accountHolder} onChange={v => set(['transferencia', 'accountHolder'], v)} placeholder="Empresa Ejemplo C.A." error={fieldError('transferencia.accountHolder')} />
-          <Field label="RIF" value={settings.transferencia.rif} onChange={v => set(['transferencia', 'rif'], v)} placeholder="J-12345678-9" error={fieldError('transferencia.rif')} />
-        </SectionCard>
-
-        {/* MEJORA 2.3: estimados de envío visibles en el paso de envío del checkout */}
         <SectionCard title="Estimados de envío" icon={Truck}>
           <p className="text-xs text-gray-500">
             Texto que ve el cliente al elegir el método de envío (tiempo estimado y costo aproximado).
@@ -522,8 +610,8 @@ export default function SettingsClient({
           </div>
           <Field
             label="Número de WhatsApp para pedidos"
-            value={settings.whatsappOrderPhone ?? ''}
-            onChange={v => set(['whatsappOrderPhone'], v)}
+            value={generalSettings.whatsappOrderPhone ?? ''}
+            onChange={v => setGeneral(['whatsappOrderPhone'], v)}
             type="tel"
             placeholder="584121471338"
             error={fieldError('whatsappOrderPhone') ?? (!whatsappPhoneValid ? WHATSAPP_PHONE_INVALID_MESSAGE : undefined)}
@@ -534,8 +622,30 @@ export default function SettingsClient({
             </p>
           )}
         </SectionCard>
+          </>
+        )}
 
-        {/* PRD-027/130: Binance Pay configurable sin redeploy */}
+        {canFinancialSettings && (
+          <>
+        <SectionCard title="Pago Móvil" icon={Phone}>
+          <div className="p-3 bg-gray-50 border border-gray-200 text-xs text-navy font-medium">
+            Datos mostrados al cliente cuando elige &ldquo;Pago Móvil&rdquo; en el checkout.
+          </div>
+          <Field label="Banco" value={financialSettings.pagoMovil.bank} onChange={v => setFinancial(['pagoMovil', 'bank'], v)} placeholder="Banesco" error={fieldError('pagoMovil.bank')} />
+          <Field label="Teléfono" value={financialSettings.pagoMovil.phone} onChange={v => setFinancial(['pagoMovil', 'phone'], v)} type="tel" placeholder="0412-1234567" error={fieldError('pagoMovil.phone')} />
+          <Field label="Cédula" value={financialSettings.pagoMovil.idNumber} onChange={v => setFinancial(['pagoMovil', 'idNumber'], v)} placeholder="V-12.345.678" error={fieldError('pagoMovil.idNumber')} />
+        </SectionCard>
+
+        <SectionCard title="Transferencia Bancaria" icon={Building2}>
+          <div className="p-3 bg-green-50 rounded-lg text-xs text-green-700 font-medium">
+            Datos mostrados al cliente cuando elige &ldquo;Transferencia Bancaria&rdquo; en el checkout.
+          </div>
+          <Field label="Banco" value={financialSettings.transferencia.bank} onChange={v => setFinancial(['transferencia', 'bank'], v)} placeholder="Mercantil" error={fieldError('transferencia.bank')} />
+          <Field label="Número de cuenta" value={financialSettings.transferencia.accountNumber} onChange={v => setFinancial(['transferencia', 'accountNumber'], v)} placeholder="0105-0000-00-1234567890" error={fieldError('transferencia.accountNumber')} />
+          <Field label="Titular" value={financialSettings.transferencia.accountHolder} onChange={v => setFinancial(['transferencia', 'accountHolder'], v)} placeholder="Empresa Ejemplo C.A." error={fieldError('transferencia.accountHolder')} />
+          <Field label="RIF" value={financialSettings.transferencia.rif} onChange={v => setFinancial(['transferencia', 'rif'], v)} placeholder="J-12345678-9" error={fieldError('transferencia.rif')} />
+        </SectionCard>
+
         <SectionCard title="Binance Pay" icon={Wallet}>
           <div className="p-3 bg-amber-50 rounded-lg text-xs text-amber-700 font-medium">
             Datos mostrados al cliente cuando elige &ldquo;Binance&rdquo; en el checkout.
@@ -543,21 +653,23 @@ export default function SettingsClient({
           </div>
           <Field
             label="Binance Pay ID / ID de recepción"
-            value={settings.binancePayId ?? ''}
-            onChange={v => set(['binancePayId'], v)}
+            value={financialSettings.binancePayId ?? ''}
+            onChange={v => setFinancial(['binancePayId'], v)}
             placeholder="Ej. 12345678"
           />
           <PhotoUploader
             label="Código QR de Binance Pay"
             hint="Sube PNG, JPG o WEBP. Se guarda en R2 público; no se aceptan URLs externas."
-            value={settings.binanceQrUrl ?? ''}
-            onChange={(url) => set(['binanceQrUrl'], url ?? '')}
+            value={financialSettings.binanceQrUrl ?? ''}
+            onChange={(url) => setFinancial(['binanceQrUrl'], url ?? '')}
             purpose="binance-qr"
             optional
             maxSizeMB={2}
             previewHeight="h-44"
           />
         </SectionCard>
+          </>
+        )}
 
       </div>
     </div>

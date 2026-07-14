@@ -5,12 +5,13 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireSuperAdminAction } from '@/lib/admin-access-server';
-import { isAdminRole } from '@/lib/is-admin-role';
 import {
   ADMIN_PERMISSIONS,
   normalizeAdminPermissions,
+  normalizePermissionDependencies,
   type AdminPermission,
 } from '@/lib/admin-permissions';
+import { Prisma } from '@prisma/client';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TIPOS
@@ -47,6 +48,16 @@ async function countAdmins(): Promise<number> {
   return prisma.user.count({
     where: { role: { equals: 'ADMIN', mode: 'insensitive' } },
   });
+}
+
+function isPrismaSerializationError(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return error.code === 'P2034';
+  }
+  if (error instanceof Error && 'code' in error) {
+    return (error as { code?: string }).code === '40001';
+  }
+  return false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -103,45 +114,65 @@ export async function updateUserPermissions(
 
   const { userId, permissions: rawPermissions } = parsed.data;
 
-  // Normalizar: eliminar duplicados, mantener orden canónico
-  const newPermissions = normalizeAdminPermissions(rawPermissions);
+  const newPermissions = normalizePermissionDependencies(
+    normalizeAdminPermissions(rawPermissions),
+  );
 
-  // No se puede modificar al Superadmin
-  const targetUser = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, role: true, adminPermissions: true, isSuperAdmin: true },
-  });
-  if (!targetUser) return { success: false, message: 'Usuario no encontrado.' };
-  if (targetUser.isSuperAdmin) {
-    return { success: false, message: 'No se pueden modificar los permisos del Superadmin.' };
+  const MAX_RETRIES = 4;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const targetUser = await tx.user.findUnique({
+          where: { id: userId },
+          select: { id: true, role: true, adminPermissions: true, isSuperAdmin: true },
+        });
+        if (!targetUser) throw new Error('USER_NOT_FOUND');
+        if (targetUser.isSuperAdmin) throw new Error('SUPERADMIN_IMMUTABLE');
+
+        const newRole = newPermissions.length > 0 ? 'ADMIN' : 'CLIENT';
+        const oldRole = targetUser.role;
+        const oldPermissions = normalizeAdminPermissions(targetUser.adminPermissions);
+
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            adminPermissions:     newPermissions,
+            role:                 newRole,
+            permissionsUpdatedAt: new Date(),
+          },
+        });
+
+        await tx.permissionAuditLog.create({
+          data: {
+            actorId:           actor.userId,
+            targetUserId:      userId,
+            beforePermissions: oldPermissions,
+            afterPermissions:  newPermissions,
+            targetRoleBefore:  oldRole,
+            targetRoleAfter:   newRole,
+          },
+        });
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 5000,
+        timeout: 10000,
+      });
+      break;
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'USER_NOT_FOUND') {
+          return { success: false, message: 'Usuario no encontrado.' };
+        }
+        if (error.message === 'SUPERADMIN_IMMUTABLE') {
+          return { success: false, message: 'No se pueden modificar los permisos del Superadmin.' };
+        }
+      }
+      if (isPrismaSerializationError(error) && attempt < MAX_RETRIES - 1) {
+        continue;
+      }
+      throw error;
+    }
   }
-
-  // Calcular nuevo rol
-  const newRole = newPermissions.length > 0 ? 'ADMIN' : 'CLIENT';
-  const oldRole = targetUser.role;
-  const oldPermissions = normalizeAdminPermissions(targetUser.adminPermissions);
-
-  // Ejecutar actualización + auditoría en una sola transacción
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: userId },
-      data: {
-        adminPermissions:     newPermissions,
-        role:                 newRole,
-        permissionsUpdatedAt: new Date(),
-      },
-    }),
-    prisma.permissionAuditLog.create({
-      data: {
-        actorId:           actor.userId,
-        targetUserId:      userId,
-        beforePermissions: oldPermissions,
-        afterPermissions:  newPermissions,
-        targetRoleBefore:  oldRole,
-        targetRoleAfter:   newRole,
-      },
-    }),
-  ]);
 
   revalidatePath('/admin/settings/users');
   revalidatePath('/admin', 'layout');
@@ -183,56 +214,6 @@ export async function createAdminUser(
   });
   revalidatePath('/admin/settings/users');
   return { success: true, message: 'Usuario creado. Asigna los permisos a continuación.' };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CAMBIO DE ROL (legacy — mantenido para compatibilidad)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const updateRoleSchema = z.object({
-  userId: z.string().min(1),
-  role:   z.enum(['ADMIN', 'CLIENT']),
-});
-
-/**
- * @deprecated Usar updateUserPermissions() en su lugar.
- * Conservado para compatibilidad hasta que la UI migre a checkboxes.
- */
-export async function updateUserRole(
-  userId: string,
-  role: 'ADMIN' | 'CLIENT',
-): Promise<{ success: boolean; message: string }> {
-  const access = await requireSuperAdminAction();
-  const parsed = updateRoleSchema.safeParse({ userId, role });
-  if (!parsed.success) {
-    return { success: false, message: 'Datos inválidos.' };
-  }
-  const demoting = !isAdminRole(parsed.data.role);
-  if (access.userId === parsed.data.userId && demoting) {
-    return { success: false, message: 'No puedes degradar tu propio usuario.' };
-  }
-
-  const target = await prisma.user.findUnique({
-    where: { id: parsed.data.userId },
-    select: { isSuperAdmin: true },
-  });
-  if (target?.isSuperAdmin) {
-    return { success: false, message: 'No se puede modificar al Superadmin.' };
-  }
-
-  if (demoting) {
-    const adminCount = await countAdmins();
-    if (adminCount <= 1) {
-      return { success: false, message: 'No puedes dejar la tienda sin administradores.' };
-    }
-  }
-
-  await prisma.user.update({
-    where: { id: parsed.data.userId },
-    data:  { role: parsed.data.role },
-  });
-  revalidatePath('/admin/settings/users');
-  return { success: true, message: 'Rol actualizado.' };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -298,7 +279,7 @@ export async function deleteAdminUser(
     return { success: false, message: 'No se puede eliminar al Superadmin.' };
   }
 
-  if (isAdminRole(target.role)) {
+  if ((target.role ?? '').toUpperCase() === 'ADMIN') {
     const adminCount = await countAdmins();
     if (adminCount <= 1) {
       return { success: false, message: 'No puedes eliminar al último administrador.' };

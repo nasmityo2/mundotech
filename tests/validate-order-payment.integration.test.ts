@@ -39,8 +39,6 @@ describeWithDb('validateOrderPayment — PostgreSQL E2E', () => {
 
     vi.stubEnv('DATABASE_URL', e2eUrl);
     vi.stubEnv('DIRECT_URL', e2eUrl);
-    // @ts-expect-error reset singleton Prisma entre imports
-    globalThis.prisma = undefined;
     vi.resetModules();
 
     prisma = createScriptPrisma();
@@ -64,6 +62,8 @@ describeWithDb('validateOrderPayment — PostgreSQL E2E', () => {
     await prisma.couponRedemption.deleteMany();
     await prisma.orderItem.deleteMany();
     await prisma.order.deleteMany();
+    await prisma.cartItem.deleteMany();
+    await prisma.cart.deleteMany();
     await prisma.product.deleteMany();
   });
 

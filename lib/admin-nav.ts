@@ -16,6 +16,10 @@ export interface NavItem {
   description?:    string;
   /** Si está definido, el ítem solo se muestra si el usuario tiene este permiso. */
   permission?:     AdminPermission;
+  /** Si está definido, basta con tener cualquiera de estos permisos. */
+  anyOfPermissions?: AdminPermission[];
+  /** Si true, visible para cualquier usuario con acceso al backoffice. */
+  backofficeOnly?:  boolean;
   /** Si true, el ítem solo se muestra al Superadmin. */
   superAdminOnly?: boolean;
 }
@@ -71,7 +75,7 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
     id: 'config',
     label: 'Configuración',
     items: [
-      { href: '/admin/settings',       label: 'Tienda y pagos', icon: Store },
+      { href: '/admin/settings', label: 'Tienda y pagos', icon: Store, anyOfPermissions: ['STORE_SETTINGS', 'FINANCIAL_SETTINGS'] },
       { href: '/admin/settings/users', label: 'Usuarios',       icon: Users, superAdminOnly: true },
     ],
   },
@@ -85,7 +89,7 @@ export const ADMIN_BOTTOM_NAV: NavItem[] = [
   { href: '/admin/orders',   label: 'Pedidos',   icon: ShoppingCart,   permission: 'ORDERS' },
   { href: '/admin/products', label: 'Catálogo',  icon: Package,        permission: 'CATALOG' },
   { href: '/admin/stats',    label: 'Analítica', icon: BarChart2,      permission: 'ANALYTICS' },
-  { href: '/admin/menu',     label: 'Más',       icon: MoreHorizontal },
+  { href: '/admin/menu',     label: 'Más',       icon: MoreHorizontal, backofficeOnly: true },
 ];
 
 export const FLAT_ADMIN_NAV: NavItem[] = ADMIN_NAV_GROUPS.flatMap(g => g.items);
@@ -94,6 +98,16 @@ export const FLAT_ADMIN_NAV: NavItem[] = ADMIN_NAV_GROUPS.flatMap(g => g.items);
  * Filtra los grupos de navegación según el acceso del usuario.
  * El Superadmin ve todo. Los usuarios normales solo ven las secciones autorizadas.
  */
+function isNavItemVisible(item: NavItem, access: CurrentAdminAccess): boolean {
+  if (item.superAdminOnly) return access.isSuperAdmin;
+  if (item.backofficeOnly) return access.isSuperAdmin || access.permissions.length > 0;
+  if (item.anyOfPermissions?.length) {
+    return item.anyOfPermissions.some((perm) => hasAdminPermission(access, perm));
+  }
+  if (item.permission) return hasAdminPermission(access, item.permission);
+  return false;
+}
+
 export function filterNavGroups(
   groups: NavGroup[],
   access: CurrentAdminAccess,
@@ -101,27 +115,16 @@ export function filterNavGroups(
   return groups
     .map(group => ({
       ...group,
-      items: group.items.filter(item => {
-        if (item.superAdminOnly) return access.isSuperAdmin;
-        if (item.permission)     return hasAdminPermission(access, item.permission);
-        return true;
-      }),
+      items: group.items.filter(item => isNavItemVisible(item, access)),
     }))
     .filter(group => group.items.length > 0);
 }
 
-/**
- * Filtra el bottom nav según el acceso del usuario.
- */
 export function filterBottomNav(
   items: NavItem[],
   access: CurrentAdminAccess,
 ): NavItem[] {
-  return items.filter(item => {
-    if (item.superAdminOnly) return access.isSuperAdmin;
-    if (item.permission)     return hasAdminPermission(access, item.permission);
-    return true;
-  });
+  return items.filter(item => isNavItemVisible(item, access));
 }
 
 /**

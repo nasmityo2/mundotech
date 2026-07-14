@@ -2,9 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ADMIN_NAV_GROUPS, isItemActive } from '@/lib/admin-nav';
+import { isItemActive, type NavGroup } from '@/lib/admin-nav';
 
-export default function SidebarDesktop() {
+interface SidebarDesktopProps {
+  navGroups: NavGroup[];
+}
+
+export default function SidebarDesktop({ navGroups }: SidebarDesktopProps) {
   const pathname = usePathname();
 
   return (
@@ -21,7 +25,7 @@ export default function SidebarDesktop() {
       </div>
 
       <nav className="flex-grow overflow-y-auto px-3 py-3 space-y-4">
-        {ADMIN_NAV_GROUPS.map(group => (
+        {navGroups.map(group => (
           <div key={group.id}>
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 px-3 mb-1.5">
               {group.label}

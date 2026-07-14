@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import AdminShell from '@/components/admin/AdminShell';
-import { isAdminRole } from '@/lib/api-auth';
+import { requireBackofficeAction } from '@/lib/admin-access-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,20 +27,21 @@ export const viewport = {
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as { role?: string } | undefined)?.role;
 
-  if (!session) {
-    // No autenticado → login limpio sin exponer /admin en la URL
+  if (!session?.user?.id) {
     redirect('/login');
   }
 
-  if (!isAdminRole(role)) {
-    // Autenticado pero sin rol ADMIN → inicio (consistente con middleware; sin exponer /admin)
+  let access;
+  try {
+    access = await requireBackofficeAction();
+  } catch {
     redirect('/');
   }
 
   return (
     <AdminShell
+      access={access}
       userName={session.user?.name ?? undefined}
       userEmail={session.user?.email ?? undefined}
     >

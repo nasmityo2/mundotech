@@ -20,6 +20,7 @@ import {
   ADMIN_PERMISSIONS,
   ADMIN_PERMISSION_META,
   getPermissionsByGroup,
+  normalizePermissionDependencies,
   type AdminPermission,
 } from '@/lib/admin-permissions';
 
@@ -320,8 +321,9 @@ function PermissionsDialog({
   const toggle = (perm: AdminPermission) => {
     setSelected(prev => {
       const next = new Set(prev);
-      if (next.has(perm)) next.delete(perm); else next.add(perm);
-      return next;
+      if (next.has(perm)) next.delete(perm);
+      else next.add(perm);
+      return new Set(normalizePermissionDependencies([...next]));
     });
   };
 
@@ -451,6 +453,7 @@ function PermissionsDialog({
             {count === 0
               ? 'Sin permisos: el usuario será Cliente.'
               : `Este usuario tendrá acceso a ${count} de ${ADMIN_PERMISSIONS.length} secciones.`}
+            {' '}Pagos y exportación de clientes incluyen Pedidos automáticamente.
           </p>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} disabled={pending}

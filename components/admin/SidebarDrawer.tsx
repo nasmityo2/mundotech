@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useRef, useEffect } from 'react';
 import { X, LogOut } from 'lucide-react';
 import { signOut } from 'next-auth/react';
-import { ADMIN_NAV_GROUPS, isItemActive } from '@/lib/admin-nav';
+import { isItemActive, type NavGroup } from '@/lib/admin-nav';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
@@ -14,19 +14,18 @@ interface SidebarDrawerProps {
   onClose: () => void;
   userName?: string;
   userEmail?: string;
+  navGroups: NavGroup[];
 }
 
-export default function SidebarDrawer({ open, onClose, userName, userEmail }: SidebarDrawerProps) {
+export default function SidebarDrawer({ open, onClose, userName, userEmail, navGroups }: SidebarDrawerProps) {
   const pathname = usePathname();
   const drawerRef = useRef<HTMLDivElement>(null);
 
-  // Cerrar el drawer cuando cambia la ruta
   useEffect(() => {
     if (open) onClose();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
-  // Scroll lock y focus trap compartidos
   useBodyScrollLock(open);
   useFocusTrap({ containerRef: drawerRef, enabled: open, onClose });
 
@@ -74,7 +73,7 @@ export default function SidebarDrawer({ open, onClose, userName, userEmail }: Si
         )}
 
         <nav className="flex-1 overflow-y-auto px-3 py-3">
-          {ADMIN_NAV_GROUPS.map(group => (
+          {navGroups.map(group => (
             <div key={group.id} className="mb-4">
               <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 px-3 mb-1.5">
                 {group.label}

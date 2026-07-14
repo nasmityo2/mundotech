@@ -2,18 +2,27 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ADMIN_BOTTOM_NAV, isItemActive } from '@/lib/admin-nav';
+import { isItemActive, type NavItem } from '@/lib/admin-nav';
 
-export default function MobileBottomNav() {
+interface MobileBottomNavProps {
+  items: NavItem[];
+}
+
+export default function MobileBottomNav({ items }: MobileBottomNavProps) {
   const pathname = usePathname();
+
+  if (items.length === 0) return null;
 
   return (
     <nav
       className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 backdrop-blur-md border-t border-gray-200"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <ul className="grid grid-cols-5">
-        {ADMIN_BOTTOM_NAV.map(item => {
+      <ul
+        className="grid"
+        style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+      >
+        {items.map(item => {
           const active = isItemActive(pathname, item.href);
           return (
             <li key={item.href}>

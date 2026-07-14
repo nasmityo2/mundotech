@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import type { CurrentAdminAccess } from '@/lib/admin-access-server';
+import { ADMIN_BOTTOM_NAV, ADMIN_NAV_GROUPS, filterBottomNav, filterNavGroups, type NavGroup } from '@/lib/admin-nav';
 import { ADMIN_CHUNK_RELOAD_KEY, clearChunkReloadFlag } from '@/lib/chunk-load-error';
 import SidebarDesktop from './SidebarDesktop';
 import SidebarDrawer from './SidebarDrawer';
@@ -11,17 +13,18 @@ import NewOrdersWatcher from './NewOrdersWatcher';
 
 interface AdminShellProps {
   children: React.ReactNode;
+  access: CurrentAdminAccess;
   userName?: string;
   userEmail?: string;
 }
 
-export default function AdminShell({ children, userName, userEmail }: AdminShellProps) {
+export default function AdminShell({ children, access, userName, userEmail }: AdminShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
+  const filteredGroups = filterNavGroups(ADMIN_NAV_GROUPS, access);
+  const filteredBottomNav = filterBottomNav(ADMIN_BOTTOM_NAV, access);
 
   useEffect(() => {
-    // El layout sigue montado aunque error.tsx reemplace children; solo limpiar
-    // la clave cuando la ruta cargó sin el boundary de error visible.
     const id = requestAnimationFrame(() => {
       if (!document.querySelector('[data-admin-error]')) {
         clearChunkReloadFlag(ADMIN_CHUNK_RELOAD_KEY);
@@ -33,7 +36,7 @@ export default function AdminShell({ children, userName, userEmail }: AdminShell
   return (
     <div className="flex min-h-[100dvh] bg-white">
       <div className="contents print:hidden">
-        <SidebarDesktop />
+        <SidebarDesktop navGroups={filteredGroups} />
       </div>
 
       <div className="contents print:hidden">
@@ -42,6 +45,7 @@ export default function AdminShell({ children, userName, userEmail }: AdminShell
           onClose={() => setDrawerOpen(false)}
           userName={userName}
           userEmail={userEmail}
+          navGroups={filteredGroups}
         />
       </div>
 
@@ -57,7 +61,7 @@ export default function AdminShell({ children, userName, userEmail }: AdminShell
         </main>
 
         <div className="contents print:hidden">
-          <MobileBottomNav />
+          <MobileBottomNav items={filteredBottomNav} />
         </div>
         <div className="contents print:hidden">
           <NewOrdersWatcher />

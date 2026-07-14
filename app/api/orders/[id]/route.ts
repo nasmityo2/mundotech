@@ -4,7 +4,6 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { prismaOrderToOrder } from '@/lib/definitions';
 import { requirePermission } from '@/lib/admin-access-server';
-import { isAdminRole } from '@/lib/api-auth';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order';
@@ -15,32 +14,46 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Verificar sesión PRIMERO, sin tocar la BD
   const session = await getServerSession(authOptions);
-  if (!session) {
+  if (!session?.user?.id) {
     return NextResponse.json({ message: 'No autorizado.' }, { status: 401 });
   }
 
   const { id: orderId } = await params;
-  const role = (session.user as { role?: string })?.role;
-  const isAdmin = isAdminRole(role);
+
+  const ownership = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, customerId: true },
+  });
+
+  if (!ownership) {
+    return NextResponse.json({ message: 'No autorizado.' }, { status: 403 });
+  }
+
+  const isOwner = session.user.id === ownership.customerId;
+  if (isOwner) {
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: true },
+    });
+    if (!order) {
+      return NextResponse.json({ message: 'No autorizado.' }, { status: 403 });
+    }
+    return NextResponse.json(prismaOrderToOrder(order));
+  }
+
+  const auth = await requirePermission('ORDERS');
+  if (!auth.authorized) {
+    return NextResponse.json({ message: 'No autorizado.' }, { status: 403 });
+  }
 
   const order = await prisma.order.findUnique({
-    where:   { id: orderId },
+    where: { id: orderId },
     include: { items: true },
   });
 
   if (!order) {
-    // No revelar existencia del pedido a usuarios no administradores
-    return NextResponse.json(
-      { message: isAdmin ? 'Pedido no encontrado.' : 'No autorizado.' },
-      { status: isAdmin ? 404 : 403 }
-    );
-  }
-
-  const isOwner = session.user?.id === order.customerId;
-  if (!isAdmin && !isOwner) {
-    return NextResponse.json({ message: 'No autorizado.' }, { status: 403 });
+    return NextResponse.json({ message: 'Pedido no encontrado.' }, { status: 404 });
   }
 
   return NextResponse.json(prismaOrderToOrder(order));
@@ -49,19 +62,11 @@ export async function GET(
 const patchSchema = z.object({
   trackingNumber:   z.string().trim().max(80).optional().nullable(),
   trackingCarrier:  z.string().trim().max(80).optional().nullable(),
-  // PRD-267: solo https. PRD-268: foto restringida a R2.
   trackingUrl:      trackingUrlSchema.optional().nullable(),
   trackingPhotoUrl: trackingPhotoUrlSchema.optional().nullable(),
   notes:            z.string().trim().max(2000).optional().nullable(),
 });
 
-/**
- * PATCH /api/orders/[id]
- * Actualización PARCIAL del admin: solo se modifican los campos presentes en el
- * body (tracking y/o notas internas). Esto evita borrar el tracking al guardar
- * únicamente las notas, y viceversa. Si se envía tracking y el pedido aún no
- * tenía fecha de envío, se sella `shippedAt`.
- */
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -110,8 +115,6 @@ export async function PATCH(
     parsed.data.trackingUrl ??
     parsed.data.trackingPhotoUrl
   );
-  // PRD-191: sellar shippedAt SOLO cuando el pedido ya está en estado 'Enviado'.
-  // Guardar tracking en otros estados (ej. 'En Proceso') no debe sellar la fecha de envío.
   if (touchedTracking && hasTrackingValue && !current.shippedAt && current.status === 'Enviado') {
     data.shippedAt = new Date();
   }
@@ -145,10 +148,6 @@ export async function DELETE(
     return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 });
   }
 
-  // Eliminar un pedido cuyo stock seguía reservado debe devolver las unidades al
-  // inventario y revertir el cupón (PRD-190) ANTES de borrar el registro —
-  // el delete en cascada de CouponRedemption no decrementa usedCount por sí solo.
-  // Solo restaura stock si stockDeducted !== false (pedidos WhatsApp no descuentan).
   await prisma.$transaction(async (tx) => {
     await applyOrderCancellationEffectsInTransaction(tx, {
       id: order.id,

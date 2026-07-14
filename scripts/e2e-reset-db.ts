@@ -16,6 +16,7 @@ import {
   E2E_COUPON,
   E2E_PRODUCTS,
   E2E_RESET_TOKENS,
+  E2E_RBAC,
 } from '../e2e/fixtures/constants';
 
 assertE2eDatabaseUrl(process.env.DATABASE_URL ?? '');
@@ -32,9 +33,13 @@ async function main() {
 
   console.log('[e2e-reset] Limpiando y sembrando BD E2E...');
 
-  const [adminHash, clientHash] = await Promise.all([
+  const [adminHash, clientHash, pedidosHash, finanzasHash, catalogoHash, sinPermisosHash] = await Promise.all([
     bcrypt.hash(E2E_ADMIN.password, 12),
     bcrypt.hash(E2E_CLIENT.password, 12),
+    bcrypt.hash(E2E_RBAC.pedidos.password, 12),
+    bcrypt.hash(E2E_RBAC.finanzas.password, 12),
+    bcrypt.hash(E2E_RBAC.catalogo.password, 12),
+    bcrypt.hash(E2E_RBAC.sinPermisos.password, 12),
   ]);
 
   await prisma.$transaction(async (tx) => {
@@ -58,15 +63,58 @@ async function main() {
     await tx.promotion.deleteMany();
     await tx.banner.deleteMany();
     await tx.savedAddress.deleteMany();
+    await tx.permissionAuditLog.deleteMany();
     await tx.user.deleteMany();
     await tx.appConfig.deleteMany();
 
-    const admin = await tx.user.create({
+    await tx.user.create({
       data: {
         name: E2E_ADMIN.name,
         email: E2E_ADMIN.email,
         password: adminHash,
         role: 'ADMIN',
+        isSuperAdmin: true,
+        adminPermissions: [],
+      },
+    });
+
+    await tx.user.create({
+      data: {
+        name: E2E_RBAC.pedidos.name,
+        email: E2E_RBAC.pedidos.email,
+        password: pedidosHash,
+        role: 'ADMIN',
+        adminPermissions: ['ORDERS', 'PAYMENTS'],
+      },
+    });
+
+    await tx.user.create({
+      data: {
+        name: E2E_RBAC.finanzas.name,
+        email: E2E_RBAC.finanzas.email,
+        password: finanzasHash,
+        role: 'ADMIN',
+        adminPermissions: ['FINANCIAL_SETTINGS'],
+      },
+    });
+
+    await tx.user.create({
+      data: {
+        name: E2E_RBAC.catalogo.name,
+        email: E2E_RBAC.catalogo.email,
+        password: catalogoHash,
+        role: 'ADMIN',
+        adminPermissions: ['CATALOG'],
+      },
+    });
+
+    await tx.user.create({
+      data: {
+        name: E2E_RBAC.sinPermisos.name,
+        email: E2E_RBAC.sinPermisos.email,
+        password: sinPermisosHash,
+        role: 'ADMIN',
+        adminPermissions: [],
       },
     });
 
@@ -161,8 +209,6 @@ async function main() {
         }),
       },
     });
-
-    void admin;
   });
 
   console.log('[e2e-reset] Seed completado.');

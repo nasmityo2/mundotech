@@ -50,6 +50,12 @@ jobs:
       - name: Verificar guards de origen API
         run: npm run security:api-guards
 
+      - name: Verificar guards RBAC en APIs/actions
+        run: npm run security:permission-guards
+
+      - name: Verificar guards RBAC en páginas admin
+        run: npm run security:admin-page-guards
+
       - name: Verificar consistencia del plan de auditoría
         run: npm run plan:check
 

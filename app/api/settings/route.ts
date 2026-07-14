@@ -1,33 +1,31 @@
 import { NextResponse } from 'next/server';
-import { revalidatePath, revalidateTag } from 'next/cache';
-import { readSettings, writeSettings, storeSettingsSchema } from '@/lib/data-store';
+import { readSettings } from '@/lib/data-store';
 import { requirePermission } from '@/lib/admin-access-server';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
-import { rejectInvalidMutationOrigin } from '@/lib/security';
-import { CACHE_TAG_SITE_SHELL, CACHE_TAG_SETTINGS } from '@/lib/site-shell-cache';
-import { logError } from '@/lib/safe-logger';
+import {
+  pickFinancialSettingsDto,
+  pickGeneralSettingsDto,
+} from '@/lib/settings-api-schemas';
 
 /**
  * GET /api/settings
- * Public callers receive only the non-sensitive storefront fields.
- * Authenticated ADMIN callers receive the full settings object.
- * PRD-281: el subset público va con rate limit por IP (anti-enumeración
- * de datos de contacto / scraping).
+ * - Público: subset mínimo de contacto.
+ * - STORE_SETTINGS: DTO general exclusivo.
+ * - FINANCIAL_SETTINGS: DTO financiero exclusivo.
+ * - Ambos permisos o Superadmin: ambos DTOs.
  */
 export async function GET(request: Request) {
-  const auth = await requirePermission('STORE_SETTINGS');
+  const storeAuth = await requirePermission('STORE_SETTINGS');
+  const financialAuth = await requirePermission('FINANCIAL_SETTINGS');
+  const canStore = storeAuth.authorized;
+  const canFinancial = financialAuth.authorized;
 
-  if (!auth.authorized) {
+  if (!canStore && !canFinancial) {
     const ip = getClientIp(request);
     if (await rateLimit(`settings:get:${ip}`, { limit: 60, windowMs: 60_000 })) {
       return NextResponse.json({ error: 'Demasiadas solicitudes.' }, { status: 429 });
     }
-  }
-
-  const settings = await readSettings();
-
-  if (!auth.authorized) {
-    // Return only the fields safe for public consumption
+    const settings = await readSettings();
     return NextResponse.json({
       storeName: settings.storeName,
       phone:     settings.phone,
@@ -35,36 +33,15 @@ export async function GET(request: Request) {
     });
   }
 
-  return NextResponse.json(settings);
-}
+  const settings = await readSettings();
+  const payload: Record<string, unknown> = {};
 
-export async function PUT(request: Request) {
-  const originCheck = rejectInvalidMutationOrigin(request);
-  if (originCheck) return originCheck;
-
-  const auth = await requirePermission('STORE_SETTINGS');
-  if (!auth.authorized) return auth.response;
-
-  try {
-    const body = await request.json();
-    const parsed = storeSettingsSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { success: false, message: 'Datos inválidos.', errors: parsed.error.flatten() },
-        { status: 400 }
-      );
-    }
-    await writeSettings(parsed.data);
-    revalidatePath('/', 'layout');
-    revalidateTag(CACHE_TAG_SITE_SHELL, 'default');
-    revalidateTag(CACHE_TAG_SETTINGS, 'default');
-    return NextResponse.json({ success: true, message: 'Configuración guardada.' });
-  } catch (error) {
-    // PRD-043: logging del fallo (antes el catch tragaba el error).
-    logError('settings_put_failed', error, { route: '/api/settings', operation: 'put_settings' });
-    return NextResponse.json(
-      { success: false, message: 'Error al guardar la configuración.' },
-      { status: 500 }
-    );
+  if (canStore) {
+    Object.assign(payload, pickGeneralSettingsDto(settings));
   }
+  if (canFinancial) {
+    Object.assign(payload, pickFinancialSettingsDto(settings));
+  }
+
+  return NextResponse.json(payload);
 }

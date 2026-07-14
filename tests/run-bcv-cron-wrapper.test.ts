@@ -65,6 +65,7 @@ exit ${curlExit}
 function runWrapper(envFile: string, extraEnv?: Record<string, string>) {
   return spawnSync('bash', [WRAPPER], {
     env: {
+      NODE_ENV: 'test',
       PATH: process.env.PATH ?? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
       HOME: process.env.HOME ?? '/root',
       LANG: 'C',

@@ -202,10 +202,39 @@ const NAVIGATION_PRIORITY: AdminPermission[] = [
   'OPERATIONS',
 ];
 
+export const ADMIN_PERMISSION_HOME: Record<AdminPermission, string> = {
+  DASHBOARD: '/admin',
+  ANALYTICS: '/admin/stats',
+  ORDERS: '/admin/orders',
+  PAYMENTS: '/admin/orders',
+  CATALOG: '/admin/products',
+  REVIEWS: '/admin/reviews',
+  PROMOTIONS: '/admin/coupons',
+  SITE_CONTENT: '/admin/personalizar',
+  STORE_SETTINGS: '/admin/settings',
+  FINANCIAL_SETTINGS: '/admin/settings',
+  OPERATIONS: '/admin',
+  CUSTOMER_DATA_EXPORT: '/admin/orders',
+};
+
+/**
+ * Añade dependencias implícitas entre permisos.
+ * PAYMENTS y CUSTOMER_DATA_EXPORT requieren ORDERS.
+ */
+export function normalizePermissionDependencies(
+  permissions: readonly AdminPermission[],
+): AdminPermission[] {
+  const set = new Set<AdminPermission>(permissions);
+  if (set.has('PAYMENTS')) set.add('ORDERS');
+  if (set.has('CUSTOMER_DATA_EXPORT')) set.add('ORDERS');
+  return normalizeAdminPermissions([...set]);
+}
+
 export function getFirstAuthorizedPermission(
   access: { isSuperAdmin: boolean; permissions: readonly string[] },
 ): AdminPermission | null {
   if (access.isSuperAdmin) return 'DASHBOARD';
+  if (access.permissions.includes('DASHBOARD')) return 'DASHBOARD';
   for (const perm of NAVIGATION_PRIORITY) {
     if (access.permissions.includes(perm)) return perm;
   }

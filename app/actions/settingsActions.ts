@@ -156,38 +156,6 @@ export async function updateFinancialSettings(input: unknown): Promise<SettingsA
   return { success: true, message: 'Configuración financiera guardada.', data: fullParsed.data };
 }
 
-/**
- * @deprecated Usar updateGeneralStoreSettings() o updateFinancialSettings() según el contexto.
- * Conservado temporalmente para compatibilidad UI mientras se migra el formulario de settings.
- * TODO-RBAC: eliminar cuando la UI use las dos acciones separadas.
- */
-export async function updateSettings(input: unknown): Promise<SettingsActionResult> {
-  // Requiere al menos uno de los dos permisos; la UI debe validar cuál usar
-  await requirePermissionAction('STORE_SETTINGS');
-
-  const parsed = storeSettingsSchema.safeParse(input);
-  if (!parsed.success) {
-    const errors: Record<string, string[]> = {};
-    for (const issue of parsed.error.issues) {
-      const key = issue.path.join('.') || '_root';
-      (errors[key] ??= []).push(issue.message);
-    }
-    return {
-      success: false,
-      message: 'Algunos campos no son válidos. Revisa los marcados en rojo.',
-      errors,
-    };
-  }
-
-  await writeSettings(parsed.data);
-
-  revalidatePath('/', 'layout');
-  revalidatePath('/admin/settings');
-  revalidateTag('store-settings', 'default');
-
-  return { success: true, message: 'Configuración guardada.', data: parsed.data };
-}
-
 export interface ShippingEstimatesResult {
   success: boolean;
   message: string;

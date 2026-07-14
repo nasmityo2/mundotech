@@ -17,6 +17,10 @@ import {
   hasAdminPermission,
   type AdminPermission,
 } from '@/lib/admin-permissions';
+
+function hasBackofficeAccess(access: CurrentAdminAccess): boolean {
+  return access.isSuperAdmin || access.permissions.length > 0;
+}
 import type { Session } from 'next-auth';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -109,8 +113,7 @@ export async function requireBackofficeAccess(): Promise<PermissionCheckResult> 
     };
   }
 
-  const isAdmin = (access.role ?? '').toUpperCase() === 'ADMIN' || access.isSuperAdmin;
-  if (!isAdmin) {
+  if (!hasBackofficeAccess(access)) {
     return {
       authorized: false,
       response: NextResponse.json({ error: 'Acceso denegado.' }, { status: 403 }),
@@ -204,8 +207,7 @@ export async function requireBackofficeAction(): Promise<CurrentAdminAccess> {
   if (!session?.user?.id) throw new Error('No autorizado.');
 
   const access = await loadCurrentAdminAccess();
-  const isAdmin = (access.role ?? '').toUpperCase() === 'ADMIN' || access.isSuperAdmin;
-  if (!isAdmin) throw new Error('No autorizado.');
+  if (!hasBackofficeAccess(access)) throw new Error('No autorizado.');
 
   return access;
 }
@@ -278,7 +280,33 @@ export async function requireAdminPagePermission(
 }
 
 /**
- * Para la página /admin (mostrador). Redirige si no tiene ningún permiso relevante.
+ * Para Server Components que admiten acceso con cualquiera de varios permisos.
+ */
+export async function requireAdminPageAnyPermission(
+  permissions: AdminPermission[],
+): Promise<CurrentAdminAccess> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    redirect('/login');
+  }
+
+  let access: CurrentAdminAccess;
+  try {
+    access = await loadCurrentAdminAccess();
+  } catch {
+    redirect('/login');
+  }
+
+  const allowed = permissions.some((permission) => hasAdminPermission(access, permission));
+  if (!allowed) {
+    redirect('/admin/unauthorized');
+  }
+
+  return access;
+}
+
+/**
+ * Para la página /admin/settings/users. Redirige si no es Superadmin.
  */
 export async function requireAdminPageSuperAdmin(): Promise<CurrentAdminAccess> {
   const session = await getServerSession(authOptions);
