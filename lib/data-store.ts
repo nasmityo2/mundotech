@@ -7,6 +7,10 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { logWarn, logError } from '@/lib/safe-logger';
 import { isR2PublicHttpsUrl } from '@/lib/r2-public-url';
+import { normalizeWhatsAppPhone, isValidWhatsAppPhone } from '@/lib/whatsapp-phone';
+
+const WHATSAPP_PHONE_INVALID_MESSAGE =
+  'Usa formato internacional de Venezuela, por ejemplo 584121471338.';
 
 export const storeSettingsSchema = z.object({
   storeName:     z.string().min(1, 'El nombre de la tienda es requerido.'),
@@ -48,7 +52,20 @@ export const storeSettingsSchema = z.object({
   labelWidthMm:  z.coerce.number().min(40).max(300).default(100),
   labelHeightMm: z.coerce.number().min(40).max(400).default(150),
   /// Número de WhatsApp para pedidos en modo WhatsApp (formato internacional, ej. 584121471338).
-  whatsappOrderPhone: z.string().optional().default(''),
+  whatsappOrderPhone: z
+    .string()
+    .trim()
+    .optional()
+    .default('')
+    .transform((value) => normalizeWhatsAppPhone(value))
+    .refine(
+      (value) => value.length <= 15,
+      WHATSAPP_PHONE_INVALID_MESSAGE,
+    )
+    .refine(
+      (value) => value === '' || isValidWhatsAppPhone(value),
+      WHATSAPP_PHONE_INVALID_MESSAGE,
+    ),
 }).superRefine((data, ctx) => {
   // Pago Móvil: o todo vacío, o todo completo
   const pmKeys = ['bank', 'phone', 'idNumber'] as const;
@@ -116,16 +133,25 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   whatsappOrderPhone: '',
 };
 
+/** ¿Pago Móvil tiene los 3 datos completos? (todo-o-nada, ver superRefine arriba). */
+export function isPagoMovilConfigured(settings: StoreSettings): boolean {
+  const pm = settings.pagoMovil;
+  return Boolean(pm.bank.trim() && pm.phone.trim() && pm.idNumber.trim());
+}
+
+/** ¿Transferencia tiene los 4 datos completos? (todo-o-nada, ver superRefine arriba). */
+export function isTransferenciaConfigured(settings: StoreSettings): boolean {
+  const tr = settings.transferencia;
+  return Boolean(
+    tr.bank.trim() && tr.accountNumber.trim() && tr.accountHolder.trim() && tr.rif.trim(),
+  );
+}
+
 /** ¿Hay datos de pago reales configurados? (false = BD vacía → DEFAULT_SETTINGS).
  *  DEPENDENCIA-02/04 (PRD-101): el checkout/PaymentForm debe ocultar los métodos
  *  pago móvil/transferencia cuando esto sea false, en vez de mostrar campos vacíos. */
 export function hasConfiguredPayments(settings: StoreSettings): boolean {
-  const pm = settings.pagoMovil;
-  const tr = settings.transferencia;
-  return Boolean(
-    (pm.bank.trim() && pm.phone.trim() && pm.idNumber.trim()) ||
-    (tr.bank.trim() && tr.accountNumber.trim() && tr.accountHolder.trim() && tr.rif.trim()),
-  );
+  return isPagoMovilConfigured(settings) || isTransferenciaConfigured(settings);
 }
 
 export async function readSettings(): Promise<StoreSettings> {

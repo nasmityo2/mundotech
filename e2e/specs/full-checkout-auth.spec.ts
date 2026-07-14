@@ -1,5 +1,14 @@
 /**
  * e2e/specs/full-checkout-auth.spec.ts — auth obligatoria en CHECKOUT_MODE=full
+ *
+ * @full
+ *
+ * OBJETIVOS:
+ * A) Guest no puede acceder a /checkout ni crear órdenes vía API.
+ * B) Desde el carrito, hacer clic en "Proceder al pago" redirige al guest a
+ *    /login?next=checkout (navegación RSC incluida).
+ * C) Después de iniciar sesión el usuario vuelve a /checkout con el carrito
+ *    conservado y el heading "Envío" visible.
  */
 import {
   test,
@@ -10,13 +19,8 @@ import {
   doLogin,
 } from '../fixtures/constants';
 
-test.describe('Full checkout auth', () => {
-  test('guest no accede a /checkout ni crea orden; CLIENT autenticado sí', async ({ page, request }) => {
-    await addProductToCart(page, E2E_PRODUCTS.inStock.slug);
-
-    await page.goto('/checkout');
-    await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
-
+test.describe('Full checkout auth @full', () => {
+  test('API: guest recibe 401 en POST /api/orders y POST /api/checkout/upload-session', async ({ request }) => {
     const guestOrder = await request.post('/api/orders', {
       data: {
         customerName: 'Atacante',
@@ -39,13 +43,46 @@ test.describe('Full checkout auth', () => {
     });
     expect(guestOrder.status()).toBe(401);
 
+    const uploadSession = await request.post('/api/checkout/upload-session');
+    expect(uploadSession.status()).toBe(401);
+  });
+
+  test('flujo carrito → login?next=checkout → /checkout con carrito conservado', async ({ page }) => {
+    // 1. Guest agrega producto desde la PDP (usa addProductToCart del fixture).
+    await addProductToCart(page, E2E_PRODUCTS.inStock.slug);
+
+    // 2. Ir a la página del carrito y hacer clic en "Proceder al pago".
+    //    Esto dispara router.push('/checkout'), que el middleware intercepta
+    //    como navegación RSC y redirige a /login?next=checkout.
+    await page.goto('/cart');
+    await page.getByRole('button', { name: /Proceder al pago/i }).first().click();
+
+    // 3. El guest debe terminar en /login con ?next=checkout, ya sea por redirect
+    //    directo del servidor o tras la navegación RSC que el middleware intercepta.
+    await expect(page).toHaveURL(/\/login(\?.*)?$/, { timeout: 15_000 });
+    const loginUrl = new URL(page.url());
+    expect(loginUrl.searchParams.get('next')).toBe('checkout');
+
+    // 4. Iniciar sesión sin navegar a /login de nuevo (ya estamos en /login?next=checkout).
+    await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
+    await page.fill('input[type="email"]', E2E_CLIENT.email);
+    await page.fill('input[type="password"]', E2E_CLIENT.password);
+    await page.getByRole('button', { name: 'Iniciar sesión' }).click();
+
+    // 5. Después del login debe volver a /checkout.
+    await expect(page).toHaveURL(/\/checkout/, { timeout: 20_000 });
+
+    // 6. El heading del paso de Envío es visible (carrito conservado, flujo activo).
+    await expect(page.getByRole('heading', { name: /Envío/i })).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('CLIENT autenticado accede directamente a /checkout con heading Envío', async ({ page }) => {
     await doLogin(page, E2E_CLIENT.email, E2E_CLIENT.password);
+    await addProductToCart(page, E2E_PRODUCTS.inStock.slug);
     await page.goto('/checkout');
     await expect(page.getByRole('heading', { name: /Envío/i })).toBeVisible({ timeout: 15_000 });
 
-    const uploadSession = await request.post('/api/checkout/upload-session');
-    expect(uploadSession.status()).toBe(401);
-
+    // La sesión autenticada también puede crear upload-session.
     const authedUpload = await page.request.post('/api/checkout/upload-session');
     expect(authedUpload.status()).toBe(200);
     const uploadBody = (await authedUpload.json()) as { token?: string };

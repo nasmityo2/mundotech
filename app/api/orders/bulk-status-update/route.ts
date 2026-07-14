@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
   const targeted = await prisma.order.findMany({
     where: { id: { in: orderIds } },
-    select: { id: true, status: true },
+    select: { id: true, status: true, stockDeducted: true, channel: true },
   });
 
   const blocked = targeted.filter(
@@ -75,6 +75,24 @@ export async function POST(request: Request) {
       message: `Todos los pedidos seleccionados ya están en el estado '${status}'.`,
       updatedCount: 0,
     });
+  }
+
+  // OBJETIVO A: si el destino es 'En Proceso' y algún pedido elegible es de
+  // WhatsApp sin stock descontado, se rechaza TODA la operación (sin
+  // actualización parcial). El avance de esos pedidos solo puede hacerse
+  // individualmente vía «Validar pago» (validateOrderPayment).
+  if (status === 'En Proceso') {
+    const hasUndeductedStock = eligible.some((o) => o.stockDeducted === false);
+    if (hasUndeductedStock) {
+      return NextResponse.json(
+        {
+          message:
+            'Este pedido de WhatsApp aún no ha descontado inventario. Valida el pago con la acción «Validar pago» antes de avanzar el estado.',
+          updatedCount: 0,
+        },
+        { status: 409 }
+      );
+    }
   }
 
   const eligibleIds = eligible.map((o) => o.id);

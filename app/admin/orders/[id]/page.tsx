@@ -281,11 +281,21 @@ export default function AdminOrderDetailPage() {
               cancela el pedido si el pago no llegó.
             </p>
           ) : null}
+          {order.status === 'Pendiente' && order.stockDeducted === false ? (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Pedido de WhatsApp: aún no se descontó inventario. Usa <strong>«Validar pago»</strong> para
+              confirmar el pago y avanzar el estado.
+            </p>
+          ) : null}
           <StatusUpdateMenu
             onUpdate={handleStatusChange}
             currentStatus={order.status}
             allowedOnly={
-              order.status === 'Pendiente verificación Binance' ? ['Cancelado'] : undefined
+              order.status === 'Pendiente verificación Binance'
+                ? ['Cancelado']
+                : order.status === 'Pendiente' && order.stockDeducted === false
+                  ? ['Pendiente', 'Cancelado']
+                  : undefined
             }
           />
         </div>

@@ -56,7 +56,14 @@ export async function PUT(
 
   const existing = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { status: true, shippedAt: true, trackingNumber: true, deliveredAt: true },
+    select: {
+      status: true,
+      shippedAt: true,
+      trackingNumber: true,
+      deliveredAt: true,
+      stockDeducted: true,
+      channel: true,
+    },
   });
 
   if (!existing) {
@@ -72,6 +79,25 @@ export async function PUT(
           'Pedido pendiente de verificación Binance: usa «Aprobar pago Binance» para confirmar el pago, o marca como Cancelado.',
       },
       { status: 400 }
+    );
+  }
+
+  // OBJETIVO A: un pedido cuyo stock NO fue descontado (WhatsApp pendiente de
+  // validación) no puede avanzar a En Proceso/Enviado/Entregado por esta ruta
+  // genérica. El único camino válido para descontar stock y avanzar es
+  // validateOrderPayment() (acción «Validar pago»). Cancelado y Pendiente
+  // (idempotente) siguen permitidos.
+  const ADVANCED_STATUSES: readonly OrderStatus[] = ['En Proceso', 'Enviado', 'Entregado'];
+  if (
+    existing.stockDeducted === false &&
+    ADVANCED_STATUSES.includes(status as OrderStatus)
+  ) {
+    return NextResponse.json(
+      {
+        message:
+          'Este pedido de WhatsApp aún no ha descontado inventario. Valida el pago con la acción «Validar pago» antes de avanzar el estado.',
+      },
+      { status: 409 }
     );
   }
 

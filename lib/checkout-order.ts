@@ -220,9 +220,12 @@ export async function executeCheckoutInTransaction(
         404
       );
     }
-    // Solo validar stock si vamos a descontar (modo full).
-    // En modo WhatsApp el stock se descuenta al confirmar el pago.
-    if (deductStock && dbProduct.stock < totalQty) {
+    // La disponibilidad de stock se valida SIEMPRE, en ambos modos.
+    // En modo WhatsApp (deductStock=false) esta comprobación es informativa:
+    // no descuenta nada aquí, solo evita crear pedidos que no se podrán surtir.
+    // El descuento definitivo del modo WhatsApp ocurre en validateOrderPayment(),
+    // que vuelve a comprobar el stock de forma atómica dentro de su transacción.
+    if (dbProduct.stock < totalQty) {
       throw new CheckoutError(
         `Stock insuficiente para "${dbProduct.name}". ` +
           `Solicitado: ${totalQty}, disponible: ${dbProduct.stock}.`,

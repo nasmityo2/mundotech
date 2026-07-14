@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, Building, ChevronRight, Copy, Check, UploadCloud, X, Wallet } from 'lucide-react';
+import { Phone, Building, ChevronRight, Copy, Check, UploadCloud, X, Wallet, AlertTriangle } from 'lucide-react';
 import { useReducedMotion, reducedTransition } from '@/lib/motion';
 import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
@@ -45,6 +45,14 @@ interface PaymentFormProps {
    */
   binancePayId?: string;
   binanceQrUrl?: string;
+  /**
+   * Pago Móvil con los 3 datos completos (readSettings → isPagoMovilConfigured).
+   * En modo Full, sin esto el método no se muestra (evita instrucciones vacías).
+   * En modo WhatsApp el método siempre se muestra: se coordina por chat.
+   */
+  pagoMovilConfigured?: boolean;
+  /** Igual que pagoMovilConfigured, para Transferencia (isTransferenciaConfigured). */
+  transferenciaConfigured?: boolean;
   /** Modo WhatsApp: solo requiere método de pago, sin referencia ni comprobante. */
   whatsappMode?: boolean;
   /** Si es true, oculta el botón "Revisar pedido" (modo embebido). */
@@ -60,7 +68,7 @@ const PROOF_FILE_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif
 const selectCls =
   'block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy';
 
-const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPaymentSubmit, initialData, pagoMovil, transferencia, binancePayId = '', binanceQrUrl = '', whatsappMode = false, embedded = false }, ref) => {
+const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPaymentSubmit, initialData, pagoMovil, transferencia, binancePayId = '', binanceQrUrl = '', pagoMovilConfigured = false, transferenciaConfigured = false, whatsappMode = false, embedded = false }, ref) => {
   const prefersReduced = useReducedMotion();
   const [selected,        setSelected]        = useState<PaymentMethod | null>(initialData?.paymentMethod ?? null);
   const [copiedField,     setCopiedField]      = useState<string | null>(null);
@@ -74,6 +82,35 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
   const [normalizingProof, setNormalizingProof] = useState(false);
   const [errors,          setErrors]           = useState<Partial<Record<'paymentMethod' | 'bank' | 'holderIdNumber' | 'holderPhone' | 'referenceNumber' | 'proofFile', string>>>({});
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Métodos disponibles: en WhatsApp, Pago Móvil/Transferencia siempre se
+  // muestran (se coordinan por chat, sin exponer datos bancarios vacíos como
+  // instrucciones). En Full solo se muestran si el admin configuró TODOS sus
+  // datos (evita mostrar una cuenta/RIF vacía como si fuera real).
+  const methods = useMemo(() => {
+    const list: { id: PaymentMethod; icon: typeof Phone; label: string; sub: string }[] = [];
+    if (whatsappMode || pagoMovilConfigured) {
+      list.push({ id: 'pagomovil', icon: Phone, label: 'Pago Móvil', sub: 'Transfiere desde tu app bancaria' });
+    }
+    if (whatsappMode || transferenciaConfigured) {
+      list.push({ id: 'transferencia', icon: Building, label: 'Transferencia', sub: 'Transferencia bancaria nacional' });
+    }
+    if (binancePayId.trim()) {
+      list.push({ id: 'binancepay', icon: Wallet, label: 'Binance', sub: 'Paga a nuestra cuenta y sube captura + Order ID' });
+    }
+    list.push({ id: 'cashea', icon: Wallet, label: 'Cashea', sub: 'Compra ahora y paga después — coordinamos por WhatsApp' });
+    return list;
+  }, [whatsappMode, pagoMovilConfigured, transferenciaConfigured, binancePayId]);
+
+  const availableMethodIds = useMemo(() => new Set(methods.map((m) => m.id)), [methods]);
+
+  // Si el método elegido deja de estar disponible (cambió la configuración
+  // entre renders), no debe quedar seleccionado en el state.
+  useEffect(() => {
+    if (selected && !availableMethodIds.has(selected)) {
+      setSelected(null);
+    }
+  }, [selected, availableMethodIds]);
 
   // Nota: el object URL NO se revoca al desmontar — ReviewStep lo usa para
   // mostrar la captura adjunta y al volver atrás se restaura como preview.
@@ -245,48 +282,42 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
       </div>
 
       {/* ── Cards de método ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {(
-          [
-            { id: 'pagomovil' as const, icon: Phone, label: 'Pago Móvil', sub: 'Transfiere desde tu app bancaria' },
-            { id: 'transferencia' as const, icon: Building, label: 'Transferencia', sub: 'Transferencia bancaria nacional' },
-            // PRD-027/130: Binance solo aparece si el admin configuró el Pay ID.
-            ...(binancePayId.trim()
-              ? ([{
-                  id: 'binancepay' as const,
-                  icon: Wallet,
-                  label: 'Binance',
-                  sub: 'Paga a nuestra cuenta y sube captura + Order ID',
-                }] as const)
-              : []),
-            { id: 'cashea' as const, icon: Wallet, label: 'Cashea', sub: 'Compra ahora y paga después — coordinamos por WhatsApp' },
-          ] as const
-        ).map((m) => {
-          const isActive = selected === m.id;
-          return (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => { setSelected(m.id); setErrors({}); }}
-              className={`text-left rounded-2xl p-4 flex items-start gap-3 transition-all ${
-                isActive
-                  ? 'border-2 border-navy bg-slate-50 shadow-soft'
-                  : 'border border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                isActive ? 'bg-navy text-white' : 'bg-slate-100 text-slate-500'
-              }`}>
-                <m.icon size={17} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-navy">{m.label}</p>
-                <p className="text-[12px] text-slate-500 mt-0.5">{m.sub}</p>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+      {methods.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {methods.map((m) => {
+            const isActive = selected === m.id;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => { setSelected(m.id); setErrors({}); }}
+                className={`text-left rounded-2xl p-4 flex items-start gap-3 transition-all ${
+                  isActive
+                    ? 'border-2 border-navy bg-slate-50 shadow-soft'
+                    : 'border border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  isActive ? 'bg-navy text-white' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  <m.icon size={17} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-navy">{m.label}</p>
+                  <p className="text-[12px] text-slate-500 mt-0.5">{m.sub}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div role="alert" className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <AlertTriangle size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800">
+            No hay métodos de pago disponibles en este momento. Contáctanos para completar tu compra.
+          </p>
+        </div>
+      )}
       {errors.paymentMethod && (
         <p className="text-xs text-rose-700 -mt-4">{errors.paymentMethod}</p>
       )}
@@ -636,7 +667,7 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
         >
           <button
             type="submit"
-            disabled={!selected}
+            disabled={!selected || methods.length === 0}
             className="inline-flex w-full items-center justify-center gap-2 bg-brand-yellow text-navy font-bold text-sm min-h-[52px] rounded-2xl hover:bg-[#FFE03A] active:scale-[0.98] shadow-soft hover:shadow-card transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Revisar pedido <ChevronRight size={16} />

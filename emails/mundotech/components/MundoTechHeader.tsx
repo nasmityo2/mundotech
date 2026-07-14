@@ -1,5 +1,11 @@
-import { Section, Text } from '@react-email/components';
+import { Img, Link, Section, Text } from '@react-email/components';
 import * as React from 'react';
+import {
+  EMAIL_LOGO_DISPLAY_HEIGHT,
+  EMAIL_LOGO_DISPLAY_WIDTH,
+  emailLogoUrl,
+  emailSiteBaseUrl,
+} from '../site';
 import { MT, fontSans } from '../theme';
 
 type Props = {
@@ -26,18 +32,24 @@ export function MundoTechHeader({ customerName, compact }: Props) {
         fontFamily: fontSans,
       }}
     >
-      <Text
-        style={{
-          margin: '0 0 6px',
-          fontSize: 24,
-          fontWeight: 700,
-          letterSpacing: '-0.03em',
-          color: '#FFFFFF',
-          lineHeight: 1.2,
-        }}
+      <Link
+        href={emailSiteBaseUrl()}
+        style={{ textDecoration: 'none', display: 'inline-block' }}
+        title="MundoTech — Ir a la tienda"
       >
-        Mundo <span style={{ color: MT.gold }}>Tech</span>
-      </Text>
+        <Img
+          src={emailLogoUrl()}
+          width={EMAIL_LOGO_DISPLAY_WIDTH}
+          height={EMAIL_LOGO_DISPLAY_HEIGHT}
+          alt="MundoTech — Conectados Contigo"
+          style={{
+            display: 'block',
+            margin: '0 auto 10px',
+            border: 0,
+            outline: 'none',
+          }}
+        />
+      </Link>
       <Text
         style={{
           margin: 0,

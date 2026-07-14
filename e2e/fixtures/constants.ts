@@ -93,7 +93,7 @@ export function productPdpPath(slug: string): string {
 
 export async function addProductToCart(page: Page, slug: string) {
   await page.goto(productPdpPath(slug));
-  const addBtn = page.getByRole('button', { name: /¡Me lo llevo!/i });
+  const addBtn = page.getByRole('button', { name: /Añadir al carrito/i });
   await addBtn.waitFor({ state: 'visible', timeout: 10_000 });
   await addBtn.click();
   await page.waitForTimeout(800);
@@ -158,9 +158,9 @@ export async function fillPagoMovilPaymentStep(
 
 export async function readProductStock(page: Page, slug: string): Promise<number> {
   await page.goto(productPdpPath(slug));
-  const stockText = page.locator('text=/En stock \\(\\d+ unidades\\)/');
+  const stockText = page.getByText(/En stock — \d+ disponibles/);
   await stockText.waitFor({ state: 'visible', timeout: 10_000 });
-  const match = (await stockText.innerText()).match(/\((\d+) unidades\)/);
+  const match = (await stockText.innerText()).match(/— (\d+) disponibles/);
   if (!match) {
     throw new Error('No se pudo leer el stock del producto en PDP');
   }

@@ -275,11 +275,16 @@ export async function middleware(req: NextRequest) {
       return withCsp(nextWithNonce());
     }
 
-    /* isProtectedPath sin token → /login con cookie de retorno opcional. */
+    /* isProtectedPath sin token → /login con ?next= SIEMPRE (RSC y documento).
+     * La cookie HttpOnly es solo un respaldo adicional para navegaciones documento
+     * (se descarta en prefetch y vuelos RSC vía shouldAttachLoginReturnCookie). */
     if (!token) {
       const login = new URL('/login', req.url);
-      const res = NextResponse.redirect(login);
       const slug = pathnameToLoginNextSlug(pathname);
+      if (slug) {
+        login.searchParams.set('next', slug);
+      }
+      const res = NextResponse.redirect(login);
       if (slug && shouldAttachLoginReturnCookie(req)) {
         res.cookies.set(LOGIN_RETURN_COOKIE_NAME, slug, loginReturnCookieOptions());
       }

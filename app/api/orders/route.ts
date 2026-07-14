@@ -15,6 +15,7 @@ import {
 import { CheckoutError } from '@/lib/checkout-error';
 import { roundMoney2 } from '@/lib/exchange-rate';
 import { readSettings } from '@/lib/data-store';
+import { isValidWhatsAppPhone } from '@/lib/whatsapp-phone';
 import { markCartRecovered } from '@/lib/abandoned-cart';
 import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit';
@@ -205,6 +206,22 @@ export async function POST(request: Request) {
       );
     }
 
+    // Canal WhatsApp sin número de pedidos válido configurado: no se crea el
+    // pedido, no se limpia el carrito (eso lo hace el cliente tras el 2xx) y
+    // no se genera guest token. Se carga settings una sola vez y se reutiliza
+    // más abajo para retiro en tienda (evita una segunda lectura a BD).
+    let settings: Awaited<ReturnType<typeof readSettings>> | null = null;
+    if (channel === 'whatsapp') {
+      settings = await readSettings();
+      if (!isValidWhatsAppPhone(settings.whatsappOrderPhone)) {
+        logWarn('checkout_whatsapp_channel_unavailable', { route: '/api/orders', operation: 'checkout' });
+        return NextResponse.json(
+          { message: 'El canal de pedidos por WhatsApp está temporalmente indisponible.' },
+          { status: 503 },
+        );
+      }
+    }
+
     // Guest solo en whatsapp: este branch solo se ejecuta si isGuest, y por
     // construcción isGuest = isWhatsAppCheckout && !userId, así que channel
     // aquí siempre es 'whatsapp'. En full jamás llega un guest (401 arriba).
@@ -229,10 +246,10 @@ export async function POST(request: Request) {
     // PRD-128 (R1): para retiro en tienda la dirección NUNCA viene del cliente —
     // se resuelve desde la configuración persistida de la tienda.
     if (safeData.shippingMethod === 'tienda') {
-      const settings = await readSettings();
+      const tiendaSettings = settings ?? (settings = await readSettings());
       safeData.shippingDetails = {
         ...safeData.shippingDetails,
-        address: `Retiro en tienda ${settings.storeName} — ${settings.address}`,
+        address: `Retiro en tienda ${tiendaSettings.storeName} — ${tiendaSettings.address}`,
       };
     }
 

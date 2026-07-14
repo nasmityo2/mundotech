@@ -63,8 +63,14 @@ vi.mock('@/lib/checkout-order', () => ({
   findRecentDuplicateOrderInTransaction: vi.fn().mockResolvedValue(null),
 }));
 
+const mockReadSettings = vi.fn().mockResolvedValue({
+  storeName: 'MT',
+  address: 'Av 1',
+  whatsappOrderPhone: '584121471338',
+});
+
 vi.mock('@/lib/data-store', () => ({
-  readSettings: vi.fn().mockResolvedValue({ storeName: 'MT', address: 'Av 1' }),
+  readSettings: (...args: unknown[]) => mockReadSettings(...args),
 }));
 
 vi.mock('@/lib/resend', () => ({
@@ -134,6 +140,12 @@ describe('checkout-mode auth matrix', () => {
     mockTransaction.mockReset();
     mockPaymentUploadCreate.mockResolvedValue({});
     mockPaymentUploadUpdateMany.mockResolvedValue({ count: 1 });
+    mockReadSettings.mockReset();
+    mockReadSettings.mockResolvedValue({
+      storeName: 'MT',
+      address: 'Av 1',
+      whatsappOrderPhone: '584121471338',
+    });
   });
 
   afterEach(() => {
@@ -201,6 +213,46 @@ describe('checkout-mode auth matrix', () => {
       );
       const body = await response.json();
       expect(body.guestToken).toBeTruthy();
+    });
+
+    it('WhatsApp sin whatsappOrderPhone configurado: 503 y transacción no llamada', async () => {
+      vi.stubEnv('CHECKOUT_MODE', 'whatsapp');
+      mockGetServerSession.mockResolvedValue(null);
+      mockReadSettings.mockResolvedValue({ storeName: 'MT', address: 'Av 1', whatsappOrderPhone: '' });
+
+      const POST = await loadOrdersPost();
+      const response = await POST(
+        new Request('http://localhost/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(ordersPostBody()),
+        }),
+      );
+
+      expect(response.status).toBe(503);
+      const body = await response.json();
+      expect(body.message).toBe('El canal de pedidos por WhatsApp está temporalmente indisponible.');
+      expect(mockTransaction).not.toHaveBeenCalled();
+      const checkoutOrder = await import('@/lib/checkout-order');
+      expect(checkoutOrder.executeCheckoutInTransaction).not.toHaveBeenCalled();
+    });
+
+    it('WhatsApp con whatsappOrderPhone en formato local (inválido): 503 y transacción no llamada', async () => {
+      vi.stubEnv('CHECKOUT_MODE', 'whatsapp');
+      mockGetServerSession.mockResolvedValue(null);
+      mockReadSettings.mockResolvedValue({ storeName: 'MT', address: 'Av 1', whatsappOrderPhone: '04121471338' });
+
+      const POST = await loadOrdersPost();
+      const response = await POST(
+        new Request('http://localhost/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(ordersPostBody()),
+        }),
+      );
+
+      expect(response.status).toBe(503);
+      expect(mockTransaction).not.toHaveBeenCalled();
     });
 
     it('Full + sin sesión: 401 y prisma.$transaction no llamado', async () => {

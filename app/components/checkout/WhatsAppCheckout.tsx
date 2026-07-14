@@ -21,6 +21,10 @@ interface WhatsAppCheckoutProps {
   supportPhone?: string;
   binancePayId?: string;
   binanceQrUrl?: string;
+  /** Pago Móvil con los 3 datos completos (readSettings → isPagoMovilConfigured). */
+  pagoMovilConfigured?: boolean;
+  /** Transferencia con los 4 datos completos (readSettings → isTransferenciaConfigured). */
+  transferenciaConfigured?: boolean;
   shippingEstimates?: ShippingEstimates;
   whatsappOrderPhone?: string;
   storeName?: string;
@@ -145,6 +149,8 @@ const WhatsAppCheckout = ({
   supportPhone,
   binancePayId,
   binanceQrUrl,
+  pagoMovilConfigured = false,
+  transferenciaConfigured = false,
   shippingEstimates,
   whatsappOrderPhone = '',
   storeName = 'MundoTech',
@@ -420,6 +426,8 @@ const WhatsAppCheckout = ({
               transferencia={transferencia}
               binancePayId={binancePayId}
               binanceQrUrl={binanceQrUrl}
+              pagoMovilConfigured={pagoMovilConfigured}
+              transferenciaConfigured={transferenciaConfigured}
             />
 
             {/* Separador */}

@@ -296,6 +296,15 @@ function OrdersPageContent() {
 
   const hasFilters = Boolean(qFromUrl.trim()) || tab !== 'all';
 
+  // OBJETIVO A (UI): si algún pedido seleccionado es de WhatsApp sin stock
+  // descontado, deshabilitar «En Proceso» en el menú de estado en lote. La
+  // seguridad real vive en el endpoint bulk-status-update; esto solo evita el
+  // error humano de intentarlo.
+  const hasUndeductedStockSelected = selectedOrders.some(id => {
+    const order = orders.find(o => o.id === id);
+    return order?.stockDeducted === false;
+  });
+
   const handleExportCsv = useCallback(() => {
     const scope =
       tab !== 'all' || qFromUrl.trim()
@@ -410,10 +419,24 @@ function OrdersPageContent() {
           </div>
           <div>
             <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Pasar selección a estado</p>
+            {hasUndeductedStockSelected && (
+              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2">
+                Hay pedidos de WhatsApp sin inventario descontado en la selección: «En Proceso» está
+                deshabilitado en lote. Valídalos primero uno a uno con «Validar pago».
+              </p>
+            )}
             <StatusUpdateMenu
               onUpdate={status => handleUpdateStatus(status, selectedOrders)}
               isBulk
               bulkCount={selectedOrders.length}
+              disabledStatuses={
+                hasUndeductedStockSelected
+                  ? {
+                      'En Proceso':
+                        'Hay pedidos de WhatsApp sin inventario descontado. Valídalos individualmente con «Validar pago» antes de avanzar en lote.',
+                    }
+                  : undefined
+              }
             />
           </div>
         </div>

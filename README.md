@@ -112,6 +112,32 @@ El servidor decide el modo; el cliente **no puede** cambiarlo desde el body ni c
 
 Cambiar `CHECKOUT_MODE` requiere **rebuild y restart** del proceso Node (afecta `middleware.ts` y el bundle del servidor).
 
+#### Cambiar el modo en producción (VPS)
+
+```bash
+# 1. Editar el archivo de entorno (una sola línea)
+sudoedit /etc/mundotech/mundotech.env
+# → cambiar CHECKOUT_MODE=whatsapp  o  CHECKOUT_MODE=full
+
+# 2. Deploy completo (valida el modo antes de compilar; aborta si es inválido)
+cd /var/www/mundotech && npm run deploy:vps
+```
+
+#### Verificar el modo activo
+
+```bash
+# Estado del servicio
+sudo systemctl status mundotech.service
+
+# Health endpoint
+curl -s http://127.0.0.1:3000/api/health | python3 -m json.tool
+
+# Smoke: /checkout debe ser público (200) en whatsapp o redirigir a /login (307) en full
+curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000/checkout
+```
+
+> Guía completa (preflight, smoke tests por modo, rollback, prohibiciones): [`docs/RUNBOOK-CHECKOUT-MODE.md`](docs/RUNBOOK-CHECKOUT-MODE.md)
+
 ---
 
 ## Base de datos y migraciones (PRD-004)
@@ -123,6 +149,7 @@ Las migraciones viven **versionadas** en `prisma/migrations/` (nunca `db push` e
 | `20260613011929_init` | Schema completo consolidado (Product, Order, Category, Review, Cart, AppConfig, etc.) — reemplaza el historial previo de migraciones `20260611*` / `20260612*` |
 | `20260613120000_add_video_job` | Tabla `VideoJob` para procesamiento asíncrono de video de producto |
 | `20260613130000_add_search_trgm` | Índice trigram (`pg_trgm`) para búsqueda de productos |
+| `20260714010000_add_order_channel_stock_deducted` | Columnas `Order.channel` (`TEXT DEFAULT 'web'`) y `Order.stockDeducted` (`BOOLEAN DEFAULT true`), ya usadas por el código pero antes solo declaradas en `schema.prisma` (`ADD COLUMN IF NOT EXISTS`, idempotente ante BD con columnas creadas manualmente) |
 
 ### BD nueva (CI, staging, máquina local)
 

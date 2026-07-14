@@ -56,12 +56,15 @@ export const StatusUpdateMenu = ({
   currentStatus,
   bulkCount = 0,
   allowedOnly,
+  disabledStatuses,
 }: {
   onUpdate: (status: OrderStatus) => void;
   isBulk?: boolean;
   currentStatus?: OrderStatus;
   bulkCount?: number;
   allowedOnly?: OrderStatus[];
+  /** Botones deshabilitados con el motivo accesible (title/aria-label) a mostrar. */
+  disabledStatuses?: Partial<Record<OrderStatus, string>>;
 }) => {
   // PRD-200 UI: en operación masiva no se permite 'Enviado' ni 'Entregado'
   // (requieren acción individual con tracking/email por pedido).
@@ -87,13 +90,20 @@ export const StatusUpdateMenu = ({
     >
       {options.map(status => {
         const isCurrent = !isBulk && currentStatus === status;
+        const disabledReason = disabledStatuses?.[status];
+        const isDisabled = isCurrent || Boolean(disabledReason);
+        const title = isCurrent
+          ? 'Ya está en este estado'
+          : disabledReason ?? `Marcar como ${status}`;
         return (
           <button
             key={status}
             type="button"
-            disabled={isCurrent}
+            disabled={isDisabled}
             onClick={() => handleClick(status)}
-            title={isCurrent ? 'Ya está en este estado' : `Marcar como ${status}`}
+            title={title}
+            aria-label={disabledReason ? `${status}: ${disabledReason}` : undefined}
+            aria-disabled={isDisabled}
             className={`touch-manipulation select-none min-h-[44px] min-w-[44px] px-3 sm:px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold border transition-colors disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed ${buttonTone[status]}`}
           >
             {status}

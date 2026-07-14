@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import { getServerSession } from 'next-auth/next';
 import { redirect } from 'next/navigation';
-import { readSettings } from '@/lib/data-store';
+import { MessageCircleOff } from 'lucide-react';
+import { readSettings, isPagoMovilConfigured, isTransferenciaConfigured } from '@/lib/data-store';
 import { readShippingEstimates } from '@/lib/shipping-estimates-db';
 import { isWhatsAppCheckout } from '@/lib/checkout-mode';
+import { isValidWhatsAppPhone } from '@/lib/whatsapp-phone';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import CheckoutFlow from '@/app/components/checkout/CheckoutFlow';
 import WhatsAppCheckout from '@/app/components/checkout/WhatsAppCheckout';
@@ -25,13 +27,39 @@ export const metadata: Metadata = {
  * Según CHECKOUT_MODE renderiza WhatsAppCheckout (una sola página)
  * o CheckoutFlow (pasos: Envío → Pago → Revisión).
  */
+/**
+ * Estado server-rendered cuando el canal WhatsApp está activo pero sin un
+ * número de pedidos válido configurado. No expone configuración ni stack:
+ * solo invita a contactar por el teléfono general de la tienda.
+ */
+function WhatsAppChannelUnavailable({ supportPhone }: { supportPhone: string }) {
+  return (
+    <div className="min-h-[50vh] flex flex-col items-center justify-center text-center px-4 py-16">
+      <div className="w-16 h-16 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-5">
+        <MessageCircleOff size={32} />
+      </div>
+      <h1 className="text-2xl font-bold text-navy mb-2">Canal de pedidos temporalmente indisponible</h1>
+      <p className="text-slate-500 max-w-md">
+        Por ahora no podemos recibir pedidos por este medio.
+        {supportPhone ? ` Contáctanos al ${supportPhone} y te ayudamos a completar tu compra.` : ' Contáctanos por nuestros canales habituales y te ayudamos a completar tu compra.'}
+      </p>
+    </div>
+  );
+}
+
 export default async function CheckoutPage() {
   const [settings, shippingEstimates] = await Promise.all([
     readSettings(),
     readShippingEstimates(),
   ]);
 
+  const pagoMovilConfigured = isPagoMovilConfigured(settings);
+  const transferenciaConfigured = isTransferenciaConfigured(settings);
+
   if (isWhatsAppCheckout) {
+    if (!isValidWhatsAppPhone(settings.whatsappOrderPhone)) {
+      return <WhatsAppChannelUnavailable supportPhone={settings.phone} />;
+    }
     return (
       <WhatsAppCheckout
         pagoMovil={settings.pagoMovil}
@@ -39,6 +67,8 @@ export default async function CheckoutPage() {
         supportPhone={settings.phone}
         binancePayId={settings.binancePayId}
         binanceQrUrl={settings.binanceQrUrl}
+        pagoMovilConfigured={pagoMovilConfigured}
+        transferenciaConfigured={transferenciaConfigured}
         shippingEstimates={shippingEstimates}
         whatsappOrderPhone={settings.whatsappOrderPhone}
         storeName={settings.storeName}
@@ -61,6 +91,8 @@ export default async function CheckoutPage() {
       supportPhone={settings.phone}
       binancePayId={settings.binancePayId}
       binanceQrUrl={settings.binanceQrUrl}
+      pagoMovilConfigured={pagoMovilConfigured}
+      transferenciaConfigured={transferenciaConfigured}
       shippingEstimates={shippingEstimates}
       whatsappMode={false}
       whatsappOrderPhone={settings.whatsappOrderPhone}

@@ -31,6 +31,10 @@ interface CheckoutFlowProps {
   binancePayId?: string;
   /** PRD-027/130: URL del QR de Binance desde readSettings(). */
   binanceQrUrl?: string;
+  /** Pago Móvil con los 3 datos completos (readSettings → isPagoMovilConfigured). */
+  pagoMovilConfigured?: boolean;
+  /** Transferencia con los 4 datos completos (readSettings → isTransferenciaConfigured). */
+  transferenciaConfigured?: boolean;
   /** MEJORA 2.3: estimados de envío (Admin → Configuración) — R1, sin hardcode. */
   shippingEstimates?: ShippingEstimates;
   /** Modo WhatsApp: si es true, el checkout recopila datos mínimos y redirige a WhatsApp. */
@@ -41,7 +45,7 @@ interface CheckoutFlowProps {
   storeName?: string;
 }
 
-const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, binanceQrUrl, shippingEstimates, whatsappMode = false, whatsappOrderPhone = '', storeName = 'MundoTech' }: CheckoutFlowProps) => {
+const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, binanceQrUrl, pagoMovilConfigured = false, transferenciaConfigured = false, shippingEstimates, whatsappMode = false, whatsappOrderPhone = '', storeName = 'MundoTech' }: CheckoutFlowProps) => {
   const prefersReduced = useReducedMotion();
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection]     = useState<1 | -1>(1);
@@ -191,6 +195,8 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
           transferencia={transferencia}
           binancePayId={binancePayId}
           binanceQrUrl={binanceQrUrl}
+          pagoMovilConfigured={pagoMovilConfigured}
+          transferenciaConfigured={transferenciaConfigured}
           whatsappMode={whatsappMode}
         />
       );

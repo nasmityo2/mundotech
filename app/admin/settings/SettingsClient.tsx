@@ -13,7 +13,10 @@ import { recalculateAllProductPrices } from '@/app/actions/productActions';
 import type { StoreSettings } from '@/lib/data-store';
 import type { ShippingEstimates } from '@/lib/shipping-estimates';
 import { mrwOffices } from '@/lib/mrw-offices';
+import { normalizeWhatsAppPhone, isValidWhatsAppPhone } from '@/lib/whatsapp-phone';
 import PhotoUploader from '@/components/admin/PhotoUploader';
+
+const WHATSAPP_PHONE_INVALID_MESSAGE = 'Usa formato internacional de Venezuela, por ejemplo 584121471338.';
 
 /** Estados con cobertura (mismas llaves que usa el checkout MRW). */
 const VE_STATES = Object.keys(mrwOffices).sort();
@@ -135,6 +138,11 @@ export default function SettingsClient({
   };
 
   const handleSave = async () => {
+    if (!whatsappPhoneValid) {
+      setSaveError('Algunos campos no son válidos. Revisa los marcados en rojo.');
+      setFieldErrors({ whatsappOrderPhone: WHATSAPP_PHONE_INVALID_MESSAGE });
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     setFieldErrors({});
@@ -221,6 +229,9 @@ export default function SettingsClient({
   const curLabelH = Number(settings.labelHeightMm) || 150;
   const activeLabelPreset = LABEL_PRESETS.find(p => p.w === curLabelW && p.h === curLabelH)?.id ?? 'custom';
 
+  const whatsappPhoneNormalized = normalizeWhatsAppPhone(settings.whatsappOrderPhone ?? '');
+  const whatsappPhoneValid = whatsappPhoneNormalized === '' || isValidWhatsAppPhone(whatsappPhoneNormalized);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -233,7 +244,7 @@ export default function SettingsClient({
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || !whatsappPhoneValid}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
             saved
               ? 'bg-green-500 text-white'
@@ -515,7 +526,13 @@ export default function SettingsClient({
             onChange={v => set(['whatsappOrderPhone'], v)}
             type="tel"
             placeholder="584121471338"
+            error={fieldError('whatsappOrderPhone') ?? (!whatsappPhoneValid ? WHATSAPP_PHONE_INVALID_MESSAGE : undefined)}
           />
+          {whatsappPhoneNormalized && (
+            <p className={`text-xs ${whatsappPhoneValid ? 'text-gray-500' : 'text-red-600 font-medium'}`}>
+              Se guardará como: <span className="font-mono">{whatsappPhoneNormalized}</span>
+            </p>
+          )}
         </SectionCard>
 
         {/* PRD-027/130: Binance Pay configurable sin redeploy */}

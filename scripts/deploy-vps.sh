@@ -30,6 +30,35 @@ STALE_STATIC_DAYS=14
 
 log() { echo "==> $*"; }
 
+# ── 0. Cargar y validar configuración de entorno ─────────────────────────────
+# El archivo de entorno es la fuente única de verdad para CHECKOUT_MODE.
+# El proceso Node (systemd) y el build deben usar exactamente el mismo valor.
+ENV_FILE="${MUNDOTECH_ENV_FILE:-/etc/mundotech/mundotech.env}"
+
+if ! sudo test -r "$ENV_FILE"; then
+  echo "ERROR: no se puede leer el archivo de entorno '${ENV_FILE}'." >&2
+  echo "       Verifica que existe y que el usuario de deploy tiene acceso sudo a él." >&2
+  echo "       Para cambiar la ruta usa: MUNDOTECH_ENV_FILE=/ruta/alternativa npm run deploy:vps" >&2
+  exit 1
+fi
+
+# Carga las variables sin imprimirlas (set -a exporta todo lo definido).
+set -a
+# shellcheck source=/dev/null
+source <(sudo cat "$ENV_FILE")
+set +a
+
+# Valida CHECKOUT_MODE antes de arrancar el build.
+MODE="${CHECKOUT_MODE:-}"
+if [[ "$MODE" != "whatsapp" && "$MODE" != "full" ]]; then
+  echo "ERROR: CHECKOUT_MODE='${MODE}' no es válido." >&2
+  echo "       Valores aceptados: whatsapp | full" >&2
+  echo "       Edita ${ENV_FILE} y establece CHECKOUT_MODE=whatsapp o CHECKOUT_MODE=full." >&2
+  exit 1
+fi
+
+log "Modo de checkout para este build: ${MODE}"
+
 # ── 1. Build en staging (servicio sigue arriba) ─────────────────────────────
 log "Build de producción en ${STAGING} (el servicio sigue sirviendo el build actual)…"
 rm -rf "$STAGING"
@@ -89,11 +118,8 @@ fi
 log "OK: ${SERVICE} responde con BUILD_ID $(cat "$CURRENT/BUILD_ID")."
 
 # ── 5. Purga de caché Cloudflare (opcional) ──────────────────────────────────
-# Variables en /etc/mundotech/mundotech.env (root-only):
-#   CF_ZONE_ID=...   CF_API_TOKEN=...  (token con permiso Zone.Cache Purge)
-CF_ENV_FILE="/etc/mundotech/mundotech.env"
-CF_ZONE_ID="${CF_ZONE_ID:-$(sudo grep -sE '^CF_ZONE_ID=' "$CF_ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"' || true)}"
-CF_API_TOKEN="${CF_API_TOKEN:-$(sudo grep -sE '^CF_API_TOKEN=' "$CF_ENV_FILE" 2>/dev/null | cut -d= -f2- | tr -d '"' || true)}"
+# CF_ZONE_ID y CF_API_TOKEN ya están cargados desde ENV_FILE (paso 0).
+# No releer el archivo aquí para evitar impresión accidental de secretos.
 
 if [[ -n "${CF_ZONE_ID}" && -n "${CF_API_TOKEN}" ]]; then
   log "Purgando caché de Cloudflare (zona ${CF_ZONE_ID:0:6}…)…"

@@ -157,7 +157,7 @@ async function main() {
           binanceQrUrl: '',
           labelWidthMm: 100,
           labelHeightMm: 150,
-          whatsappOrderPhone: '',
+          whatsappOrderPhone: '584121471338',
         }),
       },
     });

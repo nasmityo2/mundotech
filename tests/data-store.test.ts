@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SETTINGS,
   hasConfiguredPayments,
+  isPagoMovilConfigured,
+  isTransferenciaConfigured,
   storeSettingsSchema,
 } from '@/lib/data-store';
 
@@ -29,6 +31,95 @@ describe('DEFAULT_SETTINGS (PRD-101)', () => {
         pagoMovil: { bank: 'Banesco', phone: '0414-0000000', idNumber: 'V-1.111.111' },
       }),
     ).toBe(true);
+  });
+});
+
+describe('isPagoMovilConfigured / isTransferenciaConfigured', () => {
+  it('ambos son false para los defaults (bancos vacíos)', () => {
+    expect(isPagoMovilConfigured(DEFAULT_SETTINGS)).toBe(false);
+    expect(isTransferenciaConfigured(DEFAULT_SETTINGS)).toBe(false);
+  });
+
+  it('isPagoMovilConfigured es true solo cuando Pago Móvil está completo', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      pagoMovil: { bank: 'Banesco', phone: '0414-0000000', idNumber: 'V-1.111.111' },
+    };
+    expect(isPagoMovilConfigured(settings)).toBe(true);
+    expect(isTransferenciaConfigured(settings)).toBe(false);
+  });
+
+  it('isTransferenciaConfigured es true solo cuando Transferencia está completa', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      transferencia: {
+        bank: 'Mercantil',
+        accountNumber: '0105-1234-56-7890123456',
+        accountHolder: 'MundoTech C.A.',
+        rif: 'J-00000000-0',
+      },
+    };
+    expect(isPagoMovilConfigured(settings)).toBe(false);
+    expect(isTransferenciaConfigured(settings)).toBe(true);
+  });
+
+  it('hasConfiguredPayments compone ambos helpers (OR)', () => {
+    const onlyPagoMovil = {
+      ...DEFAULT_SETTINGS,
+      pagoMovil: { bank: 'Banesco', phone: '0414-0000000', idNumber: 'V-1.111.111' },
+    };
+    expect(hasConfiguredPayments(onlyPagoMovil)).toBe(
+      isPagoMovilConfigured(onlyPagoMovil) || isTransferenciaConfigured(onlyPagoMovil),
+    );
+  });
+});
+
+describe('storeSettingsSchema.whatsappOrderPhone', () => {
+  it('acepta vacío (el modo no se evalúa en settings)', () => {
+    const result = storeSettingsSchema.safeParse({ ...DEFAULT_SETTINGS, whatsappOrderPhone: '' });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.whatsappOrderPhone).toBe('');
+  });
+
+  it('normaliza y acepta un número venezolano válido con símbolos', () => {
+    const result = storeSettingsSchema.safeParse({
+      ...DEFAULT_SETTINGS,
+      whatsappOrderPhone: '+58 412-147-1338',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.whatsappOrderPhone).toBe('584121471338');
+  });
+
+  it('rechaza un número local sin prefijo de país', () => {
+    const result = storeSettingsSchema.safeParse({
+      ...DEFAULT_SETTINGS,
+      whatsappOrderPhone: '0412-1471338',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza letras mezcladas que no dejan suficientes dígitos tras normalizar', () => {
+    const result = storeSettingsSchema.safeParse({
+      ...DEFAULT_SETTINGS,
+      whatsappOrderPhone: '58-telefono',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza menos de 10 dígitos', () => {
+    const result = storeSettingsSchema.safeParse({
+      ...DEFAULT_SETTINGS,
+      whatsappOrderPhone: '581234567',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rechaza más de 15 dígitos', () => {
+    const result = storeSettingsSchema.safeParse({
+      ...DEFAULT_SETTINGS,
+      whatsappOrderPhone: '5841214713381234',
+    });
+    expect(result.success).toBe(false);
   });
 });
 

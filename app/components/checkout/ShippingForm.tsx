@@ -410,7 +410,7 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {([
           { id: 'tienda' as const, icon: Store,     label: 'Retirar en tienda', sub: 'Recoge tu pedido en nuestra tienda física' },
-          { id: 'mrw' as const,    icon: Building2, label: 'Envío nacional',        sub: 'Retira en la oficina de MRW más cercana'      },
+          { id: 'mrw' as const,    icon: Building2, label: 'Envío MRW',        sub: 'Retira en la oficina de MRW más cercana'      },
           { id: 'zoom' as const,   icon: Building2, label: 'Envío ZOOM',        sub: 'Retira en la oficina de ZOOM más cercana'      },
           { id: 'tealca' as const, icon: Building2, label: 'Envío TEALCA',      sub: 'Retira en la oficina de TEALCA más cercana'    },
         ]).map((opt) => {
