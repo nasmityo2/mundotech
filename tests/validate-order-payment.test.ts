@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mockRequireAdminAction = vi.fn();
+const mockRequirePermissionAction = vi.fn();
 const mockSendPaymentValidatedEmail = vi.fn();
 const mockRevalidatePath = vi.fn();
 const mockTransaction = vi.fn();
 const mockOrderFindUnique = vi.fn();
 
-vi.mock('@/lib/api-auth', () => ({
-  requireAdminAction: (...args: unknown[]) => mockRequireAdminAction(...args),
+vi.mock('@/lib/admin-access-server', () => ({
+  requirePermissionAction: (...args: unknown[]) => mockRequirePermissionAction(...args),
+  requirePermission: (...args: unknown[]) => mockRequirePermissionAction(...args),
+  requireSuperAdminAction: (...args: unknown[]) => mockRequirePermissionAction(...args),
 }));
 
 vi.mock('@/lib/resend', () => ({
@@ -92,7 +94,7 @@ describe('validateOrderPayment — WhatsApp claim-first (unit)', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mockRequireAdminAction.mockResolvedValue({ user: { email: 'admin@test.com' } });
+    mockRequirePermissionAction.mockResolvedValue({ user: { email: 'admin@test.com' } });
     mockSendPaymentValidatedEmail.mockResolvedValue(undefined);
     validateOrderPayment = (await import('@/app/actions/orderActions')).validateOrderPayment;
   });

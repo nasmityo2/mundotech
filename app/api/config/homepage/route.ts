@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 
@@ -51,7 +51,7 @@ const schemas: Record<HomepageKey, z.ZodTypeAny> = {
  * configuración editorial (benefits, flash deals, shelves) a scraping.
  */
 export async function GET() {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('SITE_CONTENT');
   if (!auth.authorized) return auth.response;
 
   try {
@@ -84,7 +84,7 @@ export async function PUT(request: Request) {
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('SITE_CONTENT');
   if (!auth.authorized) return auth.response;
 
   // PRD-260: rechazar payloads sobredimensionados antes de parsear.

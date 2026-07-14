@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { prismaOrderToOrder, type OrderStatus, VALID_ORDER_STATUSES } from '@/lib/definitions';
 import { orderPathSegment } from '@/lib/order-ref';
 import { sendOrderDeliveredEmail, sendShippingEmail, sendOrderCancelledEmail } from '@/lib/resend';
@@ -39,7 +39,7 @@ export async function PUT(
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('ORDERS');
   if (!auth.authorized) return auth.response;
 
   const { id: orderId } = await params;

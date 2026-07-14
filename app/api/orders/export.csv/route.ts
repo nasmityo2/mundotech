@@ -1,6 +1,6 @@
 import Papa from 'papaparse';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { buildOrderListWhere } from '@/lib/orders/order-list-filters';
 import { parseOrderTab } from '@/lib/orders/order-tabs';
 import { logWarn, logInfo } from '@/lib/safe-logger';
@@ -19,7 +19,7 @@ const MAX_EXPORT_ROWS = 5000;
  */
 
 export async function GET(request: Request) {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('CUSTOMER_DATA_EXPORT');
   if (!auth.authorized) return auth.response;
 
   const { searchParams } = new URL(request.url);

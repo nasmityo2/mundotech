@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { readSettings, writeSettings, storeSettingsSchema } from '@/lib/data-store';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { CACHE_TAG_SITE_SHELL, CACHE_TAG_SETTINGS } from '@/lib/site-shell-cache';
@@ -15,7 +15,7 @@ import { logError } from '@/lib/safe-logger';
  * de datos de contacto / scraping).
  */
 export async function GET(request: Request) {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('STORE_SETTINGS');
 
   if (!auth.authorized) {
     const ip = getClientIp(request);
@@ -42,7 +42,7 @@ export async function PUT(request: Request) {
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('STORE_SETTINGS');
   if (!auth.authorized) return auth.response;
 
   try {

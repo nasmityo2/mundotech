@@ -121,31 +121,65 @@ model Banner {
 }
 
 model User {
-  id                     String               @id @default(cuid())
-  email                  String               @unique
-  password               String
-  name                   String?
+  id                        String               @id @default(cuid())
+  email                     String               @unique
+  password                  String
+  name                      String?
   /// PRD-127: roles canónicos en MAYÚSCULAS ('CLIENT' | 'ADMIN').
-  role                   String               @default("CLIENT")
-  createdAt              DateTime             @default(now())
-  updatedAt              DateTime             @updatedAt
+  role                      String               @default("CLIENT")
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
   /// PRD-173/240: timestamp del último cambio de contraseña. El callback JWT
   /// deriva la huella (pwv) del hash bcrypt; cuando el hash cambia la huella
   /// difiere y todas las sesiones activas se invalidan en ≤5 min.
-  passwordChangedAt      DateTime?
+  passwordChangedAt         DateTime?
   /// PRD-014/089: nuevo email pendiente de confirmar antes de ser promovido.
-  pendingEmail           String?
+  pendingEmail              String?
   /// PRD-014/089: token de un solo uso enviado al nuevo correo (hash SHA-256).
-  emailChangeToken       String?              @unique
+  emailChangeToken          String?              @unique
   /// PRD-014/089: expiración del token de cambio de email (1 hora).
-  emailChangeTokenExpiry DateTime?
-  orders                 Order[]
-  passwordResetTokens    PasswordResetToken[]
-  reviews                Review[]
-  savedAddresses         SavedAddress[]
-  abandonedCarts         AbandonedCart[]
-  cart                   Cart?
-  wishlistItems          WishlistItem[]
+  emailChangeTokenExpiry    DateTime?
+  /// RBAC: marca exactamente a un propietario con acceso total irrevocable vía UI.
+  /// Solo puede marcarse directamente en Prisma; el índice único parcial
+  /// "User_single_superadmin_key" impide que haya más de uno.
+  isSuperAdmin              Boolean              @default(false)
+  /// RBAC: permisos delegados del panel admin. Array vacío = ninguno.
+  /// Superadmin ignora este array; su acceso viene de isSuperAdmin.
+  adminPermissions          String[]             @default([])
+  /// RBAC: timestamp del último cambio de permisos (para invalidación de caché/UX).
+  permissionsUpdatedAt      DateTime?
+  orders                    Order[]
+  passwordResetTokens       PasswordResetToken[]
+  reviews                   Review[]
+  savedAddresses            SavedAddress[]
+  abandonedCarts            AbandonedCart[]
+  cart                      Cart?
+  wishlistItems             WishlistItem[]
+  permissionChangesAuthored PermissionAuditLog[] @relation("PermissionAuditActor")
+  permissionChangesReceived PermissionAuditLog[] @relation("PermissionAuditTarget")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUDITORÍA DE CAMBIOS DE PERMISOS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Registro inmutable de cada cambio de permisos en el panel.
+/// Creado en la misma transacción que el UPDATE de User.
+/// Restrict en ambas FKs: no se puede borrar actor ni target si tienen entradas.
+model PermissionAuditLog {
+  id                String   @id @default(cuid())
+  actorId           String
+  targetUserId      String
+  beforePermissions String[]
+  afterPermissions  String[]
+  targetRoleBefore  String
+  targetRoleAfter   String
+  createdAt         DateTime @default(now())
+  actor             User     @relation("PermissionAuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+  target            User     @relation("PermissionAuditTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+
+  @@index([targetUserId, createdAt])
+  @@index([actorId, createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

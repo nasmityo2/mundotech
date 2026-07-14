@@ -9,8 +9,11 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
-vi.mock('@/lib/api-auth', () => ({
-  requireAdmin: vi.fn(),
+vi.mock('@/lib/admin-access-server', () => ({
+  requirePermission: vi.fn(),
+  requireSuperAdmin: vi.fn(),
+  requirePermissionAction: vi.fn(),
+  requireSuperAdminAction: vi.fn(),
 }));
 
 vi.mock('@/lib/r2', () => ({
@@ -29,14 +32,14 @@ const SIGNED_URL =
 
 describe('GET /api/orders/[id]/payment-proof', () => {
   let handler: typeof import('@/app/api/orders/[id]/payment-proof/route').GET;
-  let requireAdmin: typeof import('@/lib/api-auth').requireAdmin;
+  let requirePermission: typeof import('@/lib/admin-access-server').requirePermission;
   let getPrivateProofReadUrl: typeof import('@/lib/r2').getPrivateProofReadUrl;
   let isR2PublicUrl: typeof import('@/lib/r2').isR2PublicUrl;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     handler = (await import('@/app/api/orders/[id]/payment-proof/route')).GET;
-    requireAdmin = (await import('@/lib/api-auth')).requireAdmin;
+    requirePermission = (await import('@/lib/admin-access-server')).requirePermission;
     getPrivateProofReadUrl = (await import('@/lib/r2')).getPrivateProofReadUrl;
     isR2PublicUrl = (await import('@/lib/r2')).isR2PublicUrl;
   });
@@ -46,7 +49,7 @@ describe('GET /api/orders/[id]/payment-proof', () => {
   });
 
   it('devuelve 403 si el usuario no es ADMIN (CLIENT)', async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({
+    vi.mocked(requirePermission).mockResolvedValue({
       authorized: false,
       response: new Response(JSON.stringify({ error: 'No autorizado' }), { status: 403 }) as never,
     });
@@ -58,12 +61,12 @@ describe('GET /api/orders/[id]/payment-proof', () => {
     expect(prisma.order.findUnique).not.toHaveBeenCalled();
   });
 
-  it('defensa en profundidad: si el handler se invoca sin sesión, requireAdmin también rechaza', async () => {
+  it('defensa en profundidad: si el handler se invoca sin sesión, requirePermission también rechaza', async () => {
     // Contrato real end-to-end: guest sin sesión recibe 401 en middleware.ts
     // (isUserTokenApi) y NUNCA llega a este handler. Este test cubre solo la
-    // capa interna: si por error middleware no interceptara, requireAdmin()
+    // capa interna: si por error middleware no interceptara, requirePermission()
     // sigue rechazando sin sesión (403, misma respuesta que CLIENT no-ADMIN).
-    vi.mocked(requireAdmin).mockResolvedValue({
+    vi.mocked(requirePermission).mockResolvedValue({
       authorized: false,
       response: new Response(JSON.stringify({ error: 'No autorizado' }), { status: 403 }) as never,
     });
@@ -76,10 +79,7 @@ describe('GET /api/orders/[id]/payment-proof', () => {
   });
 
   it('devuelve 200 con URL firmada y headers no-store/no-referrer para ADMIN', async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'admin-1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'admin-1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       paymentProofKey: 'proofs/abc.webp',
       paymentProofUrl: null,
@@ -103,10 +103,7 @@ describe('GET /api/orders/[id]/payment-proof', () => {
   it('no expone PII ni URLs firmadas en logs al fallar getPrivateProofReadUrl', async () => {
     const { logError } = await import('@/lib/safe-logger');
 
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'admin-1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'admin-1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       paymentProofKey: 'proofs/secret.webp',
       paymentProofUrl: null,
@@ -128,10 +125,7 @@ describe('GET /api/orders/[id]/payment-proof', () => {
   });
 
   it('sirve legacyUrl solo si isR2PublicUrl valida el host', async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'admin-1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'admin-1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
     vi.mocked(prisma.order.findUnique).mockResolvedValue({
       paymentProofKey: null,
       paymentProofUrl: 'https://cdn.mundotechve.com/proofs/legacy.webp',

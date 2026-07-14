@@ -1,71 +1,120 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useRef, useEffect } from 'react';
 import {
-  Users, Plus, ShieldCheck, ShieldOff, KeyRound,
-  Trash2, Loader2, X, Check, AlertCircle, UserCircle,
+  Users, Plus, KeyRound, Trash2, Loader2, X, Check, AlertCircle,
+  UserCircle, SlidersHorizontal, Crown, ChevronDown,
 } from 'lucide-react';
 import {
-  type AdminUser, createAdminUser, updateUserRole,
-  resetUserPassword, deleteAdminUser,
+  type AdminUser,
+  type PermissionAuditEntry,
+  createAdminUser,
+  updateUserPermissions,
+  resetUserPassword,
+  deleteAdminUser,
 } from '@/app/actions/userActions';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
 import { TouchIconButton } from '@/components/admin/TouchIconButton';
 import { isAdminRole } from '@/lib/is-admin-role';
+import {
+  ADMIN_PERMISSIONS,
+  ADMIN_PERMISSION_META,
+  getPermissionsByGroup,
+  type AdminPermission,
+} from '@/lib/admin-permissions';
 
 interface UsersClientProps {
-  users: AdminUser[];
+  users:       AdminUser[];
+  auditLog:    PermissionAuditEntry[];
   currentUserId: string;
 }
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-VE', { year: 'numeric', month: 'short', day: 'numeric' });
 
-export default function UsersClient({ users: initial, currentUserId }: UsersClientProps) {
+const formatDateTime = (iso: string) =>
+  new Date(iso).toLocaleString('es-VE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+// ─── Chip de permisos resumidos ──────────────────────────────────────────────
+
+function PermissionChips({ permissions }: { permissions: AdminPermission[] }) {
+  const MAX_VISIBLE = 3;
+  const visible = permissions.slice(0, MAX_VISIBLE);
+  const rest = permissions.length - MAX_VISIBLE;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {visible.map(p => (
+        <span key={p} className="text-[10px] bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded font-medium">
+          {ADMIN_PERMISSION_META[p].label}
+        </span>
+      ))}
+      {rest > 0 && (
+        <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded font-medium">+{rest}</span>
+      )}
+    </div>
+  );
+}
+
+// ─── Componente principal ────────────────────────────────────────────────────
+
+export default function UsersClient({ users: initial, auditLog: initialLog, currentUserId }: UsersClientProps) {
   const [users, setUsers]               = useState(initial);
+  const [auditLog, setAuditLog]         = useState(initialLog);
   const [createOpen, setCreateOpen]     = useState(false);
+  const [permUser, setPermUser]         = useState<AdminUser | null>(null);
   const [resetUser, setResetUser]       = useState<AdminUser | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<AdminUser | null>(null);
   const [feedback, setFeedback]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
   const flash = (type: 'success' | 'error', msg: string) => {
     setFeedback({ type, msg });
-    setTimeout(() => setFeedback(null), 3500);
+    setTimeout(() => setFeedback(null), 4500);
   };
 
   const refresh = async () => {
-    // Recarga local: pedimos al action y reseteamos
-    const { listAdminUsers } = await import('@/app/actions/userActions');
-    setUsers(await listAdminUsers());
-  };
-
-  const handleToggleRole = async (u: AdminUser) => {
-    const newRole = isAdminRole(u.role) ? 'CLIENT' : 'ADMIN';
-    const res = await updateUserRole(u.id, newRole);
-    if (res.success) {
-      flash('success', res.message);
-      await refresh();
-    } else flash('error', res.message);
+    const { listAdminUsers, listPermissionAuditLog } = await import('@/app/actions/userActions');
+    const [newUsers, newLog] = await Promise.all([listAdminUsers(), listPermissionAuditLog()]);
+    setUsers(newUsers);
+    setAuditLog(newLog);
   };
 
   const handleDelete = async (u: AdminUser) => {
-    if (!confirm(`¿Eliminar el usuario "${u.email}"?`)) return;
     const res = await deleteAdminUser(u.id);
     if (res.success) {
       flash('success', res.message);
       await refresh();
     } else flash('error', res.message);
+    setDeleteConfirm(null);
   };
 
   const columns: DataTableColumn<AdminUser>[] = [
     {
       key: 'name', header: 'Usuario', primary: true,
       cell: u => (
-        <span className="block truncate">
-          {u.name || <span className="text-gray-400 italic">Sin nombre</span>}
-          {u.id === currentUserId && (
-            <span className="ml-1.5 text-[9px] font-bold uppercase bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">tú</span>
+        <div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {u.isSuperAdmin && (
+              <span className="inline-flex items-center gap-1 text-[10px] bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-bold">
+                <Crown size={9} /> Propietario · Acceso total
+              </span>
+            )}
+            <span className="block truncate">
+              {u.name || <span className="text-gray-400 italic">Sin nombre</span>}
+              {u.id === currentUserId && (
+                <span className="ml-1.5 text-[9px] font-bold uppercase bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">tú</span>
+              )}
+            </span>
+          </div>
+          {!u.isSuperAdmin && u.adminPermissions.length > 0 && (
+            <PermissionChips permissions={u.adminPermissions} />
           )}
-        </span>
+          {!u.isSuperAdmin && u.adminPermissions.length === 0 && !isAdminRole(u.role) && (
+            <span className="text-[10px] text-gray-400 mt-0.5 block">Cliente</span>
+          )}
+          {!u.isSuperAdmin && u.adminPermissions.length === 0 && isAdminRole(u.role) && (
+            <span className="text-[10px] text-orange-500 mt-0.5 block">Admin sin permisos</span>
+          )}
+        </div>
       ),
     },
     {
@@ -73,16 +122,24 @@ export default function UsersClient({ users: initial, currentUserId }: UsersClie
       cell: u => <span className="text-gray-500 truncate text-sm">{u.email}</span>,
     },
     {
-      key: 'role', header: 'Rol', mobileLabel: 'Rol',
-      cell: u => (
-        <span className={`inline-flex px-2 py-0.5 rounded-md text-[11px] font-bold ${
-          isAdminRole(u.role)
-            ? 'bg-amber-100 text-amber-800 border border-amber-200'
-            : 'bg-gray-100 text-gray-700 border border-gray-200'
-        }`}>
-          {u.role}
-        </span>
-      ),
+      key: 'role', header: 'Acceso', mobileLabel: 'Acceso',
+      cell: u => {
+        if (u.isSuperAdmin) return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+            <Crown size={10} /> Superadmin
+          </span>
+        );
+        if (u.adminPermissions.length > 0) return (
+          <span className="inline-flex px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+            Acceso administrativo · {u.adminPermissions.length} secciones
+          </span>
+        );
+        return (
+          <span className="inline-flex px-2 py-0.5 rounded-md text-[11px] font-bold bg-gray-100 text-gray-600 border border-gray-200">
+            Cliente
+          </span>
+        );
+      },
     },
     {
       key: 'orders', header: 'Pedidos', mobileLabel: 'Pedidos', align: 'right',
@@ -95,7 +152,8 @@ export default function UsersClient({ users: initial, currentUserId }: UsersClie
   ];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="w-11 h-11 rounded-2xl bg-amber-50 text-navy flex items-center justify-center">
@@ -106,7 +164,6 @@ export default function UsersClient({ users: initial, currentUserId }: UsersClie
             <p className="text-xs text-gray-500 mt-0.5">Gestiona accesos al panel y a la cuenta de cliente.</p>
           </div>
         </div>
-
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
@@ -116,6 +173,7 @@ export default function UsersClient({ users: initial, currentUserId }: UsersClie
         </button>
       </div>
 
+      {/* Feedback */}
       {feedback && (
         <div className={`flex items-start gap-2 px-4 py-3 rounded-xl text-sm font-medium ${
           feedback.type === 'success'
@@ -127,61 +185,348 @@ export default function UsersClient({ users: initial, currentUserId }: UsersClie
         </div>
       )}
 
+      {/* Tabla de usuarios */}
       <DataTable<AdminUser>
         data={users}
         columns={columns}
         rowKey={u => u.id}
         mobileLeading={u => (
           <span className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
-            isAdminRole(u.role) ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
+            u.isSuperAdmin
+              ? 'bg-amber-100 text-amber-700'
+              : isAdminRole(u.role)
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-gray-100 text-gray-500'
           }`}>
             <UserCircle size={22} />
           </span>
         )}
         actions={u => (
           <>
-            <TouchIconButton
-              label={isAdminRole(u.role) ? 'Hacer cliente' : 'Promover a admin'}
-              variant="primary"
-              icon={isAdminRole(u.role) ? <ShieldOff size={18} /> : <ShieldCheck size={18} />}
-              onClick={() => handleToggleRole(u)}
-            />
-            <TouchIconButton
-              label="Resetear contraseña"
-              icon={<KeyRound size={18} />}
-              onClick={() => setResetUser(u)}
-            />
-            <TouchIconButton
-              label="Eliminar"
-              variant="danger"
-              icon={<Trash2 size={18} />}
-              onClick={() => handleDelete(u)}
-              disabled={u.id === currentUserId}
-            />
+            {/* Superadmin: solo badge informativo */}
+            {u.isSuperAdmin ? (
+              <span className="text-[11px] text-gray-400 italic px-1">
+                Inmutable
+              </span>
+            ) : (
+              <>
+                <TouchIconButton
+                  label="Configurar permisos"
+                  variant="primary"
+                  icon={<SlidersHorizontal size={18} />}
+                  onClick={() => setPermUser(u)}
+                />
+                <TouchIconButton
+                  label="Resetear contraseña"
+                  icon={<KeyRound size={18} />}
+                  onClick={() => setResetUser(u)}
+                />
+                <TouchIconButton
+                  label="Eliminar"
+                  variant="danger"
+                  icon={<Trash2 size={18} />}
+                  onClick={() => setDeleteConfirm(u)}
+                  disabled={u.id === currentUserId}
+                />
+              </>
+            )}
           </>
         )}
       />
 
-      {createOpen && <CreateUserDialog onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); refresh(); flash('success', 'Usuario creado.'); }} />}
-      {resetUser && <ResetPasswordDialog user={resetUser} onClose={() => setResetUser(null)} onDone={() => { setResetUser(null); flash('success', 'Contraseña actualizada.'); }} />}
+      {/* Superadmin notice */}
+      {users.some(u => u.isSuperAdmin) && (
+        <p className="text-xs text-gray-400 px-1">
+          * El acceso del propietario es inmutable y solo puede marcarse directamente en Prisma.
+        </p>
+      )}
+
+      {/* Auditoría */}
+      {auditLog.length > 0 && (
+        <AuditLogSection entries={auditLog} />
+      )}
+
+      {/* Diálogos */}
+      {createOpen && (
+        <CreateUserDialog
+          onClose={() => setCreateOpen(false)}
+          onCreated={() => { setCreateOpen(false); refresh(); flash('success', 'Usuario creado. Asigna sus permisos.'); }}
+        />
+      )}
+      {permUser && (
+        <PermissionsDialog
+          user={permUser}
+          onClose={() => setPermUser(null)}
+          onSaved={msg => { setPermUser(null); refresh(); flash('success', msg); }}
+          onError={msg => flash('error', msg)}
+        />
+      )}
+      {resetUser && (
+        <ResetPasswordDialog
+          user={resetUser}
+          onClose={() => setResetUser(null)}
+          onDone={() => { setResetUser(null); flash('success', 'Contraseña actualizada.'); }}
+        />
+      )}
+      {deleteConfirm && (
+        <DeleteConfirmDialog
+          user={deleteConfirm}
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={() => handleDelete(deleteConfirm)}
+        />
+      )}
     </div>
   );
 }
 
-// ─── Diálogos ───────────────────────────────────────────────────────────────
+// ─── Diálogo de permisos ─────────────────────────────────────────────────────
+
+function PermissionsDialog({
+  user, onClose, onSaved, onError,
+}: {
+  user:    AdminUser;
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [selected, setSelected] = useState<Set<AdminPermission>>(
+    new Set(user.adminPermissions),
+  );
+  const [pending, startTransition] = useTransition();
+  const [confirmClear, setConfirmClear] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap y Escape
+  useEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    const firstFocusable = el.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    firstFocusable?.focus();
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'Tab') {
+        const focusables = el.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled])');
+        const first = focusables[0];
+        const last  = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+      }
+    };
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [onClose]);
+
+  const toggle = (perm: AdminPermission) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(perm)) next.delete(perm); else next.add(perm);
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    setSelected(new Set(ADMIN_PERMISSIONS));
+  };
+
+  const handleClearAll = () => {
+    if (user.adminPermissions.length > 0 && !confirmClear) {
+      setConfirmClear(true);
+      return;
+    }
+    setSelected(new Set());
+    setConfirmClear(false);
+  };
+
+  const handleSave = () => {
+    startTransition(async () => {
+      const res = await updateUserPermissions({
+        userId:      user.id,
+        permissions: [...selected],
+      });
+      if (res.success) onSaved(res.message);
+      else onError(res.message);
+    });
+  };
+
+  const groups = getPermissionsByGroup();
+  const count  = selected.size;
+  const wasAdmin = user.adminPermissions.length > 0;
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="perm-dialog-title"
+      className="fixed inset-0 z-50 flex sm:items-center sm:justify-center"
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <div
+        ref={dialogRef}
+        className="relative z-10 w-full sm:w-[520px] sm:max-w-[92vw] sm:my-6 bg-white sm:rounded-2xl shadow-2xl flex flex-col max-h-screen max-h-[100dvh] sm:max-h-[90vh]"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        {/* Header */}
+        <header className="sticky top-0 bg-white sm:rounded-t-2xl border-b border-gray-100 px-4 py-3.5 flex items-center justify-between gap-3"
+          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.875rem)' }}>
+          <div>
+            <h2 id="perm-dialog-title" className="text-base font-black text-navy">Permisos de usuario</h2>
+            <p className="text-xs text-gray-500 truncate">{user.email}</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="w-11 h-11 flex items-center justify-center rounded-full active:bg-gray-100">
+            <X size={20} className="text-gray-500" />
+          </button>
+        </header>
+
+        {/* Acciones rápidas */}
+        <div className="px-4 py-2 flex gap-2 border-b border-gray-50">
+          <button type="button" onClick={handleSelectAll} className="text-xs text-blue-600 font-semibold underline underline-offset-2 min-h-[36px] px-2">
+            Seleccionar todos
+          </button>
+          <button type="button" onClick={handleClearAll} className="text-xs text-gray-500 font-semibold underline underline-offset-2 min-h-[36px] px-2">
+            Quitar todos
+          </button>
+        </div>
+
+        {/* Confirmación de quitar todos */}
+        {confirmClear && (
+          <div className="mx-4 mt-3 bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm text-orange-800">
+            <p className="font-semibold mb-2">Este usuario volverá a ser Cliente y perderá acceso al panel administrativo.</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setSelected(new Set()); setConfirmClear(false); }}
+                className="flex-1 min-h-[40px] bg-orange-600 text-white text-sm font-bold rounded-lg">
+                Confirmar
+              </button>
+              <button type="button" onClick={() => setConfirmClear(false)}
+                className="flex-1 min-h-[40px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-lg">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Checkboxes agrupados */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5">
+          {groups.map(({ group, permissions }) => (
+            <div key={group}>
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">{group}</h3>
+              <div className="space-y-1">
+                {permissions.map(perm => {
+                  const meta    = ADMIN_PERMISSION_META[perm];
+                  const checked = selected.has(perm);
+                  const id      = `perm-${perm}`;
+                  return (
+                    <label
+                      key={perm}
+                      htmlFor={id}
+                      className={`flex items-start gap-3 rounded-xl px-3 py-3 cursor-pointer min-h-[44px] border transition-colors ${
+                        checked
+                          ? 'bg-blue-50 border-blue-200'
+                          : 'bg-gray-50 border-transparent hover:border-gray-200'
+                      }`}
+                    >
+                      <input
+                        id={id}
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggle(perm)}
+                        className="mt-0.5 w-4 h-4 rounded text-blue-600 flex-shrink-0"
+                      />
+                      <div>
+                        <span className="block text-sm font-semibold text-gray-800">{meta.label}</span>
+                        <span className="block text-xs text-gray-500">{meta.description}</span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-white border-t border-gray-100 px-4 py-3 space-y-2">
+          <p className="text-xs text-center text-gray-500">
+            {count === 0
+              ? 'Sin permisos: el usuario será Cliente.'
+              : `Este usuario tendrá acceso a ${count} de ${ADMIN_PERMISSIONS.length} secciones.`}
+          </p>
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} disabled={pending}
+              className="flex-1 min-h-[48px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl">
+              Cancelar
+            </button>
+            <button type="button" onClick={handleSave} disabled={pending}
+              className="flex-1 min-h-[48px] bg-brand-yellow border border-yellow-400 text-navy text-sm font-black uppercase rounded-xl flex items-center justify-center gap-2">
+              {pending ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+              Guardar permisos
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Sección de auditoría ────────────────────────────────────────────────────
+
+function AuditLogSection({ entries }: { entries: PermissionAuditEntry[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-gray-200 rounded-2xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+      >
+        <span className="text-sm font-bold text-gray-700">Cambios recientes de permisos</span>
+        <ChevronDown size={16} className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
+          {entries.map(e => (
+            <div key={e.id} className="px-4 py-3 text-xs space-y-0.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-gray-700 truncate">{e.targetEmail}</span>
+                <span className="text-gray-400 flex-shrink-0">{formatDateTime(e.createdAt)}</span>
+              </div>
+              <div className="text-gray-500">
+                <span className="font-medium text-gray-600">{e.actorEmail}</span>
+                {' '}&rarr; {e.targetRoleBefore} → {e.targetRoleAfter}
+              </div>
+              {e.afterPermissions.length > 0 ? (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {e.afterPermissions.map(p => (
+                    <span key={p} className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px]">
+                      {ADMIN_PERMISSION_META[p as AdminPermission]?.label ?? p}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-gray-400 italic">Sin permisos (Cliente)</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Diálogo de creación ─────────────────────────────────────────────────────
 
 function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName]         = useState('');
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole]         = useState<'ADMIN' | 'CLIENT'>('CLIENT');
   const [pending, startTransition] = useTransition();
   const [error, setError]       = useState<string | null>(null);
 
   const submit = () => {
     setError(null);
     startTransition(async () => {
-      const res = await createAdminUser({ name, email, password, role });
+      const res = await createAdminUser({ name, email, password });
       if (res.success) onCreated();
       else setError(res.message);
     });
@@ -189,28 +534,10 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
 
   return (
     <Dialog title="Nuevo usuario" onClose={onClose}>
+      <p className="text-xs text-gray-500">El usuario se crea sin permisos. Podrás asignarlos a continuación.</p>
       <DialogField label="Nombre completo" value={name} onChange={setName} />
       <DialogField label="Email" type="email" value={email} onChange={setEmail} />
       <DialogField label="Contraseña" type="password" value={password} onChange={setPassword} hint="Mínimo 8 caracteres." />
-      <div>
-        <label className="block text-xs font-bold uppercase tracking-wide text-gray-700 mb-1.5">Rol</label>
-        <div className="grid grid-cols-2 gap-2">
-          {(['CLIENT', 'ADMIN'] as const).map(r => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setRole(r)}
-              className={`min-h-[48px] rounded-xl text-sm font-bold border ${
-                role === r
-                  ? 'bg-navy text-white border-navy'
-                  : 'bg-white text-gray-600 border-gray-200 active:bg-gray-100'
-              }`}
-            >
-              {r === 'ADMIN' ? '🛡 Administrador' : '👤 Cliente'}
-            </button>
-          ))}
-        </div>
-      </div>
       {error && (
         <p className="text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>
       )}
@@ -223,6 +550,8 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
     </Dialog>
   );
 }
+
+// ─── Diálogo de reset de contraseña ─────────────────────────────────────────
 
 function ResetPasswordDialog({ user, onClose, onDone }: { user: AdminUser; onClose: () => void; onDone: () => void }) {
   const [password, setPassword] = useState('');
@@ -254,6 +583,28 @@ function ResetPasswordDialog({ user, onClose, onDone }: { user: AdminUser; onClo
   );
 }
 
+// ─── Diálogo de confirmación de eliminar ─────────────────────────────────────
+
+function DeleteConfirmDialog({ user, onClose, onConfirm }: { user: AdminUser; onClose: () => void; onConfirm: () => void }) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <Dialog title={`Eliminar usuario`} onClose={onClose}>
+      <p className="text-sm text-gray-700">
+        ¿Confirmas que deseas eliminar <strong>{user.email}</strong>? Esta acción no se puede deshacer.
+      </p>
+      <DialogFooter>
+        <button type="button" onClick={onClose} disabled={pending} className="flex-1 min-h-[48px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl">Cancelar</button>
+        <button type="button" onClick={() => startTransition(onConfirm)} disabled={pending}
+          className="flex-1 min-h-[48px] bg-red-600 text-white text-sm font-black uppercase rounded-xl flex items-center justify-center gap-2">
+          {pending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} Eliminar
+        </button>
+      </DialogFooter>
+    </Dialog>
+  );
+}
+
+// ─── Primitivos ──────────────────────────────────────────────────────────────
+
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex sm:items-center sm:justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -278,11 +629,11 @@ function DialogFooter({ children }: { children: React.ReactNode }) {
 }
 
 function DialogField({ label, value, onChange, type = 'text', hint }: {
-  label: string;
-  value: string;
+  label:    string;
+  value:    string;
   onChange: (v: string) => void;
-  type?: string;
-  hint?: string;
+  type?:    string;
+  hint?:    string;
 }) {
   return (
     <div>

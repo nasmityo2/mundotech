@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { couponInputSchema, couponToClient, normalizeCouponCode } from '@/lib/coupons';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 
 /** GET /api/coupons — listado admin de todos los cupones. */
 export async function GET() {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('PROMOTIONS');
   if (!auth.authorized) return auth.response;
 
   try {
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('PROMOTIONS');
   if (!auth.authorized) return auth.response;
 
   try {

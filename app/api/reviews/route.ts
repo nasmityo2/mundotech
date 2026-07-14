@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { reviewToClient, readReviewsAutoApprove } from '@/lib/reviews';
 import { VALID_REVIEW_STATUSES, type ReviewStatus } from '@/lib/definitions';
 
@@ -13,7 +13,7 @@ import { VALID_REVIEW_STATUSES, type ReviewStatus } from '@/lib/definitions';
  * (primeras 300) para no romper la UI admin actual (propiedad del segmento 05).
  */
 export async function GET(request: Request) {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('REVIEWS');
   if (!auth.authorized) return auth.response;
 
   try {

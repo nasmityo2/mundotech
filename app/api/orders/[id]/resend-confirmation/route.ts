@@ -5,7 +5,7 @@
  */
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { absoluteEmailUrl } from '@/emails/mundotech/site';
 import type { OrderConfirmationPayload } from '@/emails/mundotech/types';
 import { d, dn } from '@/lib/decimal';
@@ -21,7 +21,7 @@ export async function POST(
   const originCheck = rejectInvalidMutationOrigin(_request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('ORDERS');
   if (!auth.authorized) return auth.response;
 
   const { id: orderId } = await params;

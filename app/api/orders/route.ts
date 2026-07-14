@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth/next';
 import { absoluteEmailUrl } from '@/emails/mundotech/site';
 import type { OrderConfirmationPayload } from '@/emails/mundotech/types';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prismaOrderToOrder, toGuestOrderConfirmationDto } from '@/lib/definitions';
 import {
@@ -68,7 +68,7 @@ async function runCheckoutTransaction<T>(fn: (tx: Prisma.TransactionClient) => P
  * - Con ?limit=N&cursor=lastId: devuelve la página siguiente.
  */
 export async function GET(request: Request) {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('ORDERS');
   if (!auth.authorized) return auth.response;
 
   try {

@@ -19,8 +19,9 @@ const mockSendShippingEmail = vi.fn();
 const mockSendOrderDeliveredEmail = vi.fn();
 const mockSendOrderCancelledEmail = vi.fn();
 
-vi.mock('@/lib/api-auth', () => ({
-  requireAdmin: (...args: unknown[]) => mockRequireAdmin(...args),
+vi.mock('@/lib/admin-access-server', () => ({
+  requirePermission: (...args: unknown[]) => mockRequireAdmin(...args),
+  requirePermissionAction: (...args: unknown[]) => mockRequireAdmin(...args),
 }));
 
 vi.mock('@/lib/security', () => ({

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { readReviewsAutoApprove, writeReviewsAutoApprove } from '@/lib/reviews';
 
@@ -11,7 +11,7 @@ const AUTO_APPROVE_AUDIT_KEY = 'reviews_auto_approve_audit';
 
 /** GET /api/reviews/auto-approve — estado actual de auto-aprobación (admin). */
 export async function GET() {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('REVIEWS');
   if (!auth.authorized) return auth.response;
   const autoApprove = await readReviewsAutoApprove();
   return NextResponse.json({ autoApprove }, { headers: { 'Cache-Control': 'no-store' } });
@@ -24,7 +24,7 @@ export async function PUT(request: Request) {
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('REVIEWS');
   if (!auth.authorized) return auth.response;
 
   const parsed = schema.safeParse(await request.json().catch(() => null));

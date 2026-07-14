@@ -101,12 +101,15 @@ export const authOptions: AuthOptions = {
             // PRD-048 / PRD-174: rol en mayúsculas, consistente con isAdminRole.
             role:     'CLIENT',
           },
+          select: { id: true, role: true, email: true, password: true, isSuperAdmin: true, permissionsUpdatedAt: true },
         });
-        token.id    = dbUser.id;
-        token.role  = dbUser.role;
-        token.email = dbUser.email;
-        token.pwv   = passwordFingerprint(dbUser.password);
-        token.pwvAt = Date.now();
+        token.id                 = dbUser.id;
+        token.role               = dbUser.role;
+        token.email              = dbUser.email;
+        token.pwv                = passwordFingerprint(dbUser.password);
+        token.pwvAt              = Date.now();
+        token.isSuperAdmin       = dbUser.isSuperAdmin;
+        token.permissionsUpdatedAt = dbUser.permissionsUpdatedAt?.toISOString() ?? null;
         return token;
       }
 
@@ -115,6 +118,7 @@ export const authOptions: AuthOptions = {
         token.role  = user.role;
         token.pwv   = user.pwv;
         token.pwvAt = Date.now();
+        // isSuperAdmin se sincronizará en la primera re-validación periódica
         return token;
       }
 
@@ -131,7 +135,7 @@ export const authOptions: AuthOptions = {
         try {
           const dbUser = await prisma.user.findUnique({
             where:  { id: userId },
-            select: { password: true, role: true, email: true },
+            select: { password: true, role: true, email: true, isSuperAdmin: true, permissionsUpdatedAt: true },
           });
 
           const currentPwv = dbUser ? passwordFingerprint(dbUser.password) : null;
@@ -144,8 +148,10 @@ export const authOptions: AuthOptions = {
             return token;
           }
 
-          token.role  = dbUser.role;
-          token.email = dbUser.email;
+          token.role               = dbUser.role;
+          token.email              = dbUser.email;
+          token.isSuperAdmin       = dbUser.isSuperAdmin;
+          token.permissionsUpdatedAt = dbUser.permissionsUpdatedAt?.toISOString() ?? null;
           // Tokens emitidos antes de este despliegue no traen pwv: se adopta
           // la huella actual (sin cerrar sesiones masivamente en el deploy).
           token.pwv   = currentPwv ?? undefined;
@@ -160,8 +166,9 @@ export const authOptions: AuthOptions = {
     },
     async session({ session, token }: { session: Session; token: JWT }) {
       if (session.user) {
-        session.user.id   = (token.id   as string) ?? '';
-        session.user.role = (token.role as string) ?? 'client';
+        session.user.id          = (token.id   as string) ?? '';
+        session.user.role        = (token.role as string) ?? 'client';
+        session.user.isSuperAdmin = (token.isSuperAdmin as boolean) ?? false;
         if (typeof token.email === 'string' && token.email) {
           session.user.email = token.email;
         }

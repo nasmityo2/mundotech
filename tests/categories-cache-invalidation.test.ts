@@ -30,8 +30,11 @@ vi.mock('next/cache', () => ({
   unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
 }));
 
-vi.mock('@/lib/api-auth', () => ({
-  requireAdmin: vi.fn(),
+vi.mock('@/lib/admin-access-server', () => ({
+  requirePermission: vi.fn(),
+  requireSuperAdmin: vi.fn(),
+  requirePermissionAction: vi.fn(),
+  requireSuperAdminAction: vi.fn(),
 }));
 
 vi.mock('@/lib/security', () => ({
@@ -57,11 +60,8 @@ describe('invalidación categories + site-shell en mutaciones de categorías', (
   });
 
   it('POST /api/categories revalida categories y site-shell tras éxito', async () => {
-    const { requireAdmin } = await import('@/lib/api-auth');
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'a1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    const { requirePermission } = await import('@/lib/admin-access-server');
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'a1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'a1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
     vi.mocked(prisma.category.create).mockResolvedValue({
       id: 'c1',
       name: 'Consolas',
@@ -91,11 +91,8 @@ describe('invalidación categories + site-shell en mutaciones de categorías', (
   });
 
   it('PUT /api/categories/[id] revalida categories y site-shell tras éxito', async () => {
-    const { requireAdmin } = await import('@/lib/api-auth');
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'a1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    const { requirePermission } = await import('@/lib/admin-access-server');
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'a1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'a1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
     vi.mocked(prisma.category.findUnique).mockResolvedValue({ slug: 'consolas' } as never);
     vi.mocked(prisma.category.update).mockResolvedValue({
       id: 'c1',
@@ -127,11 +124,8 @@ describe('invalidación categories + site-shell en mutaciones de categorías', (
   });
 
   it('DELETE /api/categories/[id] revalida categories y site-shell tras éxito', async () => {
-    const { requireAdmin } = await import('@/lib/api-auth');
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'a1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    const { requirePermission } = await import('@/lib/admin-access-server');
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'a1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'a1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
     vi.mocked(prisma.category.delete).mockResolvedValue({
       id: 'c1',
       name: 'Consolas',
@@ -162,11 +156,8 @@ describe('invalidación categories + site-shell en mutaciones de categorías', (
   });
 
   it('POST /api/categories/sync revalida categories y site-shell tras éxito', async () => {
-    const { requireAdmin } = await import('@/lib/api-auth');
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'a1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    const { requirePermission } = await import('@/lib/admin-access-server');
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'a1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'a1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
     vi.mocked(prisma.product.findMany).mockResolvedValue([{ category: 'Nueva Cat' }] as never);
     vi.mocked(prisma.category.findMany)
       .mockResolvedValueOnce([])
@@ -202,8 +193,8 @@ describe('invalidación categories + site-shell en mutaciones de categorías', (
   });
 
   it('POST /api/categories rechaza sin admin', async () => {
-    const { requireAdmin } = await import('@/lib/api-auth');
-    vi.mocked(requireAdmin).mockResolvedValue({
+    const { requirePermission } = await import('@/lib/admin-access-server');
+    vi.mocked(requirePermission).mockResolvedValue({
       authorized: false,
       response: new Response(JSON.stringify({ error: 'No autorizado' }), { status: 403 }) as never,
     });

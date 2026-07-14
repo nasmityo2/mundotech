@@ -13,6 +13,8 @@
     "db:migrate": "prisma migrate deploy",
     "security:versions": "node scripts/check-security-versions.mjs",
     "security:api-guards": "node scripts/check-api-origin-guards.mjs",
+    "security:permission-guards": "node scripts/check-admin-permission-guards.mjs",
+    "security:superadmin": "tsx scripts/check-superadmin-state.ts",
     "security:audit:runtime": "npm audit --omit=dev --audit-level=high",
     "security:audit:dev": "bash scripts/audit-dev-dependencies.sh",
     "security:sbom": "bash scripts/generate-sbom.sh",

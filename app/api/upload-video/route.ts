@@ -5,7 +5,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 import {
@@ -162,7 +162,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
   }
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('CATALOG');
   if (!auth.authorized) return auth.response;
 
   const ip = getClientIp(request);
@@ -253,7 +253,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
   }
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('CATALOG');
   if (!auth.authorized) return auth.response;
 
   const ip = getClientIp(request);

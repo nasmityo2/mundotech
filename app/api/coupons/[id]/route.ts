@@ -3,7 +3,7 @@ import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { couponInputSchema, couponToClient, normalizeCouponCode } from '@/lib/coupons';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 
@@ -15,7 +15,7 @@ export async function PUT(
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('PROMOTIONS');
   if (!auth.authorized) return auth.response;
 
   const { id } = await params;
@@ -100,7 +100,7 @@ export async function PATCH(
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('PROMOTIONS');
   if (!auth.authorized) return auth.response;
 
   const { id } = await params;
@@ -146,7 +146,7 @@ export async function DELETE(
   const originCheck = rejectInvalidMutationOrigin(_req);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('PROMOTIONS');
   if (!auth.authorized) return auth.response;
 
   try {

@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath, revalidateTag } from 'next/cache';
-import { requireAdminAction } from '@/lib/api-auth';
+import { requirePermissionAction } from '@/lib/admin-access-server';
 import {
   announcementSchema,
   readAnnouncement,
@@ -20,7 +20,7 @@ export type UpdateAnnouncementResult = { success: true } | { success: false; mes
 /** Guarda la barra de anuncios (solo admin). */
 export async function updateAnnouncement(input: Announcement): Promise<UpdateAnnouncementResult> {
   try {
-    await requireAdminAction();
+    await requirePermissionAction('SITE_CONTENT');
   } catch {
     return { success: false, message: 'No autorizado.' };
   }

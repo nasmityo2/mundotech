@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 
 /** Ventana de calidad del ranking: solo vistas de los últimos 90 días. */
 const RANKING_WINDOW_DAYS = 90;
@@ -15,7 +15,7 @@ const RANKING_WINDOW_DAYS = 90;
  * // DEPENDENCIA-03: la purga/TTL física de ProductView vive en 03-INFRA (PRD-126).
  */
 export async function GET() {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('ANALYTICS');
   if (!auth.authorized) return auth.response;
 
   const windowStart = new Date(Date.now() - RANKING_WINDOW_DAYS * 24 * 60 * 60 * 1000);

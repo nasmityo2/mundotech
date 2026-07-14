@@ -247,9 +247,12 @@ export async function middleware(req: NextRequest) {
         );
       }
 
-      const role = (token as { role?: unknown }).role as string | undefined;
+      const role        = (token as { role?: unknown }).role as string | undefined;
+      // RBAC: permitir si isSuperAdmin=true (barrera JWT general; la auth definitiva
+      // vive en cada handler/página consultando la BD).
+      const isSuperAdminToken = (token as { isSuperAdmin?: unknown }).isSuperAdmin === true;
 
-      if (!isAdminRole(role)) {
+      if (!isAdminRole(role) && !isSuperAdminToken) {
         return withCsp(
           isApiResponse
             ? new NextResponse(JSON.stringify({ error: 'Forbidden' }), {

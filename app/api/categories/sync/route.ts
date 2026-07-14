@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { slugify } from '@/lib/slugify';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { revalidatePath, revalidateTag } from 'next/cache';
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('CATALOG');
   if (!auth.authorized) return auth.response;
 
   try {

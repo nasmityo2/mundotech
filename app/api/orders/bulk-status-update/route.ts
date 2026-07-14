@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import type { OrderStatus } from '@/lib/definitions';
 import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order';
 import { orderPathSegment } from '@/lib/order-ref';
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('ORDERS');
   if (!auth.authorized) return auth.response;
 
   const body = await request.json().catch(() => null);

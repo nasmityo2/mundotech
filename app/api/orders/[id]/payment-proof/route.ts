@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { getPrivateProofReadUrl, isR2PublicUrl } from '@/lib/r2';
 import { logError, logWarn } from '@/lib/safe-logger';
 
@@ -24,7 +24,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('PAYMENTS');
   if (!auth.authorized) return auth.response;
 
   const { id } = await params;

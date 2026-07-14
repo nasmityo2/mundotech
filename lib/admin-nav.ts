@@ -4,67 +4,75 @@ import {
   Wallet, Palette, MoreHorizontal, Ticket, Star, Megaphone,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { AdminPermission } from '@/lib/admin-permissions';
+import type { CurrentAdminAccess } from '@/lib/admin-access-server';
+import { hasAdminPermission } from '@/lib/admin-permissions';
 
 export interface NavItem {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  badge?: 'new';
-  description?: string;
+  href:            string;
+  label:           string;
+  icon:            LucideIcon;
+  badge?:          'new';
+  description?:    string;
+  /** Si está definido, el ítem solo se muestra si el usuario tiene este permiso. */
+  permission?:     AdminPermission;
+  /** Si true, el ítem solo se muestra al Superadmin. */
+  superAdminOnly?: boolean;
 }
 
 export interface NavGroup {
-  id: string;
+  id:    string;
   label: string;
   items: NavItem[];
 }
 
 /**
  * Estructura completa para el sidebar de escritorio.
+ * Incluye campo `permission` y `superAdminOnly` para filtrar por acceso.
  */
 export const ADMIN_NAV_GROUPS: NavGroup[] = [
   {
     id: 'overview',
     label: 'Hoy en la tienda',
     items: [
-      { href: '/admin',        label: 'Mostrador',    icon: Home,        description: 'Lo que está pasando hoy' },
-      { href: '/admin/stats',  label: 'Analítica',    icon: BarChart2,   description: 'Qué se vende y qué se mira' },
+      { href: '/admin',       label: 'Mostrador', icon: Home,      description: 'Lo que está pasando hoy', permission: 'DASHBOARD' },
+      { href: '/admin/stats', label: 'Analítica', icon: BarChart2, description: 'Qué se vende y qué se mira', permission: 'ANALYTICS' },
     ],
   },
   {
     id: 'catalog',
     label: 'Catálogo',
     items: [
-      { href: '/admin/products',   label: 'Productos',  icon: Package, description: 'Inventario y precios' },
-      { href: '/admin/categories', label: 'Categorías', icon: Tag,     description: 'Slugs SEO' },
-      { href: '/admin/reviews',    label: 'Reseñas',    icon: Star, description: 'Lo que dicen los clientes' },
+      { href: '/admin/products',   label: 'Productos',  icon: Package,    description: 'Inventario y precios', permission: 'CATALOG' },
+      { href: '/admin/categories', label: 'Categorías', icon: Tag,        description: 'Slugs SEO',           permission: 'CATALOG' },
+      { href: '/admin/reviews',    label: 'Reseñas',    icon: Star,       description: 'Lo que dicen los clientes', permission: 'REVIEWS' },
     ],
   },
   {
     id: 'sales',
     label: 'Ventas',
     items: [
-      { href: '/admin/orders',     label: 'Pedidos',  icon: ShoppingCart, description: 'En curso y archivo' },
-      { href: '/admin/coupons',    label: 'Cupones',  icon: Ticket, description: 'Descuentos' },
+      { href: '/admin/orders',  label: 'Pedidos', icon: ShoppingCart, description: 'En curso y archivo', permission: 'ORDERS' },
+      { href: '/admin/coupons', label: 'Cupones', icon: Ticket,       description: 'Descuentos',         permission: 'PROMOTIONS' },
     ],
   },
   {
     id: 'site',
     label: 'Tu vitrina',
     items: [
-      { href: '/admin/personalizar',           label: 'Personalizar sitio', icon: Palette,        description: 'Hero, badges, WhatsApp, popup', badge: 'new' },
-      { href: '/admin/home-manager',           label: 'Gestor Home',      icon: LayoutDashboard, description: 'Bloques de la home' },
-      { href: '/admin/banners',                label: 'Banners',          icon: ImageIcon,       description: 'Hero y CTA' },
-      { href: '/admin/settings/announcement',  label: 'Barra de anuncios', icon: Megaphone,      description: 'Mensaje superior' },
-      { href: '/admin/settings/seo-local',     label: 'SEO Local',        icon: MapPin,          description: 'Dirección · horarios' },
+      { href: '/admin/personalizar',          label: 'Personalizar sitio', icon: Palette,        description: 'Hero, badges, WhatsApp, popup', badge: 'new', permission: 'SITE_CONTENT' },
+      { href: '/admin/home-manager',          label: 'Gestor Home',        icon: LayoutDashboard, description: 'Bloques de la home',            permission: 'SITE_CONTENT' },
+      { href: '/admin/banners',               label: 'Banners',            icon: ImageIcon,       description: 'Hero y CTA',                   permission: 'SITE_CONTENT' },
+      { href: '/admin/settings/announcement', label: 'Barra de anuncios',  icon: Megaphone,       description: 'Mensaje superior',             permission: 'SITE_CONTENT' },
+      { href: '/admin/settings/seo-local',    label: 'SEO Local',          icon: MapPin,          description: 'Dirección · horarios',         permission: 'SITE_CONTENT' },
     ],
   },
   {
     id: 'config',
     label: 'Configuración',
     items: [
-      { href: '/admin/settings',         label: 'Tienda y pagos', icon: Store },
-      { href: '/admin/settings/users',   label: 'Usuarios',       icon: Users },
+      { href: '/admin/settings',       label: 'Tienda y pagos', icon: Store },
+      { href: '/admin/settings/users', label: 'Usuarios',       icon: Users, superAdminOnly: true },
     ],
   },
 ];
@@ -73,14 +81,48 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
  * Para el bottom-nav móvil: los 5 destinos más usados, en orden de pulgar.
  */
 export const ADMIN_BOTTOM_NAV: NavItem[] = [
-  { href: '/admin',          label: 'Mostrador',  icon: Home },
-  { href: '/admin/orders',   label: 'Pedidos',    icon: ShoppingCart },
-  { href: '/admin/products', label: 'Catálogo',   icon: Package },
-  { href: '/admin/stats',    label: 'Analítica',  icon: BarChart2 },
-  { href: '/admin/menu',     label: 'Más',        icon: MoreHorizontal },
+  { href: '/admin',          label: 'Mostrador', icon: Home,           permission: 'DASHBOARD' },
+  { href: '/admin/orders',   label: 'Pedidos',   icon: ShoppingCart,   permission: 'ORDERS' },
+  { href: '/admin/products', label: 'Catálogo',  icon: Package,        permission: 'CATALOG' },
+  { href: '/admin/stats',    label: 'Analítica', icon: BarChart2,      permission: 'ANALYTICS' },
+  { href: '/admin/menu',     label: 'Más',       icon: MoreHorizontal },
 ];
 
 export const FLAT_ADMIN_NAV: NavItem[] = ADMIN_NAV_GROUPS.flatMap(g => g.items);
+
+/**
+ * Filtra los grupos de navegación según el acceso del usuario.
+ * El Superadmin ve todo. Los usuarios normales solo ven las secciones autorizadas.
+ */
+export function filterNavGroups(
+  groups: NavGroup[],
+  access: CurrentAdminAccess,
+): NavGroup[] {
+  return groups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => {
+        if (item.superAdminOnly) return access.isSuperAdmin;
+        if (item.permission)     return hasAdminPermission(access, item.permission);
+        return true;
+      }),
+    }))
+    .filter(group => group.items.length > 0);
+}
+
+/**
+ * Filtra el bottom nav según el acceso del usuario.
+ */
+export function filterBottomNav(
+  items: NavItem[],
+  access: CurrentAdminAccess,
+): NavItem[] {
+  return items.filter(item => {
+    if (item.superAdminOnly) return access.isSuperAdmin;
+    if (item.permission)     return hasAdminPermission(access, item.permission);
+    return true;
+  });
+}
 
 /**
  * Devuelve el título legible de la ruta admin actual (para el header móvil).

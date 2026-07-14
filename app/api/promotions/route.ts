@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
 import { isSafeEditableImageUrl, isSafeEditableLink } from '@/lib/safe-link';
 import { revalidatePath, revalidateTag } from 'next/cache';
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
 
     const showAll = searchParams.get('showAll') === 'true' || searchParams.get('active') === 'all';
     if (showAll) {
-      const auth = await requireAdmin();
+      const auth = await requirePermission('PROMOTIONS');
       if (auth.authorized) {
         where = {};
       }
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('PROMOTIONS');
   if (!auth.authorized) return auth.response;
 
   try {

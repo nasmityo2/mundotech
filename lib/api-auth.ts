@@ -13,8 +13,10 @@ type AuthResult =
 type AdminAuthResult = AuthResult;
 
 /**
- * Verifica sesión activa + rol ADMIN.
- * Uso (API route): const auth = await requireAdmin(); if (!auth.authorized) return auth.response;
+ * @deprecated Usar requirePermission() / requireSuperAdmin() de lib/admin-access-server.ts.
+ * Guard genérico legacy: solo comprueba rol ADMIN sin verificar permisos granulares en BD.
+ * Conservado temporalmente para compatibilidad durante la migración a RBAC.
+ * TODO-RBAC: eliminar cuando todos los handlers hayan migrado a requirePermission().
  */
 export async function requireAdmin(): Promise<AdminAuthResult> {
   const session = await getServerSession(authOptions);
@@ -50,7 +52,11 @@ export async function requireUser(): Promise<AuthResult> {
 }
 
 /**
+ * @deprecated Usar requirePermissionAction() / requireSuperAdminAction() de lib/admin-access-server.ts.
  * Variante para Server Actions: lanza Error en lugar de devolver Response.
+ * Guard genérico legacy: solo comprueba rol ADMIN sin verificar permisos granulares en BD.
+ * Conservado temporalmente para compatibilidad durante la migración a RBAC.
+ * TODO-RBAC: eliminar cuando todas las acciones hayan migrado a requirePermissionAction().
  * Uso: const session = await requireAdminAction();
  */
 export async function requireAdminAction(): Promise<Session> {

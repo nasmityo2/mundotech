@@ -30,8 +30,11 @@ vi.mock('@/lib/safe-logger', () => ({
   logWarn: vi.fn(),
 }));
 
-vi.mock('@/lib/api-auth', () => ({
-  requireAdmin: vi.fn(),
+vi.mock('@/lib/admin-access-server', () => ({
+  requirePermission: vi.fn(),
+  requireSuperAdmin: vi.fn(),
+  requirePermissionAction: vi.fn(),
+  requireSuperAdminAction: vi.fn(),
 }));
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -289,12 +292,12 @@ describe('aggregateTopProducts', () => {
 
 describe('GET /api/admin/stats', () => {
   let handler: typeof import('@/app/api/admin/stats/route').GET;
-  let requireAdmin: typeof import('@/lib/api-auth').requireAdmin;
+  let requirePermission: typeof import('@/lib/admin-access-server').requirePermission;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     handler = (await import('@/app/api/admin/stats/route')).GET;
-    requireAdmin = (await import('@/lib/api-auth')).requireAdmin;
+    requirePermission = (await import('@/lib/admin-access-server')).requirePermission;
   });
 
   afterEach(() => {
@@ -302,7 +305,7 @@ describe('GET /api/admin/stats', () => {
   });
 
   it('devuelve 403 si no es ADMIN', async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({
+    vi.mocked(requirePermission).mockResolvedValue({
       authorized: false,
       response: new Response(JSON.stringify({ error: 'No autorizado' }), { status: 403 }) as never,
     });
@@ -312,10 +315,7 @@ describe('GET /api/admin/stats', () => {
   });
 
   it('devuelve 400 para tz distinta de America/Caracas', async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'admin-1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'admin-1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
 
     const response = await handler(new Request('http://localhost:3000/api/admin/stats?range=7d&tz=UTC'));
     expect(response.status).toBe(400);
@@ -324,10 +324,7 @@ describe('GET /api/admin/stats', () => {
   });
 
   it('range=all usa agregaciones y no findMany masivo', async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'admin-1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'admin-1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
 
     emptyOperationalMocks();
     vi.mocked(prisma.$queryRaw)
@@ -351,10 +348,7 @@ describe('GET /api/admin/stats', () => {
   });
 
   it('devuelve previousSummary para rango acotado', async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'admin-1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'admin-1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
 
     vi.mocked(prisma.order.count)
       .mockResolvedValueOnce(3)
@@ -389,20 +383,14 @@ describe('GET /api/admin/stats', () => {
   });
 
   it('devuelve 400 para range inválido', async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'admin-1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'admin-1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
 
     const response = await handler(new Request('http://localhost:3000/api/admin/stats?range=invalid'));
     expect(response.status).toBe(400);
   });
 
   it('no contiene PII en la respuesta', async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'admin-1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'admin-1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
 
     emptyOperationalMocks();
     emptyRevenueMocks();
@@ -417,10 +405,7 @@ describe('GET /api/admin/stats', () => {
   });
 
   it('maneja error de BD con 500', async () => {
-    vi.mocked(requireAdmin).mockResolvedValue({
-      authorized: true,
-      session: { user: { id: 'admin-1', role: 'ADMIN' } as never, expires: '2100-01-01' } as never,
-    });
+    vi.mocked(requirePermission).mockResolvedValue({ authorized: true, session: { user: { id: 'admin-1', role: 'ADMIN', isSuperAdmin: false } as never, expires: '2100-01-01' } as never, access: { userId: 'admin-1', role: 'ADMIN', isSuperAdmin: false, permissions: [] as never[] } });
 
     vi.mocked(prisma.order.count).mockRejectedValue(new Error('DB error'));
 

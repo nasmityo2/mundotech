@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 
 /** Tope de antigüedad del polling: nada anterior a 24 h cuenta como «nuevo». */
 const MAX_SINCE_AGE_MS = 24 * 60 * 60 * 1000;
@@ -30,7 +30,7 @@ function maskCustomerName(name: string): string {
  * borrado o muy viejo en el watcher ya no re-alerta pedidos antiguos en masa.
  */
 export async function GET(request: Request) {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('ORDERS');
   if (!auth.authorized) return auth.response;
 
   const { searchParams } = new URL(request.url);

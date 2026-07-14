@@ -6,8 +6,10 @@ import { buildE2eDatabaseUrlFromEnvFile, canConnectToDatabase } from './helpers/
 const mockRequireAdminAction = vi.fn();
 const mockSendPaymentValidatedEmail = vi.fn();
 
-vi.mock('@/lib/api-auth', () => ({
-  requireAdminAction: (...args: unknown[]) => mockRequireAdminAction(...args),
+vi.mock('@/lib/admin-access-server', () => ({
+  requirePermissionAction: (...args: unknown[]) => mockRequireAdminAction(...args),
+  requirePermission: (...args: unknown[]) => mockRequireAdminAction(...args),
+  requireSuperAdminAction: (...args: unknown[]) => mockRequireAdminAction(...args),
 }));
 
 vi.mock('@/lib/resend', () => ({

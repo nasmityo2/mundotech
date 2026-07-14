@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { logError } from '@/lib/safe-logger';
 import { d } from '@/lib/decimal';
 import { roundMoney2 } from '@/lib/exchange-rate';
@@ -531,7 +531,7 @@ function aggregateTopProducts(
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request): Promise<NextResponse> {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('ANALYTICS');
   if (!auth.authorized) return auth.response;
 
   try {

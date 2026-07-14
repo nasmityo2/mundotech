@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { logError } from '@/lib/safe-logger';
 import {
   OPS_APP_CONFIG_KEYS,
@@ -24,7 +24,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 export async function GET(): Promise<NextResponse> {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('OPERATIONS');
   if (!auth.authorized) return auth.response;
 
   try {

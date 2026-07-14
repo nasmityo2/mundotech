@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath, revalidateTag } from 'next/cache';
-import { requireAdminAction } from '@/lib/api-auth';
+import { requirePermissionAction } from '@/lib/admin-access-server';
 import { readSeoLocal, writeSeoLocal } from '@/lib/seo-local';
 import { seoLocalSchema, type SeoLocal } from '@/lib/seo-local-schema';
 import { CACHE_TAG_SITE_SHELL, CACHE_TAG_SEO_LOCAL } from '@/lib/site-shell-cache';
@@ -14,7 +14,7 @@ export interface SeoLocalActionResult {
 }
 
 export async function updateSeoLocal(input: unknown): Promise<SeoLocalActionResult> {
-  await requireAdminAction();
+  await requirePermissionAction('SITE_CONTENT');
 
   const parsed = seoLocalSchema.safeParse(input);
   if (!parsed.success) {

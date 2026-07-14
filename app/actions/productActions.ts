@@ -2,7 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath, revalidateTag } from 'next/cache';
-import { requireAdminAction } from '@/lib/api-auth';
+import { requirePermissionAction } from '@/lib/admin-access-server';
 import { z } from 'zod';
 import Papa from 'papaparse';
 import { slugify } from '@/lib/slugify';
@@ -114,7 +114,7 @@ const productSchema = z.object({
 });
 
 async function verifyAdminSession() {
-  return requireAdminAction();
+  return requirePermissionAction('CATALOG');
 }
 
 async function safeDeleteR2ByUrl(url: string, context: string): Promise<void> {

@@ -3,7 +3,8 @@ import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { prismaOrderToOrder } from '@/lib/definitions';
-import { requireAdmin, isAdminRole } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
+import { isAdminRole } from '@/lib/api-auth';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { applyOrderCancellationEffectsInTransaction } from '@/lib/checkout-order';
@@ -68,7 +69,7 @@ export async function PATCH(
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('ORDERS');
   if (!auth.authorized) return auth.response;
 
   const { id } = await params;
@@ -131,7 +132,7 @@ export async function DELETE(
   const originCheck = rejectInvalidMutationOrigin(_req);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('ORDERS');
   if (!auth.authorized) return auth.response;
 
   const { id } = await params;

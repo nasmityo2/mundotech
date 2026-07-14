@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { prismaOrderToOrder, type Order, type OrderStatus } from '@/lib/definitions';
-import { requireAdminAction } from '@/lib/api-auth';
+import { requirePermissionAction } from '@/lib/admin-access-server';
 import { orderPathSegment } from '@/lib/order-ref';
 import { sendPaymentValidatedEmail, sendPaymentRejectedEmail } from '@/lib/resend';
 import { applyOrderCancellationEffectsInTransaction, deductOrderStockInTransaction } from '@/lib/checkout-order';
@@ -28,10 +28,9 @@ export type ValidateOrderPaymentResult =
  * estado esperado; si otro admin lo cambió en paralelo, no hay last-write-wins.
  */
 export async function validateOrderPayment(orderId: string): Promise<ValidateOrderPaymentResult> {
-  let adminEmail: string | null = null;
+  const adminEmail: string | null = null;
   try {
-    const session = await requireAdminAction();
-    adminEmail = (session.user as { email?: string } | undefined)?.email ?? null;
+    await requirePermissionAction('PAYMENTS');
   } catch {
     return { success: false, message: 'No autorizado.' };
   }
@@ -255,10 +254,9 @@ export async function rejectOrderPayment(
   orderId: string,
   reason: string
 ): Promise<ValidateOrderPaymentResult> {
-  let adminEmail: string | null = null;
+  const adminEmail: string | null = null;
   try {
-    const session = await requireAdminAction();
-    adminEmail = (session.user as { email?: string } | undefined)?.email ?? null;
+    await requirePermissionAction('PAYMENTS');
   } catch {
     return { success: false, message: 'No autorizado.' };
   }

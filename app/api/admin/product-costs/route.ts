@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { logError } from '@/lib/safe-logger';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { dn } from '@/lib/decimal';
 
 export async function GET() {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('CATALOG');
   if (!auth.authorized) return auth.response;
   try {
     const products = await prisma.product.findMany({ select: { id: true, cost: true } });

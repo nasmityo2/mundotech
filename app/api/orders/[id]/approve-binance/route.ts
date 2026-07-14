@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { prismaOrderToOrder, type OrderStatus } from '@/lib/definitions';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { sendPaymentValidatedEmail } from '@/lib/resend';
@@ -34,7 +34,7 @@ export async function POST(
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('PAYMENTS');
   if (!auth.authorized) return auth.response;
   const adminEmail = (auth.session.user as { email?: string } | undefined)?.email ?? null;
 

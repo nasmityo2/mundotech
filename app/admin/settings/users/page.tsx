@@ -1,11 +1,20 @@
-import { listAdminUsers } from '@/app/actions/userActions';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { listAdminUsers, listPermissionAuditLog } from '@/app/actions/userActions';
+import { requireAdminPageSuperAdmin } from '@/lib/admin-access-server';
 import UsersClient from './UsersClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminUsersPage() {
-  const [users, session] = await Promise.all([listAdminUsers(), getServerSession(authOptions)]);
-  return <UsersClient users={users} currentUserId={session?.user?.id ?? ''} />;
+  const access = await requireAdminPageSuperAdmin();
+  const [users, auditLog] = await Promise.all([
+    listAdminUsers(),
+    listPermissionAuditLog(),
+  ]);
+  return (
+    <UsersClient
+      users={users}
+      auditLog={auditLog}
+      currentUserId={access.userId}
+    />
+  );
 }

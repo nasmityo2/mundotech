@@ -3,7 +3,7 @@ import { logError } from '@/lib/safe-logger';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { saveSlugRedirect } from '@/lib/slug-redirects';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
@@ -34,7 +34,7 @@ export async function PUT(
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('CATALOG');
   if (!auth.authorized) return auth.response;
 
   try {
@@ -90,7 +90,7 @@ export async function DELETE(
   const originCheck = rejectInvalidMutationOrigin(_req);
   if (originCheck) return originCheck;
 
-  const auth = await requireAdmin();
+  const auth = await requirePermission('CATALOG');
   if (!auth.authorized) return auth.response;
 
   try {

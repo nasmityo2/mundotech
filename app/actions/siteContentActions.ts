@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath, revalidateTag } from 'next/cache';
-import { requireAdminAction } from '@/lib/api-auth';
+import { requirePermissionAction } from '@/lib/admin-access-server';
 import {
   siteContentSchema,
   readSiteContent,
@@ -21,7 +21,7 @@ export type UpdateSiteContentResult = { success: true } | { success: false; mess
 /** Guarda el contenido editable del sitio (solo admin). */
 export async function updateSiteContent(input: SiteContent): Promise<UpdateSiteContentResult> {
   try {
-    await requireAdminAction();
+    await requirePermissionAction('SITE_CONTENT');
   } catch {
     return { success: false, message: 'No autorizado.' };
   }

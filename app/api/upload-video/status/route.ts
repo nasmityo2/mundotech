@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/api-auth';
+import { requirePermission } from '@/lib/admin-access-server';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
@@ -21,7 +21,7 @@ async function markStaleVideoJobsFailed(): Promise<void> {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireAdmin();
+  const auth = await requirePermission('CATALOG');
   if (!auth.authorized) return auth.response;
 
   await markStaleVideoJobsFailed();

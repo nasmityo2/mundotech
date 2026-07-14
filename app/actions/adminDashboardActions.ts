@@ -9,7 +9,7 @@
  * PRD-195). Aquí solo viajan contadores, sumas y dos listas mínimas.
  */
 import { prisma } from '@/lib/prisma';
-import { requireAdminAction } from '@/lib/api-auth';
+import { requirePermissionAction } from '@/lib/admin-access-server';
 import { VALIDATED_REVENUE_STATUSES } from '@/lib/analytics-orders';
 import type { OrderStatus } from '@/lib/definitions';
 import { d, dn } from '@/lib/decimal';
@@ -68,7 +68,7 @@ export interface AdminDashboardData {
 const BCV_STALE_MS = 72 * 60 * 60 * 1000;
 
 export async function getAdminDashboardData(): Promise<AdminDashboardData> {
-  await requireAdminAction();
+  await requirePermissionAction('DASHBOARD');
 
   const [
     totalProducts,

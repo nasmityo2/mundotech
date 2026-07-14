@@ -3,7 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { sendRestockNotificationEmail } from '@/lib/resend';
 import { rateLimit } from '@/lib/rate-limit';
-import { requireAdminAction } from '@/lib/api-auth';
+import { requirePermissionAction } from '@/lib/admin-access-server';
 import { getActionClientIp } from '@/lib/security';
 import { z } from 'zod';
 import { logWarn, logError, logInfo } from '@/lib/safe-logger';
@@ -92,7 +92,7 @@ export async function triggerRestockNotifications(
    * admin, así que el guard no altera el flujo normal.
    */
   try {
-    await requireAdminAction();
+    await requirePermissionAction('CATALOG');
   } catch {
     logWarn('restock_trigger_unauthorized', { operation: 'trigger_restock_notifications' });
     return;
