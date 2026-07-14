@@ -19,6 +19,7 @@ import {
   doLogin,
   fillGuestShippingStep,
   fillPagoMovilPaymentStep,
+  fillWhatsAppGuestCheckout,
   mockHeicConversion,
 } from '../fixtures/constants';
 
@@ -162,22 +163,21 @@ test.describe('Mobile smoke — Android/iOS reales', () => {
     await expect(cartDialog).not.toBeVisible({ timeout: 5_000 });
   });
 
-  test('Checkout de invitado: shipping, pago, PNG y revisión', async ({ page }) => {
+  test('Checkout WhatsApp invitado: envío, pago y Realizar compra @whatsapp', async ({ page }) => {
     await page.goto(productPdpPath(E2E_PRODUCTS.inStock.slug));
     await page.getByRole('button', { name: /¡Me lo llevo!/i }).click();
     await page.waitForTimeout(800);
 
     await page.goto('/checkout');
-    await fillGuestShippingStep(page);
-    await fillPagoMovilPaymentStep(page);
+    await expect(page.getByText(/Pedido por WhatsApp/i)).toBeVisible({ timeout: 10_000 });
+    await fillWhatsAppGuestCheckout(page);
 
-    await expect(page.getByRole('heading', { name: /Revisión final/i })).toBeVisible();
-    const confirmBtn = page.getByRole('button', { name: /Confirmar pedido/i });
-    await expect(confirmBtn).toBeVisible();
-    await assertMinTapTarget(confirmBtn, 'Confirmar pedido');
+    const compraBtn = page.getByRole('button', { name: /Realizar compra/i });
+    await expect(compraBtn).toBeVisible();
+    await assertMinTapTarget(compraBtn, 'Realizar compra');
   });
 
-  test('Checkout de invitado: comprobante HEIC (iPhone) se normaliza a JPEG — HEIC', async ({ page }) => {
+  test('Checkout full invitado: comprobante HEIC (iPhone) se normaliza a JPEG — HEIC', async ({ page }) => {
     await mockHeicConversion(page);
 
     await page.goto(productPdpPath(E2E_PRODUCTS.inStock.slug));

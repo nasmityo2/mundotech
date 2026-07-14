@@ -4,6 +4,7 @@ import { getToken } from 'next-auth/jwt';
 
 import { pathnameToLoginNextSlug, pathFromLoginNextSlug } from '@/lib/auth-path';
 import { buildPublicCachedCsp, buildStrictCsp } from '@/lib/csp';
+import { isFullCheckout, isWhatsAppCheckout } from '@/lib/checkout-mode';
 import { isAdminRole } from '@/lib/is-admin-role';
 import { slugify } from '@/lib/slugify';
 import {
@@ -113,8 +114,19 @@ function matchesPrefix(pathname: string, prefix: string): boolean {
  * - Mutaciones API admin (lista arriba) → JWT + rol ADMIN; 401/403 JSON (PRD-018)
  * - `/api/orders*`, `/api/cart*` (salvo unsubscribe), `/api/checkout*`
  *                               → JWT requerido; 401 JSON (PRD-118 / PRD-119)
- * - `/account/*` | `/checkout*` → JWT requerido; redirect /login con cookie opcional
+ *                               → EXCEPTO POST /api/orders cuando CHECKOUT_MODE=whatsapp
+ * - `/account/*`                → JWT requerido; redirect /login con cookie opcional
+ * - `/checkout*`                → JWT requerido SOLO si CHECKOUT_MODE=full;
+ *                                  en whatsapp es público (checkout invitado)
+ * - `/checkout/success?token=`  → público SOLO si CHECKOUT_MODE=whatsapp
  * - Resto de rutas              → pasa con nonce (sin auth check para no penalizar perf)
+ *
+ * Matriz de modo (lib/checkout-mode.ts), el servidor decide, nunca el cliente:
+ *
+ * | CHECKOUT_MODE | /checkout | POST /api/orders | upload-session/proof |
+ * |---------------|-----------|-------------------|-----------------------|
+ * | whatsapp      | público   | público (guest)   | no usados (404)       |
+ * | full          | JWT       | JWT (401 sin él)  | JWT (401 sin él)      |
  */
 export async function middleware(req: NextRequest) {
   const nonce = Buffer.from(globalThis.crypto.randomUUID()).toString('base64');
@@ -167,22 +179,27 @@ export async function middleware(req: NextRequest) {
     return withCsp(promoteLoginReturnCookieToRequestHeader(req, nonce));
   }
 
-  // PRD-207/249/250 + SESIÓN 06: /checkout/success?orderId={cuid} o ?token={jwt}
-  // es acceso de sólo lectura para invitados. El token guest es un bearer de alta
-  // entropía no adivinable; el route handler valida que el pedido exista antes
-  // de renderizar. NO se acepta acceso por orderNumber secuencial (anti-enumeración).
+  // PRD-207/249/250 + SESIÓN 06: /checkout/success?token={jwt} es acceso de
+  // sólo lectura para invitados — SOLO en modo whatsapp, donde el checkout
+  // invitado existe. En modo full nunca hay pedidos guest, así que el token
+  // no es una excepción pública: el route handler decide (isWhatsAppCheckout).
+  // `orderId` NUNCA es acceso público: siempre exige sesión (isProtectedPath).
   if (
+    isWhatsAppCheckout &&
     pathname === '/checkout/success' &&
-    (req.nextUrl.searchParams.has('orderId') || req.nextUrl.searchParams.has('token'))
+    req.nextUrl.searchParams.has('token')
   ) {
     return withCsp(nextWithNonce());
   }
 
   const isAdminUiPath  = pathname.startsWith('/admin');
   const isApiAdminPath = pathname.startsWith('/api/admin');
-  /* FASE 4.1 (MEJORA 1.2): /checkout ya NO exige sesión — checkout invitado.
-     El route handler POST /api/orders valida los datos de contacto del guest. */
-  const isProtectedPath = pathname.startsWith('/account');
+  /* Guest solo en whatsapp / auth obligatoria en full: /checkout exige sesión
+     únicamente cuando CHECKOUT_MODE=full. En whatsapp el route handler POST
+     /api/orders valida los datos de contacto del guest (sin sesión). */
+  const isProtectedPath =
+    pathname.startsWith('/account') ||
+    (isFullCheckout && pathname.startsWith('/checkout'));
 
   /* PRD-018: mutaciones de APIs de configuración/catálogo → solo admin. */
   const isWriteMethod = !['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase());
@@ -191,15 +208,19 @@ export async function middleware(req: NextRequest) {
     ADMIN_WRITE_API_PREFIXES.some((p) => matchesPrefix(pathname, p)) &&
     !ADMIN_WRITE_API_EXCEPTIONS.some((p) => matchesPrefix(pathname, p));
 
-  /* FASE 4.1: mutaciones públicas del flujo de compra invitado. Cada handler
-     mantiene su propia defensa (verifySameOrigin + rate limit + Zod). */
+  /* Guest solo en whatsapp: POST /api/orders solo queda exento de sesión
+     cuando CHECKOUT_MODE=whatsapp. En full, isUserTokenApi lo cubre abajo.
+     upload-session/upload-proof NUNCA están aquí: en full exigen sesión vía
+     isUserTokenApi; en whatsapp no se usan y quedan protegidos por defense
+     in depth del propio handler (404 si !isFullCheckout). */
   const isGuestCheckoutApi =
-    (pathname === '/api/orders' && req.method.toUpperCase() === 'POST') ||
-    (pathname === '/api/checkout/upload-proof' && req.method.toUpperCase() === 'POST');
+    isWhatsAppCheckout &&
+    pathname === '/api/orders' &&
+    req.method.toUpperCase() === 'POST';
 
   /* PRD-118 / PRD-119: APIs de pedidos, carrito y checkout exigen sesión.
      `/api/cart/unsubscribe` queda fuera: es el enlace GET de baja en emails.
-     FASE 4.1: POST /api/orders y upload-proof quedan fuera (guest checkout). */
+     Guest solo en whatsapp: POST /api/orders queda fuera únicamente en ese modo. */
   const isUserTokenApi =
     !isGuestCheckoutApi &&
     (matchesPrefix(pathname, '/api/orders') ||

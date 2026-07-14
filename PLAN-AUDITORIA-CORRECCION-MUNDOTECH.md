@@ -2196,7 +2196,7 @@ Notas manuales:
 - Nunca apunta a producción.
 - BD E2E aislada con guard destructivo.
 - Email/R2 externos mockeados.
-- Cubre home→PDP→carrito, checkout guest, login, roles, cupón, stock y reset.
+- Cubre home→PDP→carrito, checkout por modo (whatsapp guest / full auth), login, roles, cupón, stock y reset.
 - Traces/capturas solo al fallar e ignorados.
 - CI ejecuta suite reproducible.
 
@@ -2490,6 +2490,8 @@ Notas manuales:
 **Cierre vigente:** PARCIAL
 **Prompt:** Sesión 32
 
+> Matriz WhatsApp guest / Full auth implementada (2026-07-14). Sesión 32 permanece abierta hasta E2E dual-mode verde.
+
 **Debe quedar demostrado:**
 
 - Instalación limpia, versions, audit y secret scan.
@@ -2500,7 +2502,26 @@ Notas manuales:
 - Git sin `.next*`, backups, credenciales ni `.env.bak` trackeados.
 - `docs/RE-AUDITORIA-POST-CORRECCIONES.md` contiene estado CLOSED/PARTIAL/OPEN con evidencia.
 
-**Evidencia de cierre:** _Pendiente — ejecutar solo en Sesión 32._
+**Evidencia de cierre:** _Pendiente — ejecutar solo en Sesión 32. No cerrar hasta que ambas suites E2E de modo (`CHECKOUT_MODE=full` y `CHECKOUT_MODE=whatsapp`) estén en verde._
+
+**Hallazgo P0/P1 — Guest indebidamente permitido en full (2026-07-14):**
+
+```text
+Prioridad: P0 (seguridad) / P1 (E2E)
+Estado: CORREGIDO en código — cierre Sesión 32 permanece [ ] hasta CI verde
+Descripción: En CHECKOUT_MODE=full, guest podía abrir /checkout, POST /api/orders sin sesión
+  y upload-proof con rama guest. lib/checkout-mode.ts usaba NEXT_PUBLIC_CHECKOUT_MODE con
+  default whatsapp (fail-open).
+Corrección aplicada:
+- lib/checkout-mode.ts: CHECKOUT_MODE server-side, default full (fail-closed)
+- middleware.ts: /checkout protegido en full; POST /api/orders guest solo en whatsapp
+- app/checkout/page.tsx, POST /api/orders, upload-session/proof, success/page.tsx
+- E2E: suites separadas full (@grep-invert @whatsapp) y whatsapp (@whatsapp)
+- tests/checkout-mode.test.ts + tests/checkout-mode-auth.test.ts
+Pruebas pendientes de cierre:
+- CHECKOUT_MODE=full npx playwright test --grep "Full checkout auth"
+- CHECKOUT_MODE=whatsapp npx playwright test --grep "@whatsapp"
+```
 
 **Evidencia Prompt 09 — Reauditoría final (2026-07-12, SHA d6ea07f + working tree):**
 

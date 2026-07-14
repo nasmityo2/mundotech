@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { isFullCheckout } from '@/lib/checkout-mode';
 import { prisma } from '@/lib/prisma';
-import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit';
+import { rateLimitCritical, hashForBucket } from '@/lib/rate-limit';
 import { rejectInvalidMutationOrigin, hashToken, buildRateLimitedResponse } from '@/lib/security';
 import { detectImageMimeFromBuffer, isAllowedProofMime } from '@/lib/detect-image-mime';
 import { processImageWithFallback } from '@/lib/image-processing';
@@ -33,6 +34,19 @@ export async function POST(request: Request) {
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
+  // Guest solo en whatsapp / auth obligatoria en full: esta ruta solo existe
+  // para el checkout full con comprobante. En whatsapp no se usa (404).
+  if (!isFullCheckout) {
+    return NextResponse.json({ error: 'Ruta no disponible.' }, { status: 404 });
+  }
+
+  // Cargar sesión inmediatamente: en full nunca existe rama guest.
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
+  }
+  const userId = session.user.id;
+
   const rawToken = request.headers.get('x-checkout-upload-token');
   if (!rawToken?.trim()) {
     return NextResponse.json(
@@ -43,17 +57,8 @@ export async function POST(request: Request) {
 
   const tokenHash = hashToken(rawToken.trim());
 
-  // Cargar sesión ANTES del claim (no cambia estado hasta que todo esté listo)
-  const session = await getServerSession(authOptions);
-  const isGuest = !session?.user?.id;
-
-  // Rate limit ANTES del claim
-  const limitKey = isGuest
-    ? `upload-proof:ip:${hashForBucket(getClientIp(request))}`
-    : `upload-proof:user:${hashForBucket(session!.user!.id)}`;
-  const limitCfg = isGuest
-    ? { limit: 6, windowMs: 10 * 60_000 }
-    : { limit: 10, windowMs: 10 * 60_000 };
+  const limitKey = `upload-proof:user:${hashForBucket(userId)}`;
+  const limitCfg = { limit: 10, windowMs: 10 * 60_000 };
   const rateResult = await rateLimitCritical(limitKey, limitCfg);
   if (rateResult.limited) {
     return buildRateLimitedResponse(rateResult.retryAfterSeconds,
@@ -107,6 +112,7 @@ export async function POST(request: Request) {
     const claim = await prisma.paymentUpload.updateMany({
       where: {
         tokenHash,
+        userId,
         status: 'PENDING',
         expiresAt: { gt: new Date() },
         objectKey: null,
@@ -142,6 +148,7 @@ export async function POST(request: Request) {
     const finalizedUpload = await prisma.paymentUpload.updateMany({
       where: {
         tokenHash,
+        userId,
         status: 'UPLOADING',
         objectKey: proofKey,
         orderId: null,
@@ -192,6 +199,7 @@ export async function POST(request: Request) {
         await prisma.paymentUpload.updateMany({
           where: {
             tokenHash,
+            userId,
             status: 'UPLOADING',
             objectKey: uploadedKey,
           },

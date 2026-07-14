@@ -260,6 +260,7 @@ const WhatsAppCheckout = ({
       const body = (await response.json().catch(() => ({}))) as {
         id?: string;
         orderNumber?: number;
+        guestToken?: string;
         message?: string;
         error?: string;
       };
@@ -281,8 +282,16 @@ const WhatsAppCheckout = ({
       clearCart();
 
       if (!whatsappOrderPhone) {
-        // Sin número configurado: redirigir a success
-        router.push(`/checkout/success?orderId=${body.id}`);
+        // Sin número configurado: redirigir a success. El acceso guest solo
+        // funciona con ?token= (guestAccessTokenHash); ?orderId= sin sesión
+        // siempre rechaza (ver app/checkout/success/page.tsx).
+        if (body.guestToken) {
+          router.push(`/checkout/success?token=${encodeURIComponent(body.guestToken)}`);
+        } else if (body.id) {
+          router.push(`/checkout/success?orderId=${encodeURIComponent(body.id)}`);
+        } else {
+          throw new Error('El pedido se creó sin identificador de confirmación.');
+        }
         return;
       }
 

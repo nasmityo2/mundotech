@@ -158,7 +158,6 @@ jobs:
       R2_PRIVATE_SECRET_ACCESS_KEY: e2e-private-secret
       PLAYWRIGHT_BASE_URL: 'http://localhost:3000'
       E2E_MODE: '1'
-      NEXT_PUBLIC_CHECKOUT_MODE: 'full'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
@@ -176,17 +175,38 @@ jobs:
       - name: Aplicar migraciones a BD E2E
         run: npx prisma migrate deploy
 
-      - name: Sembrar datos E2E (desktop)
+      # Guest solo en whatsapp / auth obligatoria en full — cada modo corre
+      # como una invocación independiente porque CHECKOUT_MODE afecta al
+      # middleware/bundle del servidor (requiere reset + arranque propio).
+      - name: 'Sembrar datos E2E — full'
         run: npx tsx scripts/e2e-reset-db.ts
+        env:
+          CHECKOUT_MODE: full
 
-      - name: Ejecutar tests E2E — desktop
-        run: npx playwright test --project=desktop-chromium --workers=1
+      - name: 'Ejecutar tests E2E — full (desktop, sin @whatsapp)'
+        run: npx playwright test --project=desktop-chromium --grep-invert "@whatsapp" --workers=1
+        env:
+          CHECKOUT_MODE: full
 
-      - name: Sembrar datos E2E (mobile)
+      - name: 'Sembrar datos E2E — whatsapp (desktop)'
         run: npx tsx scripts/e2e-reset-db.ts
+        env:
+          CHECKOUT_MODE: whatsapp
 
-      - name: Ejecutar tests E2E — mobile (Android + iOS)
-        run: npx playwright test --project=mobile-android --project=mobile-ios --workers=1
+      - name: 'Ejecutar tests E2E — whatsapp (desktop, @whatsapp)'
+        run: npx playwright test --project=desktop-chromium --grep "@whatsapp" --workers=1
+        env:
+          CHECKOUT_MODE: whatsapp
+
+      - name: 'Sembrar datos E2E — whatsapp (mobile)'
+        run: npx tsx scripts/e2e-reset-db.ts
+        env:
+          CHECKOUT_MODE: whatsapp
+
+      - name: 'Ejecutar tests E2E — whatsapp (mobile Android + iOS, @whatsapp)'
+        run: npx playwright test --project=mobile-android --project=mobile-ios --grep "@whatsapp" --workers=1
+        env:
+          CHECKOUT_MODE: whatsapp
 
       - name: Subir artefactos Playwright (solo al fallar)
         if: failure()
@@ -235,7 +255,7 @@ jobs:
       R2_PRIVATE_SECRET_ACCESS_KEY: e2e-private-secret
       PLAYWRIGHT_BASE_URL: 'http://localhost:3000'
       E2E_MODE: '1'
-      NEXT_PUBLIC_CHECKOUT_MODE: 'full'
+      CHECKOUT_MODE: 'full'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 

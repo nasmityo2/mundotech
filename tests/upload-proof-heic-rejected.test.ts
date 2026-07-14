@@ -73,12 +73,17 @@ describe('POST /api/checkout/upload-proof — rechaza HEIC crudo (defense in dep
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.stubEnv('CHECKOUT_MODE', 'full');
+    vi.resetModules();
+
     const rateLimit = await import('@/lib/rate-limit');
     vi.mocked(rateLimit.rateLimitCritical).mockResolvedValue({ limited: false, retryAfterSeconds: 0, source: 'memory' });
     const security = await import('@/lib/security');
     vi.mocked(security.rejectInvalidMutationOrigin).mockReturnValue(null);
     const nextAuth = await import('next-auth/next');
-    vi.mocked(nextAuth.getServerSession).mockResolvedValue(null);
+    vi.mocked(nextAuth.getServerSession).mockResolvedValue({
+      user: { id: 'user-heic-test' },
+    } as never);
 
     handler = (await import('@/app/api/checkout/upload-proof/route')).POST;
     prisma = (await import('@/lib/prisma')).prisma;
@@ -86,6 +91,8 @@ describe('POST /api/checkout/upload-proof — rechaza HEIC crudo (defense in dep
 
   afterEach(() => {
     vi.resetAllMocks();
+    vi.unstubAllEnvs();
+    vi.resetModules();
   });
 
   it('devuelve 400 y no reclama el token si el archivo trae magic bytes HEIC', async () => {

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { isFullCheckout } from '@/lib/checkout-mode';
 import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit';
 import { rejectInvalidMutationOrigin, hashToken, buildRateLimitedResponse } from '@/lib/security';
 import { logError } from '@/lib/safe-logger';
@@ -26,6 +27,18 @@ export async function POST(request: Request) {
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;
 
+  // Guest solo en whatsapp / auth obligatoria en full: esta ruta solo existe
+  // para el checkout full con comprobante. En whatsapp no se usa (404).
+  if (!isFullCheckout) {
+    return NextResponse.json({ error: 'Ruta no disponible.' }, { status: 404 });
+  }
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'No autenticado.' }, { status: 401 });
+  }
+  const userId = session.user.id;
+
   const ip = getClientIp(request);
   const rateResult = await rateLimitCritical(`upload-session:ip:${hashForBucket(ip)}`, { limit: 10, windowMs: 10 * 60_000 });
   if (rateResult.limited) {
@@ -34,9 +47,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id ?? null;
-
     const rawToken = randomBytes(32).toString('base64url');
     const tokenHash = hashToken(rawToken);
     const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_MS);

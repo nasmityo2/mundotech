@@ -21,7 +21,7 @@ import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit'
 import { rejectInvalidMutationOrigin, buildRateLimitedResponse } from '@/lib/security';
 import { d, dn } from '@/lib/decimal';
 import { hashToken } from '@/lib/security';
-import { CHECKOUT_MODE } from '@/lib/checkout-mode';
+import { CHECKOUT_MODE, isWhatsAppCheckout } from '@/lib/checkout-mode';
 import { buildOrderListWhere, buildOrderSearchWhere } from '@/lib/orders/order-list-filters';
 import { computeTabCounts, parseOrderTab } from '@/lib/orders/order-tabs';
 import {
@@ -173,7 +173,17 @@ export async function POST(request: Request) {
 
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
-  const isGuest = !userId || userId === 'guest';
+
+  // Guest solo en whatsapp / auth obligatoria en full: en full, un POST sin
+  // sesión se rechaza ANTES de leer el body — nunca debe llegar un guest.
+  if (!isWhatsAppCheckout && !userId) {
+    return NextResponse.json(
+      { message: 'Debes iniciar sesión para completar la compra.' },
+      { status: 401 },
+    );
+  }
+
+  const isGuest = isWhatsAppCheckout && !userId;
 
   if (!isGuest && (await rateLimitCritical(`orders:post:user:${hashForBucket(userId!)}`, { limit: 5, windowMs: 60_000 })).limited) {
     return buildRateLimitedResponse(60,
@@ -195,32 +205,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // FASE 4.1: los invitados deben dejar datos de contacto reales — sin ellos
-    // no hay forma de verificar el pago ni de coordinar la entrega.
+    // Guest solo en whatsapp: este branch solo se ejecuta si isGuest, y por
+    // construcción isGuest = isWhatsAppCheckout && !userId, así que channel
+    // aquí siempre es 'whatsapp'. En full jamás llega un guest (401 arriba).
     if (isGuest) {
       const guestPhone = parsed.data.customerPhone?.trim();
-      if (channel === 'whatsapp') {
-        // WhatsApp: solo exige teléfono (el nombre ya lo exige el schema).
-        if (!guestPhone) {
-          return NextResponse.json(
-            { message: 'Para comprar por WhatsApp necesitamos tu nombre y teléfono.' },
-            { status: 400 }
-          );
-        }
-      } else {
-        const guestEmail = parsed.data.customerEmail?.trim().toLowerCase();
-        const guestIdNumber = parsed.data.customerIdNumber?.trim();
-        if (!guestEmail || !guestPhone || !guestIdNumber) {
-          return NextResponse.json(
-            { message: 'Para comprar como invitado necesitamos tu correo, teléfono y cédula.' },
-            { status: 400 }
-          );
-        }
-        // Rate limit adicional por email: un mismo invitado no puede spamear pedidos.
-        if ((await rateLimitCritical(`orders:post:guest:${hashForBucket(guestEmail)}`, { limit: 5, windowMs: 60_000 })).limited) {
-          return buildRateLimitedResponse(60,
-            'Demasiadas solicitudes. Espera un momento antes de intentarlo de nuevo.');
-        }
+      // WhatsApp: solo exige teléfono (el nombre ya lo exige el schema).
+      if (!guestPhone) {
+        return NextResponse.json(
+          { message: 'Para comprar por WhatsApp necesitamos tu nombre y teléfono.' },
+          { status: 400 }
+        );
       }
     }
 
@@ -228,7 +223,7 @@ export async function POST(request: Request) {
     // servidor. 'guest' = pedido sin cuenta (customerId null en BD).
     const safeData = {
       ...parsed.data,
-      customerId: isGuest ? 'guest' : userId,
+      customerId: isGuest ? 'guest' : userId!,
     };
 
     // PRD-128 (R1): para retiro en tienda la dirección NUNCA viene del cliente —

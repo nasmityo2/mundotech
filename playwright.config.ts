@@ -63,7 +63,7 @@ export default defineConfig({
     env: {
       ...process.env,
       E2E_MODE: '1',
-      NEXT_PUBLIC_CHECKOUT_MODE: 'full',
+      CHECKOUT_MODE: process.env.CHECKOUT_MODE ?? 'full',
     },
   },
 });

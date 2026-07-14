@@ -29,10 +29,17 @@ const REQUIRED_IN_PRODUCTION = [
   'R2_PRIVATE_BUCKET_NAME',
   'R2_PRIVATE_ACCESS_KEY_ID',
   'R2_PRIVATE_SECRET_ACCESS_KEY',
+  'CHECKOUT_MODE',
 ] as const;
 
 /** PRD-060: valores admitidos para DEPLOYMENT_ENV (extracción segura de IP). */
 const VALID_DEPLOYMENT_ENVS = ['vercel', 'cloudflare'] as const;
+
+/**
+ * Guest solo en whatsapp / auth obligatoria en full (lib/checkout-mode.ts).
+ * El servidor decide el modo — nunca el cliente ni NEXT_PUBLIC_*.
+ */
+export const VALID_CHECKOUT_MODES = ['whatsapp', 'full'] as const;
 
 /**
  * SESIÓN 07: valida que TEMP_TOKEN_RETENTION_DAYS y DELETED_UPLOAD_RETENTION_DAYS
@@ -115,6 +122,24 @@ export function validateEnv(): void {
         'o DEPLOYMENT_ENV=vercel (si despliegas en Vercel). ' +
         'Sin un proxy de confianza, las IPs de cliente son falsificables y el rate limiting es evadible.',
     );
+  }
+
+  // Guest solo en whatsapp / auth obligatoria en full — el modo NUNCA debe
+  // quedar indefinido ni fuera de la allowlist en producción (fail-closed:
+  // lib/checkout-mode.ts ya degrada a 'full', pero acá se exige explícito).
+  const checkoutModeRaw = process.env.CHECKOUT_MODE?.trim().toLowerCase();
+  const checkoutModeValid =
+    !!checkoutModeRaw &&
+    (VALID_CHECKOUT_MODES as readonly string[]).includes(checkoutModeRaw);
+  if (!checkoutModeValid) {
+    if (isProduction) {
+      throw new Error(
+        `[env] CHECKOUT_MODE ausente o inválido. Valores admitidos: ${VALID_CHECKOUT_MODES.join(', ')}. ` +
+          'Revisa .env.example. No usar NEXT_PUBLIC_CHECKOUT_MODE.',
+      );
+    }
+    // No se imprime el valor recibido para no filtrar configuración en logs.
+    logWarn('env_checkout_mode_invalid', { operation: 'validate_env' });
   }
 }
 

@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
+import { getServerSession } from 'next-auth/next';
+import { redirect } from 'next/navigation';
 import { readSettings } from '@/lib/data-store';
 import { readShippingEstimates } from '@/lib/shipping-estimates-db';
 import { isWhatsAppCheckout } from '@/lib/checkout-mode';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import CheckoutFlow from '@/app/components/checkout/CheckoutFlow';
 import WhatsAppCheckout from '@/app/components/checkout/WhatsAppCheckout';
 
@@ -41,6 +44,14 @@ export default async function CheckoutPage() {
         storeName={settings.storeName}
       />
     );
+  }
+
+  // Guest solo en whatsapp / auth obligatoria en full: middleware.ts ya
+  // protege /checkout cuando CHECKOUT_MODE=full, pero esta es la segunda
+  // capa (defense in depth) del propio Server Component.
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    redirect('/login?next=checkout');
   }
 
   return (

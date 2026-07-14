@@ -61,6 +61,12 @@ DIRECT_URL=              # Conexión directa sin PgBouncer — obligatoria para 
 NEXTAUTH_SECRET=
 NEXTAUTH_URL=https://mundotechve.com
 
+# Modo de compra server-side (obligatorio en producción)
+# whatsapp: checkout de una página, guest permitido, redirige a WhatsApp
+# full: checkout con comprobante, sesión obligatoria (fail-closed si ausente/inválido)
+# Requiere rebuild/restart al cambiar. No usar NEXT_PUBLIC_CHECKOUT_MODE.
+CHECKOUT_MODE=whatsapp
+
 # MEDIA (R2 — obligatorias en runtime de producción, lib/env-validation.ts)
 R2_ENDPOINT=
 R2_ACCESS_KEY_ID=
@@ -94,6 +100,17 @@ NEXT_PUBLIC_SENTRY_DSN=  # errores de navegador (instrumentation-client.ts)
                          # ⚠ añadir dominio de ingesta Sentry a connect-src en
                          #   buildStrictCsp() y buildPublicCachedCsp() (middleware.ts)
 ```
+
+### Modo de compra (`CHECKOUT_MODE`)
+
+El servidor decide el modo; el cliente **no puede** cambiarlo desde el body ni con variables `NEXT_PUBLIC_*`. Valor ausente o inválido → `full` (fail-closed).
+
+| Modo | `/checkout` | `POST /api/orders` | `upload-session` / `upload-proof` | Confirmación guest |
+|---|---|---|---|---|
+| `whatsapp` | Público (guest o autenticado) | Guest permitido | No disponibles (404) | `/checkout/success?token=` |
+| `full` | Solo con sesión | 401 sin sesión | Solo autenticado | Solo `?orderId=` con sesión dueño/admin |
+
+Cambiar `CHECKOUT_MODE` requiere **rebuild y restart** del proceso Node (afecta `middleware.ts` y el bundle del servidor).
 
 ---
 

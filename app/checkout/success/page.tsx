@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 };
 
 import { isAdminRole } from '@/lib/is-admin-role';
+import { isWhatsAppCheckout } from '@/lib/checkout-mode';
 import { Order, OrderItem, prismaOrderToOrder, toGuestOrderConfirmationDto } from '@/lib/definitions';
 import { prisma } from '@/lib/prisma';
 import { hashToken } from '@/lib/security';
@@ -63,9 +64,12 @@ export default async function SuccessPageWrapper({
 
   const { orderId, token } = params;
 
-  // SESIÓN 06 (CORREGIDO): ?token= es la única vía de acceso guest.
+  // Guest solo en whatsapp / auth obligatoria en full: ?token= es la única
+  // vía de acceso guest, y solo existe cuando CHECKOUT_MODE=whatsapp (en
+  // full nunca se generan pedidos guest, así que un token ahí es inválido).
   // ?orderId= SIN sesión ya no consulta ni renderiza el pedido.
   if (token?.trim()) {
+    if (!isWhatsAppCheckout) return <InvalidOrderMessage />;
     return handleGuestToken(token.trim());
   }
 

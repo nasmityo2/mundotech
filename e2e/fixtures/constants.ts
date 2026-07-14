@@ -125,6 +125,15 @@ export async function fillGuestShippingStep(page: Page) {
   await page.getByRole('heading', { name: /Método de pago/i }).waitFor({ timeout: 10_000 });
 }
 
+/** Checkout WhatsApp embebido (una sola página, sin comprobante). */
+export async function fillWhatsAppGuestCheckout(page: Page) {
+  await page.locator('#firstName').fill('Invitado');
+  await page.locator('#lastName').fill('E2E');
+  await page.locator('#idNumber').fill('12345678');
+  await page.locator('#phoneNumber').fill('04121234567');
+  await page.getByRole('button', { name: 'Pago Móvil' }).click();
+}
+
 export async function fillPagoMovilPaymentStep(
   page: Page,
   proofFixture: { name: string; mimeType: string; buffer: Buffer } = {
