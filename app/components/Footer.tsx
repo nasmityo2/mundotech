@@ -29,7 +29,7 @@ export default function Footer({ shellData }: { shellData: SiteShellData }) {
   );
 
   return (
-    <footer className="relative bg-navy text-white mt-12 border-t-2 border-brand-yellow/60 overflow-hidden" data-logo-surface="dark">
+    <footer className="relative bg-black text-white mt-12 border-t-2 border-brand-yellow/60 overflow-hidden" data-logo-surface="dark">
       <div className="absolute inset-0 circuit-bg opacity-30 pointer-events-none" aria-hidden />
       <div className="absolute inset-0 dot-pattern pointer-events-none" aria-hidden />
       <div className="relative max-w-[1400px] mx-auto px-4 py-10">
@@ -43,7 +43,7 @@ export default function Footer({ shellData }: { shellData: SiteShellData }) {
             </p>
             {settings.tagline && (
               <p className="text-on-dark text-sm leading-relaxed mt-3 max-w-sm">
-                {settings.tagline}
+                {settings.tagline.replace(/^Conectados Contigo\s*[—–-]\s*/i, '').trim()}
               </p>
             )}
 

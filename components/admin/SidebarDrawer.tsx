@@ -8,6 +8,8 @@ import { signOut } from 'next-auth/react';
 import { isItemActive, type NavGroup } from '@/lib/admin-nav';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import Logo from '@/components/Logo';
+import type { AdminBranding } from './AdminShell';
 
 interface SidebarDrawerProps {
   open: boolean;
@@ -15,9 +17,10 @@ interface SidebarDrawerProps {
   userName?: string;
   userEmail?: string;
   navGroups: NavGroup[];
+  branding: AdminBranding;
 }
 
-export default function SidebarDrawer({ open, onClose, userName, userEmail, navGroups }: SidebarDrawerProps) {
+export default function SidebarDrawer({ open, onClose, userName, userEmail, navGroups, branding }: SidebarDrawerProps) {
   const pathname = usePathname();
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -52,8 +55,10 @@ export default function SidebarDrawer({ open, onClose, userName, userEmail, navG
       >
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-100">
           <div>
-            <h2 className="text-lg font-black text-navy tracking-tight">MundoTech</h2>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Administración</p>
+            <Logo variant="light" size="sm" href="/admin" storeName={branding.storeName} slogan={branding.slogan} />
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-1">
+              {branding.storeName} · Administración
+            </p>
           </div>
           <button
             type="button"

@@ -3,25 +3,33 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { isItemActive, type NavGroup } from '@/lib/admin-nav';
+import Logo from '@/components/Logo';
+import type { AdminBranding } from './AdminShell';
 
 interface SidebarDesktopProps {
   navGroups: NavGroup[];
+  branding: AdminBranding;
 }
 
-export default function SidebarDesktop({ navGroups }: SidebarDesktopProps) {
+export default function SidebarDesktop({ navGroups, branding }: SidebarDesktopProps) {
   const pathname = usePathname();
 
   return (
     <aside className="hidden md:flex md:w-60 lg:w-64 bg-white border-r border-gray-200 flex-col flex-shrink-0 sticky top-0 h-screen">
-      <div className="p-5 border-b border-gray-100 flex-shrink-0 bg-navy">
-        <Link href="/admin" className="block">
-          <h1 className="text-xl font-black tracking-tight text-white">
-            Mundo<span className="text-brand-yellow">Tech</span>
-          </h1>
-          <p className="text-[10px] text-brand-yellow/90 mt-0.5 uppercase tracking-[0.2em] font-bold">
-            Conectados Contigo
+      <div className="p-5 border-b border-gray-100 flex-shrink-0 bg-black">
+        <Logo
+          variant="dark"
+          size="sm"
+          href="/admin"
+          priority
+          storeName={branding.storeName}
+          slogan={branding.slogan}
+        />
+        {branding.slogan ? (
+          <p className="text-[10px] text-brand-yellow/90 mt-2 uppercase tracking-[0.2em] font-bold">
+            {branding.slogan}
           </p>
-        </Link>
+        ) : null}
       </div>
 
       <nav className="flex-grow overflow-y-auto px-3 py-3 space-y-4">
@@ -66,9 +74,11 @@ export default function SidebarDesktop({ navGroups }: SidebarDesktopProps) {
         >
           ← Volver a la tienda
         </Link>
-        <p className="px-2 pt-1 text-[10px] leading-relaxed text-gray-600">
-          Carrera 21 con esquina calle 21, Centro · Barquisimeto 3001
-        </p>
+        {branding.address ? (
+          <p className="px-2 pt-1 text-[10px] leading-relaxed text-gray-600">
+            {branding.address}
+          </p>
+        ) : null}
       </div>
     </aside>
   );

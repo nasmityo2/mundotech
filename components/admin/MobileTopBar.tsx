@@ -7,9 +7,10 @@ import { getActiveLabel } from '@/lib/admin-nav';
 
 interface MobileTopBarProps {
   onOpenDrawer: () => void;
+  storeName: string;
 }
 
-export default function MobileTopBar({ onOpenDrawer }: MobileTopBarProps) {
+export default function MobileTopBar({ onOpenDrawer, storeName }: MobileTopBarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const isDeep = pathname !== '/admin' && pathname.split('/').length > 3;
@@ -41,7 +42,7 @@ export default function MobileTopBar({ onOpenDrawer }: MobileTopBarProps) {
       )}
 
       <div className="flex-1 min-w-0 px-2">
-        <p className="text-[10px] uppercase tracking-wider text-gray-400 leading-none">MundoTech Admin</p>
+        <p className="text-[10px] uppercase tracking-wider text-gray-400 leading-none">{storeName} Admin</p>
         <h1 className="text-base font-black text-navy truncate leading-tight mt-0.5">{title}</h1>
       </div>
 

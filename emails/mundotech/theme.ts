@@ -1,7 +1,7 @@
 /**
  * Paleta MundoTech para correos transaccionales — fondo CLARO (decisión del
  * dueño: nada de emails dark). La única zona oscura es la cabecera, que
- * reproduce el letrero físico de la tienda: banda navy con el logo amarillo.
+ * reproduce el letrero físico de la tienda: banda negra con el logo amarillo.
  */
 export const MT = {
   /** Fondo de la página del correo (gris azulado muy claro). */
@@ -18,8 +18,8 @@ export const MT = {
   /** Dorado oscuro legible para links/texto sobre fondo claro (contraste AA). */
   goldText: '#8a6d00',
   navy: '#0B1220',
-  /** Banda-letrero de la cabecera (navy del local físico). */
-  bandBg: '#0B1220',
+  /** Banda-letrero de la cabecera (negro mate del local físico). */
+  bandBg: '#000000',
   /** Verde con contraste suficiente sobre blanco. */
   success: '#1F9D5B',
   danger: '#DC2626',

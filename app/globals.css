@@ -202,12 +202,11 @@
   }
 
   /*
-   * Trazas de circuito del logo real de MundoTech: solo dorado sobre el navy
-   * de marca (#0B1220). Sin cyan ni acentos neón — el letrero físico de la
-   * tienda es negro mate + amarillo.
+   * Trazas de circuito del logo real: dorado sobre negro mate (#000000).
+   * El letrero físico de la tienda es negro + amarillo.
    */
   .circuit-bg {
-    background-color: #0B1220;
+    background-color: #000000;
     background-image:
       linear-gradient(rgba(255, 215, 0, 0.05) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255, 215, 0, 0.05) 1px, transparent 1px),
@@ -288,9 +287,9 @@
     @apply inline-flex items-center rounded-full bg-navy px-2.5 py-1 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.18em] text-brand-yellow;
   }
 
-  /* Banda de sección navy con textura de circuito */
+  /* Banda de sección de marca — negro mate + texto claro */
   .section-band-navy {
-    @apply relative bg-navy text-white overflow-hidden;
+    @apply relative bg-black text-white overflow-hidden;
   }
   .section-band-navy .circuit-bg {
     @apply absolute inset-0 opacity-40 pointer-events-none;

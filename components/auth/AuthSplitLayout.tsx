@@ -79,7 +79,7 @@ export default function AuthSplitLayout({
           className="overflow-hidden rounded-3xl border border-border bg-white shadow-card"
         >
           {/* Banda-letrero: la fachada de la tienda */}
-          <div className="relative bg-navy px-6 py-6 sm:px-8 sm:py-7 border-b-[3px] border-brand-yellow" data-logo-surface="dark">
+          <div className="relative bg-black px-6 py-6 sm:px-8 sm:py-7 border-b-[3px] border-brand-yellow" data-logo-surface="dark">
             <div className="absolute inset-0 circuit-bg opacity-40" aria-hidden />
             <div className="relative">
               <Logo variant="dark" size="lg" href="/" />

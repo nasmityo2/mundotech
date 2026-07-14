@@ -23,18 +23,21 @@ const SIZES = {
 } as const;
 
 export interface LogoProps {
-  /** light = fondo claro · dark = fondo navy · auto = hereda data-logo-surface del contenedor */
+  /** light = fondo claro · dark = fondo negro · auto = hereda data-logo-surface del contenedor */
   variant?: LogoVariant;
   size?: keyof typeof SIZES;
   className?: string;
   /** false = sin enlace a inicio */
   href?: string | false;
   priority?: boolean;
+  /** Nombre de marca para alt/aria (desde readSettings). */
+  storeName?: string;
+  slogan?: string;
 }
 
 /**
- * Logo de marca MundoTech. Usar variant="light" en navbar/fondos blancos
- * y variant="dark" en bandas navy (footer, auth, hero).
+ * Logo de marca. Usar variant="light" en navbar/fondos blancos
+ * y variant="dark" en bandas negras (footer, auth, hero, admin).
  */
 export default function Logo({
   variant = 'light',
@@ -42,18 +45,25 @@ export default function Logo({
   className,
   href = '/',
   priority = false,
+  storeName,
+  slogan,
 }: LogoProps) {
-  // 'auto' aún no tiene soporte CSS en el proyecto → trátalo como 'light'
   const resolvedVariant = variant === 'dark' ? 'dark' : 'light';
   const src = SRC[resolvedVariant];
   const dims = SIZES[size];
   const ratio = RATIO[resolvedVariant];
   const width = Math.round(dims.height * ratio);
+  const brandLabel = storeName?.trim() || 'MundoTech';
+  const alt =
+    slogan?.trim()
+      ? `${brandLabel} — ${slogan.trim()}`
+      : `${brandLabel} — Conectados Contigo`;
+  const homeLabel = `${brandLabel} — Ir al inicio`;
 
   const img = (extra?: string) => (
     <Image
       src={src}
-      alt="MundoTech — Conectados Contigo"
+      alt={alt}
       width={width}
       height={dims.height}
       priority={priority}
@@ -69,7 +79,7 @@ export default function Logo({
     <Link
       href={href}
       className="inline-flex items-center min-h-[44px] focus:outline-none focus-visible:ring-2 focus-visible:ring-navy focus-visible:ring-offset-2 rounded-lg"
-      aria-label="MundoTech — Ir al inicio"
+      aria-label={homeLabel}
     >
       {img()}
     </Link>

@@ -155,7 +155,7 @@ export default function HomeHeroCyber({
     Boolean(slide.title?.trim());
 
   return (
-    <section className="relative w-full max-w-full overflow-hidden rounded-none bg-[#0B1220] antialiased shadow-[0_18px_45px_-16px_rgba(11,18,32,0.28)] ring-0 sm:rounded-2xl sm:ring-1 sm:ring-black/10">
+    <section className="relative w-full max-w-full overflow-hidden rounded-none bg-black antialiased shadow-[0_18px_45px_-16px_rgba(0,0,0,0.28)] ring-0 sm:rounded-2xl sm:ring-1 sm:ring-black/10">
       <div className="relative w-full aspect-[1024/360] sm:aspect-[21/9] lg:aspect-[24/9] max-h-[480px]">
         {slide.img ? (
           <div className="absolute inset-0">
@@ -312,7 +312,7 @@ export default function HomeHeroCyber({
 
       {/* Franja de marca: el slogan del letrero físico, visible siempre */}
       {brandStrip.enabled && brandStrip.slogan.trim() ? (
-        <div className="relative border-t border-[#FFD700]/25 bg-[#0B1220]">
+        <div className="relative border-t border-[#FFD700]/25 bg-black">
           <div className="absolute inset-0 circuit-bg opacity-40" aria-hidden />
           <div className="relative flex items-center justify-center gap-2.5 px-4 py-2.5 sm:py-3 text-center">
             <span className="text-[11px] sm:text-[12.5px] font-black uppercase tracking-[0.22em] text-[#FFD700]">

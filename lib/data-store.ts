@@ -108,7 +108,7 @@ const SETTINGS_KEY = 'store_settings';
 // Un cliente jamás debe ver una cuenta/RIF que no sea real.
 export const DEFAULT_SETTINGS: StoreSettings = {
   storeName:  'MundoTech',
-  tagline:    'Conectados Contigo — tecnología, variedades y lo más viral para tu casa. Tienda física en Barquisimeto y envíos a toda Venezuela.',
+  tagline:    'Tecnología, variedades y lo más viral para tu casa. Tienda física en Barquisimeto y envíos a toda Venezuela.',
   phone:      '0412-1471338',
   phone2:     '0414-5709470',
   email:      'ventas@mundotechve.com',

@@ -137,7 +137,7 @@ export default function AdminPersonalizarPage() {
       >
         {/* Vista previa */}
         <div className="rounded-xl overflow-hidden border border-gray-200">
-          <div className="relative bg-navy px-5 py-7">
+          <div className="relative bg-black px-5 py-7">
             {heroFallback.badge.trim() ? (
               <span className="inline-block rounded-md bg-brand-yellow px-2 py-0.5 text-[10px] font-bold text-navy mb-2">
                 {heroFallback.badge}
@@ -206,7 +206,7 @@ export default function AdminPersonalizarPage() {
           onChange={(url) => setData((d) => ({ ...d, heroFallback: { ...d.heroFallback, imageUrl: url ?? '' } }))}
           purpose="banner"
           label="Foto de fondo (opcional)"
-          hint="Ideal: una foto real de la tienda o de productos. Sin foto, se usa el panel navy con las trazas del logo."
+          hint="Ideal: una foto real de la tienda o de productos. Sin foto, se usa el panel negro con las trazas del logo."
         />
       </SectionCard>
 
@@ -216,7 +216,7 @@ export default function AdminPersonalizarPage() {
         desc="La línea con tu slogan que aparece pegada al hero, siempre visible."
       >
         <div className="rounded-xl overflow-hidden border border-gray-200">
-          <div className="bg-navy border-t-2 border-brand-yellow/60 px-4 py-2.5 text-center">
+          <div className="bg-black border-t-2 border-brand-yellow/60 px-4 py-2.5 text-center">
             <span className="text-[11px] font-black uppercase tracking-[0.22em] text-brand-yellow">
               {brandStrip.slogan || 'CONECTADOS CONTIGO'}
             </span>

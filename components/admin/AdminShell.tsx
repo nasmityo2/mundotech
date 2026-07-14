@@ -12,14 +12,21 @@ import MobileTopBar from './MobileTopBar';
 import MobileBottomNav from './MobileBottomNav';
 import NewOrdersWatcher from './NewOrdersWatcher';
 
+export type AdminBranding = {
+  storeName: string;
+  slogan: string;
+  address: string;
+};
+
 interface AdminShellProps {
   children: React.ReactNode;
   access: CurrentAdminAccess;
   userName?: string;
   userEmail?: string;
+  branding: AdminBranding;
 }
 
-export default function AdminShell({ children, access, userName, userEmail }: AdminShellProps) {
+export default function AdminShell({ children, access, userName, userEmail, branding }: AdminShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
   const filteredGroups = filterNavGroups(ADMIN_NAV_GROUPS, access);
@@ -37,7 +44,7 @@ export default function AdminShell({ children, access, userName, userEmail }: Ad
   return (
     <div className="flex min-h-[100dvh] bg-white">
       <div className="contents print:hidden">
-        <SidebarDesktop navGroups={filteredGroups} />
+        <SidebarDesktop navGroups={filteredGroups} branding={branding} />
       </div>
 
       <div className="contents print:hidden">
@@ -47,12 +54,13 @@ export default function AdminShell({ children, access, userName, userEmail }: Ad
           userName={userName}
           userEmail={userEmail}
           navGroups={filteredGroups}
+          branding={branding}
         />
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
         <div className="contents print:hidden">
-          <MobileTopBar onOpenDrawer={() => setDrawerOpen(true)} />
+          <MobileTopBar onOpenDrawer={() => setDrawerOpen(true)} storeName={branding.storeName} />
         </div>
 
         <main
