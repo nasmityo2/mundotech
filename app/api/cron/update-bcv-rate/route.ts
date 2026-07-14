@@ -53,7 +53,10 @@ export async function GET(request: Request): Promise<NextResponse> {
     const fetched = await fetchBcvRate();
     if (!fetched) {
       logError('cron_bcv_no_api_data', new Error('No BCV rate data from API'), { operation: 'bcv_rate_update' });
-      return NextResponse.json({ ok: false, reason: 'fetch-failed' });
+      return NextResponse.json(
+        { ok: false, reason: 'fetch-failed' },
+        { status: 503 },
+      );
     }
 
     const storedDate = await getStoredBcvDate();
@@ -66,12 +69,15 @@ export async function GET(request: Request): Promise<NextResponse> {
     const jumpRatio = Math.abs(fetched.rate - actual) / actual;
     if (jumpRatio > MAX_RATE_JUMP_RATIO) {
       logError('cron_bcv_suspicious_jump', new Error(`Rate jump ${(jumpRatio * 100).toFixed(1)}%`), { operation: 'bcv_rate_update' });
-      return NextResponse.json({
-        ok: false,
-        needsReview: true,
-        actual,
-        nueva: fetched.rate,
-      });
+      return NextResponse.json(
+        {
+          ok: false,
+          needsReview: true,
+          actual,
+          nueva: fetched.rate,
+        },
+        { status: 409 },
+      );
     }
 
     await persistExchangeRateWithBcvDate(fetched.rate, fetched.date);
@@ -82,6 +88,9 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: true, rate: fetched.rate, date: fetched.date });
   } catch (error) {
     logError('cron_bcv_unexpected_error', error, { operation: 'bcv_rate_update' });
-    return NextResponse.json({ ok: false });
+    return NextResponse.json(
+      { ok: false },
+      { status: 500 },
+    );
   }
 }

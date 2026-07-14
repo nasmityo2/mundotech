@@ -21,15 +21,27 @@ import {
 const GUARD_MESSAGE =
   'Este pedido de WhatsApp aún no ha descontado inventario. Valida el pago con la acción «Validar pago» antes de avanzar el estado.';
 
+function sanitizeApiBody(body: string): string {
+  return body.replace(/\s+/g, ' ').trim().slice(0, 500);
+}
+
 test.describe('Guard de estado — pedidos WhatsApp @whatsapp', () => {
   test('bloquea avance genérico sin stock descontado; Validar pago descuenta stock y avanza', async ({ page }) => {
+    test.setTimeout(90_000);
+
     // 1) Crear pedido WhatsApp como invitado y capturar su orderNumber.
-    let orderNumber = 0;
     await page.route('**/api/orders', async (route) => {
       if (route.request().method() === 'POST') {
         const response = await route.fetch();
-        const body = (await response.json()) as { orderNumber?: number };
-        orderNumber = body.orderNumber ?? 0;
+        const status = response.status();
+        const rawBody = await response.text();
+
+        if (status !== 201) {
+          throw new Error(
+            `POST /api/orders devolvió ${status}: ${sanitizeApiBody(rawBody)}`,
+          );
+        }
+
         await route.fulfill({ response });
         return;
       }
@@ -41,30 +53,50 @@ test.describe('Guard de estado — pedidos WhatsApp @whatsapp', () => {
     await addProductToCart(page, E2E_PRODUCTS.inStock.slug);
     await page.goto('/checkout');
     await fillWhatsAppGuestCheckout(page);
+
+    const orderResponsePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/orders') && r.request().method() === 'POST',
+    );
     await page.getByRole('button', { name: /Realizar compra/i }).click();
-    await expect.poll(() => orderNumber, { timeout: 20_000 }).toBeGreaterThan(0);
+
+    const orderResponse = await orderResponsePromise;
+    expect(orderResponse.status()).toBe(201);
+    const orderBody = (await orderResponse.json()) as { orderNumber?: number; channel?: string | null };
+    const orderNumber = orderBody.orderNumber ?? 0;
+    expect(orderNumber).toBeGreaterThan(0);
+    expect(orderBody.channel).toBe('whatsapp');
+
+    // El checkout auto-redirige a wa.me ~1.5s tras crear el pedido.
+    await page.goto('/');
 
     // El checkout WhatsApp valida disponibilidad pero NO descuenta stock aún.
     const stockAfterCreate = await readProductStock(page, E2E_PRODUCTS.inStock.slug);
     expect(stockAfterCreate).toBe(stockBefore);
 
-    // 2) Entrar como admin y localizar el pedido para obtener su id interno.
+    // 2) Entrar como admin y localizar el pedido vía API (sin depender del debounce de la tabla).
     await doLogin(page, E2E_ADMIN.email, E2E_ADMIN.password);
-    await page.goto('/admin/orders');
-    await page.getByPlaceholder(/Buscar por #, nombre, teléfono, cédula o referencia/i)
-      .fill(String(orderNumber));
-    const row = page.getByText(`#${String(orderNumber).padStart(4, '0')}`).first();
-    await row.waitFor({ timeout: 10_000 });
-    await row.click();
-    await page.waitForURL(/\/admin\/orders\/.+/, { timeout: 10_000 });
-    const orderId = page.url().split('/admin/orders/')[1]?.split(/[?#]/)[0] ?? '';
+
+    const listResponse = await page.request.get(`/api/orders?limit=50&q=${orderNumber}`);
+    expect(listResponse.status()).toBe(200);
+    const listBody = (await listResponse.json()) as {
+      orders: Array<{ id: string; orderNumber: number }>;
+    };
+    const matchingOrders = listBody.orders.filter((o) => o.orderNumber === orderNumber);
+    expect(matchingOrders).toHaveLength(1);
+    const orderId = matchingOrders[0].id;
     expect(orderId.length).toBeGreaterThan(0);
+
+    await page.goto(`/admin/orders/${orderId}`);
+    await page.waitForURL(/\/admin\/orders\/.+/, { timeout: 10_000 });
+    await expect(
+      page.getByRole('heading', { name: `#${String(orderNumber).padStart(4, '0')}` }),
+    ).toBeVisible({ timeout: 15_000 });
 
     // 3) La UI no debe ofrecer avanzar el estado directamente (solo Pendiente/Cancelado).
     await expect(page.getByRole('button', { name: 'Marcar como En Proceso' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Marcar como Enviado' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Marcar como Entregado' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /Validar pago/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Validar pago/i })).toBeVisible({ timeout: 15_000 });
 
     // 4) La seguridad real vive en el endpoint: un PUT directo debe rechazarse con 409.
     const blockedResponse = await page.request.put(`/api/orders/${orderId}/status`, {
@@ -87,6 +119,8 @@ test.describe('Guard de estado — pedidos WhatsApp @whatsapp', () => {
     expect(stockAfterBlocked).toBe(stockBefore);
 
     // 5) «Validar pago» descuenta stock y avanza el estado en una sola operación atómica.
+    await page.goto(`/admin/orders/${orderId}`);
+    await expect(page.getByRole('button', { name: /Validar pago/i })).toBeVisible({ timeout: 15_000 });
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: /Validar pago/i }).click();
     await expect(page.getByText('En Proceso', { exact: true }).first()).toBeVisible({ timeout: 15_000 });

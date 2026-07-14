@@ -84,40 +84,56 @@ export async function validateOrderPayment(orderId: string): Promise<ValidateOrd
   const needsStockDeduction = orderInfo && orderInfo.stockDeducted === false;
 
   if (needsStockDeduction) {
-    // Envolver en transacción: descontar stock + actualizar estado atómicamente.
-    let updated: Awaited<ReturnType<typeof loadFullOrder>>;
+    type WhatsAppClaimResult =
+      | { kind: 'already-claimed' }
+      | { kind: 'updated'; order: NonNullable<Awaited<ReturnType<typeof loadFullOrder>>> };
+
+    let txResult: WhatsAppClaimResult;
     try {
-      updated = await prisma.$transaction(async (tx) => {
-        // Cargar nombres de productos para mensaje de error
-        const productIds = [...new Set(orderInfo.items.map((i) => i.productId))];
-        const products = await tx.product.findMany({
-          where: { id: { in: productIds } },
-          select: { id: true, name: true },
-        });
-        const productMap = new Map(products.map((p) => [p.id, p]));
+      txResult = await prisma.$transaction(async (tx) => {
+        const now = new Date();
 
-        await deductOrderStockInTransaction(tx, orderInfo.items, productMap);
-
-        const txnTransition = await tx.order.updateMany({
-          where: { id: orderId, status: 'Pendiente' satisfies OrderStatus },
+        const claim = await tx.order.updateMany({
+          where: {
+            id: orderId,
+            status: 'Pendiente' satisfies OrderStatus,
+            stockDeducted: false,
+          },
           data: {
             status: 'En Proceso' satisfies OrderStatus,
-            paidAt: new Date(),
+            paidAt: now,
             paymentVerifiedBy: adminEmail,
             paymentRejectionReason: null,
             stockDeducted: true,
           },
         });
 
-        if (txnTransition.count === 0) return null;
+        if (claim.count === 0) {
+          return { kind: 'already-claimed' };
+        }
 
-        return tx.order.findUnique({
+        const orderItems = await tx.orderItem.findMany({
+          where: { orderId },
+          select: { productId: true, quantity: true },
+        });
+        const productIds = [...new Set(orderItems.map((i) => i.productId))];
+        const products = await tx.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, name: true },
+        });
+        const productMap = new Map(products.map((p) => [p.id, p]));
+
+        await deductOrderStockInTransaction(tx, orderItems, productMap);
+
+        const order = await tx.order.findUnique({
           where: { id: orderId },
           include: {
             items: true,
             customer: { select: { email: true, name: true } },
           },
         });
+
+        return { kind: 'updated', order: order! };
       });
     } catch (err) {
       if (err instanceof CheckoutError) {
@@ -126,8 +142,11 @@ export async function validateOrderPayment(orderId: string): Promise<ValidateOrd
       throw err;
     }
 
-    if (!updated) {
-      const current = await prisma.order.findUnique({ where: { id: orderId }, select: { status: true } });
+    if (txResult.kind === 'already-claimed') {
+      const current = await prisma.order.findUnique({
+        where: { id: orderId },
+        select: { status: true },
+      });
       if (current?.status === ('En Proceso' satisfies OrderStatus)) {
         const already = await loadFullOrder(orderId);
         return {
@@ -141,6 +160,8 @@ export async function validateOrderPayment(orderId: string): Promise<ValidateOrd
         message: 'El pedido cambió de estado mientras se validaba. Recarga e intenta de nuevo.',
       };
     }
+
+    const updated = txResult.order;
 
     const recipientEmail =
       updated.customerEmail?.trim() || updated.customer?.email?.trim() || '';

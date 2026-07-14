@@ -37,7 +37,9 @@
     ".next-staging/types/**/*.ts",
     ".next-staging/dev/types/**/*.ts",
     ".next-validate/types/**/*.ts",
-    ".next-validate/dev/types/**/*.ts"
+    ".next-validate/dev/types/**/*.ts",
+    ".next-bcv-validate/types/**/*.ts",
+    ".next-bcv-validate/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

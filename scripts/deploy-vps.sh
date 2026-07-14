@@ -30,6 +30,9 @@ STALE_STATIC_DAYS=14
 
 log() { echo "==> $*"; }
 
+# shellcheck source=scripts/lib/cloudflare-purge.sh
+source "$ROOT/scripts/lib/cloudflare-purge.sh"
+
 # ── 0. Cargar y validar configuración de entorno ─────────────────────────────
 # El archivo de entorno es la fuente única de verdad para CHECKOUT_MODE.
 # El proceso Node (systemd) y el build deben usar exactamente el mismo valor.
@@ -120,21 +123,15 @@ log "OK: ${SERVICE} responde con BUILD_ID $(cat "$CURRENT/BUILD_ID")."
 # ── 5. Purga de caché Cloudflare (opcional) ──────────────────────────────────
 # CF_ZONE_ID y CF_API_TOKEN ya están cargados desde ENV_FILE (paso 0).
 # No releer el archivo aquí para evitar impresión accidental de secretos.
+CF_ZONE_ID="${CF_ZONE_ID:-}"
+CF_API_TOKEN="${CF_API_TOKEN:-}"
 
-if [[ -n "${CF_ZONE_ID}" && -n "${CF_API_TOKEN}" ]]; then
+if should_purge_cloudflare_cache; then
   log "Purgando caché de Cloudflare (zona ${CF_ZONE_ID:0:6}…)…"
-  purge_result=$(curl -sS -X POST \
-    "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/purge_cache" \
-    -H "Authorization: Bearer ${CF_API_TOKEN}" \
-    -H "Content-Type: application/json" \
-    --data '{"purge_everything":true}' || true)
-  if echo "$purge_result" | grep -q '"success":true'; then
-    log "Cloudflare: caché purgada."
-  else
-    echo "AVISO: la purga de Cloudflare falló (no bloquea el deploy): $purge_result" >&2
-  fi
+  purge_msg="$(cloudflare_purge_decision execute)"
+  log "$purge_msg"
 else
-  log "Cloudflare: sin CF_ZONE_ID/CF_API_TOKEN — purga omitida (opcional)."
+  log "$(cloudflare_purge_decision dry-run)"
 fi
 
 log "Deploy completado."

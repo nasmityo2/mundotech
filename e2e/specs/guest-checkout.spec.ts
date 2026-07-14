@@ -10,25 +10,27 @@ import {
   fillWhatsAppGuestCheckout,
 } from '../fixtures/constants';
 
+function sanitizeApiBody(body: string): string {
+  return body.replace(/\s+/g, ' ').trim().slice(0, 500);
+}
+
 test.describe('Guest Checkout @whatsapp', () => {
   test('checkout WhatsApp como invitado con guestToken', async ({ page }) => {
     let orderPostCount = 0;
-    let guestToken = '';
-    let orderNumber = 0;
-    let postedChannel: string | undefined;
 
     await page.route('**/api/orders', async (route) => {
       if (route.request().method() === 'POST') {
         orderPostCount += 1;
         const response = await route.fetch();
-        const body = (await response.json()) as {
-          guestToken?: string;
-          orderNumber?: number;
-        };
-        guestToken = body.guestToken ?? '';
-        orderNumber = body.orderNumber ?? 0;
-        const reqBody = route.request().postDataJSON() as { channel?: string };
-        postedChannel = reqBody.channel;
+        const status = response.status();
+        const rawBody = await response.text();
+
+        if (status !== 201) {
+          throw new Error(
+            `POST /api/orders devolvió ${status}: ${sanitizeApiBody(rawBody)}`,
+          );
+        }
+
         await route.fulfill({ response });
         return;
       }
@@ -40,14 +42,31 @@ test.describe('Guest Checkout @whatsapp', () => {
     await expect(page.getByText(/Pedido por WhatsApp/i)).toBeVisible({ timeout: 10_000 });
 
     await fillWhatsAppGuestCheckout(page);
+
+    const orderResponsePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/orders') && r.request().method() === 'POST',
+    );
     await page.getByRole('button', { name: /Realizar compra/i }).click();
 
-    await expect.poll(() => orderPostCount, { timeout: 20_000 }).toBe(1);
-    expect(guestToken.length).toBeGreaterThan(10);
-    expect(orderNumber).toBeGreaterThan(0);
-    expect(postedChannel).toBe('whatsapp');
+    const orderResponse = await orderResponsePromise;
+    expect(orderResponse.status()).toBe(201);
 
-    await page.goto(`/checkout/success?token=${encodeURIComponent(guestToken)}`);
-    await expect(page.getByText(String(orderNumber).padStart(4, '0'))).toBeVisible();
+    const body = (await orderResponse.json()) as {
+      guestToken?: string;
+      orderNumber?: number;
+      channel?: string | null;
+    };
+
+    // El checkout auto-redirige a wa.me ~1.5s tras crear el pedido.
+    await page.goto('/');
+
+    expect(orderPostCount).toBe(1);
+    expect(body.guestToken?.length).toBeGreaterThan(10);
+    expect(body.orderNumber).toBeGreaterThan(0);
+    expect(body.channel).toBe('whatsapp');
+
+    await page.goto(`/checkout/success?token=${encodeURIComponent(body.guestToken!)}`);
+    const orderRef = `#${String(body.orderNumber).padStart(4, '0')}`;
+    await expect(page.getByText(orderRef, { exact: true })).toBeVisible();
   });
 });

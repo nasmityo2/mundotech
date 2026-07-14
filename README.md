@@ -179,8 +179,8 @@ Si la BD ya tenía el schema del baseline anterior, el squash `init` puede reque
 
 1. **Servicio:** `mundotech.service` (systemd) ejecuta `npm start` → `next start` en `:3000`. Config PM2 alternativa: [`ecosystem.config.js`](ecosystem.config.js) — solo un gestor activo a la vez.
 2. **Proxy:** nginx en [`deploy/nginx/sites-available/mundotech`](deploy/nginx/sites-available/mundotech) (SSL Cloudflare, `client_max_body_size 100m` para videos).
-3. **Variables:** `/etc/mundotech/mundotech.env` (systemd + crontab) y `.env` en el repo deben estar sincronizados (`CRON_SECRET`, BD, R2, etc.).
-4. **Crontab:** Instalar/actualizar con `sudo bash scripts/install-crontab.sh`. El archivo fuente es [`deploy/crontab.vps`](deploy/crontab.vps) (TZ America/Caracas).
+3. **Variables:** `/etc/mundotech/mundotech.env` (systemd + crontab) y `.env` en el repo deben estar sincronizados (`CRON_SECRET`, BD, R2, etc.). **Si `CRON_SECRET` falta en `mundotech.env`, el cron BCV responderá 401 silenciosamente** — diagnosticar con `sudo grep -c "^CRON_SECRET=" /etc/mundotech/mundotech.env` (debe devolver `1`).
+4. **Crontab:** Instalar/actualizar con `sudo bash scripts/install-crontab.sh`. El instalador valida `CRON_SECRET` y `scripts/run-bcv-cron.sh` antes de instalar. El archivo fuente es [`deploy/crontab.vps`](deploy/crontab.vps) (TZ America/Caracas).
 5. **Build seguro:** `npm run deploy:vps` (alias de `bash scripts/deploy-vps.sh`) — compila en `.next-staging` sin detener el servicio activo, luego swap atómico (stop → mv → start) de ~segundos, health-check con rollback automático, y purga opcional de caché Cloudflare vía `CF_ZONE_ID`/`CF_API_TOKEN` desde `/etc/mundotech/mundotech.env`.
 6. **Migraciones:** `npx prisma migrate deploy` se ejecuta dentro de `npm run build` (el script `build` lo incluye automáticamente).
 
@@ -198,13 +198,14 @@ Estos directorios **nunca se versionan** (`.gitignore` los ignora con `.next-*/`
 ### Crons (VPS — no Vercel)
 
 Los jobs se invocan con `Authorization: Bearer $CRON_SECRET` desde el crontab de root.  
+El cron BCV usa el wrapper [`scripts/run-bcv-cron.sh`](scripts/run-bcv-cron.sh), que valida HTTP status y `body.ok` antes de reportar éxito.  
 Horarios en **America/Caracas**.  
 Fuente de verdad del crontab: [`deploy/crontab.vps`](deploy/crontab.vps) (instalar con `sudo bash scripts/install-crontab.sh`).  
-Documentación operativa completa: [`docs/ENTREGABLE-CRON-BCV-VPS-V2.md`](docs/ENTREGABLE-CRON-BCV-VPS-V2.md).
+Documentación operativa completa: [`docs/ENTREGABLE-CRON-BCV-VPS-V2.md`](docs/ENTREGABLE-CRON-BCV-VPS-V2.md) y [`docs/OPERATIONS-RUNBOOK.md`](docs/OPERATIONS-RUNBOOK.md).
 
-| Endpoint | Schedule (Caracas) | Propósito |
+| Endpoint / Wrapper | Schedule (Caracas) | Propósito |
 |---|---|---|
-| `/api/cron/update-bcv-rate` | Todos los días 00:15, 01:15, 05:15 | Tasa BCV desde API externa → `AppConfig` |
+| `scripts/run-bcv-cron.sh` → `/api/cron/update-bcv-rate` | Todos los días 00:15, 01:15, 05:15 | Tasa BCV desde API externa → `AppConfig` |
 | `/api/cron/abandoned-cart` | Cada 2 horas | Emails carrito abandonado (24h / 72h) |
 | `/api/cron/review-request` | Todos los días 10:00 | Email de reseña 7 días tras 'Entregado' |
 | `/api/cron/purge-product-views` | Dom 01:30 | Purga `ProductView` > 90 días |

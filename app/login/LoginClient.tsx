@@ -26,6 +26,7 @@ export default function LoginClient({ serverCallbackUrl }: Props) {
   const paramsKey = params.toString();
   const { status, data: session } = useSession();
   const toastedRegistered = useRef(false);
+  const explicitCallbackRef = useRef<string | null>(null);
 
   const [callbackUrl, setCallbackUrl] = useState(serverCallbackUrl);
 
@@ -36,7 +37,9 @@ export default function LoginClient({ serverCallbackUrl }: Props) {
 
     if (nextOrCbExplicit) {
       const urlBased = resolveLoginCallbackFromParams(params.get.bind(params));
-      setCallbackUrl(urlBased !== '/' ? urlBased : '/');
+      const resolved = urlBased !== '/' ? urlBased : '/';
+      explicitCallbackRef.current = resolved;
+      setCallbackUrl(resolved);
 
       /* Quitar ?next=?callbackUrl legacy de la barra (ya quedaron en estado). */
       const q = new URLSearchParams(params.toString());
@@ -47,6 +50,11 @@ export default function LoginClient({ serverCallbackUrl }: Props) {
         router.replace(tail ? `/login?${tail}` : '/login', { scroll: false });
       }
 
+      return;
+    }
+
+    if (explicitCallbackRef.current) {
+      setCallbackUrl(explicitCallbackRef.current);
       return;
     }
 

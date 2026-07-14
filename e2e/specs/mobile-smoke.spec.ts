@@ -21,6 +21,7 @@ import {
   fillPagoMovilPaymentStep,
   fillWhatsAppGuestCheckout,
   mockHeicConversion,
+  addProductToCart,
 } from '../fixtures/constants';
 
 /** Falla si el elemento no cumple el objetivo táctil mínimo (WCAG 2.5.5 / 44×44). */
@@ -164,9 +165,7 @@ test.describe('Mobile smoke — Android/iOS reales', () => {
   });
 
   test('Checkout WhatsApp invitado: envío, pago y Realizar compra @whatsapp', async ({ page }) => {
-    await page.goto(productPdpPath(E2E_PRODUCTS.inStock.slug));
-    await page.getByRole('button', { name: /¡Me lo llevo!/i }).click();
-    await page.waitForTimeout(800);
+    await addProductToCart(page, E2E_PRODUCTS.inStock.slug);
 
     await page.goto('/checkout');
     await expect(page.getByText(/Pedido por WhatsApp/i)).toBeVisible({ timeout: 10_000 });

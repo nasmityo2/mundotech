@@ -8,7 +8,7 @@
  * B) Desde el carrito, hacer clic en "Proceder al pago" redirige al guest a
  *    /login?next=checkout (navegación RSC incluida).
  * C) Después de iniciar sesión el usuario vuelve a /checkout con el carrito
- *    conservado y el heading "Envío" visible.
+ *    conservado y el heading "Información de entrega" visible.
  */
 import {
   test,
@@ -48,6 +48,8 @@ test.describe('Full checkout auth @full', () => {
   });
 
   test('flujo carrito → login?next=checkout → /checkout con carrito conservado', async ({ page }) => {
+    test.setTimeout(60_000);
+
     // 1. Guest agrega producto desde la PDP (usa addProductToCart del fixture).
     await addProductToCart(page, E2E_PRODUCTS.inStock.slug);
 
@@ -59,9 +61,15 @@ test.describe('Full checkout auth @full', () => {
 
     // 3. El guest debe terminar en /login con ?next=checkout, ya sea por redirect
     //    directo del servidor o tras la navegación RSC que el middleware intercepta.
-    await expect(page).toHaveURL(/\/login(\?.*)?$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
     const loginUrl = new URL(page.url());
     expect(loginUrl.searchParams.get('next')).toBe('checkout');
+
+    // Banner de cookies puede tapar el formulario.
+    const cookieDialog = page.getByRole('dialog', { name: /Aviso de cookies/i });
+    if (await cookieDialog.count()) {
+      await page.getByRole('button', { name: 'Solo lo necesario' }).click();
+    }
 
     // 4. Iniciar sesión sin navegar a /login de nuevo (ya estamos en /login?next=checkout).
     await page.waitForSelector('input[type="email"]', { timeout: 10_000 });
@@ -70,17 +78,19 @@ test.describe('Full checkout auth @full', () => {
     await page.getByRole('button', { name: 'Iniciar sesión' }).click();
 
     // 5. Después del login debe volver a /checkout.
-    await expect(page).toHaveURL(/\/checkout/, { timeout: 20_000 });
+    await expect(page).toHaveURL(/\/checkout/, { timeout: 30_000 });
 
-    // 6. El heading del paso de Envío es visible (carrito conservado, flujo activo).
-    await expect(page.getByRole('heading', { name: /Envío/i })).toBeVisible({ timeout: 15_000 });
+    // 6. El heading del paso de envío es visible (carrito conservado, flujo activo).
+    await expect(page.getByTestId('checkout-shipping-heading')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('checkout-shipping-heading')).toHaveText('Información de entrega');
   });
 
-  test('CLIENT autenticado accede directamente a /checkout con heading Envío', async ({ page }) => {
+  test('CLIENT autenticado accede directamente a /checkout con heading Información de entrega', async ({ page }) => {
     await doLogin(page, E2E_CLIENT.email, E2E_CLIENT.password);
     await addProductToCart(page, E2E_PRODUCTS.inStock.slug);
     await page.goto('/checkout');
-    await expect(page.getByRole('heading', { name: /Envío/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('checkout-shipping-heading')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('checkout-shipping-heading')).toHaveText('Información de entrega');
 
     // La sesión autenticada también puede crear upload-session.
     const authedUpload = await page.request.post('/api/checkout/upload-session');

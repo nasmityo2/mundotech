@@ -6,7 +6,7 @@ Documento operativo derivado de [`README.md`](../README.md) y fuentes verificabl
 [`MONITOREO-HEALTH.md`](MONITOREO-HEALTH.md); para retención
 [`POLITICA-RETENCION-DATOS.md`](POLITICA-RETENCION-DATOS.md).
 
-Última revisión en repo: **2026-07-12** (Prompt 11).
+Última revisión en repo: **2026-07-14** (Prompt 12 — fix CRON_SECRET + wrapper BCV).
 
 ## Entorno de producción (documentado)
 
@@ -54,20 +54,71 @@ Usado por deploy y monitoreo externo (p. ej. UptimeRobot). Detalle: [`MONITOREO-
 
 ## Crons (VPS — America/Caracas)
 
-Todos invocan `Authorization: Bearer $CRON_SECRET`. Fuente: [`deploy/crontab.vps`](../deploy/crontab.vps).
+Todos requieren `Authorization: Bearer $CRON_SECRET`. Fuente: [`deploy/crontab.vps`](../deploy/crontab.vps).
 
-| Endpoint | Schedule | Propósito |
+| Endpoint / Wrapper | Schedule | Propósito |
 |---|---|---|
-| `/api/cron/update-bcv-rate` | 00:15, 01:15, 05:15 diario | Tasa BCV → `AppConfig` |
+| `scripts/run-bcv-cron.sh` → `/api/cron/update-bcv-rate` | 00:15, 01:15, 05:15 diario | Tasa BCV → `AppConfig`; wrapper valida HTTP y `body.ok` |
 | `/api/cron/abandoned-cart` | Cada 2 h | Emails carrito abandonado |
 | `/api/cron/review-request` | 10:00 diario | Email reseña post-entrega |
 | `/api/cron/purge-product-views` | Dom 01:30 | Purga `ProductView` > 90 d |
 | `/api/cron/purge-temporary-data` | 03:00 diario | Tokens temporales, uploads DELETED, carritos |
 | `/api/cron/purge-payment-uploads` | Cada hora :15 | PENDING/UPLOADING expirados + R2 privado |
 
-Logs: `/var/log/bcv-cron.log`, `/var/log/mundotech-cron.log`.
+Logs: `/var/log/bcv-cron.log` (cron BCV), `/var/log/mundotech-cron.log` (resto).
 
-**Instalación crontab en VPS:** manual — `sudo bash scripts/install-crontab.sh` (no verificado en Prompt 11).
+**Instalación crontab en VPS:** `sudo bash scripts/install-crontab.sh`  
+El instalador valida previamente que `/etc/mundotech/mundotech.env` contiene `CRON_SECRET` y que `scripts/run-bcv-cron.sh` es ejecutable; aborta antes de tocar crontab si falla.
+
+### Sincronización de CRON_SECRET
+
+- `/etc/mundotech/mundotech.env` es el `EnvironmentFile` de systemd y la fuente que leen los scripts cron.
+- `.env` del proyecto es la fuente de verdad para desarrollo y deploy.
+- **Ambos deben contener exactamente el mismo valor de `CRON_SECRET`.**
+- Si difieren, el cron BCV responderá HTTP 401 silenciosamente.
+- Diagnóstico: `sudo grep -c "^CRON_SECRET=" /etc/mundotech/mundotech.env` — debe devolver `1`.
+
+### Corrida manual autorizada del cron BCV
+
+```bash
+sudo bash -lc '
+set -a; source /etc/mundotech/mundotech.env; set +a
+response="$(mktemp)"
+code="$(curl -sS --max-time 30 -o "$response" -w "%{http_code}" \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  http://127.0.0.1:3000/api/cron/update-bcv-rate)"
+echo "HTTP=$code"; cat "$response"; echo
+rm -f "$response"
+'
+```
+
+O mediante el wrapper (recomendado — idéntico a lo que ejecuta cron):
+
+```bash
+sudo /var/www/mundotech/scripts/run-bcv-cron.sh
+```
+
+### Interpretar respuestas del endpoint BCV
+
+| HTTP | body | Significado |
+|---|---|---|
+| 200 | `{ok:true, rate, date}` | Tasa actualizada |
+| 200 | `{ok:true, sinCambios:true}` | Fecha BCV ya conocida; no escribe |
+| 401 | `{error:"Unauthorized"}` | `CRON_SECRET` incorrecto o ausente |
+| 409 | `{ok:false, needsReview:true}` | Salto > 15% respecto a la tasa actual; requiere revisión manual |
+| 500 | `{ok:false}` | Excepción inesperada; revisar logs de la app |
+| 503 | `{ok:false, reason:"fetch-failed"}` | Ninguna API BCV respondió; fuente de datos no disponible |
+
+**Nota importante:** actualizar la tasa manualmente desde el panel Admin **no actualiza** `exchange_rate_bcv_date` ni `bcv_last_success_at`. Esos campos solo los actualiza el cron BCV (`/api/cron/update-bcv-rate`) al procesar una fecha nueva de la API.
+
+### Fallback pydolarve.org — INOPERATIVO
+
+`pydolarve.org` no resuelve DNS desde el VPS desde al menos 2026-07-14. El fallback está presente en el código pero inoperativo. **Requiere reemplazo en una tarea separada.** No afirmar que está reparado.
+
+### Secretos y logs
+
+- **Nunca imprimir** el valor de `CRON_SECRET` en logs, diffs o respuestas.
+- El wrapper `scripts/run-bcv-cron.sh` garantiza que el secreto no aparece en stdout ni stderr.
 
 ## Backup y restore PostgreSQL
 

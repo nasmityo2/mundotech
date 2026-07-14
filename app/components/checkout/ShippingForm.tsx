@@ -314,7 +314,12 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-7">
       <div>
-        <h2 className="text-xl font-semibold text-navy tracking-tight">Información de entrega</h2>
+        <h2
+          data-testid="checkout-shipping-heading"
+          className="text-xl font-semibold text-navy tracking-tight"
+        >
+          Información de entrega
+        </h2>
         <p className="text-sm text-slate-500 mt-1">Selecciona cómo quieres recibir tu pedido.</p>
       </div>
 

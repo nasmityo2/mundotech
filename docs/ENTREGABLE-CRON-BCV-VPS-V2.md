@@ -232,3 +232,36 @@ Archivos incluidos:
 ## Resumen ejecutivo
 
 Los tres crons (BCV, carritos abandonados, purge de vistas) quedaron en el crontab del VPS con auth Bearer. `vercel.json` ya no define crons. La tasa BCV inicial (`582.6862`) está en BD, el cron BCV escribe y hace skip por fecha correctamente, y el servicio `mundotech.service` está **active (running)**.
+
+---
+
+## 10. Corrección post-deploy 2026-07-14 — CRON_SECRET faltante y wrapper BCV
+
+### Causa
+
+Desde el 2026-07-12, las llamadas al cron BCV devolvían HTTP 401. La causa raíz fue que `/etc/mundotech/mundotech.env` no contenía la variable `CRON_SECRET`, que sí estaba presente en `/var/www/mundotech/.env`. La última tasa registrada antes del fix era `709.6935` (fecha BCV: 2026-07-10).
+
+### Acciones ejecutadas (2026-07-14)
+
+| Fase | Acción | Resultado |
+|---|---|---|
+| Backup | `cp -a /etc/mundotech/mundotech.env /etc/mundotech/mundotech.env.bak.20260714_124018` | Preservado (root:root 600) |
+| Sincronización | Script Python atómico: copia `CRON_SECRET` de `.env` → `mundotech.env` vía `os.replace()` | `CRON_SECRET_SYNC=OK` |
+| Verificación | Hash comparado sin imprimir | `MATCH` |
+| Corrida manual | `curl` con Bearer al endpoint local | HTTP 200, rate=723.999, date=2026-07-14T00:00:00-04:00 |
+| BD confirmada | `SELECT key, value FROM "AppConfig" WHERE key IN (...)` | Tres claves actualizadas |
+| API pública | `https://mundotechve.com/api/health` | `bcvStale:false`, `status:ok` |
+
+### Cambios en código (Prompt 12)
+
+- **`app/api/cron/update-bcv-rate/route.ts`**: `fetch-failed` → HTTP 503; salto sospechoso → HTTP 409; error inesperado → HTTP 500. (Antes todos devolvían 200 con `ok:false`, invisibles para `curl -f`.)
+- **`scripts/run-bcv-cron.sh`** (nuevo): wrapper que carga `EnvironmentFile`, valida `CRON_SECRET` presente, llama el endpoint con `curl`, verifica HTTP 2xx **y** `body.ok == true`. Nunca imprime el secreto.
+- **`deploy/crontab.vps`**: línea BCV reemplazada por `scripts/run-bcv-cron.sh`.
+- **`scripts/install-crontab.sh`**: preflight que aborta si `CRON_SECRET` falta o el wrapper no es ejecutable.
+
+### Riesgos pendientes
+
+- `pydolarve.org` no resuelve DNS desde el VPS → fallback sin efecto. Requiere nueva fuente BCV en tarea separada.
+- Sin alerta automática de health si `bcvStale` vuelve a `true`.
+- Sin `logrotate` configurado para `/var/log/bcv-cron.log`.
+- No se determinó históricamente qué proceso eliminó `CRON_SECRET` de `mundotech.env`.
