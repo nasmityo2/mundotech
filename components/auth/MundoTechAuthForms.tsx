@@ -205,19 +205,26 @@ export function AuthLoginForm({ callbackUrl, defaultEmail }: LoginPanelProps) {
       /* ignore */
     }
     form.clearErrors('root');
-    const result = await signIn('credentials', {
-      redirect: false,
-      email: data.email,
-      password: data.password,
-    });
-    if (result?.error) {
+    try {
+      const result = await signIn('credentials', {
+        redirect: false,
+        email: data.email,
+        password: data.password,
+      });
+      if (result?.error) {
+        form.setError('root', {
+          message: 'Credenciales incorrectas o cuenta inexistente.',
+        });
+        triggerShake();
+        return;
+      }
+      await finishSuccess();
+    } catch {
       form.setError('root', {
-        message: 'Credenciales incorrectas o cuenta inexistente.',
+        message: 'Demasiados intentos. Espera un minuto e intenta de nuevo.',
       });
       triggerShake();
-      return;
     }
-    await finishSuccess();
   };
 
   const submitting = form.formState.isSubmitting;

@@ -179,7 +179,7 @@ function CtaBanner({ data }: { data: CtaBannerData | null }) {
     data?.title ?? 'Lo que ves aquí, lo tenemos en la tienda.';
   const subtitle =
     data?.subtitle ??
-    'Catálogo con stock real del local en Carrera 21 con esquina calle 21, Centro, Barquisimeto 3001. Si lo quieres ya, pásate por la tienda; si no, te lo enviamos.';
+    'Catálogo con stock real del local en Carrera 21 con esquina calle 21, Centro. Si lo quieres ya, pásate por la tienda; si no, te lo enviamos.';
   const badge = data?.label ?? 'Catálogo completo · Barquisimeto';
   const ctaText = data?.ctaText ?? 'Explorar todo el catálogo';
   const link = data?.link ?? '/productos';

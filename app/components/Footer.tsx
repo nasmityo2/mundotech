@@ -154,9 +154,8 @@ export default function Footer({ shellData }: { shellData: SiteShellData }) {
           </div>
         </div>
 
-        <div className="border-t border-white/5 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-on-dark-muted text-[12px]">
+        <div className="border-t border-white/5 mt-8 pt-6 text-on-dark-muted text-[12px]">
           <p>&copy; {new Date().getFullYear()} {settings.storeName}{settings.address ? ` · ${settings.address}` : ''}</p>
-          <p className="text-on-dark">Hecho en Barquisimeto, con sabor a Lara.</p>
         </div>
       </div>
     </footer>
