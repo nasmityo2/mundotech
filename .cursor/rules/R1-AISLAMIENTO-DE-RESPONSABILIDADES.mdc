@@ -1,8 +1,0 @@
----
-alwaysApply: true
----
-
-- PROHIBIDO: incluir lógica de negocio, llamadas a Prisma, fetch de datos, cálculos financieros o constantes de configuración hardcodeadas dentro de archivos .tsx de visualización.
-- OBLIGATORIO: todo dato de configuración de tienda (cuentas bancarias, RIF, teléfonos, montos, cuentas Binance) debe leerse exclusivamente desde readSettings() de lib/data-store.ts. El único fallback permitido es DEFAULT_SETTINGS.
-- OBLIGATORIO: los componentes .tsx solo renderizan. Reciben datos ya resueltos vía props o context. No calculan precios, no consultan BD, no contienen arrays literales de cuentas.
-- CASO CRÍTICO: PaymentForm.tsx — la constante STORE_PAYMENT está PROHIBIDA. Migrar a const settings = await readSettings() en el Server Component padre y pasar por props.

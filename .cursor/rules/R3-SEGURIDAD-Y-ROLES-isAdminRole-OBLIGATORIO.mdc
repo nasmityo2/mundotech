@@ -1,8 +1,0 @@
----
-alwaysApply: true
----
-
-- PROHIBIDO: usar comparación directa de rol: session.user?.role !== 'ADMIN'. Es frágil (case-sensitive) y genera deuda de seguridad.
-- OBLIGATORIO: usar exclusivamente isAdminRole(session) de lib/api-auth.ts en Server Actions, Route Handlers y middleware. La función aplica .toUpperCase() internamente.
-- CASO CRÍTICO: app/actions/productActions.ts — verifyAdminSession() usa comparación literal sin normalización. Debe refactorizarse usando isAdminRole() para ser consistente con middleware.ts.
-- OBLIGATORIO: todo nuevo Route Handler bajo app/api/ que acceda a datos sensibles o sea de escritura debe comenzar con: const authCheck = await requireAdmin(). Si retorna Response, devolver inmediatamente.

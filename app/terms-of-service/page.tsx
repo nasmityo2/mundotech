@@ -70,6 +70,11 @@ export default async function TermsOfServicePage() {
           Recibirás comunicación sobre el estado del pedido por los medios que hayas proporcionado (por
           ejemplo, correo electrónico).
         </li>
+        <li>
+          Los pedidos que permanezcan en estado pendiente durante más de 24 horas desde su creación
+          podrán cancelarse automáticamente. Al cancelarse, se liberará la reserva correspondiente y
+          se revertirá el uso del cupón cuando aplique.
+        </li>
       </ul>
 
       <h2>5. Pagos</h2>

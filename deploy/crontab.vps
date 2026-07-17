@@ -16,3 +16,5 @@
 0 3 * * * . /etc/mundotech/mundotech.env; curl -fsS -H "Authorization: Bearer $CRON_SECRET" "http://127.0.0.1:3000/api/cron/purge-temporary-data" >> /var/log/mundotech-cron.log 2>&1
 # SESIÓN 05 — Purga horaria de PaymentUpload PENDING/UPLOADING expirados: borra objeto R2 y marca DELETED.
 15 * * * * . /etc/mundotech/mundotech.env; curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3000/api/cron/purge-payment-uploads >> /var/log/mundotech-cron.log 2>&1
+# Cancelación automática de pedidos pendientes: cada 15 minutos, al superar 24 horas desde createdAt.
+7,22,37,52 * * * * . /etc/mundotech/mundotech.env; curl -fsS -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3000/api/cron/auto-cancel-orders >> /var/log/mundotech-cron.log 2>&1

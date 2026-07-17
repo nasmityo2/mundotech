@@ -386,6 +386,13 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
         </table>
       </Section>
 
+      <Section style={{ padding: '4px 24px 6px', fontFamily: fontSans, textAlign: 'center' }}>
+        <Text style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: MT.textMuted }}>
+          Los pedidos que permanezcan pendientes se cancelan automáticamente 24 horas después de
+          su creación.
+        </Text>
+      </Section>
+
       <Section style={{ padding: '10px 28px 4px', fontFamily: fontSans, textAlign: 'center' }}>
         {/* PRD-109: teléfono de tienda desde emailStorePhones() — no hardcodeado. */}
         <Text style={{ margin: 0, fontSize: 13, lineHeight: 1.55, color: MT.textMuted }}>

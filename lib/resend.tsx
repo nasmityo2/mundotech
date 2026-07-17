@@ -414,14 +414,20 @@ export async function sendAbandonedCartEmail(params: {
   });
 }
 
+export type OrderCancelledEmailOptions = {
+  expiredAfterHours?: number;
+};
+
 /**
- * PRD-050: notificación al cliente cuando un admin cancela su pedido.
+ * PRD-050: notificación al cliente cuando un admin cancela su pedido (o el
+ * cron de auto-cancelación lo hace por expiración, ver `options.expiredAfterHours`).
  * `orderDisplayId` es el número formateado (ej. "0042"). Errores no relanzan.
  */
 export async function sendOrderCancelledEmail(
   email: string,
   firstName: string,
   orderDisplayId: string,
+  options: OrderCancelledEmailOptions = {},
 ): Promise<void> {
   const resend = getResend();
   if (!resend) {
@@ -441,9 +447,18 @@ export async function sendOrderCancelledEmail(
   await sendBrandedEmail({
     resend,
     to: trimmedEmail,
-    subject: `MundoTech · Tu pedido #${ref} fue cancelado`,
+    subject:
+      typeof options.expiredAfterHours === 'number'
+        ? `MundoTech · Tu pedido #${ref} venció después de ${options.expiredAfterHours} horas`
+        : `MundoTech · Tu pedido #${ref} fue cancelado`,
     logScope: 'order-cancelled-email',
-    element: <OrderCancelledEmail customerName={trimmedName} orderDisplayId={ref} />,
+    element: (
+      <OrderCancelledEmail
+        customerName={trimmedName}
+        orderDisplayId={ref}
+        expiredAfterHours={options.expiredAfterHours}
+      />
+    ),
   });
 }
 

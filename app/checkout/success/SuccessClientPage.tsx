@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { Check, ArrowRight, Package, Mail, Home, MessageCircle } from 'lucide-react';
+import { Check, ArrowRight, Package, Mail, Home, MessageCircle, AlertTriangle } from 'lucide-react';
 import { useReducedMotion, reducedTransition } from '@/lib/motion';
 import { MUNDOTECH_SOCIAL } from '@/lib/mundotech-social';
 import type { EnrichedOrder } from './page';
@@ -88,6 +88,19 @@ export default function SuccessClientPage({ order }: Props) {
               ? '¡Recibimos tu pedido! Escríbenos por WhatsApp para coordinar el pago y el envío.'
               : 'Tu pedido ha sido confirmado y se está procesando.'}
           </motion.p>
+          {(order.status === 'Pendiente' || order.status === 'Pendiente verificación Binance') && (
+            <motion.div
+              variants={fadeUp}
+              role="alert"
+              className="mt-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-left"
+            >
+              <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800 leading-snug">
+                Importante: si el pedido permanece pendiente, se cancelará automáticamente 24 horas
+                después de su creación.
+              </p>
+            </motion.div>
+          )}
           <motion.div variants={fadeUp} className="mt-5 inline-flex items-center gap-2 bg-slate-50 border border-slate-200 px-4 py-2 rounded-full">
             <Package size={14} className="text-navy/60" />
             <span className="text-xs text-slate-500">Pedido</span>

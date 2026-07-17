@@ -1,49 +1,31 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const CRONTAB_PATH = resolve(__dirname, '../deploy/crontab.vps');
+const crontabPath = path.resolve(__dirname, '..', 'deploy', 'crontab.vps');
+const crontab = readFileSync(crontabPath, 'utf8');
 
 describe('deploy/crontab.vps', () => {
-  const content = readFileSync(CRONTAB_PATH, 'utf8');
-
-  it('incluye purge-payment-uploads exactamente una vez', () => {
-    const matches = content.match(/purge-payment-uploads/g);
-    expect(matches?.length).toBe(1);
+  it('incluye auto-cancel-orders exactamente una vez', () => {
+    const matches = crontab.match(/\/auto-cancel-orders/g) ?? [];
+    expect(matches).toHaveLength(1);
   });
 
-  it('programa purge-payment-uploads cada hora en el minuto 15', () => {
-    expect(content).toMatch(
-      /^15 \* \* \* \* .+purge-payment-uploads/m,
-    );
+  it('programa auto-cancel-orders cuatro veces por hora', () => {
+    const lineMatch = crontab.match(/^7,22,37,52 \* \* \* \*.*$/m);
+    expect(lineMatch).not.toBeNull();
+    expect(lineMatch![0]).toContain('/api/cron/auto-cancel-orders');
   });
 
-  it('mantiene purge-temporary-data diario para filas DELETED', () => {
-    expect(content).toMatch(
-      /^0 3 \* \* \* .+purge-temporary-data/m,
-    );
+  it('protege auto-cancel-orders con CRON_SECRET', () => {
+    const line = crontab.split('\n').find((l) => l.includes('auto-cancel-orders'));
+    expect(line).toBeDefined();
+    expect(line).toContain('Authorization: Bearer $CRON_SECRET');
   });
 
-  // --- Tests BCV cron ---
-  it('la línea BCV llama scripts/run-bcv-cron.sh', () => {
-    expect(content).toMatch(/scripts\/run-bcv-cron\.sh/);
-  });
-
-  it('la línea BCV conserva horarios 15 0,1,5 * * *', () => {
-    expect(content).toMatch(
-      /^15 0,1,5 \* \* \* .+run-bcv-cron\.sh/m,
-    );
-  });
-
-  it('la línea BCV no contiene $CRON_SECRET directamente', () => {
-    const bcvLine = content
-      .split('\n')
-      .find((line) => /run-bcv-cron\.sh/.test(line));
-    expect(bcvLine).toBeDefined();
-    expect(bcvLine).not.toMatch(/\$CRON_SECRET/);
-  });
-
-  it('la línea BCV redirige a /var/log/bcv-cron.log', () => {
-    expect(content).toMatch(/run-bcv-cron\.sh.+\/var\/log\/bcv-cron\.log/);
+  it('auto-cancel-orders escribe en el log operativo', () => {
+    const line = crontab.split('\n').find((l) => l.includes('auto-cancel-orders'));
+    expect(line).toBeDefined();
+    expect(line).toContain('/var/log/mundotech-cron.log');
   });
 });

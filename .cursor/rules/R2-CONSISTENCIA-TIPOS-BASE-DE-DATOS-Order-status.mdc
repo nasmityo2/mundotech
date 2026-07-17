@@ -1,9 +1,0 @@
----
-alwaysApply: true
----
-
-- OBLIGATORIO: todo código que escriba en Order.status (campo String en Prisma) debe usar exclusivamente valores de la unión TypeScript OrderStatus definida en lib/definitions.ts.
-- Los valores válidos actuales son: 'Pendiente' | 'En Proceso' | 'Enviado' | 'Entregado' | 'Cancelado' | 'Pendiente verificación Binance'. El estado Binance solo se escribe vía su ruta propia; los demás se validan contra VALID_ORDER_STATUSES.
-- PROHIBIDO: usar strings literales de estado fuera de lib/definitions.ts. Siempre importar el tipo: `status: 'Pendiente' satisfies OrderStatus`. Nunca hardcodear strings ingleses como "pending" o "approved" — esos NO son estados válidos en este proyecto.
-- OBLIGATORIO: en endpoints que actualicen Order.status, validar el valor recibido contra VALID_ORDER_STATUSES antes del query Prisma. Rechazar con HTTP 400 si no es un valor válido.
-- META-REGLA: si se requiere un nuevo estado de Order, modificar lib/definitions.ts PRIMERO, luego schema.prisma y la migración. Nunca al revés.

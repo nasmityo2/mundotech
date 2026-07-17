@@ -1,5 +1,4 @@
-﻿# Dependencias (El "agujero negro" que ralentiza la IA)
-node_modules/
+﻿node_modules/
 
 # Archivos de Next.js (Basura técnica de compilación)
 .next/
