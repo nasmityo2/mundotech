@@ -5,7 +5,7 @@ import { MessageCircleOff } from 'lucide-react';
 import { readSettings, isPagoMovilConfigured, isTransferenciaConfigured } from '@/lib/data-store';
 import { readShippingEstimates } from '@/lib/shipping-estimates-db';
 import { isWhatsAppCheckout } from '@/lib/checkout-mode';
-import { isValidWhatsAppPhone } from '@/lib/whatsapp-phone';
+import { isValidWhatsAppPhone, normalizeWhatsAppPhone } from '@/lib/whatsapp-phone';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import CheckoutFlow from '@/app/components/checkout/CheckoutFlow';
 import WhatsAppCheckout from '@/app/components/checkout/WhatsAppCheckout';
@@ -60,7 +60,8 @@ export default async function CheckoutPage() {
   const checkoutPaymentMethods = buildCheckoutPaymentMethods(settings, checkoutChannel);
 
   if (isWhatsAppCheckout) {
-    if (!isValidWhatsAppPhone(settings.whatsappOrderPhone)) {
+    const whatsappOrderPhone = normalizeWhatsAppPhone(settings.whatsappOrderPhone);
+    if (!isValidWhatsAppPhone(whatsappOrderPhone)) {
       return <WhatsAppChannelUnavailable supportPhone={settings.phone} />;
     }
     return (
@@ -73,7 +74,7 @@ export default async function CheckoutPage() {
         pagoMovilConfigured={pagoMovilConfigured}
         transferenciaConfigured={transferenciaConfigured}
         shippingEstimates={shippingEstimates}
-        whatsappOrderPhone={settings.whatsappOrderPhone}
+        whatsappOrderPhone={whatsappOrderPhone}
         storeName={settings.storeName}
         checkoutPaymentMethods={checkoutPaymentMethods}
       />

@@ -13,6 +13,11 @@ import {
 } from '@/lib/shipping-estimates';
 import { writeShippingEstimates } from '@/lib/shipping-estimates-db';
 import { z } from 'zod';
+import {
+  normalizeWhatsAppPhone,
+  isValidWhatsAppPhone,
+  WHATSAPP_PHONE_INVALID_MESSAGE,
+} from '@/lib/whatsapp-phone';
 
 export type GeneralSettingsActionResult = {
   success: boolean;
@@ -56,7 +61,16 @@ const generalSettingsSchema = z.object({
   facebook:           z.string().optional().default(''),
   labelWidthMm:       z.coerce.number().min(40).max(300).default(100),
   labelHeightMm:      z.coerce.number().min(40).max(400).default(150),
-  whatsappOrderPhone: z.string().trim().optional().default(''),
+  whatsappOrderPhone: z
+    .string()
+    .trim()
+    .optional()
+    .default('')
+    .transform(normalizeWhatsAppPhone)
+    .refine(
+      (value) => value === '' || isValidWhatsAppPhone(value),
+      WHATSAPP_PHONE_INVALID_MESSAGE,
+    ),
 }).strict();
 
 /**

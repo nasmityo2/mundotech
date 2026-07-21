@@ -7,16 +7,17 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { logWarn, logError } from '@/lib/safe-logger';
 import { isR2PublicHttpsUrl } from '@/lib/r2-public-url';
-import { normalizeWhatsAppPhone, isValidWhatsAppPhone } from '@/lib/whatsapp-phone';
+import {
+  normalizeWhatsAppPhone,
+  isValidWhatsAppPhone,
+  WHATSAPP_PHONE_INVALID_MESSAGE,
+} from '@/lib/whatsapp-phone';
 import {
   mergePaymentMethodsWithDefaults,
   paymentMethodsArraySchema,
   DEFAULT_PAYMENT_METHODS,
   type PaymentMethodConfig,
 } from '@/lib/payment-methods';
-
-const WHATSAPP_PHONE_INVALID_MESSAGE =
-  'Usa formato internacional de Venezuela, por ejemplo 584121471338.';
 
 const paymentMethodsFieldSchema = z.preprocess(
   (val) => mergePaymentMethodsWithDefaults(val),
@@ -66,17 +67,13 @@ export const storeSettingsSchema = z.object({
   // Etiqueta de envío: tamaño de la HOJA de impresión en mm. Default térmica 4×6".
   labelWidthMm:  z.coerce.number().min(40).max(300).default(100),
   labelHeightMm: z.coerce.number().min(40).max(400).default(150),
-  /// Número de WhatsApp para pedidos en modo WhatsApp (formato internacional, ej. 584121471338).
+  /// Número de WhatsApp para pedidos en modo WhatsApp (E.164 venezolano, ej. 584261234567).
   whatsappOrderPhone: z
     .string()
     .trim()
     .optional()
     .default('')
     .transform((value) => normalizeWhatsAppPhone(value))
-    .refine(
-      (value) => value.length <= 15,
-      WHATSAPP_PHONE_INVALID_MESSAGE,
-    )
     .refine(
       (value) => value === '' || isValidWhatsAppPhone(value),
       WHATSAPP_PHONE_INVALID_MESSAGE,

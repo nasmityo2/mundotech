@@ -2,6 +2,11 @@
 // fuente: el minificador no puede plegarlas a glifos, y se insertan tal cual en
 // la URL (sin encodeURIComponent). Así es imposible que se corrompan a "�"
 // durante build/serve, sin importar el charset del bundle o del servidor.
+import {
+  normalizeWhatsAppPhone,
+  isValidWhatsAppPhone,
+} from '@/lib/whatsapp-phone';
+
 const EMOJI_ENC = {
   cart:    '%F0%9F%9B%92', // 🛒
   person:  '%F0%9F%91%A4', // 👤
@@ -36,10 +41,10 @@ export type WhatsAppOrderInput = {
 };
 
 export function normalizeWaPhone(phone: string): string {
-  return (phone || '').replace(/\D/g, '');
+  return normalizeWhatsAppPhone(phone);
 }
 
-// Construye el mensaje como lista de segmentos. Los emojis son marcadores, NUNCA
+// Construye el mensaje como lista de segmentos.
 // glifos, así que este código fuente es ASCII puro salvo por acentos/símbolos
 // BMP del texto (que sí sobreviven correctamente al build).
 function buildOrderSegments(input: WhatsAppOrderInput): WaSegment[] {
@@ -108,10 +113,9 @@ export function buildWhatsAppOrderText(input: WhatsAppOrderInput): string {
 // los % (doble encode). Usamos api.whatsapp.com en vez de wa.me porque wa.me
 // corrompe los emojis en el redirect 302.
 export function buildWhatsAppOrderUrl(phone: string, input: WhatsAppOrderInput): string {
-  const normalizedPhone = normalizeWaPhone(phone);
-
-  if (!normalizedPhone) {
-    throw new Error('WhatsApp order phone is required');
+  const normalizedPhone = normalizeWhatsAppPhone(phone);
+  if (!isValidWhatsAppPhone(normalizedPhone)) {
+    throw new Error('A valid WhatsApp order phone is required');
   }
 
   return `https://api.whatsapp.com/send?phone=${normalizedPhone}&text=${buildWhatsAppOrderText(input)}`;

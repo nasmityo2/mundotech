@@ -25,6 +25,7 @@ const sample: WhatsAppOrderInput = {
 describe('whatsapp-order', () => {
   it('normaliza el teléfono', () => {
     expect(normalizeWaPhone('+58 412-147-1338')).toBe('584121471338');
+    expect(normalizeWaPhone('04261234567')).toBe('584261234567');
     expect(normalizeWaPhone('')).toBe('');
   });
 
@@ -62,6 +63,11 @@ describe('whatsapp-order', () => {
     expect(decoded).not.toContain('�');
   });
 
+  it('la URL final usa el número canónico E.164', () => {
+    const url = buildWhatsAppOrderUrl('04261234567', sample);
+    expect(url).toContain('phone=584261234567');
+  });
+
   it('la URL final es api.whatsapp.com/send con text codificado y sin doble encode', () => {
     const url = buildWhatsAppOrderUrl('+58 412-147-1338', sample);
 
@@ -83,8 +89,9 @@ describe('whatsapp-order', () => {
     expect(msg).not.toContain('�');
   });
 
-  it('lanza si no hay teléfono', () => {
-    expect(() => buildWhatsAppOrderUrl('', sample)).toThrow('WhatsApp order phone is required');
+  it('lanza si no hay teléfono válido', () => {
+    expect(() => buildWhatsAppOrderUrl('', sample)).toThrow('A valid WhatsApp order phone is required');
+    expect(() => buildWhatsAppOrderUrl('02511234567', sample)).toThrow('A valid WhatsApp order phone is required');
   });
 
   it('incluye descuento por pago en divisas cuando viene del servidor', () => {

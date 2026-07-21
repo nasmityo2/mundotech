@@ -13,12 +13,10 @@ import { recalculateAllProductPrices } from '@/app/actions/productActions';
 import type { FinancialSettingsDto, GeneralSettingsDto } from '@/lib/settings-api-schemas';
 import type { ShippingEstimates } from '@/lib/shipping-estimates';
 import { mrwOffices } from '@/lib/mrw-offices';
-import { normalizeWhatsAppPhone, isValidWhatsAppPhone } from '@/lib/whatsapp-phone';
+import { normalizeWhatsAppPhone, isValidWhatsAppPhone, WHATSAPP_PHONE_INVALID_MESSAGE } from '@/lib/whatsapp-phone';
 import PhotoUploader from '@/components/admin/PhotoUploader';
 import { PaymentMethodsAdminSection } from '@/app/admin/settings/PaymentMethodsAdminSection';
 import { DEFAULT_PAYMENT_METHODS } from '@/lib/payment-methods';
-
-const WHATSAPP_PHONE_INVALID_MESSAGE = 'Usa formato internacional de Venezuela, por ejemplo 584121471338.';
 
 /** Estados con cobertura (mismas llaves que usa el checkout MRW). */
 const VE_STATES = Object.keys(mrwOffices).sort();
@@ -203,6 +201,9 @@ export default function SettingsClient({
       const result = await updateGeneralStoreSettings(generalSettings);
       if (result.success) {
         setSavedGeneral(true);
+        if (result.data) {
+          setGeneralSettings(result.data);
+        }
         setTimeout(() => setSavedGeneral(false), 3000);
         router.refresh();
       } else {
@@ -609,20 +610,24 @@ export default function SettingsClient({
         <SectionCard title="WhatsApp para pedidos" icon={Wallet}>
           <div className="p-3 bg-green-50 rounded-lg text-xs text-green-700 font-medium">
             Número de teléfono al que se enviarán los pedidos creados por WhatsApp.
-            Formato internacional sin espacios, ej. 584121471338.
+            Puedes escribir el número como 0426-1234567, +58 426-1234567 o 584261234567.
+            Se guardará automáticamente en formato internacional.
           </div>
           <Field
             label="Número de WhatsApp para pedidos"
             value={generalSettings.whatsappOrderPhone ?? ''}
             onChange={v => setGeneral(['whatsappOrderPhone'], v)}
             type="tel"
-            placeholder="584121471338"
-            error={fieldError('whatsappOrderPhone') ?? (!whatsappPhoneValid ? WHATSAPP_PHONE_INVALID_MESSAGE : undefined)}
+            placeholder="0426-1234567"
+            error={fieldError('whatsappOrderPhone') ?? ((generalSettings.whatsappOrderPhone ?? '').trim() && !whatsappPhoneValid ? WHATSAPP_PHONE_INVALID_MESSAGE : undefined)}
           />
-          {whatsappPhoneNormalized && (
-            <p className={`text-xs ${whatsappPhoneValid ? 'text-gray-500' : 'text-red-600 font-medium'}`}>
+          {(generalSettings.whatsappOrderPhone ?? '').trim() && whatsappPhoneValid && (
+            <p className="text-xs text-gray-500">
               Se guardará como: <span className="font-mono">{whatsappPhoneNormalized}</span>
             </p>
+          )}
+          {(generalSettings.whatsappOrderPhone ?? '').trim() && !whatsappPhoneValid && !fieldError('whatsappOrderPhone') && (
+            <p className="text-xs text-red-600 font-medium">{WHATSAPP_PHONE_INVALID_MESSAGE}</p>
           )}
         </SectionCard>
           </>

@@ -5,20 +5,34 @@
  * `lib/whatsapp-order.ts`.
  */
 
-/** Solo dígitos, sin espacios/guiones/símbolos ni prefijo "+". */
-export function normalizeWhatsAppPhone(raw: string): string {
-  return (raw || '').replace(/\D/g, '');
+const VENEZUELAN_MOBILE_NATIONAL_REGEX = /^4(?:12|14|16|24|26)\d{7}$/;
+const VENEZUELAN_MOBILE_E164_REGEX = /^584(?:12|14|16|24|26)\d{7}$/;
+
+export const WHATSAPP_PHONE_INVALID_MESSAGE =
+  'Ingresa un móvil venezolano válido, por ejemplo 0426-1234567 o 584261234567.';
+
+/** Solo dígitos normalizados al formato E.164 venezolano (584XXXXXXXXX) cuando aplica. */
+export function normalizeWhatsAppPhone(raw: string | null | undefined): string {
+  let digits = String(raw ?? '').replace(/\D/g, '');
+  if (digits.startsWith('00')) {
+    digits = digits.slice(2);
+  }
+  if (
+    digits.startsWith('0') &&
+    VENEZUELAN_MOBILE_NATIONAL_REGEX.test(digits.slice(1))
+  ) {
+    return `58${digits.slice(1)}`;
+  }
+  if (VENEZUELAN_MOBILE_NATIONAL_REGEX.test(digits)) {
+    return `58${digits}`;
+  }
+  if (VENEZUELAN_MOBILE_E164_REGEX.test(digits)) {
+    return digits;
+  }
+  return digits;
 }
 
-/**
- * Formato internacional: 10 a 15 dígitos, primer dígito 1-9 (E.164 no
- * permite 0 al inicio). Para la configuración actual de Venezuela se exige
- * además el prefijo de país 58 cuando el valor no está vacío — evita que se
- * guarde un número local (`0412…`) que no funciona con wa.me/api.whatsapp.com.
- */
-export function isValidWhatsAppPhone(raw: string): boolean {
-  const digits = normalizeWhatsAppPhone(raw);
-  if (digits.length < 10 || digits.length > 15) return false;
-  if (!/^[1-9]\d+$/.test(digits)) return false;
-  return digits.startsWith('58');
+/** Móvil venezolano en E.164 (584 + operadora + 7 dígitos). Vacío no es válido. */
+export function isValidWhatsAppPhone(raw: string | null | undefined): boolean {
+  return VENEZUELAN_MOBILE_E164_REGEX.test(normalizeWhatsAppPhone(raw));
 }

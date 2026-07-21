@@ -15,7 +15,7 @@ import {
 import { CheckoutError } from '@/lib/checkout-error';
 import { roundMoney2 } from '@/lib/exchange-rate';
 import { readSettings } from '@/lib/data-store';
-import { isValidWhatsAppPhone } from '@/lib/whatsapp-phone';
+import { isValidWhatsAppPhone, normalizeWhatsAppPhone } from '@/lib/whatsapp-phone';
 import { markCartRecovered } from '@/lib/abandoned-cart';
 import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit';
@@ -213,7 +213,8 @@ export async function POST(request: Request) {
     let settings: Awaited<ReturnType<typeof readSettings>> | null = null;
     if (channel === 'whatsapp') {
       settings = await readSettings();
-      if (!isValidWhatsAppPhone(settings.whatsappOrderPhone)) {
+      const whatsappOrderPhone = normalizeWhatsAppPhone(settings.whatsappOrderPhone);
+      if (!isValidWhatsAppPhone(whatsappOrderPhone)) {
         logWarn('checkout_whatsapp_channel_unavailable', { route: '/api/orders', operation: 'checkout' });
         return NextResponse.json(
           { message: 'El canal de pedidos por WhatsApp está temporalmente indisponible.' },
