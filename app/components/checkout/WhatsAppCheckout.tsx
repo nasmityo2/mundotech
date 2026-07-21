@@ -12,6 +12,7 @@ import PaymentForm, { type PaymentFormHandle } from '@/app/components/checkout/P
 import { formatCurrency } from '@/lib/utils';
 import type { ShippingEstimates } from '@/lib/shipping-estimates';
 import type { StoreSettings } from '@/lib/data-store';
+import type { CheckoutPaymentMethodDto } from '@/lib/payment-methods';
 import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
 import { tealcaOffices, type TealcaOffice } from '@/lib/tealca-offices';
 
@@ -28,6 +29,7 @@ interface WhatsAppCheckoutProps {
   shippingEstimates?: ShippingEstimates;
   whatsappOrderPhone?: string;
   storeName?: string;
+  checkoutPaymentMethods: CheckoutPaymentMethodDto[];
 }
 
 function buildAddress(shippingData: ShippingFormData): string {
@@ -154,6 +156,7 @@ const WhatsAppCheckout = ({
   shippingEstimates,
   whatsappOrderPhone = '',
   storeName = 'MundoTech',
+  checkoutPaymentMethods,
 }: WhatsAppCheckoutProps) => {
   const { data: session } = useSession();
   const { cart, clearCart, getCartTotal, isCartLoading, refreshCart } = useCart();
@@ -237,14 +240,8 @@ const WhatsAppCheckout = ({
           zipCode: 'N/A',
           country: 'Venezuela',
         },
-        paymentMethod:
-          payment.paymentMethod === 'pagomovil'
-            ? 'Pago Móvil'
-            : payment.paymentMethod === 'binancepay'
-              ? 'Binance Pay'
-              : payment.paymentMethod === 'cashea'
-                ? 'Cashea'
-                : 'Transferencia Bancaria',
+        paymentMethodId: payment.paymentMethodId,
+        paymentCurrency: payment.paymentCurrency,
         paymentBank: payment.bank || null,
         paymentHolderIdNumber: null,
         paymentHolderPhone: null,
@@ -269,6 +266,12 @@ const WhatsAppCheckout = ({
         guestToken?: string;
         message?: string;
         error?: string;
+        total?: number;
+        exchangeRateUsdBs?: number | null;
+        paymentMethod?: string;
+        paymentCurrency?: string | null;
+        paymentDiscount?: number | null;
+        paymentDiscountPercent?: number | null;
       };
 
       if (!response.ok) {
@@ -310,6 +313,16 @@ const WhatsAppCheckout = ({
           : shipping.shippingMethod === 'zoom'
             ? `${buildAddress(shipping)}, ${buildCity(shipping)}, ${buildState(shipping)}`.replace(/,\s*,/g, ',').trim()
             : buildAddress(shipping);
+      const serverRate = body.exchangeRateUsdBs && body.exchangeRateUsdBs > 0
+        ? body.exchangeRateUsdBs
+        : exchangeRate;
+      const serverTotalUsd = body.total != null && serverRate > 0
+        ? body.total / serverRate
+        : total;
+      const serverPaymentDiscountUsd =
+        body.paymentDiscount != null && body.paymentDiscount > 0 && serverRate > 0
+          ? body.paymentDiscount / serverRate
+          : undefined;
       const waInput = {
         orderRef,
         customerName: `${shipping.firstName} ${shipping.lastName}`,
@@ -317,21 +330,17 @@ const WhatsAppCheckout = ({
         phone: shipping.phoneNumber,
         address: waShippingText,
         shippingCompany: getShippingMethodLabel(shipping),
-        paymentMethod:
-          payment.paymentMethod === 'pagomovil'
-            ? 'Pago Móvil'
-            : payment.paymentMethod === 'binancepay'
-              ? 'Binance Pay'
-              : payment.paymentMethod === 'cashea'
-                ? 'Cashea'
-                : 'Transferencia Bancaria',
+        paymentMethod: body.paymentMethod ?? 'Pago',
         items: cart.map((item) => ({
           name: item.name,
           quantity: item.quantity,
           priceUsd: item.price,
         })),
-        totalUsd: total,
-        rate: exchangeRate,
+        totalUsd: serverTotalUsd,
+        rate: serverRate,
+        paymentDiscountUsd: serverPaymentDiscountUsd,
+        paymentDiscountPercent: body.paymentDiscountPercent ?? undefined,
+        paymentCurrency: body.paymentCurrency ?? payment.paymentCurrency,
       };
       const url = buildWhatsAppOrderUrl(whatsappOrderPhone, waInput);
       setWaUrl(url);
@@ -428,6 +437,9 @@ const WhatsAppCheckout = ({
               binanceQrUrl={binanceQrUrl}
               pagoMovilConfigured={pagoMovilConfigured}
               transferenciaConfigured={transferenciaConfigured}
+              checkoutPaymentMethods={checkoutPaymentMethods}
+              subtotalUsd={subtotal}
+              exchangeRateUsdBs={exchangeRate}
             />
 
             {/* Separador */}

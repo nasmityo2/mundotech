@@ -2,30 +2,28 @@
 
 import { useState, useRef, useCallback, useMemo, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Phone, Building, ChevronRight, Copy, Check, UploadCloud, X, Wallet, AlertTriangle } from 'lucide-react';
+import { Phone, Building, ChevronRight, Copy, Check, UploadCloud, X, Wallet, AlertTriangle, Banknote } from 'lucide-react';
 import { useReducedMotion, reducedTransition } from '@/lib/motion';
 import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 import type { StoreSettings } from '@/lib/data-store';
 import { VENEZUELAN_BANKS } from '@/lib/venezuela-banks';
 import { isHeicFile, normalizeImageForUpload } from '@/lib/client-image-normalize';
-
-export type PaymentMethod = 'pagomovil' | 'transferencia' | 'binancepay' | 'cashea';
+import {
+  estimatePaymentDiscountUsd,
+  type CheckoutPaymentMethodDto,
+} from '@/lib/payment-methods';
+import { formatCurrency } from '@/lib/utils';
 
 export type PaymentFormData = {
-  paymentMethod:      PaymentMethod;
-  bank:               string;
-  holderIdNumber:     string;
-  holderPhone:        string;
-  referenceNumber:    string;
-  /**
-   * PRD-049: el archivo se retiene localmente y se sube a R2 recién al
-   * confirmar el pedido (ReviewStep). Antes se subía al seleccionarlo y cada
-   * checkout abandonado dejaba imágenes huérfanas.
-   */
-  proofFile:          File | null;
-  /** Object URL local solo para previsualizar la captura. */
-  proofPreviewUrl:    string;
+  paymentMethodId: string;
+  paymentCurrency: string | null;
+  bank: string;
+  holderIdNumber: string;
+  holderPhone: string;
+  referenceNumber: string;
+  proofFile: File | null;
+  proofPreviewUrl: string;
 };
 
 export type PaymentFormHandle = {
@@ -34,93 +32,106 @@ export type PaymentFormHandle = {
 
 interface PaymentFormProps {
   onPaymentSubmit: (data: PaymentFormData) => void;
-  /** Datos ya capturados: al volver desde Revisión el formulario se remonta y sin esto se perdía todo. */
   initialData?: PaymentFormData | null;
-  /** Datos de pago de la tienda leídos desde el data-store en el Server Component padre. */
   pagoMovil: StoreSettings['pagoMovil'];
   transferencia: StoreSettings['transferencia'];
-  /**
-   * PRD-027/130: Binance Pay ID y QR URL desde readSettings() (Server Component
-   * padre). Vacíos = Binance no está configurado → se oculta el método de pago.
-   */
   binancePayId?: string;
   binanceQrUrl?: string;
-  /**
-   * Pago Móvil con los 3 datos completos (readSettings → isPagoMovilConfigured).
-   * En modo Full, sin esto el método no se muestra (evita instrucciones vacías).
-   * En modo WhatsApp el método siempre se muestra: se coordina por chat.
-   */
   pagoMovilConfigured?: boolean;
-  /** Igual que pagoMovilConfigured, para Transferencia (isTransferenciaConfigured). */
   transferenciaConfigured?: boolean;
-  /** Modo WhatsApp: solo requiere método de pago, sin referencia ni comprobante. */
   whatsappMode?: boolean;
-  /** Si es true, oculta el botón "Revisar pedido" (modo embebido). */
   embedded?: boolean;
+  checkoutPaymentMethods: CheckoutPaymentMethodDto[];
+  subtotalUsd: number;
+  exchangeRateUsdBs?: number;
+  shippingMethod?: string | null;
 }
 
-/** Límites espejo de /api/checkout/upload-proof para fallar temprano en cliente. */
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
-
-/** El servidor solo acepta JPEG/PNG/WEBP; HEIC/HEIF se normaliza en cliente antes de subir. */
 const PROOF_FILE_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif';
 
 const selectCls =
   'block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy';
 
-const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPaymentSubmit, initialData, pagoMovil, transferencia, binancePayId = '', binanceQrUrl = '', pagoMovilConfigured = false, transferenciaConfigured = false, whatsappMode = false, embedded = false }, ref) => {
+function methodIcon(kind: CheckoutPaymentMethodDto['kind']) {
+  switch (kind) {
+    case 'PAGO_MOVIL':
+      return Phone;
+    case 'BANK_TRANSFER':
+      return Building;
+    case 'CASH_FOREIGN_CURRENCY':
+      return Banknote;
+    default:
+      return Wallet;
+  }
+}
+
+const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
+  onPaymentSubmit,
+  initialData,
+  pagoMovil,
+  transferencia,
+  binancePayId = '',
+  binanceQrUrl = '',
+  whatsappMode = false,
+  embedded = false,
+  checkoutPaymentMethods,
+  subtotalUsd,
+  shippingMethod = null,
+}, ref) => {
   const prefersReduced = useReducedMotion();
-  const [selected,        setSelected]        = useState<PaymentMethod | null>(initialData?.paymentMethod ?? null);
-  const [copiedField,     setCopiedField]      = useState<string | null>(null);
-  const [bank,            setBank]             = useState(initialData?.bank && initialData.bank !== 'Binance' ? initialData.bank : '');
-  const [holderIdNumber,  setHolderIdNumber]   = useState(initialData?.holderIdNumber ?? '');
-  const [holderPhone,     setHolderPhone]      = useState(initialData?.holderPhone ?? '');
-  const [referenceNumber, setReferenceNumber]  = useState(initialData?.referenceNumber ?? '');
-  const [proofFile,       setProofFile]        = useState<File | null>(initialData?.proofFile ?? null);
-  const [proofPreviewUrl, setProofPreviewUrl]  = useState(initialData?.proofPreviewUrl ?? '');
-  const [uploadError,     setUploadError]      = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialData?.paymentMethodId ?? null);
+  const [paymentCurrency, setPaymentCurrency] = useState<string | null>(initialData?.paymentCurrency ?? null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [bank, setBank] = useState(initialData?.bank && initialData.bank !== 'Binance' ? initialData.bank : '');
+  const [holderIdNumber, setHolderIdNumber] = useState(initialData?.holderIdNumber ?? '');
+  const [holderPhone, setHolderPhone] = useState(initialData?.holderPhone ?? '');
+  const [referenceNumber, setReferenceNumber] = useState(initialData?.referenceNumber ?? '');
+  const [proofFile, setProofFile] = useState<File | null>(initialData?.proofFile ?? null);
+  const [proofPreviewUrl, setProofPreviewUrl] = useState(initialData?.proofPreviewUrl ?? '');
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [normalizingProof, setNormalizingProof] = useState(false);
-  const [errors,          setErrors]           = useState<Partial<Record<'paymentMethod' | 'bank' | 'holderIdNumber' | 'holderPhone' | 'referenceNumber' | 'proofFile', string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<'paymentMethodId' | 'bank' | 'holderIdNumber' | 'holderPhone' | 'referenceNumber' | 'proofFile' | 'paymentCurrency', string>>>({});
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Métodos disponibles: en WhatsApp, Pago Móvil/Transferencia siempre se
-  // muestran (se coordinan por chat, sin exponer datos bancarios vacíos como
-  // instrucciones). En Full solo se muestran si el admin configuró TODOS sus
-  // datos (evita mostrar una cuenta/RIF vacía como si fuera real).
-  const methods = useMemo(() => {
-    const list: { id: PaymentMethod; icon: typeof Phone; label: string; sub: string }[] = [];
-    if (whatsappMode || pagoMovilConfigured) {
-      list.push({ id: 'pagomovil', icon: Phone, label: 'Pago Móvil', sub: 'Transfiere desde tu app bancaria' });
-    }
-    if (whatsappMode || transferenciaConfigured) {
-      list.push({ id: 'transferencia', icon: Building, label: 'Transferencia', sub: 'Transferencia bancaria nacional' });
-    }
-    if (binancePayId.trim()) {
-      list.push({ id: 'binancepay', icon: Wallet, label: 'Binance', sub: 'Paga a nuestra cuenta y sube captura + Order ID' });
-    }
-    list.push({ id: 'cashea', icon: Wallet, label: 'Cashea', sub: 'Compra ahora y paga después — coordinamos por WhatsApp' });
-    return list;
-  }, [whatsappMode, pagoMovilConfigured, transferenciaConfigured, binancePayId]);
+  const visibleMethods = useMemo(() => {
+    return checkoutPaymentMethods.filter((m) => {
+      if (
+        !whatsappMode &&
+        m.fullDeliveryScope === 'STORE_PICKUP_ONLY' &&
+        shippingMethod !== 'tienda'
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [checkoutPaymentMethods, whatsappMode, shippingMethod]);
 
-  const availableMethodIds = useMemo(() => new Set(methods.map((m) => m.id)), [methods]);
+  const availableIds = useMemo(() => new Set(visibleMethods.map((m) => m.id)), [visibleMethods]);
+  const selectedMethod = visibleMethods.find((m) => m.id === selected) ?? null;
 
-  // Si el método elegido deja de estar disponible (cambió la configuración
-  // entre renders), no debe quedar seleccionado en el state.
   useEffect(() => {
-    if (selected && !availableMethodIds.has(selected)) {
+    if (selected && !availableIds.has(selected)) {
       setSelected(null);
+      setPaymentCurrency(null);
     }
-  }, [selected, availableMethodIds]);
+  }, [selected, availableIds]);
 
-  // Nota: el object URL NO se revoca al desmontar — ReviewStep lo usa para
-  // mostrar la captura adjunta y al volver atrás se restaura como preview.
-  // Solo se libera al reemplazar/quitar la imagen (ver selectProof/clearProof).
+  useEffect(() => {
+    if (!selectedMethod) return;
+    if (selectedMethod.acceptedCurrencies.length === 0) {
+      setPaymentCurrency(null);
+      return;
+    }
+    if (paymentCurrency && !selectedMethod.acceptedCurrencies.includes(paymentCurrency)) {
+      setPaymentCurrency(null);
+    }
+  }, [selectedMethod, paymentCurrency]);
 
   const handleCopy = async (value: string) => {
     try {
       await navigator.clipboard.writeText(value);
     } catch {
-      // Safari iOS / WebViews sin permiso de clipboard: fallback clásico.
       const ta = document.createElement('textarea');
       ta.value = value;
       ta.style.position = 'fixed';
@@ -167,11 +178,19 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
     });
   }, []);
 
+  const needsCurrency = Boolean(
+    selectedMethod &&
+      (selectedMethod.kind === 'CASH_FOREIGN_CURRENCY' ||
+        selectedMethod.acceptedCurrencies.length > 0),
+  );
+
   const buildPaymentData = (): PaymentFormData => {
+    const kind = selectedMethod?.kind;
     if (whatsappMode) {
       return {
-        paymentMethod: selected!,
-        bank: selected === 'pagomovil' || selected === 'transferencia' ? bank : '',
+        paymentMethodId: selected!,
+        paymentCurrency: needsCurrency ? paymentCurrency : null,
+        bank: kind === 'PAGO_MOVIL' || kind === 'BANK_TRANSFER' ? bank : '',
         holderIdNumber: '',
         holderPhone: '',
         referenceNumber: '',
@@ -179,9 +198,10 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
         proofPreviewUrl: '',
       };
     }
-    if (selected === 'cashea') {
+    if (kind === 'CASHEA') {
       return {
-        paymentMethod: 'cashea',
+        paymentMethodId: selected!,
+        paymentCurrency: null,
         bank: '',
         holderIdNumber: '',
         holderPhone: '',
@@ -190,9 +210,10 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
         proofPreviewUrl: '',
       };
     }
-    if (selected === 'binancepay') {
+    if (kind === 'BINANCE') {
       return {
-        paymentMethod: 'binancepay',
+        paymentMethodId: selected!,
+        paymentCurrency: null,
         bank: 'Binance',
         holderIdNumber: '',
         holderPhone: '',
@@ -201,8 +222,21 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
         proofPreviewUrl,
       };
     }
+    if (kind === 'CASH_FOREIGN_CURRENCY' || kind === 'ZELLE' || kind === 'CUSTOM_FOREIGN_CURRENCY') {
+      return {
+        paymentMethodId: selected!,
+        paymentCurrency: needsCurrency ? paymentCurrency : null,
+        bank: '',
+        holderIdNumber: '',
+        holderPhone: '',
+        referenceNumber,
+        proofFile,
+        proofPreviewUrl,
+      };
+    }
     return {
-      paymentMethod: selected!,
+      paymentMethodId: selected!,
+      paymentCurrency: null,
       bank,
       holderIdNumber,
       holderPhone,
@@ -212,38 +246,55 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
     };
   };
 
-  useImperativeHandle(ref, () => ({
-    submit: () => (validate() && selected) ? buildPaymentData() : null,
-  }));
-
   const validate = (): boolean => {
     const e: typeof errors = {};
-    if (!selected) e.paymentMethod = 'Selecciona un método de pago.';
+    if (!selected || !selectedMethod) {
+      e.paymentMethodId = 'Selecciona un método de pago.';
+      setErrors(e);
+      return false;
+    }
+
+    if (needsCurrency && !paymentCurrency) {
+      e.paymentCurrency = 'Selecciona la moneda del pago.';
+    }
+
     if (whatsappMode) {
-      // WhatsApp: solo requiere método seleccionado — no exige ref ni comprobante.
       setErrors(e);
       return Object.keys(e).length === 0;
     }
-    if (selected === 'cashea') {
+
+    const kind = selectedMethod.kind;
+    if (kind === 'CASHEA') {
       setErrors(e);
       return Object.keys(e).length === 0;
     }
-    if (selected === 'binancepay') {
-      if (!referenceNumber.trim()) {
-        e.referenceNumber = 'Ingresa el Order ID o referencia que muestra Binance.';
-      }
-      if (!proofFile) e.proofFile = 'Sube la captura de pantalla del pago.';
-      setErrors(e);
-      return Object.keys(e).length === 0;
+
+    if (kind === 'PAGO_MOVIL' || kind === 'BANK_TRANSFER') {
+      if (!bank) e.bank = 'Selecciona tu banco.';
+      if (!holderIdNumber.trim()) e.holderIdNumber = 'Ingresa la cédula del titular.';
+      if (!holderPhone.trim()) e.holderPhone = 'Ingresa el teléfono.';
     }
-    if (!bank) e.bank = 'Selecciona tu banco.';
-    if (!holderIdNumber.trim()) e.holderIdNumber = 'Ingresa la cédula del titular.';
-    if (!holderPhone.trim()) e.holderPhone = 'Ingresa el teléfono.';
-    if (!referenceNumber.trim()) e.referenceNumber = 'Ingresa el número de referencia.';
-    if (!proofFile) e.proofFile = 'Sube el comprobante de pago.';
+
+    if (selectedMethod.requireReferenceInFull && !referenceNumber.trim()) {
+      e.referenceNumber =
+        kind === 'BINANCE'
+          ? 'Ingresa el Order ID o referencia que muestra Binance.'
+          : 'Ingresa el número de referencia.';
+    }
+    if (selectedMethod.requireProofInFull && !proofFile) {
+      e.proofFile =
+        kind === 'BINANCE'
+          ? 'Sube la captura de pantalla del pago.'
+          : 'Sube el comprobante de pago.';
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
+
+  useImperativeHandle(ref, () => ({
+    submit: () => (validate() && selected ? buildPaymentData() : null),
+  }));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,24 +302,90 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
     onPaymentSubmit(buildPaymentData());
   };
 
-  const isBankManual = selected === 'pagomovil' || selected === 'transferencia';
+  const estimatedSavings =
+    selectedMethod && selectedMethod.discountEnabled && selectedMethod.discountPercent > 0
+      ? estimatePaymentDiscountUsd(subtotalUsd, selectedMethod.discountPercent)
+      : 0;
+
+  const isBankManual =
+    selectedMethod?.kind === 'PAGO_MOVIL' || selectedMethod?.kind === 'BANK_TRANSFER';
 
   const storeDataRows: { label: string; value: string }[] | null = (() => {
-    if (!selected || selected === 'binancepay' || selected === 'cashea') return null;
-    if (selected === 'pagomovil') {
+    if (!selectedMethod || whatsappMode) return null;
+    if (selectedMethod.kind === 'PAGO_MOVIL') {
       return [
-        { label: 'Banco',    value: pagoMovil.bank },
+        { label: 'Banco', value: pagoMovil.bank },
         { label: 'Teléfono', value: pagoMovil.phone },
-        { label: 'Cédula',   value: pagoMovil.idNumber },
+        { label: 'Cédula', value: pagoMovil.idNumber },
       ];
     }
-    return [
-      { label: 'Banco',    value: transferencia.bank },
-      { label: 'Cuenta',   value: transferencia.accountNumber },
-      { label: 'Titular',  value: transferencia.accountHolder },
-      { label: 'RIF',      value: transferencia.rif },
-    ];
+    if (selectedMethod.kind === 'BANK_TRANSFER') {
+      return [
+        { label: 'Banco', value: transferencia.bank },
+        { label: 'Cuenta', value: transferencia.accountNumber },
+        { label: 'Titular', value: transferencia.accountHolder },
+        { label: 'RIF', value: transferencia.rif },
+      ];
+    }
+    return null;
   })();
+
+  const renderProofUploader = (label: string) => (
+    <div>
+      <p className="text-sm font-semibold text-navy mb-2">
+        {label} <span className="text-rose-500">*</span>
+      </p>
+      <input
+        ref={fileRef}
+        type="file"
+        accept={PROOF_FILE_ACCEPT}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void selectProof(file);
+          e.target.value = '';
+        }}
+      />
+      {proofPreviewUrl ? (
+        <div className="relative inline-block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={proofPreviewUrl}
+            alt="Comprobante"
+            loading="lazy"
+            decoding="async"
+            className="w-40 h-40 object-cover rounded-xl border border-slate-200 shadow-soft"
+          />
+          <button
+            type="button"
+            onClick={clearProof}
+            className="absolute -top-4 -right-4 w-11 h-11 flex items-center justify-center"
+            aria-label="Eliminar comprobante"
+          >
+            <span className="w-7 h-7 bg-rose-600 text-white rounded-full flex items-center justify-center hover:bg-rose-700 transition-colors shadow">
+              <X size={14} />
+            </span>
+          </button>
+          <p className="mt-1.5 text-[11px] text-emerald-600 font-medium flex items-center gap-1">
+            <Check size={11} /> Listo — se envía al confirmar el pedido
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={normalizingProof}
+          className="w-full flex items-center justify-center gap-2 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-navy/40 hover:bg-slate-100 rounded-xl py-5 text-sm font-medium text-slate-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <UploadCloud size={16} /> {normalizingProof ? 'Preparando imagen…' : 'Subir comprobante'}
+        </button>
+      )}
+      {uploadError && <p className="mt-1.5 text-xs text-rose-700">{uploadError}</p>}
+      {errors.proofFile && !proofFile && (
+        <p className="mt-1.5 text-xs text-rose-700">{errors.proofFile}</p>
+      )}
+    </div>
+  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-7">
@@ -277,20 +394,28 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
         <p className="text-sm text-slate-500 mt-1">
           {whatsappMode
             ? 'Selecciona cómo vas a pagar. No necesitas subir comprobante ahora — lo coordinas por WhatsApp.'
-            : 'Selecciona cómo vas a pagar y sube tu comprobante.'}
+            : 'Selecciona cómo vas a pagar y completa los datos requeridos.'}
         </p>
       </div>
 
-      {/* ── Cards de método ── */}
-      {methods.length > 0 ? (
+      {visibleMethods.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {methods.map((m) => {
+          {visibleMethods.map((m) => {
+            const Icon = methodIcon(m.kind);
             const isActive = selected === m.id;
             return (
               <button
                 key={m.id}
                 type="button"
-                onClick={() => { setSelected(m.id); setErrors({}); }}
+                onClick={() => {
+                  setSelected(m.id);
+                  setErrors({});
+                  if (m.acceptedCurrencies.length === 1) {
+                    setPaymentCurrency(m.acceptedCurrencies[0] ?? null);
+                  } else if (m.kind !== 'CASH_FOREIGN_CURRENCY' && m.acceptedCurrencies.length === 0) {
+                    setPaymentCurrency(null);
+                  }
+                }}
                 className={`text-left rounded-2xl p-4 flex items-start gap-3 transition-all ${
                   isActive
                     ? 'border-2 border-navy bg-slate-50 shadow-soft'
@@ -300,11 +425,16 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
                   isActive ? 'bg-navy text-white' : 'bg-slate-100 text-slate-500'
                 }`}>
-                  <m.icon size={17} />
+                  <Icon size={17} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-navy">{m.label}</p>
-                  <p className="text-[12px] text-slate-500 mt-0.5">{m.sub}</p>
+                  <p className="text-sm font-semibold text-navy">{m.name}</p>
+                  <p className="text-[12px] text-slate-500 mt-0.5">{m.description}</p>
+                  {m.discountEnabled && m.discountPercent > 0 && (
+                    <p className="mt-1.5 inline-flex text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-0.5">
+                      {m.discountPercent}% de descuento pagando en divisas
+                    </p>
+                  )}
                 </div>
               </button>
             );
@@ -318,114 +448,109 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
           </p>
         </div>
       )}
-      {errors.paymentMethod && (
-        <p className="text-xs text-rose-700 -mt-4">{errors.paymentMethod}</p>
+      {errors.paymentMethodId && (
+        <p className="text-xs text-rose-700 -mt-4">{errors.paymentMethodId}</p>
       )}
 
-      {/* ── Datos de la tienda para pagar ── */}
-      {!whatsappMode && (
-        <AnimatePresence mode="wait">
-          {storeDataRows && isBankManual && (
-            <motion.div
-              key={selected}
-              initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={prefersReduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
-              transition={prefersReduced ? reducedTransition : { duration: 0.22 }}
-              className="bg-navy/5 border border-navy/10 rounded-2xl p-5"
-            >
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3">
-                Transfiere a estos datos de MundoTech
-              </p>
-              <dl className="space-y-2">
-                {storeDataRows.map((row) => (
-                  <div key={row.label} className="flex items-center justify-between gap-3 text-sm">
-                    <dt className="text-slate-500 shrink-0">{row.label}</dt>
-                    <dd className="flex items-center gap-1 font-mono text-navy text-[13px] text-right">
-                      {row.value}
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(row.value)}
-                        className="min-w-[44px] min-h-[44px] -my-3 -mr-2 flex items-center justify-center rounded-md hover:bg-slate-200 text-slate-400 hover:text-navy transition-colors"
-                        aria-label={`Copiar ${row.label}`}
-                      >
-                        {copiedField === row.value
-                          ? <Check size={14} className="text-emerald-500" />
-                          : <Copy size={14} />}
-                      </button>
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </motion.div>
-          )}
-        </AnimatePresence>
+      {selectedMethod && estimatedSavings > 0 && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-[13px] text-emerald-800 leading-relaxed">
+          Ahorras aproximadamente {formatCurrency(estimatedSavings)} con este método.
+          <span className="block text-emerald-700/80 text-[12px] mt-0.5">
+            El descuento definitivo será calculado al crear el pedido.
+          </span>
+        </div>
       )}
 
-      {whatsappMode && selected && selected !== 'binancepay' && selected !== 'cashea' && (
+      {!whatsappMode && storeDataRows && isBankManual && (
+        <motion.div
+          key={selectedMethod?.id}
+          initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={prefersReduced ? reducedTransition : { duration: 0.22 }}
+          className="bg-navy/5 border border-navy/10 rounded-2xl p-5"
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3">
+            Transfiere a estos datos de MundoTech
+          </p>
+          <dl className="space-y-2">
+            {storeDataRows.map((row) => (
+              <div key={row.label} className="flex items-center justify-between gap-3 text-sm">
+                <dt className="text-slate-500 shrink-0">{row.label}</dt>
+                <dd className="flex items-center gap-1 font-mono text-navy text-[13px] text-right">
+                  {row.value}
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(row.value)}
+                    className="min-w-[44px] min-h-[44px] -my-3 -mr-2 flex items-center justify-center rounded-md hover:bg-slate-200 text-slate-400 hover:text-navy transition-colors"
+                    aria-label={`Copiar ${row.label}`}
+                  >
+                    {copiedField === row.value
+                      ? <Check size={14} className="text-emerald-500" />
+                      : <Copy size={14} />}
+                  </button>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </motion.div>
+      )}
+
+      {whatsappMode && selectedMethod && selectedMethod.kind !== 'BINANCE' && selectedMethod.kind !== 'CASHEA' && selectedMethod.kind !== 'ZELLE' && selectedMethod.kind !== 'CUSTOM_FOREIGN_CURRENCY' && selectedMethod.kind !== 'CASH_FOREIGN_CURRENCY' && (
         <p className="text-[12px] text-slate-600 leading-relaxed rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5">
           Coordinaremos los datos de pago contigo por WhatsApp al confirmar tu pedido.
         </p>
       )}
 
-      {!whatsappMode && (
-        <AnimatePresence mode="wait">
-          {selected === 'binancepay' && (
-            <motion.div
-              key="binance-static"
-              initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={prefersReduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
-              transition={prefersReduced ? reducedTransition : { duration: 0.22 }}
-              className="rounded-2xl border border-[#F0B90B]/50 bg-gradient-to-br from-amber-50/90 to-white p-5 space-y-4"
-            >
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
-                  Paga a MundoTech en Binance
-                </p>
-                {binancePayId.trim() ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-                    <div>
-                      <p className="text-[11px] text-slate-500">Binance ID / Pay ID</p>
-                      <p className="font-mono text-sm font-semibold text-navy break-all">{binancePayId.trim()}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(binancePayId.trim())}
-                      className="shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500"
-                      aria-label="Copiar Binance ID"
-                    >
-                      {copiedField === binancePayId.trim() ? (
-                        <Check size={14} className="text-emerald-500" />
-                      ) : (
-                        <Copy size={14} />
-                      )}
-                    </button>
+      <AnimatePresence mode="wait">
+        {selectedMethod?.kind === 'BINANCE' && !whatsappMode && (
+          <motion.div
+            key="binance-panel"
+            initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={prefersReduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            transition={prefersReduced ? reducedTransition : { duration: 0.22 }}
+            className="rounded-2xl border border-[#F0B90B]/50 bg-gradient-to-br from-amber-50/90 to-white p-5 space-y-4"
+          >
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
+                Paga a MundoTech en Binance
+              </p>
+              {binancePayId.trim() ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                  <div>
+                    <p className="text-[11px] text-slate-500">Binance ID / Pay ID</p>
+                    <p className="font-mono text-sm font-semibold text-navy break-all">{binancePayId.trim()}</p>
                   </div>
-                ) : null}
-                {binanceQrUrl.trim() ? (
-                  <div className="mt-3 flex justify-center">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={binanceQrUrl.trim()}
-                      alt="Código QR Binance MundoTech"
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                      decoding="async"
-                      className="w-36 h-36 rounded-xl border border-slate-200 bg-white object-contain"
-                    />
-                  </div>
-                ) : null}
-                <p className="text-[12px] text-slate-600 mt-3 leading-relaxed">
-                  Envía el monto del pedido desde Binance a la cuenta indicada. Luego completa los datos abajo: el <strong>Order ID</strong> que muestra Binance y una <strong>captura</strong> del pago. MundoTech verificará el movimiento antes de preparar el envío.
-                </p>
-              </div>
-              <div className="border-t border-amber-200/60 pt-4 space-y-4">
-              <Field
-                id="binanceReference"
-                label="Order ID / referencia en Binance"
-                error={errors.referenceNumber}
-              >
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(binancePayId.trim())}
+                    className="shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500"
+                    aria-label="Copiar Binance ID"
+                  >
+                    {copiedField === binancePayId.trim() ? (
+                      <Check size={14} className="text-emerald-500" />
+                    ) : (
+                      <Copy size={14} />
+                    )}
+                  </button>
+                </div>
+              ) : null}
+              {binanceQrUrl.trim() ? (
+                <div className="mt-3 flex justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={binanceQrUrl.trim()}
+                    alt="Código QR Binance MundoTech"
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                    decoding="async"
+                    className="w-36 h-36 rounded-xl border border-slate-200 bg-white object-contain"
+                  />
+                </div>
+              ) : null}
+            </div>
+            {selectedMethod.requireReferenceInFull && (
+              <Field id="binanceReference" label="Order ID / referencia en Binance" error={errors.referenceNumber}>
                 <Input
                   id="binanceReference"
                   placeholder="Ej. orden mostrada en historial o comprobante"
@@ -435,74 +560,154 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                   invalid={!!errors.referenceNumber}
                 />
               </Field>
-              <div>
-                <p className="text-sm font-semibold text-navy mb-2">
-                  Captura del pago <span className="text-rose-500">*</span>
-                </p>
-                <p className="text-[12px] text-slate-500 mb-3">
-                  Sube la captura de pantalla donde se vea el envío y el monto.
-                </p>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept={PROOF_FILE_ACCEPT}
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void selectProof(file);
-                    e.target.value = '';
-                  }}
-                />
-                {proofPreviewUrl ? (
-                  <div className="relative inline-block">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={proofPreviewUrl}
-                      alt="Captura Binance"
-                      loading="lazy"
-                      decoding="async"
-                      className="w-40 h-40 object-cover rounded-xl border border-slate-200 shadow-soft"
-                    />
-                    <button
-                      type="button"
-                      onClick={clearProof}
-                      className="absolute -top-4 -right-4 w-11 h-11 flex items-center justify-center"
-                      aria-label="Eliminar captura"
-                    >
-                      <span className="w-7 h-7 bg-rose-600 text-white rounded-full flex items-center justify-center hover:bg-rose-700 transition-colors shadow">
-                        <X size={14} />
-                      </span>
-                    </button>
-                    <p className="mt-1.5 text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                      <Check size={11} /> Captura lista — se envía al confirmar el pedido
-                    </p>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => fileRef.current?.click()}
-                    disabled={normalizingProof}
-                    className="w-full flex items-center justify-center gap-2 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-navy/40 hover:bg-slate-100 rounded-xl py-5 text-sm font-medium text-slate-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <UploadCloud size={16} /> {normalizingProof ? 'Preparando imagen…' : 'Subir captura'}
-                  </button>
-                )}
-                {uploadError && <p className="mt-1.5 text-xs text-rose-700">{uploadError}</p>}
-                {errors.proofFile && !proofFile && (
-                  <p className="mt-1.5 text-xs text-rose-700">{errors.proofFile}</p>
-                )}
-              </div>
-            </div>
+            )}
+            {selectedMethod.requireProofInFull && renderProofUploader('Captura del pago')}
           </motion.div>
         )}
       </AnimatePresence>
-      )}
 
-      {/* ── Panel informativo Cashea ── */}
       <AnimatePresence mode="wait">
-        {selected === 'cashea' && (
+        {selectedMethod?.kind === 'ZELLE' && (
           <motion.div
-            key="cashea-static"
+            key="zelle-panel"
+            initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={prefersReduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            transition={prefersReduced ? reducedTransition : { duration: 0.22 }}
+            className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-3"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Zelle</p>
+            {selectedMethod.recipientLabel && selectedMethod.recipientValue && (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div>
+                  <p className="text-[11px] text-slate-500">{selectedMethod.recipientLabel}</p>
+                  <p className="font-mono text-sm font-semibold text-navy break-all">{selectedMethod.recipientValue}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(selectedMethod.recipientValue)}
+                  className="shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500"
+                  aria-label="Copiar destinatario Zelle"
+                >
+                  {copiedField === selectedMethod.recipientValue ? (
+                    <Check size={14} className="text-emerald-500" />
+                  ) : (
+                    <Copy size={14} />
+                  )}
+                </button>
+              </div>
+            )}
+            {selectedMethod.instructions && (
+              <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap">{selectedMethod.instructions}</p>
+            )}
+            {whatsappMode && (
+              <p className="text-[12px] text-slate-500">La referencia y el comprobante se coordinan por WhatsApp.</p>
+            )}
+            {!whatsappMode && selectedMethod.requireReferenceInFull && (
+              <Field id="zelleReference" label="Número de referencia" error={errors.referenceNumber}>
+                <Input
+                  id="zelleReference"
+                  value={referenceNumber}
+                  onChange={(e) => setReferenceNumber(e.target.value)}
+                  invalid={!!errors.referenceNumber}
+                />
+              </Field>
+            )}
+            {!whatsappMode && selectedMethod.requireProofInFull && renderProofUploader('Comprobante de pago')}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence mode="wait">
+        {selectedMethod?.kind === 'CASH_FOREIGN_CURRENCY' && (
+          <motion.div
+            key="cash-panel"
+            initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={prefersReduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            transition={prefersReduced ? reducedTransition : { duration: 0.22 }}
+            className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-3"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Efectivo en divisas</p>
+            {selectedMethod.fullDeliveryScope === 'STORE_PICKUP_ONLY' && !whatsappMode && (
+              <p className="text-[12px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                En modo Full este método solo aparecerá para retiro en tienda.
+              </p>
+            )}
+            <Field id="cashCurrency" label="Moneda" error={errors.paymentCurrency}>
+              <select
+                id="cashCurrency"
+                value={paymentCurrency ?? ''}
+                onChange={(e) => setPaymentCurrency(e.target.value || null)}
+                className={selectCls}
+              >
+                <option value="">Selecciona moneda…</option>
+                {selectedMethod.acceptedCurrencies.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </Field>
+            {selectedMethod.instructions && (
+              <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap">{selectedMethod.instructions}</p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence mode="wait">
+        {selectedMethod?.kind === 'CUSTOM_FOREIGN_CURRENCY' && (
+          <motion.div
+            key="custom-panel"
+            initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={prefersReduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            transition={prefersReduced ? reducedTransition : { duration: 0.22 }}
+            className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-3"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{selectedMethod.name}</p>
+            {selectedMethod.recipientLabel && selectedMethod.recipientValue && (
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p className="text-[11px] text-slate-500">{selectedMethod.recipientLabel}</p>
+                <p className="font-mono text-sm font-semibold text-navy break-all">{selectedMethod.recipientValue}</p>
+              </div>
+            )}
+            {selectedMethod.instructions && (
+              <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap">{selectedMethod.instructions}</p>
+            )}
+            {selectedMethod.acceptedCurrencies.length > 0 && (
+              <Field id="customCurrency" label="Moneda" error={errors.paymentCurrency}>
+                <select
+                  id="customCurrency"
+                  value={paymentCurrency ?? ''}
+                  onChange={(e) => setPaymentCurrency(e.target.value || null)}
+                  className={selectCls}
+                >
+                  <option value="">Selecciona moneda…</option>
+                  {selectedMethod.acceptedCurrencies.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            {!whatsappMode && selectedMethod.requireReferenceInFull && (
+              <Field id="customReference" label="Número de referencia" error={errors.referenceNumber}>
+                <Input
+                  id="customReference"
+                  value={referenceNumber}
+                  onChange={(e) => setReferenceNumber(e.target.value)}
+                  invalid={!!errors.referenceNumber}
+                />
+              </Field>
+            )}
+            {!whatsappMode && selectedMethod.requireProofInFull && renderProofUploader('Comprobante de pago')}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence mode="wait">
+        {selectedMethod?.kind === 'CASHEA' && (
+          <motion.div
+            key="cashea-panel"
             initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={prefersReduced ? { opacity: 0 } : { opacity: 0, y: -8 }}
@@ -521,7 +726,6 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
         )}
       </AnimatePresence>
 
-      {/* ── Datos del comprobante ── */}
       {isBankManual && !whatsappMode && (
         <motion.div
           initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 8 }}
@@ -531,9 +735,7 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
         >
           <div className="border-t border-slate-100 pt-6">
             <h3 className="text-sm font-semibold text-navy mb-4">Datos de tu transferencia</h3>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {/* Banco origen */}
               <div className="sm:col-span-2">
                 <Field id="bank" label="Banco desde donde transferiste" error={errors.bank}>
                   <select
@@ -549,8 +751,6 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                   </select>
                 </Field>
               </div>
-
-              {/* Cédula del titular */}
               <Field id="holderIdNumber" label="Cédula del titular de la cuenta" error={errors.holderIdNumber}>
                 <Input
                   id="holderIdNumber"
@@ -561,8 +761,6 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                   invalid={!!errors.holderIdNumber}
                 />
               </Field>
-
-              {/* Teléfono titular */}
               <Field id="holderPhone" label="Teléfono del titular" error={errors.holderPhone}>
                 <Input
                   id="holderPhone"
@@ -575,88 +773,24 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
                   invalid={!!errors.holderPhone}
                 />
               </Field>
-
-              {/* Número de referencia */}
-              <div className="sm:col-span-2">
-                <Field id="referenceNumber" label="Número de referencia de la operación" error={errors.referenceNumber}>
-                  <Input
-                    id="referenceNumber"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    placeholder="Ej. 009432871"
-                    value={referenceNumber}
-                    onChange={(e) => setReferenceNumber(e.target.value)}
-                    invalid={!!errors.referenceNumber}
-                  />
-                </Field>
-              </div>
+              {selectedMethod?.requireReferenceInFull && (
+                <div className="sm:col-span-2">
+                  <Field id="referenceNumber" label="Número de referencia de la operación" error={errors.referenceNumber}>
+                    <Input
+                      id="referenceNumber"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="Ej. 009432871"
+                      value={referenceNumber}
+                      onChange={(e) => setReferenceNumber(e.target.value)}
+                      invalid={!!errors.referenceNumber}
+                    />
+                  </Field>
+                </div>
+              )}
             </div>
           </div>
-
-          {/* ── Subida del comprobante ── */}
-          <div>
-            <p className="text-sm font-semibold text-navy mb-2">
-              Comprobante de pago{' '}
-              <span className="text-rose-500">*</span>
-            </p>
-            <p className="text-[12px] text-slate-500 mb-3">
-              Sube una captura de pantalla o foto de la transferencia / pago móvil.
-            </p>
-
-            <input
-              ref={fileRef}
-              type="file"
-              accept={PROOF_FILE_ACCEPT}
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void selectProof(file);
-                e.target.value = '';
-              }}
-            />
-
-            {proofPreviewUrl ? (
-              <div className="relative inline-block">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={proofPreviewUrl}
-                  alt="Comprobante"
-                  loading="lazy"
-                  decoding="async"
-                  className="w-40 h-40 object-cover rounded-xl border border-slate-200 shadow-soft"
-                />
-                <button
-                  type="button"
-                  onClick={clearProof}
-                  className="absolute -top-4 -right-4 w-11 h-11 flex items-center justify-center"
-                  aria-label="Eliminar comprobante"
-                >
-                  <span className="w-7 h-7 bg-rose-600 text-white rounded-full flex items-center justify-center hover:bg-rose-700 transition-colors shadow">
-                    <X size={14} />
-                  </span>
-                </button>
-                <p className="mt-1.5 text-[11px] text-emerald-600 font-medium flex items-center gap-1">
-                  <Check size={11} /> Comprobante listo — se envía al confirmar el pedido
-                </p>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={normalizingProof}
-                className="w-full flex items-center justify-center gap-2 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-navy/40 hover:bg-slate-100 rounded-xl py-5 text-sm font-medium text-slate-600 transition disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                <UploadCloud size={16} /> {normalizingProof ? 'Preparando imagen…' : 'Subir comprobante'}
-              </button>
-            )}
-
-            {uploadError && (
-              <p className="mt-1.5 text-xs text-rose-700">{uploadError}</p>
-            )}
-            {errors.proofFile && !proofFile && (
-              <p className="mt-1.5 text-xs text-rose-700">{errors.proofFile}</p>
-            )}
-          </div>
+          {selectedMethod?.requireProofInFull && renderProofUploader('Comprobante de pago')}
         </motion.div>
       )}
 
@@ -667,7 +801,7 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({ onPayment
         >
           <button
             type="submit"
-            disabled={!selected || methods.length === 0}
+            disabled={!selected || visibleMethods.length === 0}
             className="inline-flex w-full items-center justify-center gap-2 bg-brand-yellow text-navy font-bold text-sm min-h-[52px] rounded-2xl hover:bg-[#FFE03A] active:scale-[0.98] shadow-soft hover:shadow-card transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Revisar pedido <ChevronRight size={16} />

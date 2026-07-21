@@ -78,6 +78,7 @@ const financialSettingsSchema = z.object({
   }),
   binancePayId: z.string().optional().default(''),
   binanceQrUrl: z.string().trim().optional().default(''),
+  paymentMethods: z.array(z.unknown()).max(20),
 }).strict();
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -163,6 +164,21 @@ export async function updateFinancialSettings(input: unknown): Promise<Financial
     };
   }
 
+  const { parseAndNormalizePaymentMethods } = await import('@/lib/payment-methods');
+  const methodsResult = parseAndNormalizePaymentMethods(parsed.data.paymentMethods);
+  if (!methodsResult.ok) {
+    const errors: Record<string, string[]> = {};
+    for (const issue of methodsResult.error.issues) {
+      const key = ['paymentMethods', ...issue.path].join('.') || 'paymentMethods';
+      (errors[key] ??= []).push(issue.message);
+    }
+    return {
+      success: false,
+      message: 'Algunos métodos de pago no son válidos. Revisa los marcados en rojo.',
+      errors,
+    };
+  }
+
   // Leer settings actuales y mezclar solo los campos financieros
   const { readSettings } = await import('@/lib/data-store');
   const current = await readSettings();
@@ -172,11 +188,21 @@ export async function updateFinancialSettings(input: unknown): Promise<Financial
     transferencia: parsed.data.transferencia,
     binancePayId: parsed.data.binancePayId,
     binanceQrUrl: parsed.data.binanceQrUrl,
+    paymentMethods: methodsResult.methods,
   };
 
   const fullParsed = storeSettingsSchema.safeParse(merged);
   if (!fullParsed.success) {
-    return { success: false, message: 'Error al combinar configuración financiera.' };
+    const errors: Record<string, string[]> = {};
+    for (const issue of fullParsed.error.issues) {
+      const key = issue.path.join('.') || '_root';
+      (errors[key] ??= []).push(issue.message);
+    }
+    return {
+      success: false,
+      message: 'Error al combinar configuración financiera.',
+      errors,
+    };
   }
 
   await writeSettings(fullParsed.data);

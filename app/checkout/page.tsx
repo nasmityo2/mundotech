@@ -9,6 +9,7 @@ import { isValidWhatsAppPhone } from '@/lib/whatsapp-phone';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import CheckoutFlow from '@/app/components/checkout/CheckoutFlow';
 import WhatsAppCheckout from '@/app/components/checkout/WhatsAppCheckout';
+import { buildCheckoutPaymentMethods } from '@/lib/payment-methods';
 
 // Fuerza renderizado dinámico (por-request) para que readSettings()
 // lea la configuración actual de la BD en cada visita.
@@ -55,6 +56,8 @@ export default async function CheckoutPage() {
 
   const pagoMovilConfigured = isPagoMovilConfigured(settings);
   const transferenciaConfigured = isTransferenciaConfigured(settings);
+  const checkoutChannel = isWhatsAppCheckout ? 'whatsapp' : 'web';
+  const checkoutPaymentMethods = buildCheckoutPaymentMethods(settings, checkoutChannel);
 
   if (isWhatsAppCheckout) {
     if (!isValidWhatsAppPhone(settings.whatsappOrderPhone)) {
@@ -72,6 +75,7 @@ export default async function CheckoutPage() {
         shippingEstimates={shippingEstimates}
         whatsappOrderPhone={settings.whatsappOrderPhone}
         storeName={settings.storeName}
+        checkoutPaymentMethods={checkoutPaymentMethods}
       />
     );
   }
@@ -97,6 +101,7 @@ export default async function CheckoutPage() {
       whatsappMode={false}
       whatsappOrderPhone={settings.whatsappOrderPhone}
       storeName={settings.storeName}
+      checkoutPaymentMethods={checkoutPaymentMethods}
     />
   );
 }

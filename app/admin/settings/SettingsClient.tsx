@@ -15,6 +15,8 @@ import type { ShippingEstimates } from '@/lib/shipping-estimates';
 import { mrwOffices } from '@/lib/mrw-offices';
 import { normalizeWhatsAppPhone, isValidWhatsAppPhone } from '@/lib/whatsapp-phone';
 import PhotoUploader from '@/components/admin/PhotoUploader';
+import { PaymentMethodsAdminSection } from '@/app/admin/settings/PaymentMethodsAdminSection';
+import { DEFAULT_PAYMENT_METHODS } from '@/lib/payment-methods';
 
 const WHATSAPP_PHONE_INVALID_MESSAGE = 'Usa formato internacional de Venezuela, por ejemplo 584121471338.';
 
@@ -114,6 +116,7 @@ export default function SettingsClient({
       transferencia: { bank: '', accountNumber: '', accountHolder: '', rif: '' },
       binancePayId: '',
       binanceQrUrl: '',
+      paymentMethods: DEFAULT_PAYMENT_METHODS.map((m) => ({ ...m })),
     },
   );
   const [savingGeneral, setSavingGeneral] = useState(false);
@@ -666,6 +669,16 @@ export default function SettingsClient({
             optional
             maxSizeMB={2}
             previewHeight="h-44"
+          />
+        </SectionCard>
+
+        <SectionCard title="Descuentos por método de pago" icon={DollarSign} accent>
+          <PaymentMethodsAdminSection
+            methods={financialSettings.paymentMethods ?? DEFAULT_PAYMENT_METHODS.map((m) => ({ ...m }))}
+            onChange={(paymentMethods) =>
+              setFinancialSettings((prev) => ({ ...prev, paymentMethods }))
+            }
+            fieldError={fieldError}
           />
         </SectionCard>
           </>

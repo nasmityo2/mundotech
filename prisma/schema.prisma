@@ -236,6 +236,16 @@ model Order {
   /// `prd_infra_datos_cache` añade CHECK "Order_status_valid" a nivel de BD.
   status                    String            @default("Pendiente")
   paymentMethod             String
+  /// ID estable del método de pago (snapshot). Null en pedidos antiguos.
+  paymentMethodId           String?
+  /// Subtotal original de líneas en Bs antes de descuentos. Null = legacy.
+  subtotalBeforeDiscount    Decimal?          @db.Decimal(12, 2)
+  /// Porcentaje de descuento por divisas congelado al crear. Null si no aplicó.
+  paymentDiscountPercent    Decimal?          @db.Decimal(5, 2)
+  /// Monto del descuento por divisas en Bs. Null si no aplicó.
+  paymentDiscount           Decimal?          @db.Decimal(12, 2)
+  /// Moneda elegida (p. ej. efectivo USD/EUR). Null si no aplica.
+  paymentCurrency           String?
   shippingAddress           String
   shippingCity              String
   shippingState             String

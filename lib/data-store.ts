@@ -8,9 +8,20 @@ import { prisma } from '@/lib/prisma';
 import { logWarn, logError } from '@/lib/safe-logger';
 import { isR2PublicHttpsUrl } from '@/lib/r2-public-url';
 import { normalizeWhatsAppPhone, isValidWhatsAppPhone } from '@/lib/whatsapp-phone';
+import {
+  mergePaymentMethodsWithDefaults,
+  paymentMethodsArraySchema,
+  DEFAULT_PAYMENT_METHODS,
+  type PaymentMethodConfig,
+} from '@/lib/payment-methods';
 
 const WHATSAPP_PHONE_INVALID_MESSAGE =
   'Usa formato internacional de Venezuela, por ejemplo 584121471338.';
+
+const paymentMethodsFieldSchema = z.preprocess(
+  (val) => mergePaymentMethodsWithDefaults(val),
+  paymentMethodsArraySchema,
+);
 
 export const storeSettingsSchema = z.object({
   storeName:     z.string().min(1, 'El nombre de la tienda es requerido.'),
@@ -48,6 +59,10 @@ export const storeSettingsSchema = z.object({
       (value) => value === '' || isR2PublicHttpsUrl(value),
       'El QR Binance debe estar alojado en el R2 público configurado.',
     ),
+  /** Métodos de pago editables + descuentos por divisas. */
+  paymentMethods: paymentMethodsFieldSchema.optional().default(() =>
+    DEFAULT_PAYMENT_METHODS.map((m) => ({ ...m })),
+  ),
   // Etiqueta de envío: tamaño de la HOJA de impresión en mm. Default térmica 4×6".
   labelWidthMm:  z.coerce.number().min(40).max(300).default(100),
   labelHeightMm: z.coerce.number().min(40).max(400).default(150),
@@ -97,7 +112,9 @@ export const storeSettingsSchema = z.object({
   }
 });
 
-export type StoreSettings = z.infer<typeof storeSettingsSchema>;
+export type StoreSettings = z.infer<typeof storeSettingsSchema> & {
+  paymentMethods: PaymentMethodConfig[];
+};
 
 const SETTINGS_KEY = 'store_settings';
 
@@ -128,6 +145,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   // PRD-027/130: Binance Pay — vacíos por defecto, editables desde Admin.
   binancePayId: '',
   binanceQrUrl: '',
+  paymentMethods: DEFAULT_PAYMENT_METHODS.map((m) => ({ ...m })),
   labelWidthMm: 100,
   labelHeightMm: 150,
   whatsappOrderPhone: '',

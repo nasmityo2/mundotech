@@ -18,6 +18,7 @@ import { useExchangeRate } from '@/context/ExchangeRateContext';
 import { formatCurrency } from '@/lib/utils';
 import type { StoreSettings } from '@/lib/data-store';
 import type { ShippingEstimates } from '@/lib/shipping-estimates';
+import type { CheckoutPaymentMethodDto } from '@/lib/payment-methods';
 import { saveCartSnapshotAction } from '@/app/actions/abandonedCartActions';
 import type { AbandonedCartItem } from '@/lib/definitions';
 import { track, toGa4Item, ga4ItemsValue, GA4_CURRENCY } from '@/lib/ga4';
@@ -43,9 +44,10 @@ interface CheckoutFlowProps {
   whatsappOrderPhone?: string;
   /** Nombre de la tienda para el mensaje de WhatsApp. */
   storeName?: string;
+  checkoutPaymentMethods: CheckoutPaymentMethodDto[];
 }
 
-const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, binanceQrUrl, pagoMovilConfigured = false, transferenciaConfigured = false, shippingEstimates, whatsappMode = false, whatsappOrderPhone = '', storeName = 'MundoTech' }: CheckoutFlowProps) => {
+const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, binanceQrUrl, pagoMovilConfigured = false, transferenciaConfigured = false, shippingEstimates, whatsappMode = false, whatsappOrderPhone = '', storeName = 'MundoTech', checkoutPaymentMethods }: CheckoutFlowProps) => {
   const prefersReduced = useReducedMotion();
   const [currentStep, setCurrentStep] = useState(0);
   const [direction, setDirection]     = useState<1 | -1>(1);
@@ -165,7 +167,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
     track('add_payment_info', {
       currency: GA4_CURRENCY,
       value: ga4ItemsValue(items),
-      payment_type: data.paymentMethod,
+      payment_type: data.paymentMethodId,
       items,
     });
   };
@@ -197,6 +199,10 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
           binanceQrUrl={binanceQrUrl}
           pagoMovilConfigured={pagoMovilConfigured}
           transferenciaConfigured={transferenciaConfigured}
+          checkoutPaymentMethods={checkoutPaymentMethods}
+          subtotalUsd={subtotal}
+          exchangeRateUsdBs={exchangeRate}
+          shippingMethod={shippingData?.shippingMethod ?? null}
           whatsappMode={whatsappMode}
         />
       );
@@ -204,6 +210,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
         <ReviewStep
           shippingData={shippingData}
           paymentData={paymentData}
+          checkoutPaymentMethods={checkoutPaymentMethods}
           whatsappMode={whatsappMode}
           whatsappOrderPhone={whatsappOrderPhone}
           storeName={storeName}

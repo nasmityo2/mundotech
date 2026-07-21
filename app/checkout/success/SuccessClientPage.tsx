@@ -27,7 +27,9 @@ const fadeUp = {
 export default function SuccessClientPage({ order }: Props) {
   const prefersReduced = useReducedMotion();
   const isWhatsAppOrder = order.channel === 'whatsapp';
-  const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const subtotal = ('subtotalBeforeDiscount' in order && order.subtotalBeforeDiscount != null)
+    ? order.subtotalBeforeDiscount
+    : order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const [analyticsConsent, setAnalyticsConsent] = useState(getAnalyticsConsent);
 
   useEffect(() => onAnalyticsConsentChange(setAnalyticsConsent), []);
@@ -216,6 +218,23 @@ export default function SuccessClientPage({ order }: Props) {
               <span>Subtotal</span>
               <DualOrderMoney amount={subtotal} order={order} />
             </div>
+            {'paymentDiscount' in order && order.paymentDiscount != null && order.paymentDiscount > 0 ? (
+              <div className="flex justify-between text-emerald-600 items-start gap-3">
+                <span>
+                  Descuento por pago en divisas
+                  {order.paymentDiscountPercent != null && order.paymentDiscountPercent > 0
+                    ? ` (${order.paymentDiscountPercent}%)`
+                    : ''}
+                </span>
+                <span className="inline-flex items-center">−<DualOrderMoney amount={order.paymentDiscount} order={order} /></span>
+              </div>
+            ) : null}
+            {'couponDiscount' in order && order.couponDiscount != null && order.couponDiscount > 0 ? (
+              <div className="flex justify-between text-emerald-600 items-start gap-3">
+                <span>Cupón</span>
+                <span className="inline-flex items-center">−<DualOrderMoney amount={order.couponDiscount} order={order} /></span>
+              </div>
+            ) : null}
             <div className="flex justify-between text-slate-500">
               <span>Envío</span>
               <span className="text-emerald-600 font-medium">Gratis</span>

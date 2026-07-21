@@ -145,7 +145,7 @@ export default function AdminOrderDetailPage() {
     setOrder(await r.json());
   };
 
-  const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const subtotal = order.subtotalBeforeDiscount ?? order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const isShipped = order.status === 'Enviado' || order.status === 'Entregado';
   const hasTracking = !!(order.trackingNumber || order.trackingCarrier || order.trackingUrl || order.trackingPhotoUrl);
 
@@ -403,6 +403,17 @@ export default function AdminOrderDetailPage() {
               <span>Subtotal</span>
               <DualOrderMoney amount={subtotal} order={order} variant="admin" />
             </div>
+            {order.paymentDiscount != null && order.paymentDiscount > 0 ? (
+              <div className="flex justify-between text-emerald-600 items-start gap-2">
+                <span>
+                  Descuento por pago en divisas
+                  {order.paymentDiscountPercent != null && order.paymentDiscountPercent > 0
+                    ? ` (${order.paymentDiscountPercent}%)`
+                    : ''}
+                </span>
+                <span className="inline-flex items-center">−<DualOrderMoney amount={order.paymentDiscount} order={order} variant="admin" /></span>
+              </div>
+            ) : null}
             <div className="flex justify-between text-gray-600">
               <span>Envío</span><span className="text-green-600 font-medium">Gratis</span>
             </div>

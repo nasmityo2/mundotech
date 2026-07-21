@@ -56,6 +56,13 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
 
   const rate = payload.exchangeRateUsdBs;
 
+  const paymentDiscountUsd = payload.paymentDiscountUsd ?? 0;
+  const paymentDiscountBs = payload.paymentDiscountBs ?? 0;
+  const couponDiscountUsd = payload.couponDiscountUsd ?? 0;
+  const couponDiscountBs = payload.couponDiscountBs ?? 0;
+  const showPaymentDiscount = paymentDiscountUsd > 0 || paymentDiscountBs > 0;
+  const showCouponDiscount = couponDiscountUsd > 0 || couponDiscountBs > 0;
+
   const shipMethod = payload.shippingMethod?.trim() || 'Por coordinar';
   const lineCount = payload.items.length;
   const resumenLabel =
@@ -223,12 +230,45 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
             </tr>
             <tr>
               <td style={{ padding: '10px 18px', verticalAlign: 'top' }}>
-                <Text style={{ margin: 0, fontSize: 14, color: MT.textMuted }}>Subtotal del artículo</Text>
+                <Text style={{ margin: 0, fontSize: 14, color: MT.textMuted }}>Subtotal</Text>
               </td>
               <td style={{ padding: '10px 18px', textAlign: 'right', verticalAlign: 'top' }} align="right">
                 <DualMoneyInline amountUsd={payload.subtotalUsd} exchangeRateUsdBs={rate} amountBs={payload.subtotalBs} />
               </td>
             </tr>
+            {showPaymentDiscount ? (
+              <tr>
+                <td style={{ padding: '10px 18px', verticalAlign: 'top' }}>
+                  <Text style={{ margin: 0, fontSize: 14, color: MT.textMuted }}>
+                    Descuento por pago en divisas
+                    {payload.paymentDiscountPercent != null && payload.paymentDiscountPercent > 0
+                      ? ` (${payload.paymentDiscountPercent}%)`
+                      : ''}
+                  </Text>
+                </td>
+                <td style={{ padding: '10px 18px', textAlign: 'right', verticalAlign: 'top' }} align="right">
+                  <DualMoneyInline
+                    amountUsd={-paymentDiscountUsd}
+                    exchangeRateUsdBs={rate}
+                    amountBs={paymentDiscountBs > 0 ? -paymentDiscountBs : undefined}
+                  />
+                </td>
+              </tr>
+            ) : null}
+            {showCouponDiscount ? (
+              <tr>
+                <td style={{ padding: '10px 18px', verticalAlign: 'top' }}>
+                  <Text style={{ margin: 0, fontSize: 14, color: MT.textMuted }}>Cupón</Text>
+                </td>
+                <td style={{ padding: '10px 18px', textAlign: 'right', verticalAlign: 'top' }} align="right">
+                  <DualMoneyInline
+                    amountUsd={-couponDiscountUsd}
+                    exchangeRateUsdBs={rate}
+                    amountBs={couponDiscountBs > 0 ? -couponDiscountBs : undefined}
+                  />
+                </td>
+              </tr>
+            ) : null}
             <tr>
               <td style={{ padding: '10px 18px', verticalAlign: 'top' }}>
                 <Text style={{ margin: 0, fontSize: 14, color: MT.textMuted }}>Envío</Text>
@@ -311,6 +351,14 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
                 <Text style={{ margin: '0 0 6px', fontSize: 14, color: MT.textPrimary }}>
                   <strong>{payload.paymentMethod}</strong>
                 </Text>
+                {payload.paymentCurrency?.trim() ? (
+                  <Text style={{ margin: '4px 0 0', fontSize: 13, color: MT.textMuted }}>
+                    Moneda:{' '}
+                    <span style={{ color: MT.textPrimary, fontWeight: 600 }}>
+                      {payload.paymentCurrency.trim()}
+                    </span>
+                  </Text>
+                ) : null}
                 {payload.paymentBank?.trim() ? (
                   <Text style={{ margin: '4px 0 0', fontSize: 13, color: MT.textMuted }}>
                     Banco:{' '}

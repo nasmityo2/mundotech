@@ -32,6 +32,17 @@ export type OrderConfirmationPayload = {
   /** PRD-202: total en Bs congelado al crear el pedido. */
   totalBs?: number;
   exchangeRateUsdBs: number | null;
+  /** Descuento por pago en divisas (USD). */
+  paymentDiscountUsd?: number;
+  paymentDiscountPercent?: number;
+  /** Descuento por pago en divisas (Bs congelado). */
+  paymentDiscountBs?: number;
+  /** Descuento de cupón (USD). */
+  couponDiscountUsd?: number;
+  /** Descuento de cupón (Bs congelado). */
+  couponDiscountBs?: number;
+  /** Moneda elegida al pagar (p. ej. USD). Null si no aplica. */
+  paymentCurrency?: string | null;
   paymentMethod: string;
   paymentBank?: string | null;
   paymentReference?: string | null;

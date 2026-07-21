@@ -23,7 +23,7 @@ const fadeUp = {
 
 export default function GuestSuccessClientPage({ order, guestToken }: Props) {
   const prefersReduced = useReducedMotion();
-  const subtotal = order.items.reduce((acc: number, item: GuestOrderItem) => acc + item.price * item.quantity, 0);
+  const subtotal = order.subtotalBeforeDiscount ?? order.items.reduce((acc: number, item: GuestOrderItem) => acc + item.price * item.quantity, 0);
   const orderNumberPadded = String(order.orderNumber).padStart(4, '0');
 
   return (
@@ -104,6 +104,17 @@ export default function GuestSuccessClientPage({ order, guestToken }: Props) {
               <span>Subtotal</span>
               <DualOrderMoney amount={subtotal} order={order} />
             </div>
+            {order.paymentDiscount != null && order.paymentDiscount > 0 ? (
+              <div className="flex justify-between text-emerald-600 items-start gap-3">
+                <span>
+                  Descuento por pago en divisas
+                  {order.paymentDiscountPercent != null && order.paymentDiscountPercent > 0
+                    ? ` (${order.paymentDiscountPercent}%)`
+                    : ''}
+                </span>
+                <span className="inline-flex items-center">−<DualOrderMoney amount={order.paymentDiscount} order={order} /></span>
+              </div>
+            ) : null}
             <div className="flex justify-between text-slate-500">
               <span>Envío</span>
               <span className="text-emerald-600 font-medium">Gratis</span>

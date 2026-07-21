@@ -30,6 +30,9 @@ export type WhatsAppOrderInput = {
   items: { name: string; quantity: number; priceUsd: number }[];
   totalUsd: number;
   rate: number;
+  paymentDiscountUsd?: number;
+  paymentDiscountPercent?: number;
+  paymentCurrency?: string | null;
 };
 
 export function normalizeWaPhone(phone: string): string {
@@ -52,7 +55,11 @@ function buildOrderSegments(input: WhatsAppOrderInput): WaSegment[] {
   e('phone'); t(` *Teléfono:* ${input.phone}`); nl();
   e('truck'); t(` *Empresa de envío:* ${input.shippingCompany}`); nl();
   e('pin'); t(` *Entrega:* ${input.address}`); nl();
-  e('card'); t(` *Método de pago:* ${input.paymentMethod}`); nl(); nl();
+  e('card'); t(` *Método de pago:* ${input.paymentMethod}`); nl();
+  if (input.paymentCurrency) {
+    t(` *Moneda:* ${input.paymentCurrency}`); nl();
+  }
+  nl();
 
   t('*Productos:*'); nl();
   for (const item of input.items) {
@@ -60,9 +67,18 @@ function buildOrderSegments(input: WhatsAppOrderInput): WaSegment[] {
   }
   nl();
 
+  if (
+    input.paymentDiscountUsd != null &&
+    input.paymentDiscountUsd > 0 &&
+    input.paymentDiscountPercent != null &&
+    input.paymentDiscountPercent > 0
+  ) {
+    t(`Descuento por pago en divisas (${input.paymentDiscountPercent}%): -$${input.paymentDiscountUsd.toFixed(2)}`); nl();
+  }
+
   const totalBs = input.totalUsd * input.rate;
   e('money');
-  t(` *Total:* $${input.totalUsd.toFixed(2)} ≈ Bs. ${totalBs.toFixed(2)} (tasa: Bs. ${input.rate.toFixed(2)})`);
+  t(` *Total final:* $${input.totalUsd.toFixed(2)} ≈ Bs. ${totalBs.toFixed(2)} (tasa: Bs. ${input.rate.toFixed(2)})`);
   nl(); nl();
 
   e('pending'); t(' *Pendiente de confirmación por MundoTech*');

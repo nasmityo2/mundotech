@@ -14,6 +14,14 @@ import {
 } from '@/lib/coupons';
 import { hashToken } from '@/lib/security';
 import { assertProofKey } from '@/lib/r2';
+import {
+  loadPaymentMethodsFromTransaction,
+  resolveAndValidatePaymentMethod,
+  calculatePaymentDiscountCents,
+  PaymentMethodValidationError,
+  type PaymentMethodConfig,
+  type PaymentSettingsSlice,
+} from '@/lib/payment-methods';
 
 export const orderItemSchema = z.object({
   productId: z.string().min(1),
@@ -21,75 +29,49 @@ export const orderItemSchema = z.object({
   imageUrl: z.string().optional().nullable(),
 });
 
-export const checkoutSchema = z
-  .object({
-    customerId: z.string().optional().default('guest'),
-    customerName: z.string().min(1, 'El nombre del cliente es requerido.'),
-    customerEmail: z.string().email().optional().nullable(),
-    customerPhone: z.string().optional().nullable(),
-    customerIdNumber: z.string().optional().nullable(),
-    /**
-     * PRD-128: cómo retira el cliente. Para 'tienda' el servidor reemplaza la
-     * dirección por la configurada en readSettings() (nunca el copy del cliente).
-     */
-    shippingMethod: z.enum(['tienda', 'mrw', 'zoom', 'tealca']).optional().nullable(),
-    shippingDetails: z.object({
-      address: z.string().min(1),
-      city: z.string().min(1),
-      state: z.string().min(1),
-      zipCode: z.string().optional().default('N/A'),
-      country: z.string().optional().default('Venezuela'),
-    }),
-    paymentMethod: z.enum(['Pago Móvil', 'Transferencia Bancaria', 'Binance Pay', 'Cashea']),
-    paymentBank: z.string().optional().nullable(),
-    paymentHolderIdNumber: z.string().optional().nullable(),
-    paymentHolderPhone: z.string().optional().nullable(),
-    paymentReference: z.string().optional().nullable(),
-    /** SESIÓN 05: token de upload obtenido de /api/checkout/upload-session. */
-    paymentUploadToken: z
-      .string()
-      .trim()
-      .min(1, 'Token de subida requerido.')
-      .optional()
-      .nullable(),
-    couponCode: z.string().trim().max(40).optional().nullable(),
-    channel: z.enum(['web', 'whatsapp']).optional().default('web'),
-    items: z
-      .array(orderItemSchema)
-      .min(1, 'El pedido debe tener al menos un producto.')
-      .max(50, 'El pedido supera el número máximo de líneas permitidas.'),
-  })
-  .superRefine((data, ctx) => {
-    // WhatsApp channel: no exige referencia ni comprobante (se coordina por WhatsApp).
-    if (data.channel === 'whatsapp') return;
-    // Cashea se coordina por WhatsApp: no exige referencia ni comprobante aquí.
-    if (data.paymentMethod === 'Cashea') return;
-    // Los demás métodos son de confirmación manual: el cliente paga por su cuenta
-    // y debe aportar referencia + comprobante. La validación vive también en el
-    // servidor para que un POST directo a /api/orders no pueda omitirlos.
-    const isBinance = data.paymentMethod === 'Binance Pay';
-
-    if (!data.paymentReference?.trim()) {
-      ctx.addIssue({
-        code: 'custom',
-        message: isBinance
-          ? 'Indica el Order ID o referencia que muestra Binance tras pagar.'
-          : 'Indica el número de referencia del pago.',
-        path: ['paymentReference'],
-      });
-    }
-    // SESIÓN 04/05 (CORREGIDO): exigir token de upload para métodos manuales.
-    // El servidor deriva la key exclusivamente desde PaymentUpload.objectKey.
-    if (!data.paymentUploadToken?.trim()) {
-      ctx.addIssue({
-        code: 'custom',
-        message: isBinance
-          ? 'Sube la captura de pantalla del pago en Binance.'
-          : 'Sube el comprobante de pago.',
-        path: ['paymentUploadToken'],
-      });
-    }
-  });
+export const checkoutSchema = z.object({
+  customerId: z.string().optional().default('guest'),
+  customerName: z.string().min(1, 'El nombre del cliente es requerido.'),
+  customerEmail: z.string().email().optional().nullable(),
+  customerPhone: z.string().optional().nullable(),
+  customerIdNumber: z.string().optional().nullable(),
+  /**
+   * PRD-128: cómo retira el cliente. Para 'tienda' el servidor reemplaza la
+   * dirección por la configurada en readSettings() (nunca el copy del cliente).
+   */
+  shippingMethod: z.enum(['tienda', 'mrw', 'zoom', 'tealca']).optional().nullable(),
+  shippingDetails: z.object({
+    address: z.string().min(1),
+    city: z.string().min(1),
+    state: z.string().min(1),
+    zipCode: z.string().optional().default('N/A'),
+    country: z.string().optional().default('Venezuela'),
+  }),
+  paymentMethodId: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .regex(/^[a-z0-9:_-]+$/, 'Método de pago inválido.'),
+  paymentCurrency: z.string().trim().toUpperCase().max(10).optional().nullable(),
+  paymentBank: z.string().optional().nullable(),
+  paymentHolderIdNumber: z.string().optional().nullable(),
+  paymentHolderPhone: z.string().optional().nullable(),
+  paymentReference: z.string().optional().nullable(),
+  /** SESIÓN 05: token de upload obtenido de /api/checkout/upload-session. */
+  paymentUploadToken: z
+    .string()
+    .trim()
+    .min(1, 'Token de subida requerido.')
+    .optional()
+    .nullable(),
+  couponCode: z.string().trim().max(40).optional().nullable(),
+  channel: z.enum(['web', 'whatsapp']).optional().default('web'),
+  items: z
+    .array(orderItemSchema)
+    .min(1, 'El pedido debe tener al menos un producto.')
+    .max(50, 'El pedido supera el número máximo de líneas permitidas.'),
+});
 
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 
@@ -103,6 +85,51 @@ export type CheckoutExecuteOptions = {
   /** SESIÓN 06: fecha de expiración del token guest (72h desde creación). */
   guestAccessTokenExpiresAt?: Date | null;
 };
+
+const EMPTY_PAYMENT_SETTINGS: PaymentSettingsSlice = {
+  pagoMovil: { bank: '', phone: '', idNumber: '' },
+  transferencia: { bank: '', accountNumber: '', accountHolder: '', rif: '' },
+  binancePayId: '',
+};
+
+async function loadPaymentSettingsSliceFromTransaction(
+  tx: Prisma.TransactionClient,
+): Promise<PaymentSettingsSlice> {
+  const record = await tx.appConfig.findUnique({
+    where: { key: 'store_settings' },
+  });
+  if (!record) {
+    return EMPTY_PAYMENT_SETTINGS;
+  }
+  try {
+    const raw = JSON.parse(record.value) as {
+      pagoMovil?: { bank?: string; phone?: string; idNumber?: string };
+      transferencia?: {
+        bank?: string;
+        accountNumber?: string;
+        accountHolder?: string;
+        rif?: string;
+      };
+      binancePayId?: string;
+    };
+    return {
+      pagoMovil: {
+        bank: raw.pagoMovil?.bank ?? '',
+        phone: raw.pagoMovil?.phone ?? '',
+        idNumber: raw.pagoMovil?.idNumber ?? '',
+      },
+      transferencia: {
+        bank: raw.transferencia?.bank ?? '',
+        accountNumber: raw.transferencia?.accountNumber ?? '',
+        accountHolder: raw.transferencia?.accountHolder ?? '',
+        rif: raw.transferencia?.rif ?? '',
+      },
+      binancePayId: raw.binancePayId ?? '',
+    };
+  } catch {
+    return EMPTY_PAYMENT_SETTINGS;
+  }
+}
 
 /**
  * PRD-131: busca un pedido reciente equivalente (mismo comprador + misma
@@ -149,10 +176,10 @@ export async function findRecentDuplicateOrderInTransaction(
 }
 
 /** Recalcula total en servidor, crea pedido y descuenta stock atómicamente. */
-export async function executeCheckoutInTransaction(
+export async function executeCheckoutInTransactionWithMethod(
   tx: Prisma.TransactionClient,
   input: CheckoutInput,
-  options?: CheckoutExecuteOptions
+  options?: CheckoutExecuteOptions,
 ) {
   const {
     customerId,
@@ -161,7 +188,9 @@ export async function executeCheckoutInTransaction(
     customerPhone,
     customerIdNumber,
     shippingDetails,
-    paymentMethod,
+    paymentMethodId,
+    paymentCurrency,
+    shippingMethod,
     paymentBank,
     paymentHolderIdNumber,
     paymentHolderPhone,
@@ -179,8 +208,13 @@ export async function executeCheckoutInTransaction(
   const effectiveAccessTokenHash = isGuestOrder ? guestAccessTokenHash : null;
   const effectiveAccessTokenExpiresAt = isGuestOrder ? guestAccessTokenExpiresAt : null;
 
-  const orderStatus: OrderStatus = options?.orderStatus ?? 'Pendiente';
   const deductStock = options?.deductStock ?? true;
+
+  const effectiveChannel = channel ?? 'web';
+  const effectivePaymentReference =
+    effectiveChannel === 'whatsapp' ? null : (paymentReference ?? null);
+  const effectivePaymentUploadToken =
+    effectiveChannel === 'whatsapp' ? null : (paymentUploadToken ?? null);
 
   const productIds = [...new Set(items.map((i) => i.productId))];
   // PRD-025: se incluye isActive en la consulta para detectar productos
@@ -234,6 +268,42 @@ export async function executeCheckoutInTransaction(
     }
   }
 
+  const [paymentMethods, paymentSettings] = await Promise.all([
+    loadPaymentMethodsFromTransaction(tx),
+    loadPaymentSettingsSliceFromTransaction(tx),
+  ]);
+
+  let resolvedPaymentMethod: PaymentMethodConfig;
+  let paymentDiscountPercent = 0;
+  let resolvedPaymentCurrency: string | null = null;
+
+  try {
+    const resolved = resolveAndValidatePaymentMethod({
+      methods: paymentMethods,
+      paymentMethodId,
+      channel: effectiveChannel,
+      shippingMethod,
+      paymentCurrency,
+      paymentReference: effectivePaymentReference,
+      paymentUploadToken: effectivePaymentUploadToken,
+      settings: paymentSettings,
+    });
+    resolvedPaymentMethod = resolved.method;
+    paymentDiscountPercent = resolved.paymentDiscountPercent;
+    resolvedPaymentCurrency = resolved.resolvedPaymentCurrency;
+  } catch (err) {
+    if (err instanceof PaymentMethodValidationError) {
+      throw new CheckoutError(err.message, 400);
+    }
+    throw err;
+  }
+
+  const orderStatus: OrderStatus =
+    options?.orderStatus ??
+    (effectiveChannel === 'web' && resolvedPaymentMethod.kind === 'BINANCE'
+      ? 'Pendiente verificación Binance'
+      : 'Pendiente');
+
   // SESIÓN 05 (CORREGIDO): validar token de upload y resolver la key desde PaymentUpload.objectKey.
   // El cliente no puede elegir paymentProofKey; la key se deriva exclusivamente en el servidor.
   let resolvedPaymentUploadId: string | null = null;
@@ -241,8 +311,8 @@ export async function executeCheckoutInTransaction(
 
   const isRegisteredUser = customerId && customerId !== 'guest';
 
-  if (paymentUploadToken?.trim()) {
-    const uploadTokenHash = hashToken(paymentUploadToken.trim());
+  if (effectivePaymentUploadToken?.trim()) {
+    const uploadTokenHash = hashToken(effectivePaymentUploadToken.trim());
 
     const uploadRecord = await tx.paymentUpload.findUnique({
       where: {
@@ -306,17 +376,16 @@ export async function executeCheckoutInTransaction(
   // decimales y el total del pedido es EXACTAMENTE la suma de las líneas
   // (precio_línea × cantidad), acumulada en céntimos enteros para evitar
   // deriva de coma flotante. Así sum(items) === Order.total siempre.
-  let totalCents = 0;
+  let subtotalBeforeDiscountCents = 0;
   let subtotalUsd = 0;
   for (const item of items) {
     const p = productMap.get(item.productId)!;
     // PRD-204: p.price es Decimal en BD — convertir a number antes de aritmética.
     const priceNum = d(p.price);
     const unitVes = roundMoney2(priceNum * rate);
-    totalCents += Math.round(unitVes * 100) * item.quantity;
+    subtotalBeforeDiscountCents += Math.round(unitVes * 100) * item.quantity;
     subtotalUsd += priceNum * item.quantity;
   }
-  const serverTotal = totalCents / 100;
   subtotalUsd = roundMoney2(subtotalUsd);
 
   let resolvedCustomerEmail = customerEmail?.trim() || null;
@@ -351,7 +420,10 @@ export async function executeCheckoutInTransaction(
       const status = result.reason === COUPON_PER_USER_LIMIT_REASON ? 409 : 400;
       throw new CheckoutError(`Cupón no válido: ${result.reason}`, status);
     }
-    couponDiscountCents = Math.min(Math.round(roundMoney2(result.discountUsd * rate) * 100), totalCents);
+    couponDiscountCents = Math.min(
+      Math.round(roundMoney2(result.discountUsd * rate) * 100),
+      subtotalBeforeDiscountCents,
+    );
     appliedCouponCode = result.coupon.code;
     couponToRedeem = {
       couponId: result.coupon.id,
@@ -360,8 +432,19 @@ export async function executeCheckoutInTransaction(
     };
   }
 
+  const paymentDiscountCents = calculatePaymentDiscountCents(
+    subtotalBeforeDiscountCents,
+    paymentDiscountPercent,
+  );
+  const finalTotalCents = Math.max(
+    0,
+    subtotalBeforeDiscountCents - paymentDiscountCents - couponDiscountCents,
+  );
+
+  const subtotalBeforeDiscount = subtotalBeforeDiscountCents / 100;
+  const paymentDiscountBs = paymentDiscountCents / 100;
   const couponDiscountBs = couponDiscountCents / 100;
-  const finalTotal = (totalCents - couponDiscountCents) / 100;
+  const finalTotal = finalTotalCents / 100;
 
   const newOrder = await tx.order.create({
     data: {
@@ -371,17 +454,23 @@ export async function executeCheckoutInTransaction(
       customerPhone: customerPhone ?? null,
       customerIdNumber: customerIdNumber ?? null,
       total: finalTotal,
-      channel: (channel ?? 'web') as string,
+      channel: effectiveChannel,
       stockDeducted: deductStock,
       couponCode: appliedCouponCode,
       couponDiscount: couponDiscountBs > 0 ? couponDiscountBs : null,
       exchangeRateUsdBs: rate,
       status: orderStatus,
-      paymentMethod,
+      paymentMethodId: resolvedPaymentMethod.id,
+      paymentMethod: resolvedPaymentMethod.name,
+      paymentCurrency: resolvedPaymentCurrency,
+      subtotalBeforeDiscount,
+      paymentDiscountPercent:
+        paymentDiscountPercent > 0 ? paymentDiscountPercent : null,
+      paymentDiscount: paymentDiscountBs > 0 ? paymentDiscountBs : null,
       paymentBank: paymentBank ?? null,
       paymentHolderIdNumber: paymentHolderIdNumber ?? null,
       paymentHolderPhone: paymentHolderPhone ?? null,
-      paymentReference: paymentReference ?? null,
+      paymentReference: effectivePaymentReference,
       paymentProofUrl: null,
       paymentProofKey: resolvedPaymentProofKey,
       // SESIÓN 06: token de acceso guest (solo para pedidos sin cuenta)
@@ -464,7 +553,17 @@ export async function executeCheckoutInTransaction(
     await deductOrderStockInTransaction(tx, items, productMap);
   }
 
-  return newOrder;
+  return { order: newOrder, paymentMethod: resolvedPaymentMethod };
+}
+
+/** Recalcula total en servidor, crea pedido y descuenta stock atómicamente. */
+export async function executeCheckoutInTransaction(
+  tx: Prisma.TransactionClient,
+  input: CheckoutInput,
+  options?: CheckoutExecuteOptions,
+) {
+  const { order } = await executeCheckoutInTransactionWithMethod(tx, input, options);
+  return order;
 }
 
 /**

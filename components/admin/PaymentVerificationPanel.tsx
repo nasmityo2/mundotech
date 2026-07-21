@@ -150,6 +150,28 @@ export function PaymentVerificationPanel({
       {/* Datos declarados por el cliente */}
       <dl className="text-sm space-y-1.5">
         <PaymentDetailRow label="Método" value={order.paymentMethod} />
+        <PaymentDetailRow label="ID método" value={order.paymentMethodId} mono />
+        <PaymentDetailRow label="Moneda" value={order.paymentCurrency} />
+        <PaymentDetailRow
+          label="Descuento divisas"
+          value={
+            order.paymentDiscount != null && order.paymentDiscount > 0
+              ? `${order.paymentDiscountPercent ?? ''}% → snapshot`
+              : null
+          }
+        />
+        {order.paymentDiscount != null && order.paymentDiscount > 0 && (
+          <div className="flex justify-between gap-2">
+            <dt className="text-gray-500">Monto descuento</dt>
+            <dd><DualOrderMoney amount={order.paymentDiscount} order={order} variant="admin" /></dd>
+          </div>
+        )}
+        {order.subtotalBeforeDiscount != null && (
+          <div className="flex justify-between gap-2">
+            <dt className="text-gray-500">Subtotal original</dt>
+            <dd><DualOrderMoney amount={order.subtotalBeforeDiscount} order={order} variant="admin" /></dd>
+          </div>
+        )}
         <PaymentDetailRow label="Banco" value={order.paymentBank} />
         <PaymentDetailRow label="Referencia" value={order.paymentReference} mono />
         <PaymentDetailRow label="Cédula titular" value={order.paymentHolderIdNumber} />

@@ -9,7 +9,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { prismaOrderToOrder, toGuestOrderConfirmationDto } from '@/lib/definitions';
 import {
   checkoutSchema,
-  executeCheckoutInTransaction,
+  executeCheckoutInTransactionWithMethod,
   findRecentDuplicateOrderInTransaction,
 } from '@/lib/checkout-order';
 import { CheckoutError } from '@/lib/checkout-error';
@@ -253,8 +253,6 @@ export async function POST(request: Request) {
       };
     }
 
-    const isBinanceManual = safeData.paymentMethod === 'Binance Pay';
-
     // SESIÓN 06: generar token guest (raw → hash) ANTES de la transacción para
     // devolverlo al cliente exactamente una vez. El hash se guarda en BD.
     let guestToken: string | null = null;
@@ -281,8 +279,8 @@ export async function POST(request: Request) {
       });
       if (duplicate) return { order: duplicate, reused: true as const };
 
-      const created = await executeCheckoutInTransaction(tx, safeData, {
-        orderStatus: channel === 'whatsapp' ? 'Pendiente' : (isBinanceManual ? 'Pendiente verificación Binance' : 'Pendiente'),
+      const { order: created } = await executeCheckoutInTransactionWithMethod(tx, safeData, {
+        orderStatus: channel === 'whatsapp' ? 'Pendiente' : undefined,
         deductStock: channel !== 'whatsapp',
         guestAccessTokenHash: guestTokenHash,
         guestAccessTokenExpiresAt: guestTokenExpiresAt,
@@ -369,17 +367,19 @@ export async function POST(request: Request) {
         quantity: i.quantity,
       }));
 
-      // La tienda no cobra envío: el total autoritativo (Bs) es el subtotal.
-      // Evita una "Tarifa de envío" fantasma por redondeo Bs↔USD por línea.
-      const totalNum = d(order.total);
-      const totalUsd =
-        rate != null && rate > 0 ? roundMoney2(totalNum / rate) : roundMoney2(totalNum);
-      const subtotalUsd = totalUsd;
-      const shippingUsd = 0;
+      // La tienda no cobra envío: el total autoritativo (Bs) es post-descuentos.
+      const totalBs = d(order.total);
+      const subtotalBs = dn(order.subtotalBeforeDiscount) ?? totalBs;
+      const couponDiscountBs = dn(order.couponDiscount) ?? 0;
+      const paymentDiscountBs = dn(order.paymentDiscount) ?? 0;
+      const paymentDiscountPercent = dn(order.paymentDiscountPercent) ?? undefined;
 
-      // PRD-202: montos Bs congelados — order.total ya está en Bs.
-      const totalBs = totalNum;
-      const subtotalBs = totalBs;
+      const totalUsd =
+        rate != null && rate > 0 ? roundMoney2(totalBs / rate) : roundMoney2(totalBs);
+      const subtotalUsd = priceUsdFromStored(subtotalBs);
+      const couponDiscountUsd = priceUsdFromStored(couponDiscountBs);
+      const paymentDiscountUsd = priceUsdFromStored(paymentDiscountBs);
+      const shippingUsd = 0;
       const shippingBs = 0;
 
       const confirmationPayload: OrderConfirmationPayload = {
@@ -397,6 +397,14 @@ export async function POST(request: Request) {
         shippingBs,
         totalBs,
         exchangeRateUsdBs: rate,
+        paymentDiscountUsd: paymentDiscountBs > 0 ? paymentDiscountUsd : undefined,
+        paymentDiscountPercent: paymentDiscountPercent != null && paymentDiscountPercent > 0
+          ? paymentDiscountPercent
+          : undefined,
+        paymentDiscountBs: paymentDiscountBs > 0 ? paymentDiscountBs : undefined,
+        couponDiscountUsd: couponDiscountBs > 0 ? couponDiscountUsd : undefined,
+        couponDiscountBs: couponDiscountBs > 0 ? couponDiscountBs : undefined,
+        paymentCurrency: order.paymentCurrency ?? null,
         paymentMethod: order.paymentMethod,
         paymentBank: order.paymentBank,
         paymentReference: order.paymentReference,

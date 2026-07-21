@@ -1,5 +1,10 @@
 import { z } from 'zod';
 import { isR2PublicHttpsUrl } from '@/lib/r2-public-url';
+import {
+  mergePaymentMethodsWithDefaults,
+  paymentMethodsArraySchema,
+  type PaymentMethodConfig,
+} from '@/lib/payment-methods';
 
 /** Subset expuesto con STORE_SETTINGS (GET/PUT general). */
 export const generalSettingsApiSchema = z.object({
@@ -15,6 +20,11 @@ export const generalSettingsApiSchema = z.object({
   labelHeightMm:      z.coerce.number().min(40).max(400).default(150),
   whatsappOrderPhone: z.string().trim().optional().default(''),
 }).strict();
+
+const paymentMethodsApiField = z.preprocess(
+  (val) => mergePaymentMethodsWithDefaults(val),
+  paymentMethodsArraySchema,
+);
 
 /** Subset expuesto con FINANCIAL_SETTINGS (GET/PUT financial). */
 export const financialSettingsApiSchema = z.object({
@@ -40,10 +50,13 @@ export const financialSettingsApiSchema = z.object({
       (value) => value === '' || isR2PublicHttpsUrl(value),
       'El QR Binance debe estar alojado en el R2 público configurado.',
     ),
+  paymentMethods: paymentMethodsApiField,
 }).strict();
 
 export type GeneralSettingsDto = z.infer<typeof generalSettingsApiSchema>;
-export type FinancialSettingsDto = z.infer<typeof financialSettingsApiSchema>;
+export type FinancialSettingsDto = z.infer<typeof financialSettingsApiSchema> & {
+  paymentMethods: PaymentMethodConfig[];
+};
 
 export function pickGeneralSettingsDto(settings: GeneralSettingsDto & Partial<FinancialSettingsDto>): GeneralSettingsDto {
   return generalSettingsApiSchema.parse({
@@ -67,5 +80,6 @@ export function pickFinancialSettingsDto(settings: Partial<GeneralSettingsDto> &
     transferencia: settings.transferencia,
     binancePayId: settings.binancePayId ?? '',
     binanceQrUrl: settings.binanceQrUrl ?? '',
+    paymentMethods: settings.paymentMethods,
   });
 }

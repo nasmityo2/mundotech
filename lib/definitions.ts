@@ -192,6 +192,16 @@ export interface Order {
   status:          OrderStatus;
   shippingDetails: ShippingDetails;
   paymentMethod:   string;
+  /** ID estable del método de pago (snapshot). Null en pedidos antiguos. */
+  paymentMethodId?:          string | null;
+  /** Subtotal de líneas en Bs antes de descuentos. Null = legacy. */
+  subtotalBeforeDiscount?:   number | null;
+  /** Porcentaje de descuento por divisas congelado al crear. Null si no aplicó. */
+  paymentDiscountPercent?:   number | null;
+  /** Monto del descuento por divisas en Bs. Null si no aplicó. */
+  paymentDiscount?:          number | null;
+  /** Moneda elegida (p. ej. USD/EUR en efectivo). Null si no aplica. */
+  paymentCurrency?:          string | null;
   paymentBank?:              string | null;
   paymentHolderIdNumber?:    string | null;
   paymentHolderPhone?:       string | null;
@@ -267,6 +277,11 @@ export interface GuestOrderConfirmation {
   exchangeRateUsdBs?: number | null;
   status: string;
   paymentMethod: string;
+  paymentMethodId?: string | null;
+  subtotalBeforeDiscount?: number | null;
+  paymentDiscountPercent?: number | null;
+  paymentDiscount?: number | null;
+  paymentCurrency?: string | null;
   /** Canal de origen: 'web' | 'whatsapp'. */
   channel?: string | null;
 }
@@ -298,6 +313,11 @@ export interface PublicOrderLookup {
   status: OrderStatus;
   shippingDetails: ShippingDetails;
   paymentMethod: string;
+  paymentMethodId?: string | null;
+  subtotalBeforeDiscount?: number | null;
+  paymentDiscountPercent?: number | null;
+  paymentDiscount?: number | null;
+  paymentCurrency?: string | null;
   trackingNumber?: string | null;
   trackingCarrier?: string | null;
   trackingPhotoUrl?: string | null;
@@ -326,6 +346,11 @@ export function prismaOrderToOrder(o: {
   total: DecimalLike;
   status: string;
   paymentMethod: string;
+  paymentMethodId?: string | null;
+  subtotalBeforeDiscount?: DecimalLike | null;
+  paymentDiscountPercent?: DecimalLike | null;
+  paymentDiscount?: DecimalLike | null;
+  paymentCurrency?: string | null;
   paymentBank?: string | null;
   paymentHolderIdNumber?: string | null;
   paymentHolderPhone?: string | null;
@@ -367,6 +392,11 @@ export function prismaOrderToOrder(o: {
     exchangeRateUsdBs: dn(o.exchangeRateUsdBs),
     status:          o.status as OrderStatus,
     paymentMethod:   o.paymentMethod,
+    paymentMethodId:          o.paymentMethodId ?? null,
+    subtotalBeforeDiscount:   dn(o.subtotalBeforeDiscount),
+    paymentDiscountPercent:   dn(o.paymentDiscountPercent),
+    paymentDiscount:          dn(o.paymentDiscount),
+    paymentCurrency:          o.paymentCurrency ?? null,
     paymentBank:              o.paymentBank,
     paymentHolderIdNumber:    o.paymentHolderIdNumber,
     paymentHolderPhone:       o.paymentHolderPhone,
@@ -415,6 +445,11 @@ export function toGuestOrderConfirmationDto(o: {
   total: DecimalLike;
   status: string;
   paymentMethod: string;
+  paymentMethodId?: string | null;
+  subtotalBeforeDiscount?: DecimalLike | null;
+  paymentDiscountPercent?: DecimalLike | null;
+  paymentDiscount?: DecimalLike | null;
+  paymentCurrency?: string | null;
   exchangeRateUsdBs?: DecimalLike | null;
   channel?: string | null;
   items: { productName: string; quantity: number; price: DecimalLike; imageUrl?: string | null }[];
@@ -426,6 +461,11 @@ export function toGuestOrderConfirmationDto(o: {
     exchangeRateUsdBs: dn(o.exchangeRateUsdBs),
     status:          o.status,
     paymentMethod:   o.paymentMethod,
+    paymentMethodId: o.paymentMethodId ?? null,
+    subtotalBeforeDiscount: dn(o.subtotalBeforeDiscount),
+    paymentDiscountPercent: dn(o.paymentDiscountPercent),
+    paymentDiscount: dn(o.paymentDiscount),
+    paymentCurrency: o.paymentCurrency ?? null,
     channel:         o.channel ?? null,
     items: o.items.map(i => ({
       productName: i.productName,
@@ -446,6 +486,11 @@ export function toPublicOrderLookupDto(order: {
   status: OrderStatus;
   shippingDetails: ShippingDetails;
   paymentMethod: string;
+  paymentMethodId?: string | null;
+  subtotalBeforeDiscount?: number | null;
+  paymentDiscountPercent?: number | null;
+  paymentDiscount?: number | null;
+  paymentCurrency?: string | null;
   trackingNumber?: string | null;
   trackingCarrier?: string | null;
   trackingPhotoUrl?: string | null;
@@ -473,6 +518,11 @@ export function toPublicOrderLookupDto(order: {
     status: order.status,
     shippingDetails: order.shippingDetails,
     paymentMethod: order.paymentMethod,
+    paymentMethodId: order.paymentMethodId ?? null,
+    subtotalBeforeDiscount: order.subtotalBeforeDiscount ?? null,
+    paymentDiscountPercent: order.paymentDiscountPercent ?? null,
+    paymentDiscount: order.paymentDiscount ?? null,
+    paymentCurrency: order.paymentCurrency ?? null,
     trackingNumber: order.trackingNumber ?? null,
     trackingCarrier: order.trackingCarrier ?? null,
     trackingPhotoUrl: order.trackingPhotoUrl ?? null,

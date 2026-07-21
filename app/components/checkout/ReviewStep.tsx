@@ -12,11 +12,16 @@ import { tealcaOffices, type TealcaOffice } from '@/lib/tealca-offices';
 import { ShippingFormData } from './ShippingForm';
 import { PaymentFormData } from './PaymentForm';
 import { formatCurrency } from '@/lib/utils';
+import {
+  estimatePaymentDiscountUsd,
+  type CheckoutPaymentMethodDto,
+} from '@/lib/payment-methods';
 import { stashLoginRedirectForPathname } from '@/lib/auth-path';
 
 interface ReviewStepProps {
   shippingData: ShippingFormData | null;
   paymentData: PaymentFormData | null;
+  checkoutPaymentMethods?: CheckoutPaymentMethodDto[];
   /** Modo WhatsApp: redirige a WhatsApp tras crear el pedido. */
   whatsappMode?: boolean;
   /** Número de WhatsApp configurado para pedidos. */
@@ -39,7 +44,7 @@ function formatBsApprox(amountUsd: number, rate: number): string {
   }).format(amountUsd * rate)}`;
 }
 
-const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappOrderPhone = '', onOrderSuccess }: ReviewStepProps) => {
+const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], whatsappMode = false, whatsappOrderPhone = '', onOrderSuccess }: ReviewStepProps) => {
   const { data: session } = useSession();
   const { cart, clearCart, getCartTotal, isCartLoading } = useCart();
   const { rate: exchangeRate } = useExchangeRate();
@@ -66,7 +71,12 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
   const [couponMessage, setCouponMessage] = useState<string | null>(null);
 
   const subtotal = getCartTotal();
-  const total = Math.max(0, subtotal - discountUsd);
+  const selectedPaymentMethod = checkoutPaymentMethods.find((m) => m.id === paymentData?.paymentMethodId) ?? null;
+  const estimatedPaymentDiscount =
+    selectedPaymentMethod && selectedPaymentMethod.discountEnabled && selectedPaymentMethod.discountPercent > 0
+      ? estimatePaymentDiscountUsd(subtotal, selectedPaymentMethod.discountPercent)
+      : 0;
+  const total = Math.max(0, subtotal - estimatedPaymentDiscount - discountUsd);
 
   const handleApplyCoupon = async () => {
     const code = couponInput.trim();
@@ -257,18 +267,12 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
           zipCode: 'N/A',
           country: 'Venezuela',
         },
-        paymentMethod:
-          paymentData.paymentMethod === 'pagomovil'
-            ? 'Pago Móvil'
-            : paymentData.paymentMethod === 'binancepay'
-              ? 'Binance Pay'
-              : paymentData.paymentMethod === 'cashea'
-                ? 'Cashea'
-                : 'Transferencia Bancaria',
+        paymentMethodId: paymentData.paymentMethodId,
+        paymentCurrency: paymentData.paymentCurrency,
         paymentBank: paymentData.bank || null,
-        paymentHolderIdNumber: null,
-        paymentHolderPhone: null,
-        paymentReference: null,
+        paymentHolderIdNumber: paymentData.holderIdNumber || null,
+        paymentHolderPhone: paymentData.holderPhone || null,
+        paymentReference: paymentData.referenceNumber || null,
         paymentUploadToken: uploadToken,
         couponCode: appliedCoupon || null,
         items: cart.map((item) => ({
@@ -290,6 +294,12 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
         message?: string;
         error?: string;
         errors?: unknown;
+        total?: number;
+        exchangeRateUsdBs?: number | null;
+        paymentMethod?: string;
+        paymentCurrency?: string | null;
+        paymentDiscount?: number | null;
+        paymentDiscountPercent?: number | null;
       };
 
       if (!response.ok) {
@@ -329,6 +339,16 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
               : shippingData.shippingMethod === 'tealca'
                 ? `${buildAddress()}, ${buildCity()}, ${buildState()}`.replace(/,\s*,/g, ',').trim()
                 : buildAddress();
+        const serverRate = body.exchangeRateUsdBs && body.exchangeRateUsdBs > 0
+          ? body.exchangeRateUsdBs
+          : exchangeRate;
+        const serverTotalUsd = body.total != null && serverRate > 0
+          ? body.total / serverRate
+          : Math.max(0, subtotal - estimatedPaymentDiscount - discountUsd);
+        const serverPaymentDiscountUsd =
+          body.paymentDiscount != null && body.paymentDiscount > 0 && serverRate > 0
+            ? body.paymentDiscount / serverRate
+            : undefined;
         const waInput = {
           orderRef,
           customerName: `${shippingData.firstName} ${shippingData.lastName}`,
@@ -336,21 +356,17 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
           phone: shippingData.phoneNumber,
           address: waShippingText,
           shippingCompany: getShippingMethodLabel(),
-          paymentMethod:
-            paymentData.paymentMethod === 'pagomovil'
-              ? 'Pago Móvil'
-              : paymentData.paymentMethod === 'binancepay'
-                ? 'Binance Pay'
-                : paymentData.paymentMethod === 'cashea'
-                  ? 'Cashea'
-                  : 'Transferencia Bancaria',
+          paymentMethod: body.paymentMethod ?? selectedPaymentMethod?.name ?? 'Pago',
           items: cart.map((item) => ({
             name: item.name,
             quantity: item.quantity,
             priceUsd: item.price,
           })),
-          totalUsd: Math.max(0, subtotal - discountUsd),
-          rate: exchangeRate,
+          totalUsd: serverTotalUsd,
+          rate: serverRate,
+          paymentDiscountUsd: serverPaymentDiscountUsd,
+          paymentDiscountPercent: body.paymentDiscountPercent ?? undefined,
+          paymentCurrency: body.paymentCurrency ?? paymentData.paymentCurrency,
         };
         const waUrl = buildWhatsAppOrderUrl(whatsappOrderPhone, waInput);
         onOrderSuccess?.();
@@ -431,17 +447,15 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
   const ShippingIcon = shippingData?.shippingMethod === 'tienda' ? Store : shippingData?.shippingMethod === 'zoom' || shippingData?.shippingMethod === 'tealca' ? Truck : Building2;
 
   const isBankManual =
-    paymentData?.paymentMethod === 'pagomovil' ||
-    paymentData?.paymentMethod === 'transferencia';
+    selectedPaymentMethod?.kind === 'PAGO_MOVIL' ||
+    selectedPaymentMethod?.kind === 'BANK_TRANSFER';
 
   const paymentLabel =
-    paymentData?.paymentMethod === 'pagomovil'
-      ? 'Pago Móvil'
-      : paymentData?.paymentMethod === 'binancepay'
-        ? 'Binance (verificación manual)'
-        : paymentData?.paymentMethod === 'cashea'
-          ? 'Cashea (coordinar por WhatsApp)'
-          : 'Transferencia';
+    selectedPaymentMethod?.kind === 'BINANCE'
+      ? `${selectedPaymentMethod.name} (verificación manual)`
+      : selectedPaymentMethod?.kind === 'CASHEA'
+        ? `${selectedPaymentMethod.name} (coordinar por WhatsApp)`
+        : (selectedPaymentMethod?.name ?? paymentData?.paymentMethodId ?? '—');
 
   return (
     <div className="space-y-6">
@@ -583,18 +597,18 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
                 </div>
               </>
             )}
-            {paymentData?.paymentMethod === 'binancepay' && !whatsappMode && (
+            {selectedPaymentMethod?.kind === 'BINANCE' && !whatsappMode && (
               <>
                 <div className="flex justify-between gap-3">
                   <dt className="text-slate-500">Order ID Binance</dt>
-                  <dd className="text-navy font-mono text-right">{paymentData.referenceNumber}</dd>
+                  <dd className="text-navy font-mono text-right">{paymentData?.referenceNumber}</dd>
                 </div>
                 <p className="text-xs text-slate-500 pt-1 leading-relaxed">
                   Tras confirmar, reservamos tu pedido y MundoTech verificará tu pago en Binance antes de preparar el envío.
                 </p>
               </>
             )}
-            {paymentData?.paymentMethod === 'cashea' && (
+            {selectedPaymentMethod?.kind === 'CASHEA' && (
               <p className="text-xs text-slate-500 pt-1 leading-relaxed">
                 Tras confirmar, te mostraremos un botón de WhatsApp para coordinar tu pago con Cashea.
                 Reservamos tu pedido y preparamos el envío en cuanto confirmemos el pago.
@@ -683,12 +697,24 @@ const ReviewStep = ({ shippingData, paymentData, whatsappMode = false, whatsappO
           <span className="text-slate-500">Subtotal</span>
           <span className="text-navy nums">{formatCurrency(subtotal)}</span>
         </div>
+        {estimatedPaymentDiscount > 0 && selectedPaymentMethod && (
+          <div className="flex justify-between text-sm">
+            <span className="text-emerald-600">
+              Descuento por pago en divisas ({selectedPaymentMethod.discountPercent}%)
+            </span>
+            <span className="text-emerald-600 nums">−{formatCurrency(estimatedPaymentDiscount)}</span>
+          </div>
+        )}
         {discountUsd > 0 && (
           <div className="flex justify-between text-sm">
-            <span className="text-emerald-600">Descuento ({appliedCoupon})</span>
+            <span className="text-emerald-600">Cupón ({appliedCoupon})</span>
             <span className="text-emerald-600 nums">−{formatCurrency(discountUsd)}</span>
           </div>
         )}
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-500">Envío</span>
+          <span className="text-navy nums">Gratis</span>
+        </div>
         <div className="flex justify-between text-base font-bold pt-2 border-t border-slate-100">
           <span className="text-navy">Total</span>
           <span className="text-navy nums">{formatCurrency(total)}</span>

@@ -59,7 +59,7 @@ const currentTimelineStep = (o: { status: OrderStatus; paidAt?: string | null })
 export default function OrderDetailClient({ order }: OrderDetailClientProps) {
   const router = useRouter();
   const [trackingCopied, setTrackingCopied] = useState(false);
-  const subtotal = order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const subtotal = order.subtotalBeforeDiscount ?? order.items.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const pickupAddress = order.shippingDetails.address ?? '';
   const isStorePickup = pickupAddress.startsWith('Retiro en tienda');
   const isMrwPickup = pickupAddress.startsWith('Retiro en Oficina MRW');
@@ -291,6 +291,23 @@ export default function OrderDetailClient({ order }: OrderDetailClientProps) {
               <span>Subtotal</span>
               <DualOrderMoney amount={subtotal} order={order} />
             </div>
+            {order.paymentDiscount != null && order.paymentDiscount > 0 ? (
+              <div className="flex justify-between text-emerald-600 items-start gap-3">
+                <span>
+                  Descuento por pago en divisas
+                  {order.paymentDiscountPercent != null && order.paymentDiscountPercent > 0
+                    ? ` (${order.paymentDiscountPercent}%)`
+                    : ''}
+                </span>
+                <span className="inline-flex items-center">−<DualOrderMoney amount={order.paymentDiscount} order={order} /></span>
+              </div>
+            ) : null}
+            {order.couponDiscount != null && order.couponDiscount > 0 ? (
+              <div className="flex justify-between text-emerald-600 items-start gap-3">
+                <span>Cupón {order.couponCode}</span>
+                <span className="inline-flex items-center">−<DualOrderMoney amount={order.couponDiscount} order={order} /></span>
+              </div>
+            ) : null}
             <div className="flex justify-between text-slate-500">
               <span>Envío</span>
               <span className="text-emerald-600 font-medium">Gratis</span>

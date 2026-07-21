@@ -57,7 +57,7 @@ describe('whatsapp-order', () => {
     expect(decoded).toContain('🆔 *Cédula:* V-555');
     expect(decoded).toContain('📞 *Teléfono:* 04128515930');
     expect(decoded).toContain('  • 2× Intercomunicador Bluetooth Q58 Max para Casco de Moto — $10.80');
-    expect(decoded).toContain('💰 *Total:* $21.60 ≈ Bs. 14816.30 (tasa: Bs. 685.94)');
+    expect(decoded).toContain('💰 *Total final:* $21.60 ≈ Bs. 14816.30 (tasa: Bs. 685.94)');
     expect(decoded).toContain('✅ *Pendiente de confirmación por MundoTech*');
     expect(decoded).not.toContain('�');
   });
@@ -85,5 +85,21 @@ describe('whatsapp-order', () => {
 
   it('lanza si no hay teléfono', () => {
     expect(() => buildWhatsAppOrderUrl('', sample)).toThrow('WhatsApp order phone is required');
+  });
+
+  it('incluye descuento por pago en divisas cuando viene del servidor', () => {
+    const withDiscount: WhatsAppOrderInput = {
+      ...sample,
+      paymentMethod: 'Zelle',
+      paymentCurrency: 'USD',
+      paymentDiscountPercent: 10,
+      paymentDiscountUsd: 2.16,
+      totalUsd: 19.44,
+    };
+    const decoded = decodeURIComponent(buildWhatsAppOrderText(withDiscount));
+    expect(decoded).toContain('*Método de pago:* Zelle');
+    expect(decoded).toContain('*Moneda:* USD');
+    expect(decoded).toContain('Descuento por pago en divisas (10%): -$2.16');
+    expect(decoded).toContain('💰 *Total final:* $19.44');
   });
 });
