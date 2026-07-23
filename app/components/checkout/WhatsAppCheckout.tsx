@@ -15,6 +15,7 @@ import type { StoreSettings } from '@/lib/data-store';
 import type { CheckoutPaymentMethodDto } from '@/lib/payment-methods';
 import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
 import { tealcaOffices, type TealcaOffice } from '@/lib/tealca-offices';
+import { shippingChargeLabel } from '@/lib/shipping-charge';
 
 interface WhatsAppCheckoutProps {
   pagoMovil: StoreSettings['pagoMovil'];
@@ -272,6 +273,7 @@ const WhatsAppCheckout = ({
         paymentCurrency?: string | null;
         paymentDiscount?: number | null;
         paymentDiscountPercent?: number | null;
+        freeShipping?: boolean;
       };
 
       if (!response.ok) {
@@ -323,6 +325,11 @@ const WhatsAppCheckout = ({
         body.paymentDiscount != null && body.paymentDiscount > 0 && serverRate > 0
           ? body.paymentDiscount / serverRate
           : undefined;
+      // Snapshot AUTORITATIVO del pedido ya creado (nunca el cálculo preliminar del cliente).
+      const isStorePickupOrder = shipping.shippingMethod === 'tienda';
+      const shippingChargeTextFinal = shippingChargeLabel(
+        isStorePickupOrder ? 'STORE_PICKUP' : body.freeShipping ? 'FREE' : 'DESTINATION_CHARGE',
+      );
       const waInput = {
         orderRef,
         customerName: `${shipping.firstName} ${shipping.lastName}`,
@@ -341,6 +348,8 @@ const WhatsAppCheckout = ({
         paymentDiscountUsd: serverPaymentDiscountUsd,
         paymentDiscountPercent: body.paymentDiscountPercent ?? undefined,
         paymentCurrency: body.paymentCurrency ?? payment.paymentCurrency,
+        shippingChargeText: shippingChargeTextFinal,
+        isStorePickup: isStorePickupOrder,
       };
       const url = buildWhatsAppOrderUrl(whatsappOrderPhone, waInput);
       setWaUrl(url);
@@ -419,6 +428,7 @@ const WhatsAppCheckout = ({
                 onFormSubmit={() => {}}
                 initialData={null}
                 estimates={shippingEstimates}
+                productFreeShippingFlags={cart.map((item) => item.freeShipping === true)}
               />
             </div>
 

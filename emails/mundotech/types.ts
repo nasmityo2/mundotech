@@ -54,6 +54,8 @@ export type OrderConfirmationPayload = {
   customerPhone?: string | null;
   /** Ej. MRW, Zoom — en checkout suele ser null y se muestra texto neutro. */
   shippingMethod?: string | null;
+  /** Snapshot: MundoTech cubre el envío (solo carrier + todos los ítems califican). */
+  freeShipping?: boolean;
   /** SESIÓN 06: token de acceso guest (raw, una sola vez). Null para pedidos autenticados. */
   guestToken?: string | null;
 };

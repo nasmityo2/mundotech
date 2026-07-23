@@ -42,7 +42,7 @@ vi.mock('@/lib/safe-logger', () => ({
 
 const { GET } = await import('@/app/api/cron/auto-cancel-orders/route');
 
-const CUTOFF_ISO = '2026-07-15T12:00:00.000Z';
+const CUTOFF_ISO = '2026-07-14T12:00:00.000Z';
 
 function buildRequest(headers?: Record<string, string>): Request {
   return new Request('http://localhost/api/cron/auto-cancel-orders', {
@@ -136,7 +136,7 @@ describe('GET /api/cron/auto-cancel-orders', () => {
     expect(body.hasMore).toBe(false);
   });
 
-  it('cancela pedido exactamente en el límite de 24 horas', async () => {
+  it('cancela pedido exactamente en el límite de 48 horas', async () => {
     findManyMock.mockResolvedValue([{ id: 'order-1', createdAt: new Date(CUTOFF_ISO) }]);
     findUniqueMock.mockResolvedValue(baseOrder());
     updateManyMock.mockResolvedValue({ count: 1 });
@@ -221,7 +221,7 @@ describe('GET /api/cron/auto-cancel-orders', () => {
     expect(updateManyMock).not.toHaveBeenCalled();
   });
 
-  it('pedido menor de 24 horas al volver a leer', async () => {
+  it('pedido menor de 48 horas al volver a leer', async () => {
     findManyMock.mockResolvedValue([{ id: 'order-1', createdAt: new Date(CUTOFF_ISO) }]);
     findUniqueMock.mockResolvedValue(
       baseOrder({ createdAt: new Date('2026-07-16T00:00:00.000Z') }),
@@ -380,7 +380,7 @@ describe('GET /api/cron/auto-cancel-orders', () => {
       expect.any(String),
       expect.any(String),
       expect.any(String),
-      { expiredAfterHours: 24 },
+      { expiredAfterHours: 48 },
     );
   });
 });

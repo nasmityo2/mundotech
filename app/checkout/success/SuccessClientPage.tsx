@@ -14,6 +14,7 @@ import {
   onAnalyticsConsentChange,
   trackPurchaseOnce,
 } from '@/lib/ga4';
+import { orderShippingChargeLabelFromSnapshot } from '@/lib/shipping-charge';
 
 interface Props {
   order: EnrichedOrder;
@@ -98,7 +99,7 @@ export default function SuccessClientPage({ order }: Props) {
             >
               <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
               <p className="text-xs text-amber-800 leading-snug">
-                Importante: si el pedido permanece pendiente, se cancelará automáticamente 24 horas
+                Importante: si el pedido permanece pendiente, se cancelará automáticamente 48 horas
                 después de su creación.
               </p>
             </motion.div>
@@ -237,7 +238,9 @@ export default function SuccessClientPage({ order }: Props) {
             ) : null}
             <div className="flex justify-between text-slate-500">
               <span>Envío</span>
-              <span className="text-emerald-600 font-medium">Gratis</span>
+              <span className="text-emerald-700 font-medium text-right">
+                {orderShippingChargeLabelFromSnapshot(order)}
+              </span>
             </div>
             <div className="border-t border-slate-200 pt-2.5 mt-1.5 flex items-end justify-between gap-3">
               <span className="text-base font-semibold text-navy">Total</span>

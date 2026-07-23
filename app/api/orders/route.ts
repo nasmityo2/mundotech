@@ -416,6 +416,7 @@ export async function POST(request: Request) {
         shippingCountry: order.shippingCountry,
         customerPhone: order.customerPhone,
         shippingMethod: order.trackingCarrier ?? null,
+        freeShipping: order.freeShipping === true,
         // SESIÓN 06: token raw para construir enlace de acceso guest en el email
         guestToken,
       };

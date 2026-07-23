@@ -57,7 +57,7 @@ Restaura stock, envía correo y conserva historial para auditoría.
 
 ## Buenas prácticas
 
-- Responder pendientes en menos de 24 h.
+- Responder pendientes en menos de 48 h.
 - Verificar monto exacto del comprobante.
 - Siempre registrar tracking al enviar.
 - Usar notas internas para acuerdos por WhatsApp.

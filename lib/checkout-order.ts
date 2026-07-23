@@ -22,6 +22,7 @@ import {
   type PaymentMethodConfig,
   type PaymentSettingsSlice,
 } from '@/lib/payment-methods';
+import { resolveShippingChargeType } from '@/lib/shipping-charge';
 
 export const orderItemSchema = z.object({
   productId: z.string().min(1),
@@ -221,7 +222,7 @@ export async function executeCheckoutInTransactionWithMethod(
   // despublicados/soft-deleted y rechazar el pedido con mensaje claro.
   const dbProducts = await tx.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, price: true, stock: true, name: true, isActive: true },
+    select: { id: true, price: true, stock: true, name: true, isActive: true, freeShipping: true },
   });
 
   const productMap = new Map(dbProducts.map((p) => [p.id, p]));
@@ -388,6 +389,24 @@ export async function executeCheckoutInTransactionWithMethod(
   }
   subtotalUsd = roundMoney2(subtotalUsd);
 
+  // Envío gratis (PRD envío-gratis): SIEMPRE se recalcula aquí, dentro de la
+  // misma transacción, con los valores reales de `dbProducts`. Nunca se
+  // aceptan flags del cliente — `items` (validado por orderItemSchema) no
+  // tiene `freeShipping`, así que no hay nada que "confiar" del frontend.
+  // `productIds` es el set único; cada producto pesa una vez en la regla
+  // "TODOS califican", sin importar cuántas líneas del carrito lo repitan.
+  const authoritativeFreeShippingByProduct = new Map(
+    dbProducts.map((p) => [p.id, p.freeShipping === true]),
+  );
+  const authoritativeFreeShippingFlags = productIds.map(
+    (productId) => authoritativeFreeShippingByProduct.get(productId) === true,
+  );
+  const shippingChargeType = resolveShippingChargeType(
+    shippingMethod,
+    authoritativeFreeShippingFlags,
+  );
+  const orderHasFreeShipping = shippingChargeType === 'FREE';
+
   let resolvedCustomerEmail = customerEmail?.trim() || null;
   if (isRegisteredUser && !resolvedCustomerEmail) {
     const dbUser = await tx.user.findUnique({
@@ -456,6 +475,7 @@ export async function executeCheckoutInTransactionWithMethod(
       total: finalTotal,
       channel: effectiveChannel,
       stockDeducted: deductStock,
+      freeShipping: orderHasFreeShipping,
       couponCode: appliedCouponCode,
       couponDiscount: couponDiscountBs > 0 ? couponDiscountBs : null,
       exchangeRateUsdBs: rate,
@@ -491,6 +511,10 @@ export async function executeCheckoutInTransactionWithMethod(
             quantity: item.quantity,
             price: unitVes,
             imageUrl: item.imageUrl ?? null,
+            // Snapshot individual del producto — independiente del resultado
+            // agregado del pedido (un carrito mixto puede tener líneas con
+            // freeShipping=true y otras con false).
+            freeShipping: p.freeShipping === true,
           };
         }),
       },

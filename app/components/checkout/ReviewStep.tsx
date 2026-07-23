@@ -17,6 +17,7 @@ import {
   type CheckoutPaymentMethodDto,
 } from '@/lib/payment-methods';
 import { stashLoginRedirectForPathname } from '@/lib/auth-path';
+import { resolveShippingChargeType, shippingChargeLabel } from '@/lib/shipping-charge';
 
 interface ReviewStepProps {
   shippingData: ShippingFormData | null;
@@ -71,6 +72,13 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
   const [couponMessage, setCouponMessage] = useState<string | null>(null);
 
   const subtotal = getCartTotal();
+  // Vista PRELIMINAR (el servidor recalcula desde la BD al confirmar el pedido).
+  const productFreeShippingFlags = cart.map((item) => item.freeShipping === true);
+  const shippingChargeType = resolveShippingChargeType(
+    shippingData?.shippingMethod,
+    productFreeShippingFlags,
+  );
+  const shippingChargeText = shippingChargeLabel(shippingChargeType);
   const selectedPaymentMethod = checkoutPaymentMethods.find((m) => m.id === paymentData?.paymentMethodId) ?? null;
   const estimatedPaymentDiscount =
     selectedPaymentMethod && selectedPaymentMethod.discountEnabled && selectedPaymentMethod.discountPercent > 0
@@ -300,6 +308,7 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
         paymentCurrency?: string | null;
         paymentDiscount?: number | null;
         paymentDiscountPercent?: number | null;
+        freeShipping?: boolean;
       };
 
       if (!response.ok) {
@@ -349,6 +358,11 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
           body.paymentDiscount != null && body.paymentDiscount > 0 && serverRate > 0
             ? body.paymentDiscount / serverRate
             : undefined;
+        // Snapshot AUTORITATIVO del pedido ya creado (nunca el cálculo preliminar del cliente).
+        const isStorePickupOrder = shippingData.shippingMethod === 'tienda';
+        const shippingChargeTextFinal = shippingChargeLabel(
+          isStorePickupOrder ? 'STORE_PICKUP' : body.freeShipping ? 'FREE' : 'DESTINATION_CHARGE',
+        );
         const waInput = {
           orderRef,
           customerName: `${shippingData.firstName} ${shippingData.lastName}`,
@@ -367,6 +381,8 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
           paymentDiscountUsd: serverPaymentDiscountUsd,
           paymentDiscountPercent: body.paymentDiscountPercent ?? undefined,
           paymentCurrency: body.paymentCurrency ?? paymentData.paymentCurrency,
+          shippingChargeText: shippingChargeTextFinal,
+          isStorePickup: isStorePickupOrder,
         };
         const waUrl = buildWhatsAppOrderUrl(whatsappOrderPhone, waInput);
         onOrderSuccess?.();
@@ -486,6 +502,15 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
                 <p className="text-[12px] text-slate-500 nums">
                   {formatCurrency(item.price)} × {item.quantity}
                 </p>
+                <span
+                  className={`inline-flex items-center mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                    item.freeShipping
+                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                      : 'text-slate-500 bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  {item.freeShipping ? 'Envío gratis' : 'Cobro a destino'}
+                </span>
               </div>
               <p className="text-sm font-semibold text-navy nums whitespace-nowrap">
                 {formatCurrency(item.price * item.quantity)}
@@ -561,6 +586,14 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
                 </dd>
               </div>
             )}
+            <div className="flex justify-between gap-3 pt-1.5 mt-1 border-t border-slate-100">
+              <dt className="text-slate-500">
+                {shippingChargeType === 'STORE_PICKUP' ? 'Condición del retiro' : 'Condición del envío'}
+              </dt>
+              <dd className={`text-right font-semibold ${shippingChargeType === 'DESTINATION_CHARGE' ? 'text-slate-700' : 'text-emerald-700'}`}>
+                {shippingChargeText}
+              </dd>
+            </div>
           </dl>
         </div>
 

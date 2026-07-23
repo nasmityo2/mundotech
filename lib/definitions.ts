@@ -1,6 +1,8 @@
 // ─────────────────────────────────────────────────────────────
 // ESPECIFICACIONES TÉCNICAS DE PRODUCTO
 // ─────────────────────────────────────────────────────────────
+import { isStorePickupOrderAddress } from '@/lib/shipping-charge';
+
 export interface ProductSpec {
   name:  string;
   value: string;
@@ -38,6 +40,8 @@ export interface CartItemAPI {
   category: string;
   brand: string | null;
   images: string[];
+  /** true = MundoTech cubre el envío de este producto; false = cobro a destino. */
+  freeShipping: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -162,6 +166,8 @@ export interface OrderItem {
   quantity:    number;
   price:       number;
   imageUrl?:   string;
+  /** Snapshot del beneficio del producto al crear el pedido. Nunca se recalcula. */
+  freeShipping: boolean;
 }
 
 export interface ShippingDetails {
@@ -227,6 +233,13 @@ export interface Order {
   notes?:          string | null;
   channel?:        OrderChannel | null;
   stockDeducted?:  boolean | null;
+  /**
+   * Snapshot calculado por el servidor al crear el pedido (lib/checkout-order.ts):
+   * true SOLO si el método era MRW/ZOOM/TEALCA y TODOS los productos calificaban
+   * para envío gratis en ese momento. Nunca se recalcula — pedidos históricos
+   * no cambian si un producto cambia su beneficio después.
+   */
+  freeShipping:    boolean;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -284,6 +297,9 @@ export interface GuestOrderConfirmation {
   paymentCurrency?: string | null;
   /** Canal de origen: 'web' | 'whatsapp'. */
   channel?: string | null;
+  freeShipping: boolean;
+  /** Snapshot no-PII: retiro en tienda (derivado de la dirección al crear el DTO). */
+  storePickup: boolean;
 }
 
 export interface GuestOrderItem {
@@ -301,6 +317,7 @@ export interface PublicOrderLookupItem {
   price: number;
   imageUrl?: string;
   productSlug: string;
+  freeShipping: boolean;
 }
 
 export interface PublicOrderLookup {
@@ -327,6 +344,7 @@ export interface PublicOrderLookup {
   couponCode?: string | null;
   couponDiscount?: number | null;
   channel?: OrderChannel | null;
+  freeShipping: boolean;
 }
 
 import { d, dn } from '@/lib/decimal';
@@ -376,7 +394,8 @@ export function prismaOrderToOrder(o: {
   notes?: string | null;
   channel?: string | null;
   stockDeducted?: boolean | null;
-  items: { id: string; productId: string; productName: string; quantity: number; price: DecimalLike; imageUrl?: string | null }[];
+  freeShipping?: boolean | null;
+  items: { id: string; productId: string; productName: string; quantity: number; price: DecimalLike; imageUrl?: string | null; freeShipping?: boolean | null }[];
 }): Order {
   return {
     id:              o.id,
@@ -416,6 +435,7 @@ export function prismaOrderToOrder(o: {
     notes:           o.notes,
     channel:         (o.channel as OrderChannel | null) ?? 'web',
     stockDeducted:   o.stockDeducted ?? true,
+    freeShipping:    o.freeShipping === true,
     shippingDetails: {
       address:  o.shippingAddress,
       city:     o.shippingCity,
@@ -430,6 +450,7 @@ export function prismaOrderToOrder(o: {
       quantity:    i.quantity,
       price:       d(i.price),
       imageUrl:    i.imageUrl ?? undefined,
+      freeShipping: i.freeShipping === true,
     })),
   };
 }
@@ -452,11 +473,15 @@ export function toGuestOrderConfirmationDto(o: {
   paymentCurrency?: string | null;
   exchangeRateUsdBs?: DecimalLike | null;
   channel?: string | null;
+  freeShipping?: boolean | null;
+  shippingAddress?: string | null;
   items: { productName: string; quantity: number; price: DecimalLike; imageUrl?: string | null }[];
 }): GuestOrderConfirmation {
   return {
     orderNumber:     o.orderNumber,
     createdAt:       o.createdAt.toISOString(),
+    freeShipping:    o.freeShipping === true,
+    storePickup:     isStorePickupOrderAddress(o.shippingAddress),
     total:           d(o.total),
     exchangeRateUsdBs: dn(o.exchangeRateUsdBs),
     status:          o.status,
@@ -500,6 +525,7 @@ export function toPublicOrderLookupDto(order: {
   couponCode?: string | null;
   couponDiscount?: number | null;
   channel?: OrderChannel | null;
+  freeShipping?: boolean | null;
   items: {
     productId: string;
     productName: string;
@@ -507,6 +533,7 @@ export function toPublicOrderLookupDto(order: {
     price: number;
     imageUrl?: string;
     productSlug: string;
+    freeShipping?: boolean | null;
   }[];
 }): PublicOrderLookup {
   return {
@@ -532,6 +559,7 @@ export function toPublicOrderLookupDto(order: {
     couponCode: order.couponCode ?? null,
     couponDiscount: order.couponDiscount ?? null,
     channel: order.channel ?? null,
+    freeShipping: order.freeShipping === true,
     items: order.items.map((item) => ({
       productId: item.productId,
       productName: item.productName,
@@ -539,6 +567,7 @@ export function toPublicOrderLookupDto(order: {
       price: item.price,
       imageUrl: item.imageUrl,
       productSlug: item.productSlug,
+      freeShipping: item.freeShipping === true,
     })),
   };
 }

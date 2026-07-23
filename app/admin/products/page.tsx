@@ -32,6 +32,7 @@ interface Product {
   images:      string[];
   brand:       string;
   isActive?:   boolean;
+  freeShipping: boolean;
   description: string;
   specs?:      unknown | null;
   media?:      {
@@ -216,6 +217,7 @@ function AdminProductsContent() {
       stock: p.stock,
       description: p.description ?? '',
       imageUrl: p.images?.[0] ?? '',
+      freeShipping: p.freeShipping ? 'true' : 'false',
     }));
     downloadCsv(`inventario-mundotech-${csvDateStamp()}.csv`, rows);
   }, [products]);
@@ -386,6 +388,15 @@ function AdminProductsContent() {
               Despublicado
             </span>
           )}
+          <span
+            className={`ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border align-middle ${
+              p.freeShipping
+                ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                : 'text-slate-600 bg-slate-50 border-slate-200'
+            }`}
+          >
+            {p.freeShipping ? 'Envío gratis' : 'Cobro a destino'}
+          </span>
         </span>
       ),
     },

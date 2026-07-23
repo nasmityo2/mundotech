@@ -34,6 +34,7 @@ export interface WishlistProductDTO {
   brand: string | null;
   image: string;
   images: string[];
+  freeShipping: boolean;
 }
 
 async function sessionUserId(): Promise<string | null> {
@@ -59,6 +60,7 @@ async function loadWishlistProducts(userId: string): Promise<WishlistProductDTO[
     brand: p.brand,
     image: firstCardImage(p.images),
     images: p.images ?? [],
+    freeShipping: p.freeShipping === true,
   }));
 }
 

@@ -15,6 +15,8 @@ import type { SavedAddress, ShippingMethod } from '@/lib/definitions';
 import { estimateFor, type ShippingEstimates } from '@/lib/shipping-estimates';
 import OfficeSelect from '@/app/components/checkout/OfficeSelect';
 import type { OfficeOption } from '@/app/components/checkout/OfficeSelect';
+import { resolveShippingChargeType, shippingChargeLabel } from '@/lib/shipping-charge';
+import { PackageCheck } from 'lucide-react';
 
 export type ShippingFormData = {
   firstName:   string;
@@ -109,9 +111,15 @@ interface ShippingFormProps {
   whatsappMode?: boolean;
   /** Si es true, oculta el botón "Continuar al pago" (modo embebido). */
   embedded?: boolean;
+  /**
+   * Flags de "envío gratis" de cada producto del carrito (vista PRELIMINAR:
+   * el servidor recalcula desde la BD al confirmar el pedido — este valor
+   * nunca es autoritativo). Vacío = sin productos, se asume cobro a destino.
+   */
+  productFreeShippingFlags?: readonly boolean[];
 }
 
-const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onFormSubmit, initialData, estimates, whatsappMode = false, embedded = false }, ref) => {
+const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onFormSubmit, initialData, estimates, whatsappMode = false, embedded = false, productFreeShippingFlags = [] }, ref) => {
   const { data: session } = useSession();
   const {
     register, handleSubmit, formState: { errors }, watch, setValue, setError, clearErrors,
@@ -474,6 +482,37 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
           <span>{estimateNote}</span>
         </p>
       ) : null}
+
+      {/* Envío gratis por producto — vista PRELIMINAR (el servidor recalcula al confirmar). */}
+      {(() => {
+        const chargeType = resolveShippingChargeType(shippingMethod, productFreeShippingFlags);
+        const label = shippingChargeLabel(chargeType);
+        const isFreeOrPickup = chargeType !== 'DESTINATION_CHARGE';
+        const description =
+          chargeType === 'STORE_PICKUP'
+            ? 'Puedes retirar tu pedido sin costo de envío.'
+            : chargeType === 'FREE'
+              ? 'MundoTech cubre el envío de todos los productos de este pedido.'
+              : productFreeShippingFlags.length > 0 && productFreeShippingFlags.some((f) => f) && !productFreeShippingFlags.every((f) => f)
+                ? 'Tu carrito contiene uno o más productos que no incluyen envío gratis.'
+                : 'El costo del envío se paga directamente al transportista al retirar.';
+        return (
+          <div
+            aria-live="polite"
+            className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-[12.5px] ${
+              isFreeOrPickup
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-slate-200 bg-slate-50 text-slate-600'
+            }`}
+          >
+            <PackageCheck size={16} className={`flex-shrink-0 mt-0.5 ${isFreeOrPickup ? 'text-emerald-600' : 'text-slate-400'}`} aria-hidden />
+            <span>
+              <strong className="font-semibold">{label}</strong>
+              <span className="block mt-0.5">{description}</span>
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Datos personales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

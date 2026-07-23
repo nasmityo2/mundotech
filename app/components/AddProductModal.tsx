@@ -29,6 +29,7 @@ interface Product {
   brand:       string;
   description: string;
   sku?:        string | null;
+  freeShipping?: boolean;
   specs?:      unknown | null;
   media?:      {
     id:         string;
@@ -94,6 +95,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   const [presetDraft, setPresetDraft] = useState<string[]>(['30', '50', '80', '100']);
   const [editingPresets, setEditingPresets] = useState(false);
   const [price, setPrice] = useState('');
+  const [freeShipping, setFreeShipping] = useState(false);
   const [onSale, setOnSale] = useState(false);
   const [discountMode, setDiscountMode] = useState<'pct' | 'amount'>('pct');
   const [discountPct, setDiscountPct] = useState('');
@@ -137,6 +139,9 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
       setDiscountPct('');
       setPrice(onOffer ? String(product.originalPrice) : String(product.price));
       setSaleAmount(onOffer ? String(product.price) : '');
+      // Al editar: refleja el valor guardado. Nunca arrastra el de otro producto
+      // (se reinicializa en cada apertura del modal, ver rama `else` abajo).
+      setFreeShipping(product.freeShipping ?? false);
       el.stock.value       = product.stock.toString();
       el.category.value    = product.category;
       el.brand.value       = product.brand;
@@ -171,6 +176,8 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
       formRef.current.reset();
       setCost('');
       setPrice(''); setOnSale(false); setDiscountMode('pct'); setDiscountPct(''); setSaleAmount('');
+      // Al crear: siempre desmarcado.
+      setFreeShipping(false);
       setSlots([]);
       setSpecs([]);
       originalProductVideoUrlsRef.current = new Set();
@@ -656,6 +663,8 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                 formData.set('mediaJson', JSON.stringify(mediaForSave));
                 formData.set('specsJson',  JSON.stringify(specs));
                 formData.set('salePrice', computedSalePrice != null ? String(computedSalePrice) : '');
+                // No depender de que un checkbox desmarcado desaparezca del FormData.
+                formData.set('freeShipping', freeShipping ? 'true' : 'false');
                 startTransition(async () => {
                   const action = product
                     ? updateProductAction.bind(null, product.id)
@@ -826,6 +835,24 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                       )}
                     </div>
                   )}
+                </div>
+
+                {/* Envío gratis */}
+                <div className="sm:col-span-2">
+                  <label className="flex items-start gap-3 rounded-xl border border-gray-200 p-4 cursor-pointer active:bg-gray-50">
+                    <input
+                      type="checkbox"
+                      checked={freeShipping}
+                      onChange={(e) => setFreeShipping(e.target.checked)}
+                      className="mt-0.5 h-5 w-5 rounded border-gray-300 accent-navy flex-shrink-0"
+                    />
+                    <span className="flex flex-col">
+                      <span className="text-sm font-bold text-gray-700">Envío gratis</span>
+                      <span className="text-xs text-gray-500 mt-0.5">
+                        MundoTech cubre el envío de este producto. Si está desactivado, se aplicará cobro a destino.
+                      </span>
+                    </span>
+                  </label>
                 </div>
 
                 {/* Stock */}

@@ -89,6 +89,7 @@ export default async function CartPage() {
                   image: firstCardImage(product.images),
                   images: product.images,
                   details: {},
+                  freeShipping: product.freeShipping === true,
                 })}
               />
             ))}

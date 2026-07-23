@@ -25,6 +25,8 @@ export interface Product {
   rating?:       number;
   /** Nº de reseñas aprobadas. */
   reviewCount?:  number;
+  /** true = MundoTech cubre el envío de este producto; false = cobro a destino. */
+  freeShipping:  boolean;
 }
 
 /** PRD-271: producto tal como lo devuelve la Server Action getProducts (Prisma, sin `any`). */
@@ -45,6 +47,7 @@ function fetchedToProduct(p: FetchedProduct): Product {
     image:         firstCardImage(p.images),
     images:        p.images ?? [],
     details:       {},
+    freeShipping:  p.freeShipping === true,
   };
 }
 

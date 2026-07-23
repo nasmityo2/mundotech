@@ -22,6 +22,7 @@ function toCartItemAPI(item: {
     category: string;
     brand: string | null;
     images: string[];
+    freeShipping: boolean;
   };
 }): CartItemAPI {
   return {
@@ -37,6 +38,8 @@ function toCartItemAPI(item: {
     category: item.product.category,
     brand: item.product.brand,
     images: item.product.images,
+    // La BD es la fuente de verdad: reemplaza cualquier valor viejo del cliente.
+    freeShipping: item.product.freeShipping === true,
   };
 }
 

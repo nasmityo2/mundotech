@@ -23,6 +23,8 @@ export interface ProductSnapshot {
   originalPrice: number | null;
   stock: number;
   images: string[];
+  /** true = MundoTech cubre el envío de este producto; false = cobro a destino. */
+  freeShipping: boolean;
 }
 
 const idsSchema = z.array(z.string().trim().min(1).max(64)).min(1).max(60);
@@ -58,10 +60,16 @@ export async function getProductSnapshots(ids: string[]): Promise<ProductSnapsho
         originalPrice: true,
         stock: true,
         images: true,
+        freeShipping: true,
       },
     });
     // PRD-204: price/originalPrice son Decimal → convertir a number
-    return rows.map(p => ({ ...p, price: d(p.price), originalPrice: dn(p.originalPrice) }));
+    return rows.map(p => ({
+      ...p,
+      price: d(p.price),
+      originalPrice: dn(p.originalPrice),
+      freeShipping: p.freeShipping === true,
+    }));
   } catch (error) {
     logError('product_snapshot_refresh_failed', error, { operation: 'get_product_snapshots' });
     return null;

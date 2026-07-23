@@ -9,7 +9,7 @@ import { logInfo, logError } from '@/lib/safe-logger';
 
 export const dynamic = 'force-dynamic';
 
-const AUTO_CANCEL_AFTER_HOURS = 24;
+const AUTO_CANCEL_AFTER_HOURS = 48;
 const BATCH_LIMIT = 100;
 
 const AUTO_CANCELLABLE_STATUSES = [

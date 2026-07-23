@@ -17,6 +17,7 @@ interface ShelfProduct {
   category:      string;
   brand?:        string | null;
   stock:         number;
+  freeShipping:  boolean;
 }
 
 interface ProductShelfProps {
@@ -57,6 +58,7 @@ function toCardProduct(p: ShelfProduct) {
     brand:         p.brand ?? null,
     stock:         p.stock,
     details:       {},
+    freeShipping:  p.freeShipping,
   };
 }
 

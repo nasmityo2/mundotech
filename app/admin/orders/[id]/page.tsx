@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Order, OrderStatus } from '@/lib/definitions';
 import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
+import { isStorePickupOrderAddress } from '@/lib/shipping-charge';
 import { DualOrderMoney, OrderFrozenRateBanner } from '@/components/order/DualOrderMoney';
 import { StatusUpdateMenu } from '@/app/components/admin/StatusUpdateMenu';
 import ShipOrderDialog from '@/app/components/admin/ShipOrderDialog';
@@ -379,7 +380,18 @@ export default function AdminOrderDetailPage() {
             {order.items.map(item => (
               <li key={item.productId} className="flex items-start justify-between gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-gray-800 truncate">{item.productName}</p>
+                  <p className="text-sm font-medium text-gray-800 truncate">
+                    {item.productName}
+                    <span
+                      className={`ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border align-middle ${
+                        item.freeShipping
+                          ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                          : 'text-slate-500 bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      {item.freeShipping ? 'Envío gratis' : 'Cobro a destino'}
+                    </span>
+                  </p>
                   <p className="text-xs text-gray-500 mt-0.5 nums">
                     {hasFrozenBsPricing(order) ? (
                       <>
@@ -415,7 +427,14 @@ export default function AdminOrderDetailPage() {
               </div>
             ) : null}
             <div className="flex justify-between text-gray-600">
-              <span>Envío</span><span className="text-green-600 font-medium">Gratis</span>
+              <span>Envío</span>
+              <span className={`font-medium ${isStorePickupOrderAddress(order.shippingDetails.address) || order.freeShipping ? 'text-green-600' : 'text-gray-700'}`}>
+                {isStorePickupOrderAddress(order.shippingDetails.address)
+                  ? 'Retiro en tienda'
+                  : order.freeShipping
+                    ? 'Envío gratis'
+                    : 'Cobro a destino'}
+              </span>
             </div>
             {order.couponDiscount && order.couponDiscount > 0 ? (
               <div className="flex justify-between text-emerald-600 items-start gap-2">

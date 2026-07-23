@@ -71,6 +71,8 @@ function apiItemToCartItem(item: CartItemAPI): CartItem {
     images: item.images,
     details: {},
     quantity: item.quantity,
+    // La BD es la fuente de verdad: reemplaza cualquier valor viejo del cliente.
+    freeShipping: item.freeShipping === true,
   };
 }
 
@@ -149,7 +151,12 @@ export const CartProvider = ({ children }: CartProviderProps) => {
   useEffect(() => {
     try {
       const stored = localStorage.getItem('cart');
-      if (stored) setCart(JSON.parse(stored));
+      if (stored) {
+        const parsed = JSON.parse(stored) as (CartItem & { freeShipping?: unknown })[];
+        // Fail-safe para carritos guardados antes de este campo: nunca asumir
+        // `true` por ausencia/`undefined` — solo un `true` explícito califica.
+        setCart(parsed.map((item) => ({ ...item, freeShipping: item.freeShipping === true })));
+      }
     } catch {
       setCart([]);
     } finally {
@@ -266,6 +273,8 @@ export const CartProvider = ({ children }: CartProviderProps) => {
                   image: firstCardImage(s.images) ?? i.image,
                   images: s.images,
                   quantity: Math.max(1, Math.min(i.quantity, s.stock)),
+                  // La BD es la fuente de verdad: reemplaza el valor viejo de localStorage.
+                  freeShipping: s.freeShipping === true,
                 };
               })
               .filter((i) => i.stock > 0),

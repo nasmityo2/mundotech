@@ -10,6 +10,7 @@ import type { GuestOrderConfirmation } from '@/lib/definitions';
 import { GuestOrderItem } from '@/lib/definitions';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import GuestAccountCard from './GuestAccountCard';
+import { shippingChargeLabel } from '@/lib/shipping-charge';
 
 interface Props {
   order: GuestOrderConfirmation;
@@ -117,7 +118,15 @@ export default function GuestSuccessClientPage({ order, guestToken }: Props) {
             ) : null}
             <div className="flex justify-between text-slate-500">
               <span>Envío</span>
-              <span className="text-emerald-600 font-medium">Gratis</span>
+              <span className="text-emerald-700 font-medium text-right">
+                {shippingChargeLabel(
+                  order.storePickup
+                    ? 'STORE_PICKUP'
+                    : order.freeShipping
+                      ? 'FREE'
+                      : 'DESTINATION_CHARGE',
+                )}
+              </span>
             </div>
             <div className="border-t border-slate-200 pt-2.5 mt-1.5 flex items-end justify-between gap-3">
               <span className="text-base font-semibold text-navy">Total</span>

@@ -48,6 +48,7 @@ function toFullProduct(p: CatalogProductCard): FullProduct {
     image: p.image,
     images: p.images,
     details: p.details,
+    freeShipping: p.freeShipping,
   };
 }
 

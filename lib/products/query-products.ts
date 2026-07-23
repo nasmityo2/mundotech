@@ -28,6 +28,7 @@ export type CatalogProductRow = {
   category: string;
   brand: string | null;
   images: string[];
+  freeShipping: boolean;
 };
 
 export type CatalogProductCard = {
@@ -43,6 +44,7 @@ export type CatalogProductCard = {
   image: string;
   images: string[];
   details: Record<string, string>;
+  freeShipping: boolean;
 };
 
 function mapRowToCard(p: CatalogProductRow): CatalogProductCard {
@@ -59,6 +61,7 @@ function mapRowToCard(p: CatalogProductRow): CatalogProductCard {
     image: firstCardImage(p.images),
     images: p.images,
     details: {},
+    freeShipping: p.freeShipping === true,
   };
 }
 
@@ -219,6 +222,7 @@ export async function queryCatalogProducts(
         category,
         brand,
         images,
+        "freeShipping",
         COUNT(*) OVER() AS "totalCount"
       FROM "Product"
       WHERE ${productWhere}
@@ -248,7 +252,7 @@ export async function querySearchSuggestions(q: string, limit = 7): Promise<Cata
   if (trimmed.length < 2 || trimmed.length > 120) return [];
 
   const rows = await prisma.$queryRaw<CatalogProductRow[]>(Prisma.sql`
-    SELECT id, slug, name, description, price, "originalPrice", stock, category, brand, images
+    SELECT id, slug, name, description, price, "originalPrice", stock, category, brand, images, "freeShipping"
     FROM "Product"
     WHERE ${textMatchWhere(trimmed)}
       AND "isActive" = true

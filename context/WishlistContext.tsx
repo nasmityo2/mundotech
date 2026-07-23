@@ -35,6 +35,7 @@ function dtoToProduct(p: WishlistProductDTO): Product {
     image: p.image,
     images: p.images,
     details: {},
+    freeShipping: p.freeShipping === true,
   };
 }
 

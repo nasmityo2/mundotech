@@ -29,6 +29,7 @@ export interface FullProduct {
   image:         string;
   images:        string[];
   details:       Record<string, string>;
+  freeShipping:  boolean;
 }
 
 export interface FullSearchResult {
@@ -52,6 +53,7 @@ export interface ProductCardModel {
   image:         string;
   images:        string[];
   details:       Record<string, string>;
+  freeShipping:  boolean;
 }
 
 export function fullProductToCardModel(p: FullProduct): ProductCardModel {
@@ -68,5 +70,6 @@ export function fullProductToCardModel(p: FullProduct): ProductCardModel {
     image:         p.image,
     images:        p.images,
     details:       p.details,
+    freeShipping:  p.freeShipping,
   };
 }

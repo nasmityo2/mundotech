@@ -8,6 +8,7 @@ import { MundoTechShell } from './MundoTechShell';
 import type { OrderConfirmationPayload } from './types';
 import { emailSiteBaseUrl, emailStoreAddress, emailStorePhones } from './site';
 import { orderPathSegment } from '@/lib/order-ref';
+import { orderShippingChargeLabelFromSnapshot } from '@/lib/shipping-charge';
 import { MT, fontSans } from './theme';
 
 function formatVariations(v: OrderConfirmationPayload['items'][0]['variations']): string | null {
@@ -274,13 +275,12 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
                 <Text style={{ margin: 0, fontSize: 14, color: MT.textMuted }}>Envío</Text>
               </td>
               <td style={{ padding: '10px 18px', textAlign: 'right', verticalAlign: 'top' }} align="right">
-                {payload.shippingUsd > 0 ? (
-                  <DualMoneyInline amountUsd={payload.shippingUsd} exchangeRateUsdBs={rate} />
-                ) : (
-                  <Text style={{ margin: 0, fontSize: 14, fontWeight: 700, color: MT.success }}>
-                    Gratis
-                  </Text>
-                )}
+                <Text style={{ margin: 0, fontSize: 14, fontWeight: 700, color: MT.success }}>
+                  {orderShippingChargeLabelFromSnapshot({
+                    freeShipping: payload.freeShipping,
+                    shippingAddress: payload.shippingAddress,
+                  })}
+                </Text>
               </td>
             </tr>
             <tr>
@@ -436,7 +436,7 @@ export function OrderConfirmationEmail(payload: OrderConfirmationPayload) {
 
       <Section style={{ padding: '4px 24px 6px', fontFamily: fontSans, textAlign: 'center' }}>
         <Text style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: MT.textMuted }}>
-          Los pedidos que permanezcan pendientes se cancelan automáticamente 24 horas después de
+          Los pedidos que permanezcan pendientes se cancelan automáticamente 48 horas después de
           su creación.
         </Text>
       </Section>

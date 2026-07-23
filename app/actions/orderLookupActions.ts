@@ -84,6 +84,7 @@ export async function lookupPublicOrderAction(
       price: item.price,
       imageUrl: item.imageUrl || '/placeholder.png',
       productSlug: slugByProductId.get(item.productId) ?? item.productId,
+      freeShipping: item.freeShipping,
     }));
 
     return {

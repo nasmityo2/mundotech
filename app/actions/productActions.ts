@@ -13,6 +13,7 @@ import { triggerRestockNotifications } from '@/app/actions/restockActions';
 import { parseProductSpecs } from '@/lib/definitions';
 import { saveSlugRedirect } from '@/lib/slug-redirects';
 import { d, dn } from '@/lib/decimal';
+import { normalizeCsvFreeShipping, parseFreeShippingFormValue } from '@/lib/csv-free-shipping';
 import { PRODUCT_CARD_SELECT, PRODUCT_ADMIN_SELECT } from '@/lib/product-select';
 import { deleteFromR2, isR2PublicUrl, keyFromR2PublicUrl } from '@/lib/r2';
 import { calcSellingPriceUsd, roundUpToStep } from '@/lib/pricing-formula';
@@ -103,6 +104,8 @@ const productSchema = z.object({
     (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
     z.string().min(1).nullable().optional()
   ),
+  /** true = MundoTech cubre el envío; false = cobro a destino (default). */
+  freeShipping: z.preprocess(parseFreeShippingFormValue, z.boolean()),
   // imagesJson: JSON array of URLs sent from the modal
   imagesJson: z.preprocess(
     (v) => {
@@ -217,6 +220,7 @@ export async function createProductAction(formData: FormData) {
       category:    formData.get('category'),
       brand:       formData.get('brand'),
       sku:         formData.get('sku'),
+      freeShipping: formData.get('freeShipping'),
       imagesJson:  formData.get('imagesJson'),
     };
 
@@ -279,6 +283,8 @@ export async function createProductAction(formData: FormData) {
 
     revalidatePath('/admin/products');
     revalidatePath('/');
+    revalidatePath('/productos');
+    revalidatePath(`/product/${slug}`);
     revalidateTag('catalog', 'default');
     revalidateTag('categories', 'default'); // category product counts in sidebar
     // FASE 3 (SEO): notificar la ficha nueva a IndexNow (no-op sin INDEXNOW_KEY).
@@ -309,6 +315,7 @@ export async function updateProductAction(productId: string, formData: FormData)
       category:    formData.get('category'),
       brand:       formData.get('brand'),
       sku:         formData.get('sku'),
+      freeShipping: formData.get('freeShipping'),
       imagesJson:  formData.get('imagesJson'),
     };
 
@@ -340,6 +347,8 @@ export async function updateProductAction(productId: string, formData: FormData)
     const images = deriveLegacyImagesFromSlots(slots);
     const specs  = parseSpecsFromFormData(formData);
 
+    // freeShipping viaja dentro de `rest` (no se excluye) — se persiste igual
+    // que name/description/stock/category/brand, sin tocar ningún campo de precios.
     const { imagesJson: _, sku, originalPrice: _op, salePrice: _sp, marginPct: _mp, ...rest } = validated.data;
 
     const current = await prisma.product.findUnique({
@@ -413,6 +422,7 @@ export async function updateProductAction(productId: string, formData: FormData)
 
     revalidatePath('/admin/products');
     revalidatePath('/');
+    revalidatePath('/productos');
     revalidatePath(`/product/${slug}`);
     if (slugChanged && current?.slug) revalidatePath(`/product/${current.slug}`);
     revalidateTag('catalog', 'default');
@@ -578,6 +588,9 @@ const CSV_HEADER_ALIASES: Record<string, string> = {
   stock: 'stock',
   description: 'description', descripcion: 'description', 'descripción': 'description',
   imageurl: 'imageUrl', imagen: 'imageUrl', 'image url': 'imageUrl',
+  freeshipping: 'freeShipping',
+  enviogratis: 'freeShipping', 'envío gratis': 'freeShipping', 'envio gratis': 'freeShipping',
+  'envíogratis': 'freeShipping',
 };
 
 function normalizeCsvHeader(header: string): string {
@@ -606,6 +619,8 @@ const csvProductSchema = z.object({
       .refine((s) => s.startsWith('/') || /^https?:\/\//i.test(s), 'imageUrl inválida')
       .default('/placeholder-product.png'),
   ),
+  /** Valor crudo (sin normalizar): la normalización ocurre en normalizeCsvFreeShipping. */
+  freeShipping: z.string().optional(),
 });
 
 type CsvProductRow = z.infer<typeof csvProductSchema>;
@@ -643,8 +658,11 @@ export async function importProductsFromCSV(csvData: string) {
     transformHeader: normalizeCsvHeader,
   });
 
-  const rows: { data: CsvProductRow; lineNo: number }[] = [];
+  const rows: { data: CsvProductRow; lineNo: number; freeShipping: boolean | undefined }[] = [];
   const errors: string[] = [];
+  // PRD-153/freeShipping: ausente en TODO el archivo → no tocar el valor
+  // actual de productos existentes al actualizar (solo `false` para nuevos).
+  const freeShippingColumnPresent = (parsed.meta.fields ?? []).includes('freeShipping');
 
   parsed.data.forEach((raw, idx) => {
     const lineNo = idx + 2; // +1 por la cabecera, +1 por índice base 0
@@ -657,7 +675,16 @@ export async function importProductsFromCSV(csvData: string) {
       errors.push(`Fila ${lineNo} («${label}»): ${detail}`);
       return;
     }
-    rows.push({ data: validation.data, lineNo });
+    const fsResult = normalizeCsvFreeShipping(validation.data.freeShipping);
+    if (!fsResult.ok) {
+      const label = (raw?.name ?? '').toString().trim().slice(0, 40) || 'sin nombre';
+      errors.push(
+        `Fila ${lineNo} («${label}»): freeShipping tiene un valor desconocido ` +
+          `("${validation.data.freeShipping}"). Usa true/false/1/0/sí/no/yes/on, o déjalo vacío.`,
+      );
+      return;
+    }
+    rows.push({ data: validation.data, lineNo, freeShipping: fsResult.value });
   });
 
   // Duplicados de SKU dentro del archivo → upsert ambiguo, se rechaza con detalle
@@ -707,7 +734,7 @@ export async function importProductsFromCSV(csvData: string) {
 
         const usedSlugs = new Set<string>();
 
-        for (const { data } of rows) {
+        for (const { data, freeShipping } of rows) {
           const existing = bySku.get(data.sku.toLowerCase());
           // El slug existente se conserva (estabilidad de URL); solo se genera si faltaba
           const slug = existing?.slug
@@ -719,10 +746,15 @@ export async function importProductsFromCSV(csvData: string) {
             where: { sku },
             update: {
               name, price, stock, category, brand, description, slug,
+              // Columna ausente en TODO el archivo → no tocar el valor actual.
+              // Columna presente → se actualiza con el valor validado de la fila.
+              ...(freeShippingColumnPresent ? { freeShipping: freeShipping ?? false } : {}),
               // La galería (images/media) no se toca en updates: se gestiona en el modal
             },
             create: {
               name, price, stock, category, brand, description, sku, slug,
+              // Producto nuevo sin columna → false (predeterminado).
+              freeShipping: freeShipping ?? false,
               images: [imageUrl],
               media: {
                 create: [{ type: ProductMediaType.IMAGE, url: imageUrl, sortOrder: 0 }],

@@ -17,6 +17,7 @@ const EMOJI_ENC = {
   card:    '%F0%9F%92%B3', // 💳
   money:   '%F0%9F%92%B0', // 💰
   pending: '%E2%9C%85',    // ✅
+  shipping: '%F0%9F%93%A6', // 📦
 } as const;
 
 type EmojiKey = keyof typeof EMOJI_ENC;
@@ -38,6 +39,15 @@ export type WhatsAppOrderInput = {
   paymentDiscountUsd?: number;
   paymentDiscountPercent?: number;
   paymentCurrency?: string | null;
+  /**
+   * Texto de la condición de envío ("Envío gratis" / "Cobro a destino" /
+   * "Retiro gratis en tienda"). Se calcula con lib/shipping-charge.ts a
+   * partir del snapshot autoritativo del pedido cuando está disponible
+   * (ver ReviewStep/WhatsAppCheckout tras crear el pedido).
+   */
+  shippingChargeText?: string;
+  /** true = el método de envío es retiro en tienda (cambia la etiqueta a "Entrega"). */
+  isStorePickup?: boolean;
 };
 
 export function normalizeWaPhone(phone: string): string {
@@ -63,6 +73,9 @@ function buildOrderSegments(input: WhatsAppOrderInput): WaSegment[] {
   e('card'); t(` *Método de pago:* ${input.paymentMethod}`); nl();
   if (input.paymentCurrency) {
     t(` *Moneda:* ${input.paymentCurrency}`); nl();
+  }
+  if (input.shippingChargeText) {
+    e('shipping'); t(` *${input.isStorePickup ? 'Entrega' : 'Envío'}:* ${input.shippingChargeText}`); nl();
   }
   nl();
 

@@ -34,6 +34,9 @@ model Product {
   /// historial de pedidos y URLs. DEPENDENCIA-01 (getProducts) / 02 (checkout)
   /// / 05 (admin): filtrar `isActive: true` en listados públicos y compra.
   isActive        Boolean        @default(true)
+  /// true = MundoTech cubre el envío; false = cobro a destino. Default false:
+  /// todos los productos existentes quedan en cobro a destino al migrar.
+  freeShipping    Boolean        @default(false)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   /// * Especificaciones técnicas: [{ name: string, value: string }]. Null = sin specs cargadas.
@@ -297,6 +300,13 @@ model Order {
   /// true = stock descontado al crear el pedido (comportamiento actual para checkout
   /// completo). false = stock pendiente de descontar (pedidos WhatsApp).
   stockDeducted             Boolean           @default(true)
+  /// Snapshot calculado al crear el pedido (dentro de la misma transacción del
+  /// checkout). true SOLO cuando el método de envío es MRW/ZOOM/TEALCA y TODOS
+  /// los productos calificaban para envío gratis en ese momento. `tienda`
+  /// (retiro) nunca guarda true aquí — ver lib/shipping-charge.ts. Nunca se
+  /// recalcula después de creado: los pedidos históricos no cambian si un
+  /// producto cambia su beneficio más adelante.
+  freeShipping              Boolean           @default(false)
   couponRedemption          CouponRedemption?
   customer                  User?             @relation(fields: [customerId], references: [id])
   paymentUpload             PaymentUpload?
@@ -316,20 +326,23 @@ model Order {
 }
 
 model OrderItem {
-  id          String  @id @default(cuid())
-  orderId     String
-  productId   String
-  productName String
-  quantity    Int
+  id           String  @id @default(cuid())
+  orderId      String
+  productId    String
+  productName  String
+  quantity     Int
   /// PRD-204: Decimal(12,2).
-  price       Decimal @db.Decimal(12, 2)
-  imageUrl    String?
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  price        Decimal @db.Decimal(12, 2)
+  imageUrl     String?
+  /// Snapshot del beneficio que tenía el producto al crear el pedido (no se
+  /// vuelve a consultar el producto actual para pedidos ya creados).
+  freeShipping Boolean @default(false)
+  order        Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   /// PRD-123: FK real hacia Product. Restrict = no se puede borrar (hard-delete)
   /// un producto con historial de pedidos — usar `isActive: false` (soft-delete).
   /// Preserva la auditoría financiera. DEPENDENCIA-05: deleteProductAction debe
   /// mostrar error amable / ofrecer despublicar.
-  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  product      Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
   @@index([productId])

@@ -187,6 +187,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
           initialData={shippingData}
           estimates={shippingEstimates}
           whatsappMode={whatsappMode}
+          productFreeShippingFlags={cart.map((item) => item.freeShipping === true)}
         />
       );
       case 1: return (

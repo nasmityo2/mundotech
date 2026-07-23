@@ -16,6 +16,7 @@ export const PRODUCT_CARD_SELECT = {
   category:      true,
   brand:         true,
   images:        true,
+  freeShipping:  true,
 } as const satisfies Prisma.ProductSelect;
 
 /**
@@ -35,6 +36,7 @@ export const PRODUCT_DETAIL_SELECT = {
   sku:           true,
   specs:         true,
   updatedAt:     true,
+  freeShipping:  true,
   media:         { orderBy: { sortOrder: 'asc' as const } },
 } as const satisfies Prisma.ProductSelect;
 
@@ -56,5 +58,6 @@ export const PRODUCT_ADMIN_SELECT = {
   specs:         true,
   isActive:      true,
   createdAt:     true,
+  freeShipping:  true,
   media:         { orderBy: { sortOrder: 'asc' as const } },
 } as const satisfies Prisma.ProductSelect;

@@ -114,6 +114,7 @@ export async function POST(
     shippingCountry: order.shippingCountry,
     customerPhone: order.customerPhone,
     shippingMethod: order.trackingCarrier ?? null,
+    freeShipping: order.freeShipping === true,
   };
 
   try {

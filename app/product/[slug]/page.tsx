@@ -517,6 +517,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
                 image:         firstCardImage(related.images),
                 images:        related.images,
                 details:       {},
+                freeShipping:  related.freeShipping === true,
                 rating:        s?.average,
                 reviewCount:   s?.count,
               };
@@ -552,6 +553,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
                 image:         deal.images[0] || '/placeholder-product.png',
                 images:        deal.images,
                 details:       {},
+                freeShipping:  deal.freeShipping === true,
                 rating:        s?.average,
                 reviewCount:   s?.count,
               };

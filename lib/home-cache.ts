@@ -41,6 +41,7 @@ export type HomeShelfProduct = {
   category: string;
   brand: string | null;
   images: string[];
+  freeShipping: boolean;
 };
 
 /** Convierte filas Prisma con Decimal al tipo HomeShelfProduct. */
@@ -55,6 +56,7 @@ function toHomeShelfProduct(p: {
   category: string;
   brand: string | null;
   images: string[];
+  freeShipping: boolean;
 }): HomeShelfProduct {
   return {
     id: p.id,
@@ -67,6 +69,7 @@ function toHomeShelfProduct(p: {
     category: p.category,
     brand: p.brand,
     images: p.images,
+    freeShipping: p.freeShipping === true,
   };
 }
 
