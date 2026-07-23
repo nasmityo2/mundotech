@@ -62,6 +62,105 @@ function validateRetentionDays(name: string, value: string | undefined): number 
   return parsed;
 }
 
+/**
+ * Variables Cashea requeridas SOLO cuando CASHEA_ENABLED=true (Sección 5/9
+ * del documento maestro). Con el flag en false (default), la integración
+ * automática permanece apagada y estas variables son opcionales.
+ */
+const CASHEA_REQUIRED_WHEN_ENABLED = [
+  'CASHEA_API_BASE_URL',
+  'CASHEA_PRIVATE_API_KEY',
+  'CASHEA_EXTERNAL_CLIENT_ID',
+  'CASHEA_STORE_ID',
+  'CASHEA_STORE_NAME',
+  'CASHEA_MERCHANT_NAME',
+  'NEXT_PUBLIC_CASHEA_PUBLIC_API_KEY',
+  'CASHEA_CURRENCY',
+  'CASHEA_SDK_VERSION',
+] as const;
+
+function parseCasheaBoolean(name: string, value: string | undefined): boolean {
+  if (!value?.trim()) return false;
+  const normalized = value.trim().toLowerCase();
+  if (normalized !== 'true' && normalized !== 'false') {
+    throw new Error(
+      `[env] ${name}="${value}" no es válido. Debe ser exactamente "true" o "false".`,
+    );
+  }
+  return normalized === 'true';
+}
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Valida el bloque Cashea (Sección 5/9 del documento maestro). Con el flag
+ * apagado (default) no exige nada: el modo manual actual sigue intacto.
+ * Con el flag encendido, exige el set completo de credenciales/config para
+ * que el flujo automático nunca arranque a medias.
+ */
+function validateCasheaEnv(): void {
+  const enabled = parseCasheaBoolean('CASHEA_ENABLED', process.env.CASHEA_ENABLED);
+  const publicEnabled = parseCasheaBoolean(
+    'NEXT_PUBLIC_CASHEA_ENABLED',
+    process.env.NEXT_PUBLIC_CASHEA_ENABLED,
+  );
+
+  if (enabled !== publicEnabled) {
+    throw new Error(
+      '[env] CASHEA_ENABLED y NEXT_PUBLIC_CASHEA_ENABLED deben coincidir (espejo del flag para el cliente).',
+    );
+  }
+
+  if (enabled) {
+    const missing = CASHEA_REQUIRED_WHEN_ENABLED.filter((k) => !process.env[k]?.trim());
+    if (missing.length > 0) {
+      throw new Error(
+        `[env] CASHEA_ENABLED=true pero faltan variables requeridas: ${missing.join(', ')}. ` +
+          'Revisa .env.example (bloque Cashea).',
+      );
+    }
+
+    const baseUrl = process.env.CASHEA_API_BASE_URL as string;
+    if (!isValidHttpUrl(baseUrl)) {
+      throw new Error(`[env] CASHEA_API_BASE_URL="${baseUrl}" no es una URL http(s) válida.`);
+    }
+
+    const storeId = Number(process.env.CASHEA_STORE_ID);
+    if (!Number.isInteger(storeId) || storeId <= 0) {
+      throw new Error(
+        `[env] CASHEA_STORE_ID="${process.env.CASHEA_STORE_ID}" no es válido. Debe ser un entero positivo.`,
+      );
+    }
+  }
+
+  const reservationRaw = process.env.CASHEA_RESERVATION_MINUTES;
+  if (reservationRaw?.trim()) {
+    const minutes = Number(reservationRaw);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+      throw new Error(
+        `[env] CASHEA_RESERVATION_MINUTES="${reservationRaw}" no es válido. Debe ser un entero entre 1 y 1440.`,
+      );
+    }
+  }
+
+  const deliveryPriceRaw = process.env.CASHEA_DELIVERY_PRICE;
+  if (deliveryPriceRaw?.trim()) {
+    const price = Number(deliveryPriceRaw);
+    if (!Number.isFinite(price) || price < 0) {
+      throw new Error(
+        `[env] CASHEA_DELIVERY_PRICE="${deliveryPriceRaw}" no es válido. Debe ser un número >= 0.`,
+      );
+    }
+  }
+}
+
 let validated = false;
 
 export function validateEnv(): void {
@@ -141,6 +240,10 @@ export function validateEnv(): void {
     // No se imprime el valor recibido para no filtrar configuración en logs.
     logWarn('env_checkout_mode_invalid', { operation: 'validate_env' });
   }
+
+  // Cashea (Sección 5/9 del documento maestro): con el flag apagado no exige
+  // nada; con el flag encendido exige el set completo de configuración.
+  validateCasheaEnv();
 }
 
 validateEnv();

@@ -222,95 +222,136 @@ model PasswordResetToken {
   @@index([userId])
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CASHEA — Sección 6 del documento maestro (docs/ENTREGABLE-CLIENTE/integracion-cashea.md)
+// Transiciones válidas:
+//   CREATED -> REDIRECTED -> RETURNED -> VERIFYING -> CONFIRMED
+//   VERIFYING -> RETURNED            (verificación aún pendiente, reintentable)
+//   any(no CONFIRMED) -> CANCEL_PENDING -> CANCELLED
+//   CREATED/REDIRECTED/RETURNED -> EXPIRED   (por reserva vencida)
+//   CREATED/REDIRECTED -> FAILED
+// ─────────────────────────────────────────────────────────────────────────────
+enum CasheaStatus {
+  CREATED
+  REDIRECTED
+  RETURNED
+  VERIFYING
+  CONFIRMED
+  CANCEL_PENDING
+  CANCELLED
+  FAILED
+  EXPIRED
+}
+
 model Order {
-  id                        String            @id @default(cuid())
-  orderNumber               Int               @unique @default(autoincrement())
-  createdAt                 DateTime          @default(now())
-  updatedAt                 DateTime          @updatedAt
-  customerId                String?
-  customerName              String
-  customerEmail             String?
-  customerPhone             String?
+  id                         String            @id @default(cuid())
+  orderNumber                Int               @unique @default(autoincrement())
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @updatedAt
+  customerId                 String?
+  customerName               String
+  customerEmail              String?
+  customerPhone              String?
   /// PRD-204: Decimal(12,2) — sin errores de redondeo binario en totales acumulados.
-  total                     Decimal           @db.Decimal(12, 2)
+  total                      Decimal           @db.Decimal(12, 2)
   /// PRD-122: valores válidos = OrderStatus de lib/definitions.ts. No se puede usar
   /// enum Prisma sin romper runtime de 02/05 ('En Proceso' y 'Pendiente verificación
   /// Binance' llevan espacios → el cliente devolvería otros literales). La migración
   /// `prd_infra_datos_cache` añade CHECK "Order_status_valid" a nivel de BD.
-  status                    String            @default("Pendiente")
-  paymentMethod             String
+  status                     String            @default("Pendiente")
+  paymentMethod              String
   /// ID estable del método de pago (snapshot). Null en pedidos antiguos.
-  paymentMethodId           String?
+  paymentMethodId            String?
   /// Subtotal original de líneas en Bs antes de descuentos. Null = legacy.
-  subtotalBeforeDiscount    Decimal?          @db.Decimal(12, 2)
+  subtotalBeforeDiscount     Decimal?          @db.Decimal(12, 2)
   /// Porcentaje de descuento por divisas congelado al crear. Null si no aplicó.
-  paymentDiscountPercent    Decimal?          @db.Decimal(5, 2)
+  paymentDiscountPercent     Decimal?          @db.Decimal(5, 2)
   /// Monto del descuento por divisas en Bs. Null si no aplicó.
-  paymentDiscount           Decimal?          @db.Decimal(12, 2)
+  paymentDiscount            Decimal?          @db.Decimal(12, 2)
   /// Moneda elegida (p. ej. efectivo USD/EUR). Null si no aplica.
-  paymentCurrency           String?
-  shippingAddress           String
-  shippingCity              String
-  shippingState             String
-  shippingZipCode           String            @default("N/A")
-  shippingCountry           String            @default("Venezuela")
-  customerIdNumber          String?
-  paymentBank               String?
-  paymentHolderIdNumber     String?
-  paymentHolderPhone        String?
-  paymentReference          String?
-  paymentProofUrl           String?
+  paymentCurrency            String?
+  shippingAddress            String
+  shippingCity               String
+  shippingState              String
+  shippingZipCode            String            @default("N/A")
+  shippingCountry            String            @default("Venezuela")
+  customerIdNumber           String?
+  paymentBank                String?
+  paymentHolderIdNumber      String?
+  paymentHolderPhone         String?
+  paymentReference           String?
+  paymentProofUrl            String?
   /// Fase 1 (Sesión 04): key del objeto en el bucket privado R2_PRIVATE_BUCKET_NAME.
   /// Compatibilidad legacy: coexiste con paymentProofUrl durante una fase.
-  paymentProofKey           String?
-  notes                     String?
-  shippedAt                 DateTime?
-  trackingCarrier           String?
-  trackingNumber            String?
-  trackingPhotoUrl          String?
-  trackingUrl               String?
+  paymentProofKey            String?
+  notes                      String?
+  shippedAt                  DateTime?
+  trackingCarrier            String?
+  trackingNumber             String?
+  trackingPhotoUrl           String?
+  trackingUrl                String?
   /// * Tasa Bs/USD usada al crear el pedido. Si es null, `total` e ítems están en USD (pedidos antiguos).
   /// PRD-204: Decimal(12,4) para preservar decimales significativos de la tasa.
-  exchangeRateUsdBs         Decimal?          @db.Decimal(12, 4)
+  exchangeRateUsdBs          Decimal?          @db.Decimal(12, 4)
   /// * Fecha en que se validó el pago (Validar Pago / equivalente). Para reportes por día de cobro.
-  paidAt                    DateTime?
+  paidAt                     DateTime?
   /// /** Código del cupón aplicado al pedido (en mayúsculas). Null si no se usó cupón.
-  couponCode                String?
+  couponCode                 String?
   /// * Descuento aplicado por el cupón, en Bs (misma moneda que `total`). PRD-204: Decimal.
-  couponDiscount            Decimal?          @db.Decimal(12, 2)
+  couponDiscount             Decimal?          @db.Decimal(12, 2)
   /// * Motivo de rechazo del pago, si el pedido fue cancelado por pago no válido.
-  paymentRejectionReason    String?
+  paymentRejectionReason     String?
   /// /** Email del admin que validó o rechazó el pago. Para trazabilidad.
-  paymentVerifiedBy         String?
+  paymentVerifiedBy          String?
   /// FASE 4.5 (MEJORA 2.2): fecha en que el pedido pasó a 'Entregado'. Base para
   /// el cron review-request (email a los 7 días). Null en pedidos antiguos —
   /// el cron cae a updatedAt como aproximación.
-  deliveredAt               DateTime?
+  deliveredAt                DateTime?
   /// FASE 4.5: fecha del email de solicitud de reseña. Null = aún no enviado;
   /// evita reenvíos (un solo toque, sin incentivo).
-  reviewRequestSentAt       DateTime?
+  reviewRequestSentAt        DateTime?
   /// Canal de origen del pedido: "web" (checkout completo) o "whatsapp" (modo WhatsApp).
-  channel                   String            @default("web")
+  channel                    String            @default("web")
   /// SESIÓN 06: hash SHA-256 del token de acceso guest. Solo pedidos sin
   /// cuenta (customerId = null) pueden tenerlo. @unique para lookup eficiente.
-  guestAccessTokenHash      String?           @unique
+  guestAccessTokenHash       String?           @unique
   /// SESIÓN 06: fecha de expiración del guestAccessTokenHash. 72 h desde la
   /// creación. null si el pedido no tiene token (autenticado o legacy).
-  guestAccessTokenExpiresAt DateTime?
+  guestAccessTokenExpiresAt  DateTime?
   /// true = stock descontado al crear el pedido (comportamiento actual para checkout
   /// completo). false = stock pendiente de descontar (pedidos WhatsApp).
-  stockDeducted             Boolean           @default(true)
+  stockDeducted              Boolean           @default(true)
   /// Snapshot calculado al crear el pedido (dentro de la misma transacción del
   /// checkout). true SOLO cuando el método de envío es MRW/ZOOM/TEALCA y TODOS
   /// los productos calificaban para envío gratis en ese momento. `tienda`
   /// (retiro) nunca guarda true aquí — ver lib/shipping-charge.ts. Nunca se
   /// recalcula después de creado: los pedidos históricos no cambian si un
   /// producto cambia su beneficio más adelante.
-  freeShipping              Boolean           @default(false)
-  couponRedemption          CouponRedemption?
-  customer                  User?             @relation(fields: [customerId], references: [id])
-  paymentUpload             PaymentUpload?
-  items                     OrderItem[]
+  freeShipping               Boolean           @default(false)
+  /// Cashea (Sección 6/10 del documento maestro): null = pedido no-Cashea.
+  /// Campos opcionales — no rompen filas existentes. Aún no se usan en lógica
+  /// (Fase 2 de la integración: solo esquema + migración).
+  casheaStatus               CasheaStatus?
+  /// idNumber devuelto por Cashea al crear la orden remota.
+  casheaOrderId              String?           @unique
+  /// Hash del token de retorno de un solo uso (nunca se guarda el token en claro).
+  casheaReturnTokenHash      String?
+  casheaInitialAmount        Decimal?          @db.Decimal(18, 2)
+  casheaCurrency             String?
+  /// Fin de la ventana de reserva de inventario (60 min por defecto). No se
+  /// autocancela al vencer — solo marca EXPIRED (recuperación manual).
+  casheaReservationExpiresAt DateTime?
+  casheaRedirectedAt         DateTime?
+  casheaReturnedAt           DateTime?
+  /// Se fija SOLO tras verificación autoritativa exitosa (verifyCasheaOrder).
+  casheaConfirmedAt          DateTime?
+  casheaCancelledAt          DateTime?
+  casheaLastResponseCode     String?
+  casheaAttemptCount         Int               @default(0)
+  couponRedemption           CouponRedemption?
+  customer                   User?             @relation(fields: [customerId], references: [id])
+  paymentUpload              PaymentUpload?
+  items                      OrderItem[]
 
   @@index([customerId])
   @@index([status])
@@ -323,6 +364,10 @@ model Order {
   @@index([status, paidAt])
   /// PRD-125: lookups de pedidos por email (guest, soporte, cron) sin full scan.
   @@index([customerEmail])
+  /// Cashea: recuperación manual / cron de reconciliación por estado.
+  @@index([casheaStatus])
+  /// Cashea: cron de reconciliación para reservas vencidas (EXPIRED).
+  @@index([casheaReservationExpiresAt])
 }
 
 model OrderItem {

@@ -53,6 +53,10 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
   const [direction, setDirection]     = useState<1 | -1>(1);
   const [shippingData, setShippingData] = useState<ShippingFormData | null>(null);
   const [paymentData, setPaymentData]   = useState<PaymentFormData  | null>(null);
+  // Fase 6: mientras haya una sesión Cashea activa (pedido + reserva ya en
+  // BD, botón del SDK montado), no se permite volver a pasos anteriores —
+  // evitaría reconstruir el pedido/pago sobre un pedido ya creado.
+  const [casheaSessionActive, setCasheaSessionActive] = useState(false);
 
   // Object URL de la captura del comprobante: PaymentForm la crea con
   // URL.createObjectURL y la mantiene viva mientras el usuario navega entre
@@ -216,6 +220,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
           whatsappOrderPhone={whatsappOrderPhone}
           storeName={storeName}
           onOrderSuccess={handleOrderSuccess}
+          onCasheaSessionActiveChange={setCasheaSessionActive}
         />
       );
       default: return null;
@@ -269,7 +274,7 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
               </motion.div>
             </AnimatePresence>
 
-            {currentStep > 0 && (
+            {currentStep > 0 && !casheaSessionActive && (
               <div className="mt-8 pt-6 border-t border-slate-100">
                 <button
                   type="button"

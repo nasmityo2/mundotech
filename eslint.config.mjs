@@ -30,6 +30,8 @@ const eslintConfig = [
       'scripts/**',
       'docs/**',
       'prisma/migrations/**',
+      'playwright-report/**',
+      'test-results/**',
     ],
   },
 ];

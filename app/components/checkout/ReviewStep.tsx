@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
@@ -18,6 +18,20 @@ import {
 } from '@/lib/payment-methods';
 import { stashLoginRedirectForPathname } from '@/lib/auth-path';
 import { resolveShippingChargeType, shippingChargeLabel } from '@/lib/shipping-charge';
+import CasheaCheckoutButton from '@/app/components/checkout/CasheaCheckoutButton';
+// Import type-only: se erradica en build, nunca trae al cliente el módulo
+// `lib/cashea.ts` (exclusivo de servidor — expone casheaPrivateFetch/la clave privada).
+import type { CasheaPayload } from '@/lib/cashea';
+
+/** Espejo cliente del master switch — nunca `lib/cashea-config.ts` (servidor). */
+const CASHEA_AUTOMATIC_ENABLED = process.env.NEXT_PUBLIC_CASHEA_ENABLED === 'true';
+
+type CasheaSession = {
+  orderId: string;
+  publicApiKey: string;
+  payload: CasheaPayload;
+  returnToken: string;
+};
 
 interface ReviewStepProps {
   shippingData: ShippingFormData | null;
@@ -35,6 +49,12 @@ interface ReviewStepProps {
    * pedido exitoso para que revoque la URL y no filtre memoria.
    */
   onOrderSuccess?: () => void;
+  /**
+   * Fase 6: notifica al padre (CheckoutFlow) cuando se creó una sesión
+   * Cashea (pedido + reserva ya en BD). Mientras esté activa, no debe
+   * permitirse volver a los pasos anteriores del checkout.
+   */
+  onCasheaSessionActiveChange?: (active: boolean) => void;
 }
 
 /** Equivalente referencial en bolívares (PRD-022). El monto autoritativo en Bs lo congela el servidor con la tasa de BD. */
@@ -45,7 +65,7 @@ function formatBsApprox(amountUsd: number, rate: number): string {
   }).format(amountUsd * rate)}`;
 }
 
-const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], whatsappMode = false, whatsappOrderPhone = '', onOrderSuccess }: ReviewStepProps) => {
+const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], whatsappMode = false, whatsappOrderPhone = '', onOrderSuccess, onCasheaSessionActiveChange }: ReviewStepProps) => {
   const { data: session } = useSession();
   const { cart, clearCart, getCartTotal, isCartLoading } = useCart();
   const { rate: exchangeRate } = useExchangeRate();
@@ -71,6 +91,21 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponMessage, setCouponMessage] = useState<string | null>(null);
 
+  // Fase 6: sesión Cashea (SDK oficial) — solo con NEXT_PUBLIC_CASHEA_ENABLED=true.
+  const [casheaSession, setCasheaSession] = useState<CasheaSession | null>(null);
+  const [casheaButtonError, setCasheaButtonError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onCasheaSessionActiveChange?.(Boolean(casheaSession));
+  }, [casheaSession, onCasheaSessionActiveChange]);
+
+  // Al desmontar el paso (ej. el usuario abandona el checkout) se limpia el
+  // estado de sesión para no dejar al padre "atascado" en active=true.
+  useEffect(() => {
+    return () => onCasheaSessionActiveChange?.(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const subtotal = getCartTotal();
   // Vista PRELIMINAR (el servidor recalcula desde la BD al confirmar el pedido).
   const productFreeShippingFlags = cart.map((item) => item.freeShipping === true);
@@ -80,6 +115,22 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
   );
   const shippingChargeText = shippingChargeLabel(shippingChargeType);
   const selectedPaymentMethod = checkoutPaymentMethods.find((m) => m.id === paymentData?.paymentMethodId) ?? null;
+  // Flag apagado (hoy en producción): comportamiento EXACTO actual (coordinar
+  // por WhatsApp, cupones permitidos, POST /api/orders). Flag encendido:
+  // flujo automático con el SDK — cupones prohibidos con Cashea (Sección 1/7).
+  const isCasheaAutomatic = CASHEA_AUTOMATIC_ENABLED && selectedPaymentMethod?.kind === 'CASHEA';
+
+  // Cupones prohibidos con Cashea automático (Sección 1/7): si el usuario
+  // aplicó un cupón con otro método y luego cambia a Cashea, se descarta.
+  useEffect(() => {
+    if (isCasheaAutomatic && appliedCoupon) {
+      setAppliedCoupon(null);
+      setDiscountUsd(0);
+      setCouponInput('');
+      setCouponMessage(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isCasheaAutomatic]);
   const estimatedPaymentDiscount =
     selectedPaymentMethod && selectedPaymentMethod.discountEnabled && selectedPaymentMethod.discountPercent > 0
       ? estimatePaymentDiscountUsd(subtotal, selectedPaymentMethod.discountPercent)
@@ -242,11 +293,122 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
     return 'No especificado';
   };
 
+  /**
+   * Fase 6: rama exclusiva para Cashea automático (NEXT_PUBLIC_CASHEA_ENABLED=true).
+   * En vez de POST /api/orders, llama POST /api/cashea/session: el pedido
+   * queda creado con inventario reservado y `casheaStatus=CREATED`, y la
+   * respuesta trae el payload firmado en servidor para montar el botón del
+   * SDK. NUNCA se marca el pedido como pagado aquí — la confirmación
+   * autoritativa depende de `verifyCasheaOrder` (Fase 3/5, TODO tras
+   * respuesta de Cashea, Sección 12).
+   */
+  const handleCasheaConfirm = async () => {
+    if (submittingRef.current) return;
+    if (!shippingData || !paymentData) {
+      setError('Faltan datos de envío o pago.');
+      return;
+    }
+
+    submittingRef.current = true;
+    setIsProcessing(true);
+    setError(null);
+    setSessionExpired(false);
+    setCasheaButtonError(null);
+
+    try {
+      const orderPayload = {
+        customerId: session?.user?.id || 'guest',
+        customerName: `${shippingData.firstName} ${shippingData.lastName}`,
+        customerEmail: shippingData.email?.trim() || session?.user?.email?.trim() || null,
+        customerPhone: shippingData.phoneNumber,
+        customerIdNumber: shippingData.idNumber,
+        shippingMethod: shippingData.shippingMethod,
+        shippingDetails: {
+          address: buildAddress(),
+          city: buildCity(),
+          state: buildState(),
+          zipCode: 'N/A',
+          country: 'Venezuela',
+        },
+        paymentMethodId: paymentData.paymentMethodId,
+        // Cashea no acepta selección de moneda ni cupón (Sección 1/7).
+        paymentCurrency: null,
+        paymentBank: null,
+        paymentHolderIdNumber: null,
+        paymentHolderPhone: null,
+        paymentReference: null,
+        paymentUploadToken: null,
+        couponCode: null,
+        items: cart.map((item) => ({
+          productId: item.id,
+          quantity: item.quantity,
+          imageUrl: item.image || item.images?.[0] || '',
+        })),
+      };
+
+      const response = await fetch('/api/cashea/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderPayload),
+      });
+
+      const body = (await response.json().catch(() => ({}))) as {
+        orderId?: string;
+        publicApiKey?: string;
+        payload?: CasheaPayload;
+        returnToken?: string;
+        message?: string;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setSessionExpired(true);
+          setError('Tu sesión expiró mientras completabas el pedido. Inicia sesión de nuevo: tu carrito y este pedido te esperan.');
+          submittingRef.current = false;
+          setIsProcessing(false);
+          return;
+        }
+        const apiMsg = body.message ?? body.error ?? 'No pudimos iniciar tu sesión de Cashea.';
+        console.error('[checkout] cashea/session API error:', response.status, body);
+        throw new Error(apiMsg);
+      }
+
+      if (!body.orderId || !body.publicApiKey || !body.payload || !body.returnToken) {
+        throw new Error('Respuesta incompleta al iniciar la sesión de Cashea.');
+      }
+
+      // El pedido ya quedó creado (con reserva de inventario) en el servidor
+      // — igual que el resto de métodos, el carrito local se limpia aquí.
+      clearCart();
+      setCasheaSession({
+        orderId: body.orderId,
+        publicApiKey: body.publicApiKey,
+        payload: body.payload,
+        returnToken: body.returnToken,
+      });
+      submittingRef.current = false;
+      setIsProcessing(false);
+    } catch (err) {
+      console.error('[checkout] handleCasheaConfirm:', err);
+      if (err instanceof TypeError) {
+        setError('Sin conexión con la tienda. Revisa tu internet e intenta de nuevo: no se creó ningún pedido.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Hubo un problema. Por favor, inténtalo de nuevo.');
+      }
+      submittingRef.current = false;
+      setIsProcessing(false);
+    }
+  };
+
   const handleConfirmOrder = async () => {
     if (submittingRef.current) return;
     if (!shippingData || !paymentData) {
       setError('Faltan datos de envío o pago.');
       return;
+    }
+    if (isCasheaAutomatic) {
+      return handleCasheaConfirm();
     }
 
     submittingRef.current = true;
@@ -470,7 +632,9 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
     selectedPaymentMethod?.kind === 'BINANCE'
       ? `${selectedPaymentMethod.name} (verificación manual)`
       : selectedPaymentMethod?.kind === 'CASHEA'
-        ? `${selectedPaymentMethod.name} (coordinar por WhatsApp)`
+        ? isCasheaAutomatic
+          ? `${selectedPaymentMethod.name} (pago con Cashea)`
+          : `${selectedPaymentMethod.name} (coordinar por WhatsApp)`
         : (selectedPaymentMethod?.name ?? paymentData?.paymentMethodId ?? '—');
 
   return (
@@ -643,8 +807,9 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
             )}
             {selectedPaymentMethod?.kind === 'CASHEA' && (
               <p className="text-xs text-slate-500 pt-1 leading-relaxed">
-                Tras confirmar, te mostraremos un botón de WhatsApp para coordinar tu pago con Cashea.
-                Reservamos tu pedido y preparamos el envío en cuanto confirmemos el pago.
+                {isCasheaAutomatic
+                  ? 'Serás dirigido a Cashea para completar tu compra. Reservamos tu pedido y preparamos el envío en cuanto confirmemos el pago inicial.'
+                  : 'Tras confirmar, te mostraremos un botón de WhatsApp para coordinar tu pago con Cashea. Reservamos tu pedido y preparamos el envío en cuanto confirmemos el pago.'}
               </p>
             )}
           </dl>
@@ -664,7 +829,8 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
         </div>
       </div>
 
-      {/* Cupón de descuento */}
+      {/* Cupón de descuento — no permitido con Cashea automático (Sección 1/7). */}
+      {!isCasheaAutomatic && (
       <div className="rounded-2xl border border-slate-200 p-5">
         <div className="flex items-center gap-2 mb-3">
           <Tag size={15} className="text-slate-400" />
@@ -723,6 +889,7 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
           <p className="mt-2 text-xs text-rose-600">{couponMessage}</p>
         )}
       </div>
+      )}
 
       {/* Resumen de totales — dual USD/Bs (PRD-022): el cobro real es en Bs. */}
       <div className="rounded-2xl border border-slate-200 p-5 space-y-2">
@@ -778,28 +945,62 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
         </div>
       )}
 
-      <div
-        className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 bg-white/95 backdrop-blur-sm border-t border-slate-100 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-0 sm:border-0 sm:bg-transparent sm:backdrop-blur-none"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
-      >
-      <button
-        type="button"
-        onClick={handleConfirmOrder}
-        disabled={isProcessing || cart.length === 0}
-        className="inline-flex w-full items-center justify-center gap-2 bg-navy text-white font-bold text-sm min-h-[52px] rounded-2xl hover:bg-navy-700 active:scale-[0.98] shadow-soft hover:shadow-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isProcessing ? (
-          <>
-            <Loader2 size={16} className="animate-spin" /> Enviando pedido…
-          </>
-        ) : (
-          <>
-            {whatsappMode ? 'Enviar pedido por WhatsApp' : `Confirmar pedido — ${formatCurrency(total)}`}
-            {!whatsappMode && exchangeRate > 0 ? ` (≈ ${formatBsApprox(total, exchangeRate)})` : ''}
-          </>
-        )}
-      </button>
-      </div>
+      {casheaSession ? (
+        // Sesión Cashea creada (pedido + reserva ya en BD): se monta el botón
+        // oficial del SDK en vez del CTA genérico. NUNCA se afirma "pagado"
+        // aquí — solo `verifyCasheaOrder` (Fase 3/5) puede confirmarlo.
+        <div className="rounded-2xl border border-navy/20 bg-navy/5 p-5 space-y-3">
+          <p className="text-sm font-semibold text-navy">Continúa tu pago con Cashea</p>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            Tu pedido quedó reservado. Pulsa el botón para completar tu compra en Cashea; al volver
+            verificaremos tu pago inicial automáticamente.
+          </p>
+          <CasheaCheckoutButton
+            key={casheaSession.orderId}
+            publicApiKey={casheaSession.publicApiKey}
+            payload={casheaSession.payload}
+            onError={setCasheaButtonError}
+          />
+          {casheaButtonError && (
+            <div className="space-y-2">
+              <p className="text-xs text-rose-600">{casheaButtonError}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setCasheaSession(null);
+                  setCasheaButtonError(null);
+                }}
+                className="text-xs font-semibold text-navy underline hover:text-navy-700"
+              >
+                Intentar de nuevo
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div
+          className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 bg-white/95 backdrop-blur-sm border-t border-slate-100 sm:static sm:mx-0 sm:px-0 sm:pb-0 sm:pt-0 sm:border-0 sm:bg-transparent sm:backdrop-blur-none"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+        <button
+          type="button"
+          onClick={handleConfirmOrder}
+          disabled={isProcessing || cart.length === 0}
+          className="inline-flex w-full items-center justify-center gap-2 bg-navy text-white font-bold text-sm min-h-[52px] rounded-2xl hover:bg-navy-700 active:scale-[0.98] shadow-soft hover:shadow-card transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 size={16} className="animate-spin" /> {isCasheaAutomatic ? 'Preparando Cashea…' : 'Enviando pedido…'}
+            </>
+          ) : (
+            <>
+              {whatsappMode && !isCasheaAutomatic ? 'Enviar pedido por WhatsApp' : `Confirmar pedido — ${formatCurrency(total)}`}
+              {(!whatsappMode || isCasheaAutomatic) && exchangeRate > 0 ? ` (≈ ${formatBsApprox(total, exchangeRate)})` : ''}
+            </>
+          )}
+        </button>
+        </div>
+      )}
     </div>
   );
 };

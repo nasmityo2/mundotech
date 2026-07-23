@@ -50,6 +50,17 @@ interface PaymentFormProps {
 const MAX_PROOF_BYTES = 5 * 1024 * 1024;
 const PROOF_FILE_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif';
 
+/**
+ * Espejo cliente del master switch (Fase 6). Ver `lib/cashea-config.ts` para
+ * la validación completa server-side; aquí solo se usa para copy/UI.
+ *
+ * NOTA (alcance de Fase 6): el flujo automático con el SDK solo está montado
+ * en `CheckoutFlow`/`ReviewStep` (canal `full`). `WhatsAppCheckout.tsx`
+ * (canal `whatsapp`) sigue en modo manual — no prometer el botón de Cashea
+ * cuando `whatsappMode` es true hasta que ese componente también se integre.
+ */
+const CASHEA_AUTOMATIC_ENABLED = process.env.NEXT_PUBLIC_CASHEA_ENABLED === 'true';
+
 const selectCls =
   'block w-full min-h-[48px] px-3.5 text-base bg-slate-50/70 border border-slate-200 rounded-xl text-navy focus:outline-none focus:bg-white focus:border-navy';
 
@@ -718,9 +729,9 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
               Paga con Cashea
             </p>
             <p className="text-[13px] text-slate-600 leading-relaxed">
-              Al confirmar tu pedido te mostraremos un botón para escribirnos por WhatsApp.
-              Por ahí coordinamos tu compra con Cashea: generamos tu orden, pagas la inicial en tu app
-              Cashea y, al confirmar el pago, preparamos tu envío. No necesitas subir comprobante aquí.
+              {CASHEA_AUTOMATIC_ENABLED && !whatsappMode
+                ? 'Al confirmar tu pedido serás dirigido a Cashea para completar tu compra. Reservamos tu pedido y, en cuanto verifiquemos tu pago inicial, preparamos tu envío. No necesitas subir comprobante aquí.'
+                : 'Al confirmar tu pedido te mostraremos un botón para escribirnos por WhatsApp. Por ahí coordinamos tu compra con Cashea: generamos tu orden, pagas la inicial en tu app Cashea y, al confirmar el pago, preparamos tu envío. No necesitas subir comprobante aquí.'}
             </p>
           </motion.div>
         )}
