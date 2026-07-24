@@ -22,6 +22,13 @@ import { pingIndexNow } from '@/lib/indexnow';
 import { logError } from '@/lib/safe-logger';
 import { rateLimit } from '@/lib/rate-limit';
 import { getActionClientIp } from '@/lib/security';
+import {
+  CategoryNameError,
+  ensureProductCategory,
+  normalizeCategoryName,
+  withSerializableCategoryTransaction,
+} from '@/lib/categories/ensure-product-category';
+import { CACHE_TAG_CATEGORIES, CACHE_TAG_SITE_SHELL } from '@/lib/site-shell-cache';
 
 const absoluteUrl = z.string().refine(
   (s) => {
@@ -95,7 +102,18 @@ const productSchema = z.object({
     z.coerce.number().min(0, 'El margen no puede ser negativo').max(1000, 'Margen fuera de rango').optional(),
   ),
   stock:       z.coerce.number().int().nonnegative('El stock debe ser un entero no negativo'),
-  category:    z.string().min(1, 'La categoría es obligatoria'),
+  category: z
+    .string()
+    .transform(normalizeCategoryName)
+    .pipe(
+      z
+        .string()
+        .min(1, 'La categoría es obligatoria')
+        .max(80, 'La categoría no puede superar 80 caracteres')
+        .refine((s) => /[\p{L}\p{N}]/u.test(s), {
+          message: 'La categoría debe contener al menos una letra o número',
+        }),
+    ),
   brand: z.preprocess(
     (v) => (typeof v === 'string' && v.trim() !== '' ? v.trim() : 'Sin Marca'),
     z.string().min(1),
@@ -252,46 +270,73 @@ export async function createProductAction(formData: FormData) {
     const images = deriveLegacyImagesFromSlots(slots);
     const specs  = parseSpecsFromFormData(formData);
 
-    const { imagesJson: _, sku, originalPrice: _op, salePrice: _sp, marginPct: _mp, ...rest } = validated.data;
+    const { imagesJson: _, sku, originalPrice: _op, salePrice: _sp, marginPct: _mp, category: _cat, ...rest } = validated.data;
     const slug = await getUniqueSlug(validated.data.name);
     const finalSku = sku ?? await getUniqueSku();
 
-    await prisma.product.create({
-      data: {
-        ...rest,
-        price: finalPrice,
-        cost: validated.data.cost ?? null,
-        profitMarginPct: validated.data.cost != null ? effectiveMargin : null,
-        priceBaseFactor: factor,
-        slug,
-        originalPrice: finalOriginalPrice,
-        sku:   finalSku,
-        images,
-        // Cast requerido: los interfaces TS no satisfacen InputJsonValue de Prisma
-        specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
-        media: {
-          create: slots.map((s, i) => ({
-            type:
-              s.type === 'VIDEO' ? ProductMediaType.VIDEO : ProductMediaType.IMAGE,
-            url: s.url,
-            posterUrl: s.type === 'VIDEO' ? s.posterUrl ?? null : null,
-            sortOrder: i,
-          })),
-        },
+    const { categoryCreated, categoryName } = await withSerializableCategoryTransaction(
+      async (tx) => {
+        const ensuredCategory = await ensureProductCategory(tx, validated.data.category);
+        await tx.product.create({
+          data: {
+            ...rest,
+            category: ensuredCategory.name,
+            price: finalPrice,
+            cost: validated.data.cost ?? null,
+            profitMarginPct: validated.data.cost != null ? effectiveMargin : null,
+            priceBaseFactor: factor,
+            slug,
+            originalPrice: finalOriginalPrice,
+            sku:   finalSku,
+            images,
+            // Cast requerido: los interfaces TS no satisfacen InputJsonValue de Prisma
+            specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+            media: {
+              create: slots.map((s, i) => ({
+                type:
+                  s.type === 'VIDEO' ? ProductMediaType.VIDEO : ProductMediaType.IMAGE,
+                url: s.url,
+                posterUrl: s.type === 'VIDEO' ? s.posterUrl ?? null : null,
+                sortOrder: i,
+              })),
+            },
+          },
+        });
+        return {
+          categoryCreated: ensuredCategory.created,
+          categoryName: ensuredCategory.name,
+        };
       },
-    });
+    );
 
     revalidatePath('/admin/products');
+    revalidatePath('/admin/categories');
     revalidatePath('/');
     revalidatePath('/productos');
+    revalidatePath('/categoria/[slug]', 'page');
     revalidatePath(`/product/${slug}`);
     revalidateTag('catalog', 'default');
-    revalidateTag('categories', 'default'); // category product counts in sidebar
+    revalidateTag(CACHE_TAG_CATEGORIES, 'default');
+    if (categoryCreated) {
+      revalidateTag(CACHE_TAG_SITE_SHELL, 'default');
+    }
     // FASE 3 (SEO): notificar la ficha nueva a IndexNow (no-op sin INDEXNOW_KEY).
     void pingIndexNow([`/product/${slug}`, '/productos']);
-    return { success: true, message: 'Producto añadido con éxito.' };
+    return {
+      success: true,
+      message: categoryCreated
+        ? `Producto añadido y categoría "${categoryName}" creada.`
+        : 'Producto añadido con éxito.',
+      category: {
+        name: categoryName,
+        created: categoryCreated,
+      },
+    };
   } catch (error) {
     logError('product_create_failed', error, { operation: 'create_product' });
+    if (error instanceof CategoryNameError) {
+      return { success: false, message: error.message };
+    }
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No tienes permiso para realizar esta acción.' };
     }
@@ -349,7 +394,7 @@ export async function updateProductAction(productId: string, formData: FormData)
 
     // freeShipping viaja dentro de `rest` (no se excluye) — se persiste igual
     // que name/description/stock/category/brand, sin tocar ningún campo de precios.
-    const { imagesJson: _, sku, originalPrice: _op, salePrice: _sp, marginPct: _mp, ...rest } = validated.data;
+    const { imagesJson: _, sku, originalPrice: _op, salePrice: _sp, marginPct: _mp, category: _cat, ...rest } = validated.data;
 
     const current = await prisma.product.findUnique({
       where:  { id: productId },
@@ -358,6 +403,7 @@ export async function updateProductAction(productId: string, formData: FormData)
         slug: true,
         sku: true,
         stock: true,
+        category: true,
         images: true,
         media: { select: { type: true, url: true, posterUrl: true } },
       },
@@ -365,6 +411,7 @@ export async function updateProductAction(productId: string, formData: FormData)
     const previousStock = current?.stock ?? 0;
     const previousMedia = current?.media ?? [];
     const previousImages = current?.images ?? [];
+    const previousCategory = current?.category ?? null;
 
     const slug = (current?.name !== validated.data.name || !current?.slug)
       ? await getUniqueSlug(validated.data.name, productId)
@@ -372,33 +419,41 @@ export async function updateProductAction(productId: string, formData: FormData)
 
     const finalSku = sku ?? current?.sku ?? await getUniqueSku();
 
-    await prisma.$transaction(async (tx) => {
-      await tx.productMedia.deleteMany({ where: { productId } });
-      await tx.product.update({
-        where: { id: productId },
-        data: {
-          ...rest,
-          price: finalPrice,
-          cost: validated.data.cost ?? null,
-          profitMarginPct: validated.data.cost != null ? effectiveMargin : null,
-          priceBaseFactor: factor,
-          slug,
-          originalPrice: finalOriginalPrice,
-          sku:   finalSku,
-          images,
-          specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
-          media: {
-            create: slots.map((s, i) => ({
-              type:
-                s.type === 'VIDEO' ? ProductMediaType.VIDEO : ProductMediaType.IMAGE,
-              url: s.url,
-              posterUrl: s.type === 'VIDEO' ? s.posterUrl ?? null : null,
-              sortOrder: i,
-            })),
+    const { categoryCreated, categoryName } = await withSerializableCategoryTransaction(
+      async (tx) => {
+        const ensuredCategory = await ensureProductCategory(tx, validated.data.category);
+        await tx.productMedia.deleteMany({ where: { productId } });
+        await tx.product.update({
+          where: { id: productId },
+          data: {
+            ...rest,
+            category: ensuredCategory.name,
+            price: finalPrice,
+            cost: validated.data.cost ?? null,
+            profitMarginPct: validated.data.cost != null ? effectiveMargin : null,
+            priceBaseFactor: factor,
+            slug,
+            originalPrice: finalOriginalPrice,
+            sku:   finalSku,
+            images,
+            specs: specs.length > 0 ? (specs as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+            media: {
+              create: slots.map((s, i) => ({
+                type:
+                  s.type === 'VIDEO' ? ProductMediaType.VIDEO : ProductMediaType.IMAGE,
+                url: s.url,
+                posterUrl: s.type === 'VIDEO' ? s.posterUrl ?? null : null,
+                sortOrder: i,
+              })),
+            },
           },
-        },
-      });
-    });
+        });
+        return {
+          categoryCreated: ensuredCategory.created,
+          categoryName: ensuredCategory.name,
+        };
+      },
+    );
 
     await cleanupRemovedProductMedia(previousMedia, previousImages, slots);
 
@@ -420,17 +475,41 @@ export async function updateProductAction(productId: string, formData: FormData)
       await saveSlugRedirect(current.slug, slug);
     }
 
+    const categoryChanged =
+      previousCategory == null ||
+      previousCategory.toLowerCase() !== categoryName.toLowerCase();
+
     revalidatePath('/admin/products');
+    revalidatePath('/admin/categories');
     revalidatePath('/');
     revalidatePath('/productos');
+    revalidatePath('/categoria/[slug]', 'page');
     revalidatePath(`/product/${slug}`);
     if (slugChanged && current?.slug) revalidatePath(`/product/${current.slug}`);
     revalidateTag('catalog', 'default');
+    if (categoryChanged || categoryCreated) {
+      revalidateTag(CACHE_TAG_CATEGORIES, 'default');
+    }
+    if (categoryCreated) {
+      revalidateTag(CACHE_TAG_SITE_SHELL, 'default');
+    }
     // FASE 3 (SEO): re-indexación rápida de la ficha editada (no-op sin key).
     void pingIndexNow([`/product/${slug}`]);
-    return { success: true, message: 'Producto actualizado con éxito.' };
+    return {
+      success: true,
+      message: categoryCreated
+        ? `Producto actualizado y categoría "${categoryName}" creada.`
+        : 'Producto actualizado con éxito.',
+      category: {
+        name: categoryName,
+        created: categoryCreated,
+      },
+    };
   } catch (error) {
     logError('product_update_failed', error, { operation: 'update_product' });
+    if (error instanceof CategoryNameError) {
+      return { success: false, message: error.message };
+    }
     if (error instanceof Error && error.message.startsWith('No autorizado')) {
       return { success: false, message: 'No tienes permiso para realizar esta acción.' };
     }
@@ -931,9 +1010,42 @@ export async function getProductsAdmin(params: {
     select: PRODUCT_ADMIN_SELECT,
   });
 
-  const allCategories = await prisma.product
-    .findMany({ distinct: ['category'], select: { category: true } })
-    .then(res => res.map(p => p.category));
+  // Fuente principal: registros reales de Category (incluye vacías).
+  // Defensivo: combina huérfanas de Product.category sin registro Category.
+  const [categoryRows, productCategoryRows] = await Promise.all([
+    prisma.category.findMany({
+      select: { name: true },
+      orderBy: [{ order: 'asc' }, { name: 'asc' }],
+    }),
+    prisma.product.findMany({
+      distinct: ['category'],
+      select: { category: true },
+    }),
+  ]);
+
+  const seen = new Set<string>();
+  const allCategories: string[] = [];
+
+  for (const row of categoryRows) {
+    const name = normalizeCategoryName(row.name);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    allCategories.push(name);
+  }
+
+  const orphans = productCategoryRows
+    .map((p) => normalizeCategoryName(p.category))
+    .filter((name) => name.length > 0 && !seen.has(name.toLowerCase()))
+    .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+
+  for (const name of orphans) {
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    allCategories.push(name);
+  }
 
   const normalizedProducts = products.map((p) => ({
     ...p,

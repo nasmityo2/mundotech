@@ -7,7 +7,14 @@ import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { CACHE_TAG_CATEGORIES, CACHE_TAG_SITE_SHELL } from '@/lib/site-shell-cache';
 
-// POST /api/categories/sync — crea registros en Category para cada categoría única de Product
+/**
+ * POST /api/categories/sync — herramienta de reparación / backfill histórico.
+ *
+ * Crea registros en `Category` para cada `Product.category` distinto que aún no
+ * tenga fila correspondiente. NO es el flujo normal diario: al crear o editar
+ * un producto, `ensureProductCategory` ya crea la Category en la misma
+ * transacción. Usa este endpoint solo para sanear datos antiguos.
+ */
 export async function POST(request: Request) {
   const originCheck = rejectInvalidMutationOrigin(request);
   if (originCheck) return originCheck;

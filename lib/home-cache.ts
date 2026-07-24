@@ -15,7 +15,6 @@ import { d, dn } from '@/lib/decimal';
 import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
 import { readSiteContent } from '@/lib/site-content';
 import { readSettings } from '@/lib/data-store';
-import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
 
 /** Matches export const revalidate in app/page.tsx (PRD-140). */
 const REVALIDATE = 300;
@@ -113,57 +112,6 @@ export const getCachedFlashDeals = unstable_cache(
       .slice(0, 10);
   },
   ['home-flash-deals'],
-  { tags: ['catalog'], revalidate: REVALIDATE },
-);
-
-/** Palabras clave para la estantería gaming (consulta en BD, no filtro en memoria). */
-export const GAMING_KEYWORDS = [
-  'consola',
-  'gaming',
-  'retro',
-  'game',
-  'handheld',
-  'r36',
-  'portátil',
-  'portatil',
-  'nintendo',
-  'playstation',
-  'xbox',
-  'steam',
-] as const;
-
-export const GAMING_PRODUCTS_TAKE = 8;
-
-/** Where Prisma para productos gaming: isActive + OR insensible en category/name/brand. */
-export function buildGamingProductsWhere() {
-  const OR = GAMING_KEYWORDS.flatMap((keyword) => [
-    { category: { contains: keyword, mode: 'insensitive' as const } },
-    { name: { contains: keyword, mode: 'insensitive' as const } },
-    { brand: { contains: keyword, mode: 'insensitive' as const } },
-  ]);
-
-  return {
-    isActive: true,
-    OR,
-  };
-}
-
-/**
- * Gaming: consulta acotada con OR en Prisma (category/name/brand), take 8.
- * No carga los últimos N del catálogo para filtrar en memoria.
- * SESIÓN 14 — where OR + take 8, orderBy createdAt desc.
- */
-export const getCachedGamingProducts = unstable_cache(
-  async (): Promise<HomeShelfProduct[]> => {
-    const rows = await prisma.product.findMany({
-      where: buildGamingProductsWhere(),
-      orderBy: { createdAt: 'desc' },
-      take: GAMING_PRODUCTS_TAKE,
-      select: PRODUCT_CARD_SELECT,
-    });
-    return rows.map(toHomeShelfProduct);
-  },
-  ['home-gaming-products'],
   { tags: ['catalog'], revalidate: REVALIDATE },
 );
 
@@ -283,10 +231,4 @@ export const getCachedHomeSettings = unstable_cache(
   readSettings,
   ['home-settings'],
   { tags: ['store-settings'], revalidate: REVALIDATE },
-);
-
-export const getCachedGamingPath = unstable_cache(
-  () => resolveCategoryPathFromProductCategory('Consolas'),
-  ['home-gaming-path'],
-  { tags: ['categories'], revalidate: REVALIDATE },
 );

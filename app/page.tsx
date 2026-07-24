@@ -12,7 +12,6 @@ import type { StoreSettings } from '@/lib/data-store';
 import {
   getCachedNewestProducts,
   getCachedFlashDeals,
-  getCachedGamingProducts,
   getCachedHeroBanners,
   getCachedHomePromoBanners,
   getCachedHomeDiscoverBanners,
@@ -22,7 +21,6 @@ import {
   getCachedHomepageConfig,
   getCachedHomeSiteContent,
   getCachedHomeSettings,
-  getCachedGamingPath,
 } from '@/lib/home-cache';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -110,7 +108,6 @@ async function getData() {
     const [
       newestProducts,
       flashDeals,
-      gamingProducts,
       heroBanners,
       promoBanners,
       discoverBanners,
@@ -120,11 +117,9 @@ async function getData() {
       { shelvesConfig, benefitsConfig },
       siteContent,
       settings,
-      gamingPath,
     ] = await Promise.all([
       getCachedNewestProducts(),
       getCachedFlashDeals(),
-      getCachedGamingProducts(),
       getCachedHeroBanners(),
       getCachedHomePromoBanners(),
       getCachedHomeDiscoverBanners(),
@@ -134,13 +129,11 @@ async function getData() {
       getCachedHomepageConfig(),
       getCachedHomeSiteContent(),
       getCachedHomeSettings(),
-      getCachedGamingPath(),
     ]);
 
     return {
       newestProducts,
       flashDeals,
-      gamingProducts,
       heroBanners,
       promoBanners,
       discoverBanners,
@@ -151,14 +144,12 @@ async function getData() {
       benefitsConfig,
       siteContent,
       settings,
-      gamingPath,
     };
   } catch (error) {
     console.error('[home] getData falló — se renderiza con fallbacks seguros:', error);
     return {
       newestProducts: [],
       flashDeals: [],
-      gamingProducts: [],
       heroBanners: [],
       promoBanners: [],
       discoverBanners: [],
@@ -169,7 +160,6 @@ async function getData() {
       benefitsConfig: null,
       siteContent: DEFAULT_SITE_CONTENT,
       settings: DEFAULT_SETTINGS,
-      gamingPath: '/productos',
     };
   }
 }
@@ -227,7 +217,6 @@ const HomePage = async () => {
   const {
     newestProducts,
     flashDeals,
-    gamingProducts,
     heroBanners,
     promoBanners,
     discoverBanners,
@@ -238,7 +227,6 @@ const HomePage = async () => {
     benefitsConfig,
     siteContent,
     settings,
-    gamingPath,
   } = await getData();
 
   // Beneficios: config del admin si existe; si no, fallback desde las fuentes
@@ -305,18 +293,6 @@ const HomePage = async () => {
             theme="light"
             maxItems={8}
             priorityFirstItems={0}
-          />
-
-          <ProductShelf
-            badge="Gaming"
-            badgeColor="yellow"
-            title="Consolas y gaming"
-            subtitle="Consolas portátiles y accesorios para jugar donde quieras."
-            products={gamingProducts}
-            viewAllHref={gamingPath}
-            viewAllLabel="Ver gaming"
-            theme="light"
-            maxItems={8}
           />
 
           <div className="mt-6 sm:mt-8">

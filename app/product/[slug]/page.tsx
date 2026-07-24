@@ -465,7 +465,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      <ProductAboutHighlights specs={productSpecs} description={product.description} />
+      <ProductAboutHighlights specs={productSpecs} />
 
       {/* ── Tabs ── */}
       <div id="tabs" className="mb-12">

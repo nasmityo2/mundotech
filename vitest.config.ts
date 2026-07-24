@@ -7,7 +7,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['lib/*.test.ts', 'tests/**/*.test.{ts,tsx}'],
+    include: ['lib/**/*.test.ts', 'tests/**/*.test.{ts,tsx}'],
     env: {
       DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
       NEXTAUTH_SECRET: 'vitest-secret',

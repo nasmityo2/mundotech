@@ -26,7 +26,7 @@ test.describe('Home → Search → PDP → Cart', () => {
     await page.goto(productPdpPath(E2E_PRODUCTS.inStock.slug));
     await expect(page.getByRole('heading', { name: E2E_PRODUCTS.inStock.name })).toBeVisible();
     await expect(page.getByText('45.99').first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /¡Me lo llevo!/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: / Añadir al carrito/i })).toBeVisible();
   });
 
   test('agregar producto al carrito y verificar', async ({ page }) => {
@@ -38,6 +38,6 @@ test.describe('Home → Search → PDP → Cart', () => {
   test('producto sin stock muestra Agotado y sin botón de compra', async ({ page }) => {
     await page.goto(productPdpPath(E2E_PRODUCTS.noStock.slug));
     await expect(page.getByText('Agotado').first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /¡Me lo llevo!/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: / Añadir al carrito/i })).toHaveCount(0);
   });
 });

@@ -51,7 +51,7 @@ test.describe('Focus trap — teclado en overlays', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const addBtn = page.getByRole('button', { name: /¡Me lo llevo!/i }).first();
+    const addBtn = page.getByRole('button', { name: / Añadir al carrito/i }).first();
     await expect(addBtn).toBeVisible({ timeout: 10_000 });
     await addBtn.click();
     await page.waitForTimeout(800);

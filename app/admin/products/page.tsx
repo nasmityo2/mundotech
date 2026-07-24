@@ -156,7 +156,7 @@ function AdminProductsContent() {
     pathname,
   ]);
 
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     try {
       const parsedMin = minPriceFromUrl ? parseFloat(minPriceFromUrl) : undefined;
@@ -179,11 +179,13 @@ function AdminProductsContent() {
       })) as Product[]);
       setCategories(cats);
       setLoadError(false);
+      return true;
     } catch (err) {
       // RUN-12/ADM: sin este catch, un fallo de red/sesión dejaba la lista
       // vacía sin ninguna señal para el operador.
       console.error('[admin/products] error cargando inventario:', err);
       setLoadError(true);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -230,7 +232,15 @@ function AdminProductsContent() {
   };
 
   const handleEdit  = (p: Product) => { setEditingProduct(p); setIsModalOpen(true); };
-  const handleClose = () => { setEditingProduct(null); setIsModalOpen(false); loadProducts(); };
+  const handleClose = () => { setEditingProduct(null); setIsModalOpen(false); };
+  const handleSaved = async () => {
+    const ok = await loadProducts();
+    if (!ok) {
+      window.alert(
+        'El producto se guardó correctamente, pero no se pudo actualizar la lista. Recarga la página.',
+      );
+    }
+  };
 
   const handleDelete = async (id: string, name: string) => {
     if (!window.confirm(`¿Eliminar "${name}"?`)) return;
@@ -656,7 +666,13 @@ function AdminProductsContent() {
         Toca el precio o stock para editar rápido. Doble clic en escritorio.
       </p>
 
-      <AddProductModal isOpen={isModalOpen} onClose={handleClose} product={editingProduct} categories={categories} />
+      <AddProductModal
+        isOpen={isModalOpen}
+        onClose={handleClose}
+        onSaved={handleSaved}
+        product={editingProduct}
+        categories={categories}
+      />
     </div>
   );
 }

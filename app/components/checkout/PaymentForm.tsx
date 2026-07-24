@@ -10,11 +10,9 @@ import type { StoreSettings } from '@/lib/data-store';
 import { VENEZUELAN_BANKS } from '@/lib/venezuela-banks';
 import { isHeicFile, normalizeImageForUpload } from '@/lib/client-image-normalize';
 import {
-  estimatePaymentDiscountUsd,
   type CheckoutPaymentMethodDto,
   type PaymentCurrencyGroup,
 } from '@/lib/payment-methods';
-import { formatCurrency } from '@/lib/utils';
 
 export type PaymentFormData = {
   paymentMethodId: string;
@@ -33,6 +31,8 @@ export type PaymentFormHandle = {
 
 interface PaymentFormProps {
   onPaymentSubmit: (data: PaymentFormData) => void;
+  /** Emite el método visible seleccionado (o null) en cuanto cambia la selección. */
+  onSelectedMethodChange?: (method: CheckoutPaymentMethodDto | null) => void;
   initialData?: PaymentFormData | null;
   pagoMovil: StoreSettings['pagoMovil'];
   transferencia: StoreSettings['transferencia'];
@@ -80,6 +80,7 @@ function methodIcon(kind: CheckoutPaymentMethodDto['kind']) {
 
 const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
   onPaymentSubmit,
+  onSelectedMethodChange,
   initialData,
   pagoMovil,
   transferencia,
@@ -88,7 +89,6 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
   whatsappMode = false,
   embedded = false,
   checkoutPaymentMethods,
-  subtotalUsd,
   shippingMethod = null,
 }, ref) => {
   const prefersReduced = useReducedMotion();
@@ -200,10 +200,21 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
       setPaymentCurrency(null);
       return;
     }
+    if (selectedMethod.acceptedCurrencies.length === 1) {
+      const only = selectedMethod.acceptedCurrencies[0] ?? null;
+      if (paymentCurrency !== only) {
+        setPaymentCurrency(only);
+      }
+      return;
+    }
     if (paymentCurrency && !selectedMethod.acceptedCurrencies.includes(paymentCurrency)) {
       setPaymentCurrency(null);
     }
   }, [selectedMethod, paymentCurrency]);
+
+  useEffect(() => {
+    onSelectedMethodChange?.(selectedMethod);
+  }, [selectedMethod, onSelectedMethodChange]);
 
   const handleCopy = async (value: string) => {
     try {
@@ -381,11 +392,6 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
     if (!validate() || !selected) return;
     onPaymentSubmit(buildPaymentData());
   };
-
-  const estimatedSavings =
-    selectedMethod && selectedMethod.discountEnabled && selectedMethod.discountPercent > 0
-      ? estimatePaymentDiscountUsd(subtotalUsd, selectedMethod.discountPercent)
-      : 0;
 
   const isBankManual =
     selectedMethod?.kind === 'PAGO_MOVIL' || selectedMethod?.kind === 'BANK_TRANSFER';
@@ -565,11 +571,6 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-navy">{m.name}</p>
                     <p className="text-[12px] text-slate-500 mt-0.5">{m.description}</p>
-                    {m.discountEnabled && m.discountPercent > 0 && (
-                      <p className="mt-1.5 inline-flex text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-0.5">
-                        {m.discountPercent}% de descuento pagando en divisas
-                      </p>
-                    )}
                   </div>
                 </button>
               );
@@ -586,15 +587,6 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
       )}
       {errors.paymentMethodId && (
         <p className="text-xs text-rose-700 -mt-4">{errors.paymentMethodId}</p>
-      )}
-
-      {selectedMethod && estimatedSavings > 0 && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-[13px] text-emerald-800 leading-relaxed">
-          Ahorras aproximadamente {formatCurrency(estimatedSavings)} con este método.
-          <span className="block text-emerald-700/80 text-[12px] mt-0.5">
-            El descuento definitivo será calculado al crear el pedido.
-          </span>
-        </div>
       )}
 
       {!whatsappMode && storeDataRows && isBankManual && (
@@ -777,19 +769,31 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
                 En modo Full este método solo aparecerá para retiro en tienda.
               </p>
             )}
-            <Field id="cashCurrency" label="Moneda" error={errors.paymentCurrency}>
-              <select
-                id="cashCurrency"
-                value={paymentCurrency ?? ''}
-                onChange={(e) => setPaymentCurrency(e.target.value || null)}
-                className={selectCls}
-              >
-                <option value="">Selecciona moneda…</option>
-                {selectedMethod.acceptedCurrencies.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </Field>
+            {selectedMethod.acceptedCurrencies.length === 1 ? (
+              <div>
+                <p className="text-sm font-medium text-navy mb-1">Moneda de pago</p>
+                <p className="text-sm font-semibold text-navy nums" aria-live="polite">
+                  {selectedMethod.acceptedCurrencies[0]}
+                </p>
+                {errors.paymentCurrency && (
+                  <p className="mt-1.5 text-xs text-rose-700">{errors.paymentCurrency}</p>
+                )}
+              </div>
+            ) : (
+              <Field id="cashCurrency" label="Moneda" error={errors.paymentCurrency}>
+                <select
+                  id="cashCurrency"
+                  value={paymentCurrency ?? ''}
+                  onChange={(e) => setPaymentCurrency(e.target.value || null)}
+                  className={selectCls}
+                >
+                  <option value="">Selecciona moneda…</option>
+                  {selectedMethod.acceptedCurrencies.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
             {selectedMethod.instructions && (
               <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap">{selectedMethod.instructions}</p>
             )}

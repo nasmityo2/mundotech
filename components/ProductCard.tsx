@@ -194,7 +194,7 @@ const ProductCard = ({ product, priority = false }: { product: Product; priority
               ) : (
                 <>
                   <ShoppingCart size={14} aria-hidden="true" />
-                  {isOut ? 'Agotado' : '¡Me lo llevo!'}
+                  {isOut ? 'Agotado' : 'Añadir al carrito'}
                 </>
               )}
             </button>

@@ -142,7 +142,7 @@ test.describe('Mobile smoke — Android/iOS reales', () => {
     await lightbox.getByRole('button', { name: 'Cerrar' }).tap();
     await expect(lightbox).not.toBeVisible({ timeout: 5_000 });
 
-    const addBtn = page.getByRole('button', { name: /¡Me lo llevo!/i });
+    const addBtn = page.getByRole('button', { name: / Añadir al carrito/i });
     await expect(addBtn).toBeVisible();
     await assertMinTapTarget(addBtn, 'Add to cart button');
     await addBtn.tap();
@@ -180,7 +180,7 @@ test.describe('Mobile smoke — Android/iOS reales', () => {
     await mockHeicConversion(page);
 
     await page.goto(productPdpPath(E2E_PRODUCTS.inStock.slug));
-    await page.getByRole('button', { name: /¡Me lo llevo!/i }).click();
+    await page.getByRole('button', { name: / Añadir al carrito/i }).click();
     await page.waitForTimeout(800);
 
     await page.goto('/checkout');
@@ -289,7 +289,7 @@ test.describe('Mobile smoke — Android/iOS reales', () => {
     await page.goto(productPdpPath(E2E_PRODUCTS.inStock.slug));
     await page.waitForLoadState('networkidle');
 
-    await page.getByRole('button', { name: /¡Me lo llevo!/i }).tap();
+    await page.getByRole('button', { name: / Añadir al carrito/i }).tap();
     const cartDialog = page.getByRole('dialog', { name: /Carrito de compras/i });
     await expect(cartDialog).toBeVisible({ timeout: 15_000 });
     await page.keyboard.press('Escape');

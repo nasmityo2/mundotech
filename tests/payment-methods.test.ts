@@ -12,6 +12,7 @@ import {
   createCustomForeignCurrencyMethod,
   applyGlobalDivisaDiscount,
   paymentMethodCurrencyGroup,
+  buildPaymentDiscountPreview,
   type PaymentMethodConfig,
 } from '@/lib/payment-methods';
 
@@ -597,6 +598,182 @@ describe('payment-methods', () => {
         expect(m.discountEnabled).toBe(true);
         expect(m.discountPercent).toBe(8);
       }
+    });
+  });
+
+  describe('efectivo solo USD', () => {
+    it('DEFAULT_PAYMENT_METHODS efectivo contiene exactamente USD', () => {
+      const cash = DEFAULT_PAYMENT_METHODS.find((m) => m.id === 'efectivo-divisas')!;
+      expect(cash.acceptedCurrencies).toEqual(['USD']);
+    });
+
+    it('normalizePaymentMethod transforma USD+EUR en solo USD para efectivo', () => {
+      const cash = normalizePaymentMethod({
+        ...DEFAULT_PAYMENT_METHODS.find((m) => m.id === 'efectivo-divisas')!,
+        acceptedCurrencies: ['USD', 'EUR'],
+      });
+      expect(cash.acceptedCurrencies).toEqual(['USD']);
+    });
+
+    it('normalizePaymentMethod transforma solo EUR en USD para efectivo', () => {
+      const cash = normalizePaymentMethod({
+        ...DEFAULT_PAYMENT_METHODS.find((m) => m.id === 'efectivo-divisas')!,
+        acceptedCurrencies: ['EUR'],
+      });
+      expect(cash.acceptedCurrencies).toEqual(['USD']);
+    });
+
+    it('custom foreign currency conserva monedas configuradas', () => {
+      const custom = normalizePaymentMethod({
+        ...createCustomForeignCurrencyMethod(DEFAULT_PAYMENT_METHODS),
+        acceptedCurrencies: ['USDT', 'EUR'],
+      });
+      expect(custom.acceptedCurrencies).toEqual(['USDT', 'EUR']);
+    });
+
+    it('DTO de checkout efectivo expone únicamente USD', () => {
+      const methods = DEFAULT_PAYMENT_METHODS.map((m) =>
+        m.id === 'efectivo-divisas'
+          ? { ...m, active: true, acceptedCurrencies: ['USD', 'EUR'] }
+          : { ...m, active: m.active },
+      );
+      const dto = buildCheckoutPaymentMethods(
+        { ...settingsSlice, paymentMethods: methods },
+        'whatsapp',
+      );
+      expect(dto.find((m) => m.id === 'efectivo-divisas')?.acceptedCurrencies).toEqual(['USD']);
+    });
+
+    it('servidor acepta efectivo + USD', () => {
+      const cash = normalizePaymentMethod({
+        ...DEFAULT_PAYMENT_METHODS.find((m) => m.id === 'efectivo-divisas')!,
+        active: true,
+        acceptedCurrencies: ['USD', 'EUR'],
+      });
+      const resolved = resolveAndValidatePaymentMethod({
+        methods: [cash],
+        paymentMethodId: 'efectivo-divisas',
+        channel: 'whatsapp',
+        settings: settingsSlice,
+        paymentCurrency: 'USD',
+      });
+      expect(resolved.resolvedPaymentCurrency).toBe('USD');
+    });
+
+    it('servidor rechaza efectivo + EUR', () => {
+      const cash = normalizePaymentMethod({
+        ...DEFAULT_PAYMENT_METHODS.find((m) => m.id === 'efectivo-divisas')!,
+        active: true,
+        acceptedCurrencies: ['USD', 'EUR'],
+      });
+      expect(cash.acceptedCurrencies).toEqual(['USD']);
+      expect(() =>
+        resolveAndValidatePaymentMethod({
+          methods: [cash],
+          paymentMethodId: 'efectivo-divisas',
+          channel: 'whatsapp',
+          settings: settingsSlice,
+          paymentCurrency: 'EUR',
+        }),
+      ).toThrow(/aceptada/i);
+    });
+  });
+
+  describe('buildPaymentDiscountPreview', () => {
+    it('sin descuento devuelve totales originales', () => {
+      const preview = buildPaymentDiscountPreview(
+        [
+          { key: 'a', unitPriceUsd: 10.5, quantity: 2 },
+          { key: 'b', unitPriceUsd: 5, quantity: 1 },
+        ],
+        0,
+      );
+      expect(preview.subtotalCents).toBe(2600);
+      expect(preview.discountCents).toBe(0);
+      expect(preview.totalCents).toBe(2600);
+      expect(preview.lines.map((l) => l.discountCents)).toEqual([0, 0]);
+      expect(preview.lines.map((l) => l.finalCents)).toEqual([2100, 500]);
+    });
+
+    it('subtotal $119 y 33% → 11900 / 3927 / 7973', () => {
+      const preview = buildPaymentDiscountPreview(
+        [{ key: 'solo', unitPriceUsd: 119, quantity: 1 }],
+        33,
+      );
+      expect(preview.subtotalCents).toBe(11900);
+      expect(preview.discountCents).toBe(3927);
+      expect(preview.totalCents).toBe(7973);
+    });
+
+    it('suma de descuentos por línea coincide con discountCents', () => {
+      const preview = buildPaymentDiscountPreview(
+        [
+          { key: 'a', unitPriceUsd: 40, quantity: 1 },
+          { key: 'b', unitPriceUsd: 35.5, quantity: 1 },
+          { key: 'c', unitPriceUsd: 43.5, quantity: 1 },
+        ],
+        33,
+      );
+      expect(preview.subtotalCents).toBe(11900);
+      expect(preview.lines.reduce((s, l) => s + l.discountCents, 0)).toBe(preview.discountCents);
+    });
+
+    it('suma de finales por línea coincide con totalCents', () => {
+      const preview = buildPaymentDiscountPreview(
+        [
+          { key: 'a', unitPriceUsd: 10.5, quantity: 2 },
+          { key: 'b', unitPriceUsd: 98, quantity: 1 },
+        ],
+        33,
+      );
+      expect(preview.lines.reduce((s, l) => s + l.finalCents, 0)).toBe(preview.totalCents);
+      expect(preview.totalCents).toBe(preview.subtotalCents - preview.discountCents);
+    });
+
+    it('residuos de redondeo distribuyen todos los céntimos', () => {
+      const preview = buildPaymentDiscountPreview(
+        [
+          { key: 'a', unitPriceUsd: 10, quantity: 1 },
+          { key: 'b', unitPriceUsd: 10, quantity: 1 },
+          { key: 'c', unitPriceUsd: 10, quantity: 1 },
+        ],
+        10,
+      );
+      // 3000 * 10% = 300; 100 cada uno exacto
+      expect(preview.discountCents).toBe(300);
+      expect(preview.lines.reduce((s, l) => s + l.discountCents, 0)).toBe(300);
+      expect(preview.lines.every((l) => l.discountCents === 100)).toBe(true);
+
+      const uneven = buildPaymentDiscountPreview(
+        [
+          { key: 'a', unitPriceUsd: 10, quantity: 1 },
+          { key: 'b', unitPriceUsd: 20, quantity: 1 },
+          { key: 'c', unitPriceUsd: 1, quantity: 1 },
+        ],
+        7,
+      );
+      expect(uneven.lines.reduce((s, l) => s + l.discountCents, 0)).toBe(uneven.discountCents);
+      expect(uneven.lines.reduce((s, l) => s + l.originalCents, 0)).toBe(uneven.subtotalCents);
+    });
+
+    it('carrito vacío no produce NaN', () => {
+      const preview = buildPaymentDiscountPreview([], 33);
+      expect(preview).toEqual({
+        subtotalCents: 0,
+        discountCents: 0,
+        totalCents: 0,
+        lines: [],
+      });
+      expect(Number.isNaN(preview.totalCents)).toBe(false);
+    });
+
+    it('porcentaje 0 no produce descuento', () => {
+      const preview = buildPaymentDiscountPreview(
+        [{ key: 'a', unitPriceUsd: 50, quantity: 2 }],
+        0,
+      );
+      expect(preview.discountCents).toBe(0);
+      expect(preview.totalCents).toBe(10000);
     });
   });
 });

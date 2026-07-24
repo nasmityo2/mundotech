@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useSession } from 'next-auth/react';
@@ -12,7 +12,10 @@ import PaymentForm, { type PaymentFormHandle } from '@/app/components/checkout/P
 import { formatCurrency } from '@/lib/utils';
 import type { ShippingEstimates } from '@/lib/shipping-estimates';
 import type { StoreSettings } from '@/lib/data-store';
-import type { CheckoutPaymentMethodDto } from '@/lib/payment-methods';
+import {
+  buildPaymentDiscountPreview,
+  type CheckoutPaymentMethodDto,
+} from '@/lib/payment-methods';
 import { zoomOffices, type ZoomOffice } from '@/lib/zoom-offices';
 import { tealcaOffices, type TealcaOffice } from '@/lib/tealca-offices';
 import { shippingChargeLabel } from '@/lib/shipping-charge';
@@ -160,7 +163,7 @@ const WhatsAppCheckout = ({
   checkoutPaymentMethods,
 }: WhatsAppCheckoutProps) => {
   const { data: session } = useSession();
-  const { cart, clearCart, getCartTotal, isCartLoading, refreshCart } = useCart();
+  const { cart, clearCart, isCartLoading, refreshCart } = useCart();
   const { rate: exchangeRate } = useExchangeRate();
   const router = useRouter();
 
@@ -171,13 +174,41 @@ const WhatsAppCheckout = ({
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
   const [waUrl, setWaUrl] = useState<string | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] =
+    useState<CheckoutPaymentMethodDto | null>(null);
   // RUN-05: guard síncrono de reentrada
   const submittingRef = useRef(false);
   // RUN-05b: evita race condition entre clearCart() y el async import que sigue
   const orderPlacedRef = useRef(false);
 
-  const subtotal = getCartTotal();
-  const total = subtotal;
+  const previewDiscountPercent =
+    selectedPaymentMethod?.discountEnabled === true &&
+    selectedPaymentMethod.discountPercent > 0
+      ? selectedPaymentMethod.discountPercent
+      : 0;
+
+  const preview = useMemo(
+    () =>
+      buildPaymentDiscountPreview(
+        cart.map((item) => ({
+          key: item.id,
+          unitPriceUsd: item.price,
+          quantity: item.quantity,
+        })),
+        previewDiscountPercent,
+      ),
+    [cart, previewDiscountPercent],
+  );
+
+  const previewByKey = useMemo(() => {
+    const map = new Map(preview.lines.map((line) => [line.key, line]));
+    return map;
+  }, [preview.lines]);
+
+  const subtotal = preview.subtotalCents / 100;
+  const estimatedPaymentDiscount = preview.discountCents / 100;
+  const total = preview.totalCents / 100;
+  const hasPaymentDiscount = preview.discountCents > 0;
 
   // Al montar: refrescar carrito; si queda vacío, redirigir
   useEffect(() => {
@@ -441,6 +472,7 @@ const WhatsAppCheckout = ({
               ref={paymentRef}
               whatsappMode
               onPaymentSubmit={() => {}}
+              onSelectedMethodChange={setSelectedPaymentMethod}
               pagoMovil={pagoMovil}
               transferencia={transferencia}
               binancePayId={binancePayId}
@@ -482,40 +514,85 @@ const WhatsAppCheckout = ({
         {/* ── Resumen del pedido ── */}
         <aside className="lg:col-span-1 order-1 lg:order-2">
           <div className="lg:sticky lg:top-[96px] space-y-4">
-            <div className="card-elevated overflow-hidden">
+            <div className="card-elevated">
               <div className="px-5 py-4 border-b border-slate-100">
                 <h2 className="text-base font-semibold text-navy">Tu pedido</h2>
               </div>
 
-              <ul className="px-5 py-4 space-y-3 max-h-[260px] overflow-y-auto scrollbar-hide">
+              <ul className="px-5 pt-5 pb-4 space-y-3 max-h-[280px] overflow-y-auto overflow-x-visible scrollbar-hide">
                 {isCartLoading ? (
                   <li className="text-sm text-slate-500">Cargando…</li>
                 ) : cart.length === 0 ? (
                   <li className="text-sm text-slate-500">Sin productos.</li>
                 ) : (
-                  cart.map((item) => (
-                    <li key={item.id} className="flex items-center gap-3">
-                      <div className="relative h-12 w-12 flex-shrink-0 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
-                        <Image
-                          src={item.image || item.images?.[0] || '/placeholder-product.png'}
-                          alt={item.name}
-                          fill
-                          sizes="48px"
-                          className="object-contain p-1.5"
-                        />
-                        <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-navy text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
-                          {item.quantity}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-navy line-clamp-1">{item.name}</p>
-                        <p className="text-[11px] text-slate-500 nums">{formatCurrency(item.price)}</p>
-                      </div>
-                      <p className="text-sm font-semibold text-navy nums whitespace-nowrap">
-                        {formatCurrency(item.price * item.quantity)}
-                      </p>
-                    </li>
-                  ))
+                  cart.map((item) => {
+                    const previewLine = previewByKey.get(item.id);
+                    const lineOriginal = item.price * item.quantity;
+                    const discountedUnitPrice =
+                      hasPaymentDiscount
+                        ? item.price * (1 - previewDiscountPercent / 100)
+                        : item.price;
+                    const lineFinal =
+                      hasPaymentDiscount && previewLine
+                        ? previewLine.finalCents / 100
+                        : lineOriginal;
+
+                    return (
+                      <li key={item.id} className="flex items-center gap-3">
+                        <div className="relative h-12 w-12 flex-shrink-0 overflow-visible">
+                          <div className="relative h-12 w-12 bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
+                            <Image
+                              src={item.image || item.images?.[0] || '/placeholder-product.png'}
+                              alt={item.name}
+                              fill
+                              sizes="48px"
+                              className="object-contain p-1.5"
+                            />
+                          </div>
+                          <span className="absolute z-10 -top-2 -right-2 min-w-5 h-5 px-1 rounded-full bg-navy text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                            {item.quantity}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-navy line-clamp-1">{item.name}</p>
+                          {hasPaymentDiscount ? (
+                            <p
+                              className="text-[11px] nums flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5"
+                              aria-label={`Precio unitario original ${formatCurrency(item.price)}; precio con descuento ${formatCurrency(discountedUnitPrice)} c/u`}
+                            >
+                              <span className="text-slate-400 line-through">
+                                {formatCurrency(item.price)}
+                              </span>
+                              <span className="text-emerald-600 font-medium">
+                                {formatCurrency(discountedUnitPrice)} c/u
+                              </span>
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-slate-500 nums">
+                              {formatCurrency(item.price)}
+                            </p>
+                          )}
+                        </div>
+                        {hasPaymentDiscount ? (
+                          <div
+                            className="text-right whitespace-nowrap"
+                            aria-label={`Precio original ${formatCurrency(lineOriginal)}; precio con descuento ${formatCurrency(lineFinal)}`}
+                          >
+                            <p className="text-[11px] text-slate-400 line-through nums">
+                              {formatCurrency(lineOriginal)}
+                            </p>
+                            <p className="text-sm font-semibold text-emerald-600 nums">
+                              {formatCurrency(lineFinal)}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-sm font-semibold text-navy nums whitespace-nowrap">
+                            {formatCurrency(lineOriginal)}
+                          </p>
+                        )}
+                      </li>
+                    );
+                  })
                 )}
               </ul>
 
@@ -524,6 +601,16 @@ const WhatsAppCheckout = ({
                   <span>Subtotal</span>
                   <span className="text-navy font-medium nums">{formatCurrency(subtotal)}</span>
                 </div>
+                {hasPaymentDiscount && selectedPaymentMethod && (
+                  <div className="flex justify-between text-emerald-600">
+                    <span>
+                      Descuento por pago en divisas ({selectedPaymentMethod.discountPercent}%)
+                    </span>
+                    <span className="font-medium nums">
+                      −{formatCurrency(estimatedPaymentDiscount)}
+                    </span>
+                  </div>
+                )}
                 <div className="border-t border-slate-200 pt-3 mt-2 flex items-end justify-between">
                   <span className="text-base font-semibold text-navy">Total</span>
                   <span className="text-2xl font-bold text-navy nums tracking-tight">
@@ -536,6 +623,11 @@ const WhatsAppCheckout = ({
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     }).format(total * exchangeRate)}
+                  </p>
+                )}
+                {hasPaymentDiscount && (
+                  <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+                    Estimado según el método seleccionado. El monto definitivo se confirma al crear el pedido.
                   </p>
                 )}
               </div>

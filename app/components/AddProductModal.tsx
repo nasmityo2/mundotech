@@ -1,5 +1,5 @@
 'use client'
-import { useTransition, useRef, useEffect, useState, useCallback, type CSSProperties } from 'react';
+import { useTransition, useRef, useEffect, useState, useCallback, useMemo, type CSSProperties } from 'react';
 import {
   DndContext, closestCenter, MouseSensor, TouchSensor,
   useSensor, useSensors, type DragEndEvent,
@@ -55,6 +55,8 @@ type GallerySlot = ImageGallerySlot | VideoGallerySlot;
 interface AddProductModalProps {
   isOpen:      boolean;
   onClose:     () => void;
+  /** Recarga listas tras un guardado exitoso (productos + categorías). */
+  onSaved?:    () => void | Promise<void>;
   product:     Product | null;
   categories:  string[];
 }
@@ -76,7 +78,7 @@ function deleteOrphanVideo(url: string, posterUrl?: string, keepalive = false): 
   });
 }
 
-export default function AddProductModal({ isOpen, onClose, product, categories }: AddProductModalProps) {
+export default function AddProductModal({ isOpen, onClose, onSaved, product, categories }: AddProductModalProps) {
   const [isPending, startTransition] = useTransition();
   const formRef        = useRef<HTMLFormElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
@@ -101,6 +103,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   const [discountMode, setDiscountMode] = useState<'pct' | 'amount'>('pct');
   const [discountPct, setDiscountPct] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
+  const [categoryInput, setCategoryInput] = useState('');
   const [pricing, setPricing] = useState({ marginPct: DEFAULT_PROFIT_MARGIN_PCT, factor: DEFAULT_BCV_BINANCE_FACTOR });
   // Scroll lock y focus trap compartidos
   useBodyScrollLock(isOpen);
@@ -144,7 +147,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
       // (se reinicializa en cada apertura del modal, ver rama `else` abajo).
       setFreeShipping(product.freeShipping ?? false);
       el.stock.value       = product.stock.toString();
-      el.category.value    = product.category;
+      setCategoryInput(product.category);
       el.brand.value       = product.brand;
       el.sku.value         = product.sku ?? '';
       setSpecs(parseProductSpecs(product.specs));
@@ -179,6 +182,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
       setPrice(''); setOnSale(false); setDiscountMode('pct'); setDiscountPct(''); setSaleAmount('');
       // Al crear: siempre desmarcado.
       setFreeShipping(false);
+      setCategoryInput('');
       setSlots([]);
       setSpecs([]);
       originalProductVideoUrlsRef.current = new Set();
@@ -396,6 +400,25 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
   const hasFailedVideo = slots.some(
     (s) => s.type === 'VIDEO' && s.status === 'failed',
   );
+
+  const categoryOptions = useMemo(() => {
+    const opts = [...categories];
+    if (product?.category) {
+      const currentKey = product.category.trim().replace(/\s+/g, ' ').toLowerCase();
+      const exists = opts.some(
+        (c) => c.trim().replace(/\s+/g, ' ').toLowerCase() === currentKey,
+      );
+      if (!exists) opts.unshift(product.category);
+    }
+    return opts;
+  }, [categories, product]);
+
+  const normalizedCategoryInput = categoryInput.trim().replace(/\s+/g, ' ');
+  const categoryMatchesExisting = categoryOptions.some(
+    (c) => c.trim().replace(/\s+/g, ' ').toLowerCase() === normalizedCategoryInput.toLowerCase(),
+  );
+  const willCreateCategory =
+    normalizedCategoryInput.length > 0 && !categoryMatchesExisting;
 
   const handleClose = useCallback(() => {
     for (const v of sessionUploadedVideosRef.current) {
@@ -666,6 +689,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                 formData.set('salePrice', computedSalePrice != null ? String(computedSalePrice) : '');
                 // No depender de que un checkbox desmarcado desaparezca del FormData.
                 formData.set('freeShipping', freeShipping ? 'true' : 'false');
+                formData.set('category', categoryInput);
                 startTransition(async () => {
                   const action = product
                     ? updateProductAction.bind(null, product.id)
@@ -673,8 +697,18 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                   const result = await action(formData);
                   if (result.success) {
                     sessionUploadedVideosRef.current = [];
+                    try {
+                      await onSaved?.();
+                    } catch {
+                      alert(
+                        'El producto se guardó, pero no se pudo refrescar la lista. Recarga la página.',
+                      );
+                    }
                     onClose();
-                    if (!product) formRef.current?.reset();
+                    if (!product) {
+                      formRef.current?.reset();
+                      setCategoryInput('');
+                    }
                   } else {
                     alert(result.message);
                   }
@@ -867,11 +901,28 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                 {/* Categoría */}
                 <div>
                   <label htmlFor="category" className={labelCls}>Categoría <span className="text-red-500">*</span></label>
-                  <input list="category-options" name="category" id="category"
-                    className={inputCls} autoComplete="off" placeholder="Elige o escribe una categoría" required />
+                  <input
+                    list="category-options"
+                    name="category"
+                    id="category"
+                    className={inputCls}
+                    autoComplete="off"
+                    placeholder="Selecciona una existente o escribe una nueva"
+                    required
+                    value={categoryInput}
+                    onChange={(e) => setCategoryInput(e.target.value)}
+                  />
                   <datalist id="category-options">
-                    {categories.map((c) => <option key={c} value={c} />)}
+                    {categoryOptions.map((c) => <option key={c} value={c} />)}
                   </datalist>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Si escribes una categoría que no existe, se creará automáticamente al guardar el producto.
+                  </p>
+                  {willCreateCategory ? (
+                    <p className="text-[11px] text-navy/80 mt-1 font-medium" data-testid="category-will-create">
+                      Se creará la categoría: {normalizedCategoryInput}
+                    </p>
+                  ) : null}
                 </div>
 
                 {/* Marca */}

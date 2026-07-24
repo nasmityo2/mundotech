@@ -384,7 +384,7 @@ export const DEFAULT_PAYMENT_METHODS: PaymentMethodConfig[] = [
     instructions: '',
     recipientLabel: '',
     recipientValue: '',
-    acceptedCurrencies: ['USD', 'EUR'],
+    acceptedCurrencies: ['USD'],
     fullDeliveryScope: 'STORE_PICKUP_ONLY',
     sortOrder: 50,
   },
@@ -427,10 +427,15 @@ export function normalizePaymentMethod(raw: PaymentMethodConfig): PaymentMethodC
     discountPercent = 0;
   }
 
-  const acceptedCurrencies = (raw.acceptedCurrencies ?? [])
+  let acceptedCurrencies = (raw.acceptedCurrencies ?? [])
     .map((c) => c.trim().toUpperCase())
     .filter((c) => CURRENCY_REGEX.test(c) && c.length >= 2 && c.length <= 10)
     .slice(0, 10);
+
+  // Efectivo: únicamente USD (normaliza configuraciones antiguas con EUR u otras).
+  if (raw.kind === 'CASH_FOREIGN_CURRENCY') {
+    acceptedCurrencies = ['USD'];
+  }
 
   return {
     ...raw,
@@ -700,6 +705,114 @@ export function estimatePaymentDiscountUsd(
     subtotalUsd,
     Math.round(subtotalUsd * paymentDiscountPercent) / 100,
   );
+}
+
+export type PaymentDiscountPreviewLine = {
+  key: string;
+  originalCents: number;
+  discountCents: number;
+  finalCents: number;
+};
+
+export type PaymentDiscountPreview = {
+  subtotalCents: number;
+  discountCents: number;
+  totalCents: number;
+  lines: PaymentDiscountPreviewLine[];
+};
+
+/**
+ * Preview visual del descuento por líneas (céntimos enteros).
+ * No sustituye el cálculo autoritativo del servidor al crear el pedido.
+ */
+export function buildPaymentDiscountPreview(
+  lines: Array<{
+    key: string;
+    unitPriceUsd: number;
+    quantity: number;
+  }>,
+  paymentDiscountPercent: number,
+): PaymentDiscountPreview {
+  if (!Array.isArray(lines) || lines.length === 0) {
+    return { subtotalCents: 0, discountCents: 0, totalCents: 0, lines: [] };
+  }
+
+  const prepared = lines.map((line) => {
+    const unitPriceUsd =
+      Number.isFinite(line.unitPriceUsd) && line.unitPriceUsd > 0
+        ? line.unitPriceUsd
+        : 0;
+    const quantity =
+      Number.isInteger(line.quantity) && line.quantity >= 1 ? line.quantity : 0;
+    const originalCents = Math.round(unitPriceUsd * 100) * quantity;
+    return { key: line.key, originalCents };
+  });
+
+  const subtotalCents = prepared.reduce((sum, line) => sum + line.originalCents, 0);
+  const percent =
+    Number.isFinite(paymentDiscountPercent) && paymentDiscountPercent > 0
+      ? paymentDiscountPercent
+      : 0;
+  const discountCents = calculatePaymentDiscountCents(subtotalCents, percent);
+
+  if (discountCents <= 0 || subtotalCents <= 0) {
+    return {
+      subtotalCents,
+      discountCents: 0,
+      totalCents: subtotalCents,
+      lines: prepared.map((line) => ({
+        key: line.key,
+        originalCents: line.originalCents,
+        discountCents: 0,
+        finalCents: line.originalCents,
+      })),
+    };
+  }
+
+  // Largest-remainder: floor first, then distribute leftover cents by remainder.
+  const shares = prepared.map((line, index) => {
+    const exact = (discountCents * line.originalCents) / subtotalCents;
+    const floor = Math.floor(exact);
+    return {
+      index,
+      key: line.key,
+      originalCents: line.originalCents,
+      floor,
+      remainder: exact - floor,
+    };
+  });
+
+  const assigned = shares.reduce((sum, s) => sum + s.floor, 0);
+  const remaining = discountCents - assigned;
+  const extras = new Array<number>(shares.length).fill(0);
+
+  const byRemainder = [...shares].sort((a, b) => {
+    if (b.remainder !== a.remainder) return b.remainder - a.remainder;
+    return a.index - b.index;
+  });
+
+  for (let i = 0; i < remaining; i++) {
+    const target = byRemainder[i];
+    if (!target) break;
+    extras[target.index] = (extras[target.index] ?? 0) + 1;
+  }
+
+  const resultLines: PaymentDiscountPreviewLine[] = shares.map((s) => {
+    const lineDiscount = Math.min(s.originalCents, s.floor + (extras[s.index] ?? 0));
+    return {
+      key: s.key,
+      originalCents: s.originalCents,
+      discountCents: lineDiscount,
+      finalCents: s.originalCents - lineDiscount,
+    };
+  });
+
+  return {
+    subtotalCents,
+    discountCents,
+    totalCents: subtotalCents - discountCents,
+    lines: resultLines,
+  };
 }
 
 export type ResolvePaymentMethodParams = {

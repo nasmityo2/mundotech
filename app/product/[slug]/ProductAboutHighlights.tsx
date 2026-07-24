@@ -3,32 +3,10 @@ import type { ProductSpec } from '@/lib/definitions';
 
 interface Props {
   specs: ProductSpec[];
-  description: string | null;
 }
 
-function htmlToPlainText(value: string): string {
-  if (!/[<>]/.test(value)) return value;
-  return value
-    .replace(/<\s*(br|\/p|\/div|\/li|\/h[1-6])\s*\/?\s*>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function deriveFromDescription(description: string | null, max = 3): string[] {
-  if (!description) return [];
-  const plain = htmlToPlainText(description);
-  return plain
-    .split(/[.!?]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length >= 20)
-    .slice(0, max);
-}
-
-export default function ProductAboutHighlights({ specs, description }: Props) {
-  const specBullets = specs.slice(0, 6).map((s) => `${s.name}: ${s.value}`);
-  const bullets = specBullets.length > 0 ? specBullets : deriveFromDescription(description);
+export default function ProductAboutHighlights({ specs }: Props) {
+  const bullets = specs.slice(0, 6).map((s) => `${s.name}: ${s.value}`);
 
   if (bullets.length === 0) return null;
 

@@ -20,7 +20,7 @@ test.describe('Stock y Doble Submit', () => {
 
   test('producto con stock muestra unidades y botón activo', async ({ page }) => {
     await page.goto(productPdpPath(E2E_PRODUCTS.inStock.slug));
-    await expect(page.getByRole('button', { name: /¡Me lo llevo!/i })).toBeEnabled();
+    await expect(page.getByRole('button', { name: / Añadir al carrito/i })).toBeEnabled();
     await expect(page.getByText(/En stock \(\d+ unidades\)/)).toBeVisible();
   });
 

@@ -85,12 +85,14 @@ function renderPaymentForm(
       proofPreviewUrl: string;
     } | null;
     onPaymentSubmit: (data: unknown) => void;
+    onSelectedMethodChange: (method: CheckoutPaymentMethodDto | null) => void;
   }> = {},
 ) {
   const onPaymentSubmit = overrides.onPaymentSubmit ?? vi.fn();
   return render(
     <PaymentForm
       onPaymentSubmit={onPaymentSubmit}
+      onSelectedMethodChange={overrides.onSelectedMethodChange}
       pagoMovil={{ bank: 'Banesco', phone: '0412', idNumber: 'V-1' }}
       transferencia={{
         bank: 'M',
@@ -132,12 +134,6 @@ describe('payment-method-ui', () => {
       expect(m).toHaveProperty('currencyGroup');
       expect(m).not.toHaveProperty('sortOrder');
     }
-  });
-
-  it('badge copy format', () => {
-    const pct = 10;
-    const badge = `${pct}% de descuento pagando en divisas`;
-    expect(badge).toContain('descuento pagando en divisas');
   });
 });
 
@@ -396,14 +392,60 @@ describe('PaymentForm currency groups', () => {
     expect(screen.getByText(/Subir comprobante/i)).toBeTruthy();
   });
 
-  it('el descuento se muestra únicamente al seleccionar método elegible', () => {
+  it('las tarjetas no muestran badge verde de descuento ni aviso de ahorro', () => {
     renderPaymentForm({
       checkoutPaymentMethods: dtoWithAllActive({ discountPercent: 10 }),
     });
-    expect(screen.queryByText(/Ahorras aproximadamente/i)).toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: 'USD / divisas' }));
     fireEvent.click(screen.getByRole('button', { name: /Binance Pay/i }));
-    expect(screen.getByText(/Ahorras aproximadamente/i)).toBeTruthy();
+    expect(screen.queryByText(/descuento pagando en divisas/i)).toBeNull();
+    expect(screen.queryByText(/Ahorras aproximadamente/i)).toBeNull();
+  });
+
+  it('seleccionar Binance invoca onSelectedMethodChange con Binance', () => {
+    const onSelectedMethodChange = vi.fn();
+    renderPaymentForm({
+      checkoutPaymentMethods: dtoWithAllActive({ discountPercent: 10 }),
+      onSelectedMethodChange,
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'USD / divisas' }));
+    fireEvent.click(screen.getByRole('button', { name: /Binance Pay/i }));
+    expect(onSelectedMethodChange).toHaveBeenCalled();
+    const last = onSelectedMethodChange.mock.calls.at(-1)?.[0] as CheckoutPaymentMethodDto | null;
+    expect(last?.id).toBe('binancepay');
+    expect(last?.kind).toBe('BINANCE');
+  });
+
+  it('cambiar de USD a VES limpia la selección y emite null', () => {
+    const onSelectedMethodChange = vi.fn();
+    renderPaymentForm({ onSelectedMethodChange });
+    fireEvent.click(screen.getByRole('tab', { name: 'USD / divisas' }));
+    fireEvent.click(screen.getByRole('button', { name: /Binance Pay/i }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Bolívares' }));
+    const last = onSelectedMethodChange.mock.calls.at(-1)?.[0];
+    expect(last).toBeNull();
+  });
+
+  it('seleccionar efectivo asigna automáticamente USD y no ofrece EUR', () => {
+    renderPaymentForm({ whatsappMode: true });
+    fireEvent.click(screen.getByRole('tab', { name: 'USD / divisas' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Efectivo/i }));
+    expect(screen.getByText('Moneda de pago')).toBeTruthy();
+    expect(screen.getByText('USD')).toBeTruthy();
+    expect(screen.queryByRole('option', { name: 'EUR' })).toBeNull();
+    expect(screen.queryByLabelText(/^Moneda$/i)).toBeNull();
+  });
+
+  it('el selector Bolívares / USD-divisas permanece funcional', () => {
+    renderPaymentForm();
+    const ves = screen.getByRole('tab', { name: 'Bolívares' });
+    const usd = screen.getByRole('tab', { name: 'USD / divisas' });
+    expect(ves.getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(usd);
+    expect(usd.getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(ves);
+    expect(ves.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('button', { name: /Pago Móvil/i })).toBeTruthy();
   });
 
   it('los botones de grupo tienen role tab y aria-selected', () => {
@@ -548,6 +590,23 @@ describe('PaymentMethodsAdminSection UI', () => {
     expect(
       screen.getByText(/Cashea no recibe descuento por pago en divisas/i),
     ).toBeTruthy();
+  });
+
+  it('efectivo muestra moneda fija USD sin campo editable de monedas', async () => {
+    render(
+      <PaymentMethodsAdminSection
+        methods={DEFAULT_PAYMENT_METHODS.map((m) => ({ ...m }))}
+        onChange={vi.fn()}
+        fieldError={() => undefined}
+        accountSettings={accountSettings}
+      />,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^Efectivo/ }));
+    });
+    expect(screen.getByText(/Moneda aceptada para efectivo/i)).toBeTruthy();
+    expect(screen.getByDisplayValue('USD')).toBeTruthy();
+    expect(screen.queryByLabelText(/Monedas aceptadas/i)).toBeNull();
   });
 
   it('método personalizado se añade y abre; solo personalizados pueden eliminarse', async () => {

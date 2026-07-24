@@ -25,11 +25,11 @@ type Props = {
 };
 
 function showAcceptedCurrencies(kind: PaymentMethodConfig['kind']): boolean {
-  return (
-    kind === 'CASH_FOREIGN_CURRENCY' ||
-    kind === 'CUSTOM_FOREIGN_CURRENCY' ||
-    kind === 'ZELLE'
-  );
+  return kind === 'CUSTOM_FOREIGN_CURRENCY' || kind === 'ZELLE';
+}
+
+function showCashUsdOnly(kind: PaymentMethodConfig['kind']): boolean {
+  return kind === 'CASH_FOREIGN_CURRENCY';
 }
 
 function showRecipientFields(kind: PaymentMethodConfig['kind']): boolean {
@@ -326,11 +326,28 @@ export function PaymentMethodsAdminSection({
                     )}
 
                     {(showAcceptedCurrencies(method.kind) ||
+                      showCashUsdOnly(method.kind) ||
                       method.fullDeliveryScope === 'STORE_PICKUP_ONLY') && (
                       <div className="space-y-3">
                         <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
                           Monedas y entrega
                         </h4>
+                        {showCashUsdOnly(method.kind) && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Moneda aceptada para efectivo
+                            </label>
+                            <input
+                              type="text"
+                              readOnly
+                              value="USD"
+                              className="w-full min-h-[48px] px-3 border border-gray-200 rounded-lg text-sm bg-gray-100 text-slate-600"
+                            />
+                            <p className="mt-1 text-xs text-slate-500">
+                              MundoTech recibe efectivo solamente en USD.
+                            </p>
+                          </div>
+                        )}
                         {showAcceptedCurrencies(method.kind) && (
                           <Field
                             label="Monedas aceptadas (separadas por coma)"

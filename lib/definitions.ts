@@ -292,7 +292,7 @@ export interface Order {
   paymentDiscountPercent?:   number | null;
   /** Monto del descuento por divisas en Bs. Null si no aplicó. */
   paymentDiscount?:          number | null;
-  /** Moneda elegida (p. ej. USD/EUR en efectivo). Null si no aplica. */
+  /** Moneda elegida (p. ej. USD en efectivo). Null si no aplica. */
   paymentCurrency?:          string | null;
   paymentBank?:              string | null;
   paymentHolderIdNumber?:    string | null;
