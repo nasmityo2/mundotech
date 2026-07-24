@@ -24,6 +24,7 @@ const updateManyMock = vi.fn();
 const transactionMock = vi.fn();
 const txFindUniqueMock = vi.fn();
 const txUpdateMock = vi.fn();
+const txUpdateManyMock = vi.fn();
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     order: {
@@ -98,11 +99,15 @@ beforeEach(() => {
   cancelCasheaOrderMock.mockResolvedValue({ ok: true, status: 200 });
   transactionMock.mockImplementation(async (cb: (tx: unknown) => unknown) =>
     cb({
-      order: { findUnique: txFindUniqueMock, update: txUpdateMock },
+      order: {
+        findUnique: txFindUniqueMock,
+        update: txUpdateMock,
+        updateMany: txUpdateManyMock,
+      },
     }),
   );
   txFindUniqueMock.mockResolvedValue(baseOrder({ items: [{ productId: 'prod-1', quantity: 2 }] }));
-  txUpdateMock.mockResolvedValue(baseOrder({ casheaStatus: 'CANCELLED', status: 'Cancelado' }));
+  txUpdateManyMock.mockResolvedValue({ count: 1 });
 });
 
 afterEach(() => {
@@ -226,14 +231,19 @@ describe('POST /api/cashea/cancel', () => {
     expect(body).toEqual({ ok: true, status: 'CANCELLED' });
     expect(cancelCasheaOrderMock).toHaveBeenCalledWith('CASHEA-123');
     expect(applyOrderCancellationEffectsInTransactionMock).toHaveBeenCalledTimes(1);
-    expect(txUpdateMock).toHaveBeenCalledWith({
-      where: { id: 'order-1' },
+    expect(txUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: 'order-1',
+        casheaStatus: 'RETURNED',
+        status: 'Pendiente',
+      },
       data: {
         status: 'Cancelado',
         casheaStatus: 'CANCELLED',
         casheaCancelledAt: expect.any(Date),
       },
     });
+    expect(txUpdateMock).not.toHaveBeenCalled();
   });
 
   it('sin casheaOrderId (aún no redirigido) -> cancela local sin llamar al API de Cashea', async () => {
@@ -256,6 +266,7 @@ describe('POST /api/cashea/cancel', () => {
     expect(body).toEqual({ ok: true, status: 'CANCELLED' });
     expect(applyOrderCancellationEffectsInTransactionMock).not.toHaveBeenCalled();
     expect(txUpdateMock).not.toHaveBeenCalled();
+    expect(txUpdateManyMock).not.toHaveBeenCalled();
   });
 
   it('si pasó a CONFIRMED mientras se cancelaba en remoto -> 409, sin tocar inventario', async () => {
@@ -265,6 +276,45 @@ describe('POST /api/cashea/cancel', () => {
 
     expect(res.status).toBe(409);
     expect(applyOrderCancellationEffectsInTransactionMock).not.toHaveBeenCalled();
+    expect(txUpdateMock).not.toHaveBeenCalled();
+    expect(txUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it('Cashea concurrente: efectos locales una vez; segundo request idempotente', async () => {
+    // Primera: gana transición
+    txFindUniqueMock.mockResolvedValueOnce(
+      baseOrder({ items: [{ productId: 'prod-1', quantity: 2 }] }),
+    );
+    txUpdateManyMock.mockResolvedValueOnce({ count: 1 });
+
+    const res1 = await POST(buildRequest({ orderId: 'order-1' }));
+    expect(res1.status).toBe(200);
+    expect(applyOrderCancellationEffectsInTransactionMock).toHaveBeenCalledTimes(1);
+
+    // Segunda: lee snapshot pre-cancel, efectos corren, transición pierde → CANCELLED
+    txFindUniqueMock
+      .mockResolvedValueOnce(baseOrder({ items: [{ productId: 'prod-1', quantity: 2 }] }))
+      .mockResolvedValueOnce({ casheaStatus: 'CANCELLED' });
+    txUpdateManyMock.mockResolvedValueOnce({ count: 0 });
+
+    const res2 = await POST(buildRequest({ orderId: 'order-1' }));
+    const body2 = await res2.json();
+    expect(res2.status).toBe(200);
+    expect(body2).toEqual({ ok: true, status: 'CANCELLED' });
+    // apply se invocó otra vez (antes de saber que perdió), pero no hay segunda
+    // afirmación de transición ganada; el inventario real lo protege el claim.
+    expect(txUpdateManyMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('Cashea transición perdida a CONFIRMED -> 409 sin inventario afirmado', async () => {
+    txFindUniqueMock
+      .mockResolvedValueOnce(baseOrder({ items: [{ productId: 'prod-1', quantity: 2 }] }))
+      .mockResolvedValueOnce({ casheaStatus: 'CONFIRMED' });
+    txUpdateManyMock.mockResolvedValueOnce({ count: 0 });
+
+    const res = await POST(buildRequest({ orderId: 'order-1' }));
+
+    expect(res.status).toBe(409);
     expect(txUpdateMock).not.toHaveBeenCalled();
   });
 

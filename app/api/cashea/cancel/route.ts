@@ -186,8 +186,14 @@ export async function POST(request: Request): Promise<NextResponse> {
         stockDeducted: current.stockDeducted,
       });
 
-      await tx.order.update({
-        where: { id: current.id },
+      // Transición condicional local: id + casheaStatus + status del snapshot.
+      // Solo count === 1 afirma que esta petición completó la cancelación.
+      const transition = await tx.order.updateMany({
+        where: {
+          id: current.id,
+          casheaStatus: current.casheaStatus,
+          status: current.status,
+        },
         data: {
           status: 'Cancelado',
           casheaStatus: 'CANCELLED',
@@ -195,7 +201,21 @@ export async function POST(request: Request): Promise<NextResponse> {
         },
       });
 
-      return { cancelled: true as const };
+      if (transition.count === 1) {
+        return { cancelled: true as const };
+      }
+
+      const raced = await tx.order.findUnique({
+        where: { id: current.id },
+        select: { casheaStatus: true },
+      });
+      if (raced?.casheaStatus === 'CANCELLED') {
+        return { alreadyCancelled: true as const };
+      }
+      if (raced?.casheaStatus === 'CONFIRMED') {
+        return { conflict: true as const };
+      }
+      return { alreadyCancelled: true as const };
     });
 
     if (result?.conflict) {
@@ -205,7 +225,11 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
 
-    logInfo('cashea_cancel_success', { operation: 'cashea_cancel', orderId: order.id });
+    // Solo la petición que ganó la transición local registra el éxito con
+    // efectos; reintentos idempotentes responden igual sin afirmar restauración.
+    if (result?.cancelled) {
+      logInfo('cashea_cancel_success', { operation: 'cashea_cancel', orderId: order.id });
+    }
     return NextResponse.json({ ok: true, status: 'CANCELLED' });
   } catch (error) {
     logError('cashea_cancel_failed', error, { operation: 'cashea_cancel' });

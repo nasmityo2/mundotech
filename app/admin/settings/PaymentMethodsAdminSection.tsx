@@ -1,73 +1,59 @@
 'use client';
 
-import type { PaymentMethodConfig } from '@/lib/payment-methods';
+import { useEffect, useId, useRef, useState } from 'react';
+import type { PaymentMethodConfig, PaymentSettingsSlice } from '@/lib/payment-methods';
 import {
   createCustomForeignCurrencyMethod,
-  isBuiltinPaymentMethodId,
   isDeletablePaymentMethod,
+  isMethodConfigured,
+  DISCOUNT_ELIGIBLE_KINDS,
 } from '@/lib/payment-methods';
+import {
+  Field,
+  TextareaField,
+  Toggle,
+  StatusBadge,
+  HelpCallout,
+  CollapsibleSection,
+} from '@/app/admin/settings/components/SettingsUI';
 
 type Props = {
   methods: PaymentMethodConfig[];
   onChange: (methods: PaymentMethodConfig[]) => void;
   fieldError: (path: string) => string | undefined;
+  accountSettings?: Pick<PaymentSettingsSlice, 'pagoMovil' | 'transferencia' | 'binancePayId'>;
 };
 
-function Field({
-  label,
-  value,
-  onChange,
-  type = 'text',
-  error,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  error?: string;
-}) {
+function showAcceptedCurrencies(kind: PaymentMethodConfig['kind']): boolean {
   return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full min-h-[48px] px-3 border rounded-lg text-sm ${
-          error ? 'border-rose-400' : 'border-gray-200'
-        }`}
-      />
-      {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
-    </div>
+    kind === 'CASH_FOREIGN_CURRENCY' ||
+    kind === 'CUSTOM_FOREIGN_CURRENCY' ||
+    kind === 'ZELLE'
   );
 }
 
-function Toggle({
-  label,
-  checked,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  disabled?: boolean;
-}) {
+function showRecipientFields(kind: PaymentMethodConfig['kind']): boolean {
   return (
-    <label className={`flex items-center gap-2 text-sm text-navy ${disabled ? 'opacity-50' : ''}`}>
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-        className="rounded border-slate-300"
-      />
-      {label}
-    </label>
+    kind === 'ZELLE' ||
+    kind === 'CASH_FOREIGN_CURRENCY' ||
+    kind === 'CUSTOM_FOREIGN_CURRENCY'
   );
 }
 
-export function PaymentMethodsAdminSection({ methods, onChange, fieldError }: Props) {
+function usesAccountSection(kind: PaymentMethodConfig['kind']): boolean {
+  return kind === 'PAGO_MOVIL' || kind === 'BANK_TRANSFER' || kind === 'BINANCE';
+}
+
+export function PaymentMethodsAdminSection({
+  methods,
+  onChange,
+  fieldError,
+  accountSettings,
+}: Props) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const baseId = useId();
+
   const updateAt = (index: number, patch: Partial<PaymentMethodConfig>) => {
     const next = methods.map((m, i) => {
       if (i !== index) return m;
@@ -84,172 +70,321 @@ export function PaymentMethodsAdminSection({ methods, onChange, fieldError }: Pr
   const removeAt = (index: number) => {
     const m = methods[index];
     if (!m || !isDeletablePaymentMethod(m)) return;
+    if (
+      !window.confirm(
+        '¿Eliminar este método personalizado? El cambio se aplicará al guardar.',
+      )
+    ) {
+      return;
+    }
+    if (openId === m.id) setOpenId(null);
     onChange(methods.filter((_, i) => i !== index));
   };
 
   const addCustom = () => {
-    onChange([...methods, createCustomForeignCurrencyMethod(methods)]);
+    const created = createCustomForeignCurrencyMethod(methods);
+    onChange([...methods, created]);
+    setOpenId(created.id);
+  };
+
+  useEffect(() => {
+    if (!openId) return;
+    const el = itemRefs.current[openId];
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [openId, methods.length]);
+
+  const settingsSlice: PaymentSettingsSlice = {
+    pagoMovil: accountSettings?.pagoMovil ?? { bank: '', phone: '', idNumber: '' },
+    transferencia: accountSettings?.transferencia ?? {
+      bank: '',
+      accountNumber: '',
+      accountHolder: '',
+      rif: '',
+    },
+    binancePayId: accountSettings?.binancePayId ?? '',
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <h3 className="text-sm font-bold text-navy">Métodos de pago</h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Activa, ordena e instruye cada método. El descuento por divisas es global (sección anterior);
-            aquí solo se indica cuáles son elegibles.
-          </p>
-        </div>
+        <p className="text-xs text-slate-500">
+          Abre un método para configurar disponibilidad, datos al cliente y validación del checkout
+          completo.
+        </p>
         <button
           type="button"
           onClick={addCustom}
-          className="shrink-0 rounded-xl bg-navy text-white text-xs font-semibold px-3 py-2 hover:bg-navy-700"
+          className="shrink-0 min-h-[44px] rounded-xl bg-navy text-white text-xs font-semibold px-3 py-2 hover:bg-navy-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
         >
           Agregar método en divisas
         </button>
       </div>
 
       {fieldError('paymentMethods') && (
-        <p className="text-xs text-rose-600">{fieldError('paymentMethods')}</p>
+        <p role="alert" className="text-xs text-rose-600">
+          {fieldError('paymentMethods')}
+        </p>
       )}
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {methods.map((method, index) => {
-          const builtin = isBuiltinPaymentMethodId(method.id);
-          const canDiscount = method.discountEligible;
+          const open = openId === method.id;
+          const panelId = `${baseId}-${method.id}-panel`;
+          const configured = isMethodConfigured(method, settingsSlice);
+          const canDiscount = DISCOUNT_ELIGIBLE_KINDS.has(method.kind);
+          const canDetermineConfig =
+            method.kind !== 'CASHEA' || accountSettings !== undefined;
+
           return (
             <div
               key={method.id}
-              className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-3"
+              ref={(el) => {
+                itemRefs.current[method.id] = el;
+              }}
+              className="rounded-xl border border-slate-200 bg-white overflow-hidden"
             >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-navy">{method.name}</p>
-                  <p className="text-[11px] text-slate-400 font-mono">
-                    {method.id} · {method.kind}
-                  </p>
-                  {canDiscount && (
-                    <span className="mt-1 inline-block rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold px-2 py-0.5 border border-emerald-200">
-                      elegible para descuento
-                    </span>
-                  )}
-                </div>
-                {isDeletablePaymentMethod(method) && (
-                  <button
-                    type="button"
-                    onClick={() => removeAt(index)}
-                    className="text-xs font-semibold text-rose-600 hover:underline"
-                  >
-                    Eliminar
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field
-                  label="Nombre"
-                  value={method.name}
-                  onChange={(v) => updateAt(index, { name: v })}
-                  error={fieldError(`paymentMethods.${index}.name`)}
-                />
-                <Field
-                  label="Descripción"
-                  value={method.description}
-                  onChange={(v) => updateAt(index, { description: v })}
-                  error={fieldError(`paymentMethods.${index}.description`)}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <Toggle label="Activo" checked={method.active} onChange={(v) => updateAt(index, { active: v })} />
-                <Toggle label="Disponible en WhatsApp" checked={method.enabledInWhatsapp} onChange={(v) => updateAt(index, { enabledInWhatsapp: v })} />
-                <Toggle label="Disponible en Full" checked={method.enabledInFull} onChange={(v) => updateAt(index, { enabledInFull: v })} />
-                <Toggle label="Requiere referencia en Full" checked={method.requireReferenceInFull} onChange={(v) => updateAt(index, { requireReferenceInFull: v })} />
-                <Toggle label="Requiere comprobante en Full" checked={method.requireProofInFull} onChange={(v) => updateAt(index, { requireProofInFull: v })} />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field
-                  label="Orden visual"
-                  type="number"
-                  value={String(method.sortOrder)}
-                  onChange={(v) => {
-                    const n = Number.parseInt(v, 10);
-                    updateAt(index, { sortOrder: Number.isFinite(n) ? n : method.sortOrder });
-                  }}
-                />
-              </div>
-
-              <Field
-                label="Instrucciones"
-                value={method.instructions}
-                onChange={(v) => updateAt(index, { instructions: v })}
-                error={fieldError(`paymentMethods.${index}.instructions`)}
-              />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field
-                  label="Etiqueta del destinatario"
-                  value={method.recipientLabel}
-                  onChange={(v) => updateAt(index, { recipientLabel: v })}
-                />
-                <Field
-                  label="Dato del destinatario"
-                  value={method.recipientValue}
-                  onChange={(v) => updateAt(index, { recipientValue: v })}
-                  error={fieldError(`paymentMethods.${index}.recipientValue`)}
-                />
-              </div>
-
-              <Field
-                label="Monedas aceptadas (separadas por coma)"
-                value={method.acceptedCurrencies.join(', ')}
-                onChange={(v) =>
-                  updateAt(index, {
-                    acceptedCurrencies: v
-                      .split(',')
-                      .map((c) => c.trim().toUpperCase())
-                      .filter(Boolean)
-                      .slice(0, 10),
-                  })
-                }
-                error={fieldError(`paymentMethods.${index}.acceptedCurrencies`)}
-              />
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Alcance de entrega Full
-                </label>
-                <select
-                  className="w-full min-h-[48px] px-3 border border-gray-200 rounded-lg text-sm bg-white"
-                  value={method.fullDeliveryScope}
-                  onChange={(e) =>
-                    updateAt(index, {
-                      fullDeliveryScope: e.target.value as PaymentMethodConfig['fullDeliveryScope'],
-                    })
-                  }
+              <div className="flex items-start justify-between gap-2 px-4 py-3">
+                <button
+                  type="button"
+                  id={`${baseId}-${method.id}-trigger`}
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  onClick={() => setOpenId(open ? null : method.id)}
+                  className="flex-1 min-w-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy rounded-lg"
                 >
-                  <option value="ANY">Cualquier modalidad</option>
-                  <option value="STORE_PICKUP_ONLY">Solo retiro en tienda</option>
-                </select>
-                {method.fullDeliveryScope === 'STORE_PICKUP_ONLY' && (
-                  <p className="mt-1 text-[11px] text-amber-700">
-                    En modo Full este método solo aparecerá para retiro en tienda.
-                  </p>
-                )}
+                  <p className="text-sm font-semibold text-navy">{method.name}</p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    <StatusBadge
+                      status={method.active ? 'active' : 'inactive'}
+                      label={method.active ? 'Activo' : 'Inactivo'}
+                    />
+                    {method.enabledInWhatsapp && (
+                      <StatusBadge status="neutral" label="WhatsApp" />
+                    )}
+                    {method.enabledInFull && (
+                      <StatusBadge status="neutral" label="Full" />
+                    )}
+                    {canDiscount && <StatusBadge status="ok" label="Divisa" />}
+                    {canDetermineConfig && method.kind !== 'CASHEA' && (
+                      <StatusBadge
+                        status={configured ? 'ok' : 'warn'}
+                        label={configured ? 'Configurado' : 'Incompleto'}
+                      />
+                    )}
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpenId(open ? null : method.id)}
+                  className="shrink-0 min-h-[44px] px-3 rounded-lg border border-slate-200 text-xs font-semibold text-navy hover:bg-slate-50"
+                >
+                  {open ? 'Cerrar' : 'Configurar'}
+                </button>
               </div>
 
-              {builtin && (
-                <p className="text-[11px] text-slate-400">
-                  Método built-in: el ID y el tipo no se pueden editar
-                  {method.kind === 'PAGO_MOVIL' ||
-                  method.kind === 'BANK_TRANSFER' ||
-                  method.kind === 'BINANCE' ||
-                  method.kind === 'CASHEA'
-                    ? ' ni eliminar.'
-                    : '.'}
-                </p>
-              )}
+              <div
+                id={panelId}
+                role="region"
+                aria-labelledby={`${baseId}-${method.id}-trigger`}
+                hidden={!open}
+                className={open ? 'border-t border-slate-100 px-4 py-4 space-y-5' : undefined}
+              >
+                {open && (
+                  <>
+                    {method.kind === 'CASHEA' && (
+                      <HelpCallout variant="info">
+                        Cashea no recibe descuento por pago en divisas. Sus credenciales y
+                        activación automática se administran en el servidor.
+                      </HelpCallout>
+                    )}
+
+                    {usesAccountSection(method.kind) && (
+                      <HelpCallout>
+                        Los datos de la cuenta receptora se configuran en la sección Cuentas para
+                        recibir pagos, arriba.
+                      </HelpCallout>
+                    )}
+
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Disponibilidad
+                      </h4>
+                      <Toggle
+                        label="Activo"
+                        help="Apaga completamente este método."
+                        checked={method.active}
+                        onChange={(v) => updateAt(index, { active: v })}
+                      />
+                      <Toggle
+                        label="Disponible en WhatsApp"
+                        help="El cliente lo selecciona en la web y el pedido se coordina por WhatsApp."
+                        checked={method.enabledInWhatsapp}
+                        onChange={(v) => updateAt(index, { enabledInWhatsapp: v })}
+                      />
+                      <Toggle
+                        label="Disponible en checkout Full"
+                        help="El cliente completa el pago/comprobante dentro del checkout completo."
+                        checked={method.enabledInFull}
+                        onChange={(v) => updateAt(index, { enabledInFull: v })}
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                        Datos mostrados al cliente
+                      </h4>
+                      <Field
+                        label="Nombre"
+                        value={method.name}
+                        onChange={(v) => updateAt(index, { name: v })}
+                        error={fieldError(`paymentMethods.${index}.name`)}
+                      />
+                      <Field
+                        label="Descripción"
+                        value={method.description}
+                        onChange={(v) => updateAt(index, { description: v })}
+                        error={fieldError(`paymentMethods.${index}.description`)}
+                      />
+                      <TextareaField
+                        label="Instrucciones"
+                        value={method.instructions}
+                        onChange={(v) => updateAt(index, { instructions: v })}
+                        error={fieldError(`paymentMethods.${index}.instructions`)}
+                        rows={4}
+                      />
+                      {showRecipientFields(method.kind) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <Field
+                            label="Etiqueta del destinatario"
+                            value={method.recipientLabel}
+                            onChange={(v) => updateAt(index, { recipientLabel: v })}
+                          />
+                          <Field
+                            label="Dato del destinatario"
+                            value={method.recipientValue}
+                            onChange={(v) => updateAt(index, { recipientValue: v })}
+                            error={fieldError(`paymentMethods.${index}.recipientValue`)}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {method.enabledInFull && (
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Validación en checkout Full
+                        </h4>
+                        <Toggle
+                          label="Requiere referencia"
+                          checked={method.requireReferenceInFull}
+                          onChange={(v) => updateAt(index, { requireReferenceInFull: v })}
+                        />
+                        <Toggle
+                          label="Requiere comprobante"
+                          checked={method.requireProofInFull}
+                          onChange={(v) => updateAt(index, { requireProofInFull: v })}
+                        />
+                      </div>
+                    )}
+
+                    {(showAcceptedCurrencies(method.kind) ||
+                      method.fullDeliveryScope === 'STORE_PICKUP_ONLY') && (
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                          Monedas y entrega
+                        </h4>
+                        {showAcceptedCurrencies(method.kind) && (
+                          <Field
+                            label="Monedas aceptadas (separadas por coma)"
+                            value={method.acceptedCurrencies.join(', ')}
+                            onChange={(v) =>
+                              updateAt(index, {
+                                acceptedCurrencies: v
+                                  .split(',')
+                                  .map((c) => c.trim().toUpperCase())
+                                  .filter(Boolean)
+                                  .slice(0, 10),
+                              })
+                            }
+                            error={fieldError(`paymentMethods.${index}.acceptedCurrencies`)}
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    <CollapsibleSection title="Opciones avanzadas" defaultOpen={false}>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">ID</label>
+                          <input
+                            type="text"
+                            readOnly
+                            value={method.id}
+                            className="w-full min-h-[48px] px-3 border border-gray-200 rounded-lg text-sm bg-gray-100 text-slate-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Tipo interno
+                          </label>
+                          <input
+                            type="text"
+                            readOnly
+                            value={method.kind}
+                            className="w-full min-h-[48px] px-3 border border-gray-200 rounded-lg text-sm bg-gray-100 text-slate-500"
+                          />
+                        </div>
+                        <Field
+                          label="Orden visual"
+                          type="number"
+                          value={String(method.sortOrder)}
+                          onChange={(v) => {
+                            const n = Number.parseInt(v, 10);
+                            updateAt(index, {
+                              sortOrder: Number.isFinite(n) ? n : method.sortOrder,
+                            });
+                          }}
+                        />
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Alcance de entrega
+                          </label>
+                          <select
+                            className="w-full min-h-[48px] px-3 border border-gray-200 rounded-lg text-sm bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-navy"
+                            value={method.fullDeliveryScope}
+                            onChange={(e) =>
+                              updateAt(index, {
+                                fullDeliveryScope: e.target
+                                  .value as PaymentMethodConfig['fullDeliveryScope'],
+                              })
+                            }
+                          >
+                            <option value="ANY">Cualquier modalidad</option>
+                            <option value="STORE_PICKUP_ONLY">Solo retiro en tienda</option>
+                          </select>
+                          {method.fullDeliveryScope === 'STORE_PICKUP_ONLY' && (
+                            <p className="mt-1 text-[11px] text-amber-700">
+                              En checkout completo este método solo aparecerá para retiro en tienda.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </CollapsibleSection>
+
+                    {isDeletablePaymentMethod(method) && (
+                      <button
+                        type="button"
+                        onClick={() => removeAt(index)}
+                        className="text-xs font-semibold text-rose-600 hover:underline min-h-[44px]"
+                      >
+                        Eliminar método personalizado
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           );
         })}

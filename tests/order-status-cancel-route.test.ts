@@ -29,8 +29,9 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 
+const sendOrderCancelledEmailMock = vi.fn();
 vi.mock('@/lib/resend', () => ({
-  sendOrderCancelledEmail: vi.fn(),
+  sendOrderCancelledEmail: sendOrderCancelledEmailMock,
   sendShippingEmail: vi.fn(),
   sendOrderDeliveredEmail: vi.fn(),
 }));
@@ -124,6 +125,18 @@ function orderRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function mockSuccessfulCancelTransition(current: ReturnType<typeof orderRow>) {
+  const cancelled = { ...current, status: 'Cancelado', stockDeducted: false };
+  txFindUniqueMock
+    .mockResolvedValueOnce(current)
+    .mockResolvedValueOnce(cancelled);
+  // 1) claim stockDeducted  2) status transition
+  txUpdateManyMock
+    .mockResolvedValueOnce({ count: 1 })
+    .mockResolvedValueOnce({ count: 1 });
+  return cancelled;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   rejectInvalidMutationOriginMock.mockReturnValue(null);
@@ -131,7 +144,6 @@ beforeEach(() => {
   transactionMock.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(makeTx()));
   txCouponRedemptionFindUniqueMock.mockResolvedValue(null);
   txProductUpdateManyMock.mockResolvedValue({ count: 1 });
-  txUpdateManyMock.mockResolvedValue({ count: 1 });
 });
 
 describe('PUT /api/orders/[id]/status Cancelado', () => {
@@ -145,8 +157,7 @@ describe('PUT /api/orders/[id]/status Cancelado', () => {
       channel: 'web',
     });
     const current = orderRow({ status: 'Pendiente', stockDeducted: true });
-    txFindUniqueMock.mockResolvedValue(current);
-    txUpdateMock.mockResolvedValue({ ...current, status: 'Cancelado' });
+    mockSuccessfulCancelTransition(current);
 
     const res = await PUT(buildRequest({ status: 'Cancelado' }), {
       params: Promise.resolve({ id: 'order-1' }),
@@ -157,14 +168,20 @@ describe('PUT /api/orders/[id]/status Cancelado', () => {
       where: { id: 'order-1', status: 'Pendiente', stockDeducted: true },
       data: { stockDeducted: false },
     });
+    expect(txUpdateManyMock).toHaveBeenCalledWith({
+      where: { id: 'order-1', status: 'Pendiente' },
+      data: { status: 'Cancelado' },
+    });
     expect(txProductUpdateManyMock).toHaveBeenCalled();
+    expect(txUpdateMock).not.toHaveBeenCalled();
     expect(logInfoMock).toHaveBeenCalledWith(
       'order_cancelled_stock_reverted',
       expect.objectContaining({ orderId: 'order-1' }),
     );
+    expect(sendOrderCancelledEmailMock).toHaveBeenCalledTimes(1);
   });
 
-  it('ya Cancelado: no restaura (idempotente)', async () => {
+  it('ya Cancelado: no restaura, no email, no log de transición (idempotente)', async () => {
     findUniqueMock.mockResolvedValue({
       status: 'Cancelado',
       shippedAt: null,
@@ -183,6 +200,15 @@ describe('PUT /api/orders/[id]/status Cancelado', () => {
     expect(txUpdateManyMock).not.toHaveBeenCalled();
     expect(txProductUpdateManyMock).not.toHaveBeenCalled();
     expect(txUpdateMock).not.toHaveBeenCalled();
+    expect(sendOrderCancelledEmailMock).not.toHaveBeenCalled();
+    expect(logInfoMock).not.toHaveBeenCalledWith(
+      'order_cancelled_stock_reverted',
+      expect.anything(),
+    );
+    expect(logInfoMock).not.toHaveBeenCalledWith(
+      'order_cancelled_no_stock_restore',
+      expect.anything(),
+    );
   });
 
   it('WhatsApp stockDeducted=false: cancela sin reponer', async () => {
@@ -195,8 +221,11 @@ describe('PUT /api/orders/[id]/status Cancelado', () => {
       channel: 'whatsapp',
     });
     const current = orderRow({ status: 'Pendiente', stockDeducted: false, channel: 'whatsapp' });
-    txFindUniqueMock.mockResolvedValue(current);
-    txUpdateMock.mockResolvedValue({ ...current, status: 'Cancelado' });
+    // sin claim de stock → solo transition updateMany
+    txFindUniqueMock
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce({ ...current, status: 'Cancelado' });
+    txUpdateManyMock.mockResolvedValueOnce({ count: 1 });
 
     const res = await PUT(buildRequest({ status: 'Cancelado' }), {
       params: Promise.resolve({ id: 'order-1' }),
@@ -208,6 +237,7 @@ describe('PUT /api/orders/[id]/status Cancelado', () => {
       'order_cancelled_no_stock_restore',
       expect.objectContaining({ orderId: 'order-1' }),
     );
+    expect(sendOrderCancelledEmailMock).toHaveBeenCalledTimes(1);
   });
 
   it('Enviado: no restaura', async () => {
@@ -220,8 +250,11 @@ describe('PUT /api/orders/[id]/status Cancelado', () => {
       channel: 'web',
     });
     const current = orderRow({ status: 'Enviado', stockDeducted: true });
-    txFindUniqueMock.mockResolvedValue(current);
-    txUpdateMock.mockResolvedValue({ ...current, status: 'Cancelado' });
+    txFindUniqueMock
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce({ ...current, status: 'Cancelado' });
+    // sin claim (estado no restaurable) → solo transition
+    txUpdateManyMock.mockResolvedValueOnce({ count: 1 });
 
     await PUT(buildRequest({ status: 'Cancelado' }), {
       params: Promise.resolve({ id: 'order-1' }),
@@ -250,5 +283,82 @@ describe('PUT /api/orders/[id]/status Cancelado', () => {
     });
 
     expect(res.status).toBe(404);
+  });
+
+  it('dos cancelaciones concurrentes: stock, transición y email una sola vez', async () => {
+    findUniqueMock.mockResolvedValue({
+      status: 'Pendiente',
+      shippedAt: null,
+      trackingNumber: null,
+      deliveredAt: null,
+      stockDeducted: true,
+      channel: 'web',
+    });
+
+    const current = orderRow({ status: 'Pendiente', stockDeducted: true });
+    const cancelled = { ...current, status: 'Cancelado', stockDeducted: false };
+
+    // Primera petición: gana claim + transición
+    txFindUniqueMock
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce(cancelled);
+    txUpdateManyMock
+      .mockResolvedValueOnce({ count: 1 }) // stock claim
+      .mockResolvedValueOnce({ count: 1 }); // status transition
+
+    const res1 = await PUT(buildRequest({ status: 'Cancelado' }), {
+      params: Promise.resolve({ id: 'order-1' }),
+    });
+    expect(res1.status).toBe(200);
+
+    // Segunda petición: claim pierde, transición pierde → idempotente
+    txFindUniqueMock
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce(cancelled); // re-read tras transition.count=0
+    txUpdateManyMock
+      .mockResolvedValueOnce({ count: 0 }) // stock claim lost
+      .mockResolvedValueOnce({ count: 0 }); // status transition lost
+
+    const res2 = await PUT(buildRequest({ status: 'Cancelado' }), {
+      params: Promise.resolve({ id: 'order-1' }),
+    });
+    expect(res2.status).toBe(200);
+
+    expect(txProductUpdateManyMock).toHaveBeenCalledTimes(1);
+    expect(sendOrderCancelledEmailMock).toHaveBeenCalledTimes(1);
+    expect(logInfoMock).toHaveBeenCalledTimes(1);
+    expect(logInfoMock).toHaveBeenCalledWith(
+      'order_cancelled_stock_reverted',
+      expect.objectContaining({ orderId: 'order-1' }),
+    );
+  });
+
+  it('transición perdida con orden ya Cancelado: no email ni log', async () => {
+    findUniqueMock.mockResolvedValue({
+      status: 'Pendiente',
+      shippedAt: null,
+      trackingNumber: null,
+      deliveredAt: null,
+      stockDeducted: true,
+      channel: 'web',
+    });
+    const current = orderRow({ status: 'Pendiente', stockDeducted: true });
+    const cancelled = { ...current, status: 'Cancelado', stockDeducted: false };
+
+    txFindUniqueMock
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce(cancelled);
+    txUpdateManyMock
+      .mockResolvedValueOnce({ count: 0 }) // claim perdido
+      .mockResolvedValueOnce({ count: 0 }); // transición perdida
+
+    const res = await PUT(buildRequest({ status: 'Cancelado' }), {
+      params: Promise.resolve({ id: 'order-1' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(sendOrderCancelledEmailMock).not.toHaveBeenCalled();
+    expect(logInfoMock).not.toHaveBeenCalled();
+    expect(txProductUpdateManyMock).not.toHaveBeenCalled();
   });
 });

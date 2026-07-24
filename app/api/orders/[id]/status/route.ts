@@ -156,21 +156,66 @@ export async function PUT(
           stockDeducted: orderWithItems.stockDeducted,
         });
 
-        const result = await tx.order.update({
-          where: { id: orderId },
+        // Transición condicional: solo una petición concurrente gana el cambio
+        // de estado. Evita emails/logs duplicados aunque el claim de stock ya
+        // sea atómico.
+        const transition = await tx.order.updateMany({
+          where: {
+            id: orderId,
+            status: orderWithItems.status,
+          },
           data: {
-            status,
+            status: 'Cancelado',
             ...trackingData,
           },
+        });
+
+        if (transition.count === 1) {
+          const result = await tx.order.findUnique({
+            where: { id: orderId },
+            include: {
+              items: true,
+              customer: { select: { email: true, name: true } },
+            },
+          });
+          if (!result) {
+            const err = new Error('ORDER_NOT_FOUND');
+            err.name = 'OrderNotFoundError';
+            throw err;
+          }
+          return {
+            order: result,
+            stockRestored: effects.stockRestored,
+            didTransition: true,
+          };
+        }
+
+        // count === 0: otra petición ya cambió el estado.
+        const raced = await tx.order.findUnique({
+          where: { id: orderId },
           include: {
             items: true,
             customer: { select: { email: true, name: true } },
           },
         });
+        if (!raced) {
+          const err = new Error('ORDER_NOT_FOUND');
+          err.name = 'OrderNotFoundError';
+          throw err;
+        }
+        if (raced.status === 'Cancelado') {
+          return {
+            order: raced,
+            stockRestored: false,
+            didTransition: false,
+          };
+        }
+        // Estado inesperado tras perder la carrera: devolver snapshot actual
+        // sin afirmar transición ni efectos adicionales.
         return {
-          order: result,
-          stockRestored: effects.stockRestored,
-          didTransition: true,
+          order: raced,
+          stockRestored: false,
+          didTransition: false,
         };
       });
       updated = txResult.order;

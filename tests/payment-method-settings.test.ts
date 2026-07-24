@@ -5,6 +5,7 @@ import {
   DEFAULT_PAYMENT_METHODS,
   mergePaymentMethodsWithDefaults,
   paymentMethodsArraySchema,
+  isMethodConfigured,
 } from '@/lib/payment-methods';
 
 describe('payment-method-settings', () => {
@@ -55,5 +56,60 @@ describe('payment-method-settings', () => {
         : m,
     );
     expect(paymentMethodsArraySchema.safeParse(list).success).toBe(false);
+  });
+
+  it('Pago Móvil Configurado solo con bank+phone+idNumber', () => {
+    const method = DEFAULT_PAYMENT_METHODS.find((m) => m.kind === 'PAGO_MOVIL')!;
+    const empty = {
+      pagoMovil: { bank: 'B', phone: '', idNumber: '' },
+      transferencia: DEFAULT_SETTINGS.transferencia,
+      binancePayId: '',
+    };
+    expect(isMethodConfigured(method, empty)).toBe(false);
+    expect(
+      isMethodConfigured(method, {
+        ...empty,
+        pagoMovil: { bank: 'B', phone: '1', idNumber: 'V' },
+      }),
+    ).toBe(true);
+  });
+
+  it('Transferencia requiere los cuatro campos', () => {
+    const method = DEFAULT_PAYMENT_METHODS.find((m) => m.kind === 'BANK_TRANSFER')!;
+    const incomplete = {
+      pagoMovil: DEFAULT_SETTINGS.pagoMovil,
+      transferencia: {
+        bank: 'B',
+        accountNumber: '1',
+        accountHolder: 'H',
+        rif: '',
+      },
+      binancePayId: '',
+    };
+    expect(isMethodConfigured(method, incomplete)).toBe(false);
+    expect(
+      isMethodConfigured(method, {
+        ...incomplete,
+        transferencia: { ...incomplete.transferencia, rif: 'J-1' },
+      }),
+    ).toBe(true);
+  });
+
+  it('Binance requiere Pay ID; QR opcional', () => {
+    const method = DEFAULT_PAYMENT_METHODS.find((m) => m.kind === 'BINANCE')!;
+    expect(
+      isMethodConfigured(method, {
+        pagoMovil: DEFAULT_SETTINGS.pagoMovil,
+        transferencia: DEFAULT_SETTINGS.transferencia,
+        binancePayId: '',
+      }),
+    ).toBe(false);
+    expect(
+      isMethodConfigured(method, {
+        pagoMovil: DEFAULT_SETTINGS.pagoMovil,
+        transferencia: DEFAULT_SETTINGS.transferencia,
+        binancePayId: '123',
+      }),
+    ).toBe(true);
   });
 });
