@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Script from 'next/script';
 import { usePathname } from 'next/navigation';
 import { Cookie } from 'lucide-react';
 import { setAnalyticsConsent, type AnalyticsConsent } from '@/lib/ga4';
+import { getMetaPixelId, setMetaPixelConsent, trackMetaPageView } from '@/lib/meta-pixel';
 
 declare global {
   interface Window {
@@ -20,6 +21,7 @@ type Consent = 'accepted' | 'essential';
 const STORAGE_KEY = 'mt_cookie_consent';
 const COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 const GA_ID = process.env.NEXT_PUBLIC_GA4_ID;
+const META_PIXEL_ID = getMetaPixelId();
 
 function persistConsent(value: Consent) {
   try {
@@ -40,12 +42,14 @@ interface Props {
  *   se actualiza dinámicamente cuando el usuario elige.
  * PRD-287: Banner SSR — acepta initialConsent del servidor vía cookie HTTP para
  *   eliminar el flash post-hidratación en visitas recurrentes.
+ * Meta Pixel: base code en <head> (layout); aquí solo grant/revoke + PageView.
  */
 export default function CookieConsent({ initialConsent = null }: Props) {
   const pathname = usePathname();
   const [consent, setConsent] = useState<Consent | null>(initialConsent);
   // Si el servidor ya conoce el consentimiento, ready=true desde el inicio.
   const [ready, setReady] = useState(initialConsent !== null);
+  const metaInitialPageViewDone = useRef(false);
 
   useEffect(() => {
     if (initialConsent !== null) return;
@@ -77,6 +81,27 @@ export default function CookieConsent({ initialConsent = null }: Props) {
       ad_personalization: granted,
     });
   }, [consent]);
+
+  // Meta Pixel Consent Mode + PageView (init está en <head> del layout).
+  useEffect(() => {
+    if (!META_PIXEL_ID || consent === null) return;
+
+    if (consent !== 'accepted') {
+      setMetaPixelConsent(false);
+      metaInitialPageViewDone.current = false;
+      return;
+    }
+
+    setMetaPixelConsent(true);
+
+    if (!metaInitialPageViewDone.current) {
+      metaInitialPageViewDone.current = true;
+      trackMetaPageView();
+      return;
+    }
+
+    trackMetaPageView();
+  }, [pathname, consent]);
 
   const choose = useCallback((value: Consent) => {
     setConsent(value);
@@ -130,7 +155,7 @@ export default function CookieConsent({ initialConsent = null }: Props) {
               </span>
               <p className="text-[12.5px] leading-relaxed text-slate-600">
                 Usamos cookies para que el carrito y tu sesión funcionen, y — solo
-                si aceptas — para medir visitas y mejorar la tienda.{' '}
+                si aceptas — para medir visitas, publicidad (Meta) y mejorar la tienda.{' '}
                 <Link
                   href="/privacy-policy#cookies"
                   className="font-semibold text-navy underline decoration-brand-yellow decoration-2 underline-offset-2"

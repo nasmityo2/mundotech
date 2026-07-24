@@ -15,6 +15,7 @@ import {
   onAnalyticsConsentChange,
   trackPurchaseOnce,
 } from '@/lib/ga4';
+import { trackMetaPurchaseOnce } from '@/lib/meta-pixel';
 import { orderShippingChargeLabelFromSnapshot } from '@/lib/shipping-charge';
 
 interface Props {
@@ -39,19 +40,32 @@ export default function SuccessClientPage({ order }: Props) {
   // FASE 4.4: purchase con dedupe por transaction_id (recargas de la página no
   // duplican). Los montos congelados en Bs se convierten a USD con la tasa del pedido.
   // Si el consentimiento aún no está granted, no marca visto y reintenta al aceptar.
+  // Meta Pixel Purchase: misma conversión para campañas de FB/IG Ads.
   useEffect(() => {
     const rate = order.exchangeRateUsdBs;
     const toUsd = (amount: number) =>
       rate && rate > 0 ? Math.round((amount / rate) * 100) / 100 : amount;
+    const valueUsd = toUsd(order.total);
+    const items = order.items.map((i) => ({
+      item_id: i.productId,
+      item_name: i.productName,
+      price: toUsd(i.price),
+      quantity: i.quantity,
+    }));
     trackPurchaseOnce({
       transactionId: String(order.orderNumber),
-      value: toUsd(order.total),
+      value: valueUsd,
       coupon: order.couponCode ?? null,
-      items: order.items.map((i) => ({
-        item_id: i.productId,
-        item_name: i.productName,
-        price: toUsd(i.price),
+      items,
+    });
+    trackMetaPurchaseOnce({
+      transactionId: String(order.orderNumber),
+      value: valueUsd,
+      contentIds: items.map((i) => i.item_id),
+      contents: items.map((i) => ({
+        id: i.item_id,
         quantity: i.quantity,
+        item_price: i.price,
       })),
     });
   }, [order.orderNumber, order.exchangeRateUsdBs, order.total, order.couponCode, order.items, analyticsConsent]);

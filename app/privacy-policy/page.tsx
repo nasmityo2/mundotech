@@ -58,8 +58,10 @@ export default async function PrivacyPolicyPage() {
       <h2 id="cookies">3. Cookies y tecnologías similares</h2>
       <p>
         Podemos usar cookies esenciales para el funcionamiento del sitio (por ejemplo, sesión o
-        carrito de compras) y, cuando corresponda, cookies analíticas con tu consentimiento previo si
-        la ley lo exige. Puedes gestionar cookies desde la configuración de tu navegador.
+        carrito de compras) y, cuando corresponda y con tu consentimiento previo, cookies analíticas
+        y de publicidad (incluido el Meta Pixel de Facebook/Instagram) para medir visitas, el
+        rendimiento de anuncios y mejorar la tienda. Puedes gestionar cookies desde el aviso del
+        sitio o la configuración de tu navegador.
       </p>
 
       <h2>4. Finalidades</h2>

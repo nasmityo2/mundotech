@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Jost } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import AuthProvider from "./components/AuthProvider";
 import { CartProvider } from "../context/CartContext";
@@ -22,6 +23,7 @@ import { googleMapsBusinessUrl } from "@/lib/google-maps";
 import { getExchangeRateWithTimestamp } from "@/lib/load-exchange-rate-ssr";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mundotechve.com";
+const META_PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim() || "";
 
 // Jost es la tipografía de marca declarada en el sistema de diseño; antes se
 // referenciaba en CSS sin cargarse nunca (el sitio caía a Arial en silencio).
@@ -194,6 +196,28 @@ export default async function RootLayout({
   return (
     <html lang="es" data-scroll-behavior="smooth" className={jost.variable}>
       <body className="bg-white text-navy antialiased nums" suppressHydrationWarning>
+        {/*
+          Meta Pixel base code (recomendación oficial: en <head> de todas las páginas).
+          strategy=beforeInteractive → Next lo inyecta en el <head> del HTML inicial
+          del layout raíz. Consent Mode: revoke por defecto; CookieConsent hace
+          grant + PageView solo tras "Aceptar".
+        */}
+        {META_PIXEL_ID ? (
+          <Script id="meta-pixel" strategy="beforeInteractive">
+            {`
+              !function(f,b,e,v,n,t,s)
+              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+              n.queue=[];t=b.createElement(e);t.async=!0;
+              t.src=v;s=b.getElementsByTagName(e)[0];
+              s.parentNode.insertBefore(t,s)}(window, document,'script',
+              'https://connect.facebook.net/en_US/fbevents.js');
+              fbq('consent', 'revoke');
+              fbq('init', '${META_PIXEL_ID}');
+            `}
+          </Script>
+        ) : null}
         <ChunkErrorReloader />
         {/* PRD-289: descriptor OpenSearch (React hoistea este link al <head>). */}
         <link

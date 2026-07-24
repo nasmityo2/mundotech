@@ -17,6 +17,8 @@
  * Orígenes dinámicos construidos con URL parser HTTPS:
  *   - R2 público (R2_PUBLIC_BASE_URL → img/media/connect-src)
  *   - Google Analytics / GTM (siempre)
+ *   - Meta (Facebook) Pixel (siempre — orígenes allowlist; el script solo
+ *     se carga si NEXT_PUBLIC_META_PIXEL_ID está configurado y hay consentimiento)
  *   - Cloudflare Insights (siempre)
  *   - Google Maps (frame-src)
  *   - Sentry DSN origin (solo si NEXT_PUBLIC_SENTRY_DSN está configurado)
@@ -39,6 +41,17 @@ const GOOGLE_ANALYTICS_SOURCES = {
     'https://*.googletagmanager.com',
   ],
   script: ['https://www.googletagmanager.com', 'https://static.cloudflareinsights.com'],
+} as const;
+
+/** Orígenes del Meta (Facebook) Pixel. */
+const META_PIXEL_SOURCES = {
+  img: ['https://www.facebook.com', 'https://*.facebook.com'],
+  connect: [
+    'https://www.facebook.com',
+    'https://*.facebook.com',
+    'https://connect.facebook.net',
+  ],
+  script: ['https://connect.facebook.net'],
 } as const;
 
 /** Orígenes de mapas (frame-src). */
@@ -139,6 +152,7 @@ function buildConnectSrc(): string {
   const r2 = r2Hostname();
   if (r2) parts.push(`https://${r2}`);
   parts.push(...GOOGLE_ANALYTICS_SOURCES.connect);
+  parts.push(...META_PIXEL_SOURCES.connect);
   parts.push(CF_INSIGHTS_CONNECT);
   const sentry = sentryHostname();
   if (sentry) parts.push(`https://${sentry}`);
@@ -156,6 +170,7 @@ function buildImgSrc(): string {
   const privateOrigin = privateR2Origin();
   if (privateOrigin) parts.push(privateOrigin);
   parts.push(...GOOGLE_ANALYTICS_SOURCES.img);
+  parts.push(...META_PIXEL_SOURCES.img);
   return parts.join(' ');
 }
 
@@ -177,6 +192,7 @@ function buildStrictScriptSrc(nonce: string): string {
     `'nonce-${nonce}'`,
     "'strict-dynamic'",
     ...GOOGLE_ANALYTICS_SOURCES.script,
+    ...META_PIXEL_SOURCES.script,
   ];
   if (isCasheaClientFlagOn()) parts.push(...CASHEA_CSP_DOMAINS.script);
   // strict-dynamic anula 'self' en navegadores modernos, pero lo incluimos
@@ -189,7 +205,11 @@ function buildStrictScriptSrc(nonce: string): string {
  * Necesita unsafe-inline porque el HTML estático no tiene nonce.
  */
 function buildCachedScriptSrc(): string {
-  const parts: string[] = ["'unsafe-inline'", ...GOOGLE_ANALYTICS_SOURCES.script];
+  const parts: string[] = [
+    "'unsafe-inline'",
+    ...GOOGLE_ANALYTICS_SOURCES.script,
+    ...META_PIXEL_SOURCES.script,
+  ];
   if (isCasheaClientFlagOn()) parts.push(...CASHEA_CSP_DOMAINS.script);
   return `'self' ${parts.join(' ')}`;
 }
