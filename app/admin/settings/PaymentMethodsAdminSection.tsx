@@ -95,9 +95,10 @@ export function PaymentMethodsAdminSection({ methods, onChange, fieldError }: Pr
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h3 className="text-sm font-bold text-navy">Descuentos por método de pago</h3>
+          <h3 className="text-sm font-bold text-navy">Métodos de pago</h3>
           <p className="text-xs text-slate-500 mt-1">
-            Configura qué métodos en divisas ofrecen descuento. El porcentaje se congela al crear cada pedido.
+            Activa, ordena e instruye cada método. El descuento por divisas es global (sección anterior);
+            aquí solo se indica cuáles son elegibles.
           </p>
         </div>
         <button
@@ -128,6 +129,11 @@ export function PaymentMethodsAdminSection({ methods, onChange, fieldError }: Pr
                   <p className="text-[11px] text-slate-400 font-mono">
                     {method.id} · {method.kind}
                   </p>
+                  {canDiscount && (
+                    <span className="mt-1 inline-block rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold px-2 py-0.5 border border-emerald-200">
+                      elegible para descuento
+                    </span>
+                  )}
                 </div>
                 {isDeletablePaymentMethod(method) && (
                   <button
@@ -159,22 +165,11 @@ export function PaymentMethodsAdminSection({ methods, onChange, fieldError }: Pr
                 <Toggle label="Activo" checked={method.active} onChange={(v) => updateAt(index, { active: v })} />
                 <Toggle label="Disponible en WhatsApp" checked={method.enabledInWhatsapp} onChange={(v) => updateAt(index, { enabledInWhatsapp: v })} />
                 <Toggle label="Disponible en Full" checked={method.enabledInFull} onChange={(v) => updateAt(index, { enabledInFull: v })} />
-                <Toggle label="Aplicar descuento" checked={method.discountEnabled} disabled={!canDiscount} onChange={(v) => updateAt(index, { discountEnabled: v })} />
                 <Toggle label="Requiere referencia en Full" checked={method.requireReferenceInFull} onChange={(v) => updateAt(index, { requireReferenceInFull: v })} />
                 <Toggle label="Requiere comprobante en Full" checked={method.requireProofInFull} onChange={(v) => updateAt(index, { requireProofInFull: v })} />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field
-                  label="Porcentaje de descuento"
-                  type="number"
-                  value={String(method.discountPercent)}
-                  onChange={(v) => {
-                    const n = Number(v);
-                    updateAt(index, { discountPercent: Number.isFinite(n) ? n : 0 });
-                  }}
-                  error={fieldError(`paymentMethods.${index}.discountPercent`)}
-                />
                 <Field
                   label="Orden visual"
                   type="number"

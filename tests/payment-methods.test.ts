@@ -10,6 +10,7 @@ import {
   PaymentMethodValidationError,
   buildCheckoutPaymentMethods,
   createCustomForeignCurrencyMethod,
+  applyGlobalDivisaDiscount,
   type PaymentMethodConfig,
 } from '@/lib/payment-methods';
 
@@ -249,5 +250,38 @@ describe('payment-methods', () => {
     expect(dto.find((m) => m.id === 'zelle')).toBeUndefined(); // inactive default
     expect(dto.find((m) => m.id === 'binancepay')).toBeTruthy();
     expect(dto.find((m) => m.id === 'cashea')).toBeTruthy();
+  });
+
+  it('applyGlobalDivisaDiscount ON 10% → elegibles 10%; Cashea/PagoMóvil 0%', () => {
+    const result = applyGlobalDivisaDiscount(DEFAULT_PAYMENT_METHODS, {
+      enabled: true,
+      percent: 10,
+    });
+    for (const id of ['binancepay', 'zelle', 'efectivo-divisas'] as const) {
+      const m = result.find((x) => x.id === id)!;
+      expect(m.discountEnabled).toBe(true);
+      expect(m.discountPercent).toBe(10);
+    }
+    for (const id of ['cashea', 'pagomovil', 'transferencia'] as const) {
+      const m = result.find((x) => x.id === id)!;
+      expect(m.discountEnabled).toBe(false);
+      expect(m.discountPercent).toBe(0);
+    }
+  });
+
+  it('applyGlobalDivisaDiscount OFF → todos 0%', () => {
+    const withPerMethod = DEFAULT_PAYMENT_METHODS.map((m) =>
+      m.discountEligible
+        ? { ...m, discountEnabled: true, discountPercent: 15 }
+        : m,
+    );
+    const result = applyGlobalDivisaDiscount(withPerMethod, {
+      enabled: false,
+      percent: 10,
+    });
+    for (const m of result) {
+      expect(m.discountEnabled).toBe(false);
+      expect(m.discountPercent).toBe(0);
+    }
   });
 });

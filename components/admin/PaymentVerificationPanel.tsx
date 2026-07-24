@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import {
-  ShieldCheck, ShieldAlert, CreditCard, ImageOff, XCircle, Loader2, ExternalLink, X,
+  ShieldCheck, ShieldAlert, CreditCard, ImageOff, XCircle, Loader2, ExternalLink, X, RotateCcw,
 } from 'lucide-react';
 import { toast } from '@/components/ui/use-toast';
 import type { Order } from '@/lib/definitions';
@@ -182,6 +182,12 @@ export function PaymentVerificationPanel({
         </div>
       </dl>
 
+      {order.paymentDiscount != null && order.paymentDiscount > 0 && (
+        <div className="mt-3">
+          <RevertDivisaDiscountButton order={order} onReverted={onUpdate} />
+        </div>
+      )}
+
       {/* SESIÓN 04: comprobante servido desde endpoint autenticado o legacy */}
       <div className="mt-3">
         {proofState.type === 'loading' && (
@@ -302,6 +308,61 @@ export function PaymentVerificationPanel({
         />
       )}
     </div>
+  );
+}
+
+function RevertDivisaDiscountButton({
+  order,
+  onReverted,
+}: {
+  order: Order;
+  onReverted: (o: Order) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+
+  const handleRevert = () => {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        '¿Revertir el descuento por pago en divisas? El total del pedido volverá al precio full (subtotal − cupón). Esta acción no se puede deshacer desde aquí.',
+      )
+    ) {
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/api/orders/${order.id}/revert-divisa-discount`, {
+          method: 'POST',
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data?.message ?? 'No se pudo revertir el descuento.');
+        }
+        onReverted(data as Order);
+        toast({
+          title: 'Descuento revertido',
+          description: 'El pedido quedó a precio full (sin descuento por divisas).',
+        });
+      } catch (err) {
+        toast({
+          variant: 'destructive',
+          title: 'No se pudo revertir',
+          description: err instanceof Error ? err.message : 'Error inesperado.',
+        });
+      }
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={handleRevert}
+      className="touch-manipulation select-none w-full min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs sm:text-sm font-semibold text-amber-900 hover:bg-amber-100 active:bg-amber-200 disabled:opacity-60"
+    >
+      {pending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+      Revertir descuento por divisas
+    </button>
   );
 }
 

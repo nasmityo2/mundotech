@@ -18,6 +18,9 @@ export type PaymentSettingsSlice = {
   binancePayId?: string;
   /** Puede ser el array crudo o ya normalizado. */
   paymentMethods?: unknown;
+  /** Descuento global único por pago en divisas (sobrescribe % por método). */
+  divisaDiscountEnabled?: boolean;
+  divisaDiscountPercent?: number;
 };
 
 function isPagoMovilConfigured(settings: PaymentSettingsSlice): boolean {
@@ -527,7 +530,13 @@ export function buildCheckoutPaymentMethods(
   settings: PaymentSettingsSlice,
   channel: CheckoutChannel,
 ): CheckoutPaymentMethodDto[] {
-  const methods = mergePaymentMethodsWithDefaults(settings.paymentMethods);
+  const methods = applyGlobalDivisaDiscount(
+    mergePaymentMethodsWithDefaults(settings.paymentMethods),
+    {
+      enabled: Boolean(settings.divisaDiscountEnabled),
+      percent: settings.divisaDiscountPercent ?? 0,
+    },
+  );
 
   return methods
     .filter((m) => m.active)
@@ -566,6 +575,35 @@ export function findPaymentMethodById(
   id: string,
 ): PaymentMethodConfig | undefined {
   return methods.find((m) => m.id === id);
+}
+
+export type GlobalDivisaDiscountConfig = {
+  enabled: boolean;
+  percent: number;
+};
+
+/**
+ * Sobrescribe discountEnabled/discountPercent con el % global.
+ * Fuente única: no muta los objetos de entrada.
+ */
+export function applyGlobalDivisaDiscount(
+  methods: PaymentMethodConfig[],
+  { enabled, percent }: GlobalDivisaDiscountConfig,
+): PaymentMethodConfig[] {
+  return methods.map((method) => {
+    if (method.discountEligible === true) {
+      return {
+        ...method,
+        discountEnabled: enabled && percent > 0,
+        discountPercent: enabled ? percent : 0,
+      };
+    }
+    return {
+      ...method,
+      discountEnabled: false,
+      discountPercent: 0,
+    };
+  });
 }
 
 /** Porcentaje efectivo de descuento (0 si no aplica). */
@@ -742,13 +780,27 @@ export async function loadPaymentMethodsFromTransaction(
     where: { key: 'store_settings' },
   });
   if (!record) {
-    return DEFAULT_PAYMENT_METHODS.map(normalizePaymentMethod);
+    return applyGlobalDivisaDiscount(
+      DEFAULT_PAYMENT_METHODS.map(normalizePaymentMethod),
+      { enabled: false, percent: 0 },
+    );
   }
   try {
-    const raw = JSON.parse(record.value) as { paymentMethods?: unknown };
-    return mergePaymentMethodsWithDefaults(raw.paymentMethods);
+    const raw = JSON.parse(record.value) as {
+      paymentMethods?: unknown;
+      divisaDiscountEnabled?: boolean;
+      divisaDiscountPercent?: number;
+    };
+    return applyGlobalDivisaDiscount(mergePaymentMethodsWithDefaults(raw.paymentMethods), {
+      enabled: Boolean(raw.divisaDiscountEnabled),
+      percent:
+        typeof raw.divisaDiscountPercent === 'number' ? raw.divisaDiscountPercent : 0,
+    });
   } catch {
-    return DEFAULT_PAYMENT_METHODS.map(normalizePaymentMethod);
+    return applyGlobalDivisaDiscount(
+      DEFAULT_PAYMENT_METHODS.map(normalizePaymentMethod),
+      { enabled: false, percent: 0 },
+    );
   }
 }
 

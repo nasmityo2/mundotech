@@ -93,6 +93,14 @@ const financialSettingsSchema = z.object({
   binancePayId: z.string().optional().default(''),
   binanceQrUrl: z.string().trim().optional().default(''),
   paymentMethods: z.array(z.unknown()).max(20),
+  divisaDiscountEnabled: z.boolean().optional().default(false),
+  divisaDiscountPercent: z
+    .number()
+    .min(0)
+    .max(100)
+    .refine((n) => Math.round(n * 100) / 100 === n, 'Máx 2 decimales')
+    .optional()
+    .default(0),
 }).strict();
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -203,6 +211,8 @@ export async function updateFinancialSettings(input: unknown): Promise<Financial
     binancePayId: parsed.data.binancePayId,
     binanceQrUrl: parsed.data.binanceQrUrl,
     paymentMethods: methodsResult.methods,
+    divisaDiscountEnabled: parsed.data.divisaDiscountEnabled,
+    divisaDiscountPercent: parsed.data.divisaDiscountPercent,
   };
 
   const fullParsed = storeSettingsSchema.safeParse(merged);

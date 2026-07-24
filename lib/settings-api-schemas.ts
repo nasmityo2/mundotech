@@ -65,6 +65,14 @@ export const financialSettingsApiSchema = z.object({
       'El QR Binance debe estar alojado en el R2 público configurado.',
     ),
   paymentMethods: paymentMethodsApiField,
+  divisaDiscountEnabled: z.boolean().optional().default(false),
+  divisaDiscountPercent: z
+    .number()
+    .min(0)
+    .max(100)
+    .refine((n) => Math.round(n * 100) / 100 === n, 'Máx 2 decimales')
+    .optional()
+    .default(0),
 }).strict();
 
 export type GeneralSettingsDto = z.infer<typeof generalSettingsApiSchema>;
@@ -95,5 +103,7 @@ export function pickFinancialSettingsDto(settings: Partial<GeneralSettingsDto> &
     binancePayId: settings.binancePayId ?? '',
     binanceQrUrl: settings.binanceQrUrl ?? '',
     paymentMethods: settings.paymentMethods,
+    divisaDiscountEnabled: settings.divisaDiscountEnabled ?? false,
+    divisaDiscountPercent: settings.divisaDiscountPercent ?? 0,
   });
 }

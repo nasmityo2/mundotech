@@ -9,6 +9,8 @@ import RecentlyViewed from '@/components/RecentlyViewed';
 import { d, dn } from '@/lib/decimal';
 import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
 import { firstCardImage } from '@/lib/product-media';
+import { readSettings } from '@/lib/data-store';
+import DivisaDiscountBanner from '@/app/components/DivisaDiscountBanner';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +39,10 @@ async function getRecommendedProducts() {
 }
 
 export default async function CartPage() {
-  const recommended = await getRecommendedProducts();
+  const [recommended, settings] = await Promise.all([
+    getRecommendedProducts(),
+    readSettings(),
+  ]);
 
   return (
     <div className="pb-10 sm:pb-12 w-full max-w-full">
@@ -58,6 +63,13 @@ export default async function CartPage() {
         <ChevronRight size={12} />
         <span className="text-navy font-medium">Carrito</span>
       </nav>
+
+      <div className="mb-4 sm:mb-5">
+        <DivisaDiscountBanner
+          enabled={Boolean(settings.divisaDiscountEnabled)}
+          percent={settings.divisaDiscountPercent ?? 0}
+        />
+      </div>
 
       <CartClient />
 

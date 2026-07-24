@@ -64,6 +64,15 @@ export const storeSettingsSchema = z.object({
   paymentMethods: paymentMethodsFieldSchema.optional().default(() =>
     DEFAULT_PAYMENT_METHODS.map((m) => ({ ...m })),
   ),
+  /** Descuento global único por pago en divisas (flag OFF por defecto). */
+  divisaDiscountEnabled: z.boolean().optional().default(false),
+  divisaDiscountPercent: z
+    .number()
+    .min(0)
+    .max(100)
+    .refine((n) => Math.round(n * 100) / 100 === n, 'Máx 2 decimales')
+    .optional()
+    .default(0),
   // Etiqueta de envío: tamaño de la HOJA de impresión en mm. Default térmica 4×6".
   labelWidthMm:  z.coerce.number().min(40).max(300).default(100),
   labelHeightMm: z.coerce.number().min(40).max(400).default(150),
@@ -143,6 +152,8 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   binancePayId: '',
   binanceQrUrl: '',
   paymentMethods: DEFAULT_PAYMENT_METHODS.map((m) => ({ ...m })),
+  divisaDiscountEnabled: false,
+  divisaDiscountPercent: 0,
   labelWidthMm: 100,
   labelHeightMm: 150,
   whatsappOrderPhone: '',

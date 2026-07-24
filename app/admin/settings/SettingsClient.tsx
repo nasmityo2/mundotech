@@ -115,6 +115,8 @@ export default function SettingsClient({
       binancePayId: '',
       binanceQrUrl: '',
       paymentMethods: DEFAULT_PAYMENT_METHODS.map((m) => ({ ...m })),
+      divisaDiscountEnabled: false,
+      divisaDiscountPercent: 0,
     },
   );
   const [savingGeneral, setSavingGeneral] = useState(false);
@@ -226,11 +228,26 @@ export default function SettingsClient({
 
   const handleSaveFinancial = async () => {
     if (!canFinancialSettings) return;
+
+    const divisaEnabled = Boolean(financialSettings.divisaDiscountEnabled);
+    const divisaPercent = Number(financialSettings.divisaDiscountPercent ?? 0);
+    if (divisaEnabled && !(divisaPercent > 0)) {
+      setSaveError('No puedes activar el descuento por divisas con porcentaje 0. Indica un % mayor a 0 o desactiva el interruptor.');
+      setFieldErrors({
+        divisaDiscountPercent: 'Con el descuento activo, el porcentaje debe ser mayor a 0.',
+      });
+      return;
+    }
+
     setSavingFinancial(true);
     setSaveError(null);
     setFieldErrors({});
     try {
-      const result = await updateFinancialSettings(financialSettings);
+      const result = await updateFinancialSettings({
+        ...financialSettings,
+        divisaDiscountEnabled: divisaEnabled,
+        divisaDiscountPercent: divisaPercent,
+      });
       if (result.success) {
         setSavedFinancial(true);
         setTimeout(() => setSavedFinancial(false), 3000);
@@ -677,7 +694,53 @@ export default function SettingsClient({
           />
         </SectionCard>
 
-        <SectionCard title="Descuentos por método de pago" icon={DollarSign} accent>
+        <SectionCard title="Descuento por pago en divisas" icon={DollarSign} accent>
+          <div className="p-3 bg-amber-50 rounded-lg text-xs text-amber-800 font-medium">
+            Porcentaje global único que aplica a todos los métodos elegibles (Binance, Zelle, efectivo en divisas y personalizados).
+            No aplica a Cashea, Pago Móvil ni Transferencia. El descuento es solo sobre productos (no flete).
+          </div>
+          <label className="flex items-center gap-3 text-sm text-navy font-medium">
+            <input
+              type="checkbox"
+              checked={Boolean(financialSettings.divisaDiscountEnabled)}
+              onChange={(e) =>
+                setFinancialSettings((prev) => ({
+                  ...prev,
+                  divisaDiscountEnabled: e.target.checked,
+                }))
+              }
+              className="rounded border-slate-300 size-4"
+            />
+            Activar descuento por pago en divisas
+          </label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">% de descuento</label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={0.01}
+              disabled={!financialSettings.divisaDiscountEnabled}
+              value={String(financialSettings.divisaDiscountPercent ?? 0)}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                setFinancialSettings((prev) => ({
+                  ...prev,
+                  divisaDiscountPercent: Number.isFinite(n) ? n : 0,
+                }));
+              }}
+              aria-invalid={fieldError('divisaDiscountPercent') ? true : undefined}
+              className={`w-full px-3 py-2 min-h-[48px] rounded-lg border text-base sm:text-sm focus:outline-none focus:ring-1 focus:ring-navy/30 focus:border-navy disabled:opacity-50 disabled:cursor-not-allowed ${
+                fieldError('divisaDiscountPercent') ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-gray-50'
+              }`}
+            />
+            {fieldError('divisaDiscountPercent') && (
+              <p className="text-xs text-red-600 mt-1 font-medium">{fieldError('divisaDiscountPercent')}</p>
+            )}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Métodos de pago" icon={Wallet}>
           <PaymentMethodsAdminSection
             methods={financialSettings.paymentMethods ?? DEFAULT_PAYMENT_METHODS.map((m) => ({ ...m }))}
             onChange={(paymentMethods) =>

@@ -10,6 +10,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import CheckoutFlow from '@/app/components/checkout/CheckoutFlow';
 import WhatsAppCheckout from '@/app/components/checkout/WhatsAppCheckout';
 import { buildCheckoutPaymentMethods } from '@/lib/payment-methods';
+import DivisaDiscountBanner from '@/app/components/DivisaDiscountBanner';
 
 // Fuerza renderizado dinámico (por-request) para que readSettings()
 // lea la configuración actual de la BD en cada visita.
@@ -58,6 +59,14 @@ export default async function CheckoutPage() {
   const transferenciaConfigured = isTransferenciaConfigured(settings);
   const checkoutChannel = isWhatsAppCheckout ? 'whatsapp' : 'web';
   const checkoutPaymentMethods = buildCheckoutPaymentMethods(settings, checkoutChannel);
+  const divisaBanner = (
+    <div className="mb-4 sm:mb-5">
+      <DivisaDiscountBanner
+        enabled={Boolean(settings.divisaDiscountEnabled)}
+        percent={settings.divisaDiscountPercent ?? 0}
+      />
+    </div>
+  );
 
   if (isWhatsAppCheckout) {
     const whatsappOrderPhone = normalizeWhatsAppPhone(settings.whatsappOrderPhone);
@@ -65,19 +74,22 @@ export default async function CheckoutPage() {
       return <WhatsAppChannelUnavailable supportPhone={settings.phone} />;
     }
     return (
-      <WhatsAppCheckout
-        pagoMovil={settings.pagoMovil}
-        transferencia={settings.transferencia}
-        supportPhone={settings.phone}
-        binancePayId={settings.binancePayId}
-        binanceQrUrl={settings.binanceQrUrl}
-        pagoMovilConfigured={pagoMovilConfigured}
-        transferenciaConfigured={transferenciaConfigured}
-        shippingEstimates={shippingEstimates}
-        whatsappOrderPhone={whatsappOrderPhone}
-        storeName={settings.storeName}
-        checkoutPaymentMethods={checkoutPaymentMethods}
-      />
+      <>
+        {divisaBanner}
+        <WhatsAppCheckout
+          pagoMovil={settings.pagoMovil}
+          transferencia={settings.transferencia}
+          supportPhone={settings.phone}
+          binancePayId={settings.binancePayId}
+          binanceQrUrl={settings.binanceQrUrl}
+          pagoMovilConfigured={pagoMovilConfigured}
+          transferenciaConfigured={transferenciaConfigured}
+          shippingEstimates={shippingEstimates}
+          whatsappOrderPhone={whatsappOrderPhone}
+          storeName={settings.storeName}
+          checkoutPaymentMethods={checkoutPaymentMethods}
+        />
+      </>
     );
   }
 
@@ -90,19 +102,22 @@ export default async function CheckoutPage() {
   }
 
   return (
-    <CheckoutFlow
-      pagoMovil={settings.pagoMovil}
-      transferencia={settings.transferencia}
-      supportPhone={settings.phone}
-      binancePayId={settings.binancePayId}
-      binanceQrUrl={settings.binanceQrUrl}
-      pagoMovilConfigured={pagoMovilConfigured}
-      transferenciaConfigured={transferenciaConfigured}
-      shippingEstimates={shippingEstimates}
-      whatsappMode={false}
-      whatsappOrderPhone={settings.whatsappOrderPhone}
-      storeName={settings.storeName}
-      checkoutPaymentMethods={checkoutPaymentMethods}
-    />
+    <>
+      {divisaBanner}
+      <CheckoutFlow
+        pagoMovil={settings.pagoMovil}
+        transferencia={settings.transferencia}
+        supportPhone={settings.phone}
+        binancePayId={settings.binancePayId}
+        binanceQrUrl={settings.binanceQrUrl}
+        pagoMovilConfigured={pagoMovilConfigured}
+        transferenciaConfigured={transferenciaConfigured}
+        shippingEstimates={shippingEstimates}
+        whatsappMode={false}
+        whatsappOrderPhone={settings.whatsappOrderPhone}
+        storeName={settings.storeName}
+        checkoutPaymentMethods={checkoutPaymentMethods}
+      />
+    </>
   );
 }
