@@ -10,9 +10,11 @@ type Props = {
   customerName: string;
   orderDisplayId: string;
   orderUuid?: string;
+  /** Fase 7: variante Cashea — el pago verificado es la INICIAL, no el total del pedido. */
+  casheaInitial?: boolean;
 };
 
-export function PaymentValidatedEmail({ customerName, orderDisplayId, orderUuid }: Props) {
+export function PaymentValidatedEmail({ customerName, orderDisplayId, orderUuid, casheaInitial }: Props) {
   const base = emailSiteBaseUrl().replace(/\/$/, '');
   // El enlace usa el número de pedido legible (#0042). `orderUuid` se mantiene
   // solo como respaldo para enlaces de versiones anteriores del correo.
@@ -28,23 +30,38 @@ export function PaymentValidatedEmail({ customerName, orderDisplayId, orderUuid 
 
   return (
     <MundoTechShell
-      preview="Pago confirmado — estamos preparando tu pedido."
-      title="Pago confirmado — MundoTech"
+      preview={
+        casheaInitial
+          ? 'Inicial de Cashea confirmada — estamos preparando tu pedido.'
+          : 'Pago confirmado — estamos preparando tu pedido.'
+      }
+      title={casheaInitial ? 'Inicial confirmada — MundoTech' : 'Pago confirmado — MundoTech'}
       heroCustomerName={customerName}
     >
       <Section style={{ padding: '12px 24px 8px', fontFamily: fontSans }}>
-        <StatusPill tone="success">Pago confirmado</StatusPill>
+        <StatusPill tone="success">{casheaInitial ? 'Inicial confirmada' : 'Pago confirmado'}</StatusPill>
         <Text style={{ margin: '0 0 8px', fontSize: 16, lineHeight: 1.6, color: MT.textPrimary }}>
           Hola <strong>{customerName}</strong>,
         </Text>
         <Text style={{ margin: '0 0 14px', fontSize: 18, lineHeight: 1.45, color: MT.success, fontWeight: 700 }}>
-          ¡Listo! Tu pago está verificado
+          {casheaInitial ? '¡Listo! Tu inicial con Cashea está verificada' : '¡Listo! Tu pago está verificado'}
         </Text>
         <Text style={{ margin: 0, fontSize: 15, lineHeight: 1.7, color: MT.textMuted }}>
-          Confirmamos el pago del pedido{' '}
-          <strong style={{ color: MT.textPrimary }}>#{orderDisplayId}</strong>. Ya
-          lo estamos preparando en la tienda; en el próximo correo te llega la
-          guía de envío o el aviso de retiro.
+          {casheaInitial ? (
+            <>
+              Confirmamos el pago de la inicial con Cashea del pedido{' '}
+              <strong style={{ color: MT.textPrimary }}>#{orderDisplayId}</strong>. Ya
+              lo estamos preparando en la tienda; en el próximo correo te llega la
+              guía de envío o el aviso de retiro.
+            </>
+          ) : (
+            <>
+              Confirmamos el pago del pedido{' '}
+              <strong style={{ color: MT.textPrimary }}>#{orderDisplayId}</strong>. Ya
+              lo estamos preparando en la tienda; en el próximo correo te llega la
+              guía de envío o el aviso de retiro.
+            </>
+          )}
         </Text>
       </Section>
 

@@ -127,6 +127,7 @@ describe('GET /api/cron/auto-cancel-orders', () => {
         status: { in: ['Pendiente', 'Pendiente verificación Binance'] },
         createdAt: { lte: new Date(CUTOFF_ISO) },
         paidAt: null,
+        casheaStatus: null,
       },
       orderBy: { createdAt: 'asc' },
       take: 100,
@@ -134,6 +135,16 @@ describe('GET /api/cron/auto-cancel-orders', () => {
     });
     expect(body.cancelled).toBe(0);
     expect(body.hasMore).toBe(false);
+  });
+
+  it('Fase 8: excluye pedidos Cashea (casheaStatus no nulo) de la query de candidatos', async () => {
+    findManyMock.mockResolvedValue([]);
+
+    await GET(authorizedRequest());
+
+    expect(findManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ casheaStatus: null }) }),
+    );
   });
 
   it('cancela pedido exactamente en el límite de 48 horas', async () => {

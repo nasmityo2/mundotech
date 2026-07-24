@@ -42,6 +42,12 @@ export async function GET(request: Request): Promise<NextResponse> {
         status: { in: [...AUTO_CANCELLABLE_STATUSES] },
         createdAt: { lte: cutoff },
         paidAt: null,
+        // Fase 8 (docs/MundoTech-Cashea-Orquestacion-Cursor.md): los pedidos
+        // Cashea (casheaStatus no nulo) NUNCA se autocancelan a las 48h por
+        // este cron — su ciclo de vida (EXPIRED, recuperación manual,
+        // cancelación explícita) lo gestiona exclusivamente
+        // /api/cron/cashea-reconcile.
+        casheaStatus: null,
       },
       orderBy: { createdAt: 'asc' },
       take: BATCH_LIMIT,

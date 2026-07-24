@@ -66,6 +66,92 @@ export const VALID_ORDER_STATUSES: OrderStatus[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────
+// CASHEA (Fase 7 — ver docs/ENTREGABLE-CLIENTE/integracion-cashea.md
+// Sección 6: máquina de estados `casheaStatus`)
+// ─────────────────────────────────────────────────────────────
+
+/** Espejo del enum Prisma `CasheaStatus` (prisma/schema.prisma, Fase 2). */
+export type CasheaOrderStatus =
+  | 'CREATED'
+  | 'REDIRECTED'
+  | 'RETURNED'
+  | 'VERIFYING'
+  | 'CONFIRMED'
+  | 'CANCEL_PENDING'
+  | 'CANCELLED'
+  | 'FAILED'
+  | 'EXPIRED';
+
+/** Etiquetas admin (panel `/admin/orders/[id]`) para cada estado de la máquina Cashea. */
+export const CASHEA_STATUS_ADMIN_LABELS: Record<CasheaOrderStatus, string> = {
+  CREATED: 'Creado (reserva activa, sin redirigir aún)',
+  REDIRECTED: 'Redirigido a Cashea',
+  RETURNED: 'Retornó de Cashea (sin verificar)',
+  VERIFYING: 'Verificando pago…',
+  CONFIRMED: 'Inicial confirmada',
+  CANCEL_PENDING: 'Cancelación en curso',
+  CANCELLED: 'Cancelado',
+  FAILED: 'Falló la creación/redirección',
+  EXPIRED: 'Reserva vencida (pendiente de recuperación manual)',
+};
+
+/**
+ * Copy orientado al cliente para la página de éxito (Fase 7, punto 1):
+ * NUNCA afirma "pagado" salvo en `CONFIRMED` — la URL de retorno no es
+ * prueba de pago (Sección 7 del documento maestro).
+ */
+export const CASHEA_STATUS_CUSTOMER_COPY: Record<
+  CasheaOrderStatus,
+  { title: string; description: string; tone: 'success' | 'pending' | 'error' }
+> = {
+  CREATED: {
+    title: 'Pedido creado',
+    description: 'Tu pedido quedó registrado. Completa el pago con Cashea para continuar.',
+    tone: 'pending',
+  },
+  REDIRECTED: {
+    title: 'Redirigido a Cashea',
+    description: 'Te enviamos a Cashea para completar el pago de tu inicial.',
+    tone: 'pending',
+  },
+  RETURNED: {
+    title: 'Verificando tu pago',
+    description: 'Estamos verificando tu pago inicial con Cashea. Te avisaremos por correo en cuanto se confirme.',
+    tone: 'pending',
+  },
+  VERIFYING: {
+    title: 'Verificando tu pago',
+    description: 'Estamos verificando tu pago inicial con Cashea. Te avisaremos por correo en cuanto se confirme.',
+    tone: 'pending',
+  },
+  CONFIRMED: {
+    title: 'Pago inicial confirmado',
+    description: 'Confirmamos tu pago inicial con Cashea. Tu pedido ya está en preparación.',
+    tone: 'success',
+  },
+  CANCEL_PENDING: {
+    title: 'Cancelando pedido',
+    description: 'Estamos procesando la cancelación de este pedido.',
+    tone: 'pending',
+  },
+  CANCELLED: {
+    title: 'Pedido cancelado',
+    description: 'Este pedido fue cancelado. Si fue un error, contáctanos por WhatsApp.',
+    tone: 'error',
+  },
+  FAILED: {
+    title: 'No pudimos iniciar el pago',
+    description: 'Hubo un problema al iniciar tu pago con Cashea. Escríbenos por WhatsApp para completar tu compra.',
+    tone: 'error',
+  },
+  EXPIRED: {
+    title: 'Tiempo de pago vencido',
+    description: 'El tiempo para completar tu pago con Cashea venció. Escríbenos por WhatsApp para continuar con tu pedido.',
+    tone: 'pending',
+  },
+};
+
+// ─────────────────────────────────────────────────────────────
 // RESEÑAS
 // ─────────────────────────────────────────────────────────────
 export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -240,6 +326,23 @@ export interface Order {
    * no cambian si un producto cambia su beneficio después.
    */
   freeShipping:    boolean;
+  /**
+   * Campos Cashea (Fase 2/7). `null` en pedidos no-Cashea o en pedidos Cashea
+   * manuales (coordinados por WhatsApp, sin flujo automático — hoy siempre,
+   * mientras CASHEA_ENABLED=false). Solo el flujo automático de
+   * `lib/cashea-session.ts` / `lib/cashea-reconcile.ts` los completa.
+   */
+  casheaStatus?:                 CasheaOrderStatus | null;
+  casheaOrderId?:                string | null;
+  casheaInitialAmount?:          number | null;
+  casheaCurrency?:               string | null;
+  casheaReservationExpiresAt?:   string | null;
+  casheaRedirectedAt?:           string | null;
+  casheaReturnedAt?:             string | null;
+  casheaConfirmedAt?:            string | null;
+  casheaCancelledAt?:            string | null;
+  casheaLastResponseCode?:       string | null;
+  casheaAttemptCount?:           number | null;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -395,6 +498,17 @@ export function prismaOrderToOrder(o: {
   channel?: string | null;
   stockDeducted?: boolean | null;
   freeShipping?: boolean | null;
+  casheaStatus?: string | null;
+  casheaOrderId?: string | null;
+  casheaInitialAmount?: DecimalLike | null;
+  casheaCurrency?: string | null;
+  casheaReservationExpiresAt?: Date | null;
+  casheaRedirectedAt?: Date | null;
+  casheaReturnedAt?: Date | null;
+  casheaConfirmedAt?: Date | null;
+  casheaCancelledAt?: Date | null;
+  casheaLastResponseCode?: string | null;
+  casheaAttemptCount?: number | null;
   items: { id: string; productId: string; productName: string; quantity: number; price: DecimalLike; imageUrl?: string | null; freeShipping?: boolean | null }[];
 }): Order {
   return {
@@ -436,6 +550,17 @@ export function prismaOrderToOrder(o: {
     channel:         (o.channel as OrderChannel | null) ?? 'web',
     stockDeducted:   o.stockDeducted ?? true,
     freeShipping:    o.freeShipping === true,
+    casheaStatus:               (o.casheaStatus as CasheaOrderStatus | null) ?? null,
+    casheaOrderId:              o.casheaOrderId ?? null,
+    casheaInitialAmount:        dn(o.casheaInitialAmount),
+    casheaCurrency:             o.casheaCurrency ?? null,
+    casheaReservationExpiresAt: o.casheaReservationExpiresAt ? o.casheaReservationExpiresAt.toISOString() : null,
+    casheaRedirectedAt:         o.casheaRedirectedAt ? o.casheaRedirectedAt.toISOString() : null,
+    casheaReturnedAt:           o.casheaReturnedAt ? o.casheaReturnedAt.toISOString() : null,
+    casheaConfirmedAt:          o.casheaConfirmedAt ? o.casheaConfirmedAt.toISOString() : null,
+    casheaCancelledAt:          o.casheaCancelledAt ? o.casheaCancelledAt.toISOString() : null,
+    casheaLastResponseCode:     o.casheaLastResponseCode ?? null,
+    casheaAttemptCount:         o.casheaAttemptCount ?? null,
     shippingDetails: {
       address:  o.shippingAddress,
       city:     o.shippingCity,

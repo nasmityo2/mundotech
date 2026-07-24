@@ -184,6 +184,7 @@ describe('processCasheaConfirmation — confirmación exitosa', () => {
       'Cliente',
       '0042',
       'order-1',
+      { casheaInitial: true },
     );
   });
 

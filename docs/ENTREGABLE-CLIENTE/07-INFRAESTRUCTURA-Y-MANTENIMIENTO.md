@@ -72,6 +72,8 @@ Todas las tareas se ejecutan en el servidor sin intervención manual:
 | Purga vistas | Dom 01:30 | Limpia estadísticas > 90 días |
 | Purga datos temporales | 03:00 diario | Tokens, uploads eliminados |
 | Limpieza comprobantes | Cada hora (:15) | Uploads de pago expirados |
+| Cancelación automática pedidos | Cada 15 min (:07,:22,:37,:52) | Pendientes > 48 h (excluye Cashea) |
+| Reconciliación Cashea | ⏸ Pendiente de alta en crontab | Reintenta verificación + marca EXPIRED (Fase 8; ruta lista, flag off = no-op) |
 | Backup PostgreSQL | 03:00 diario | Dump a almacenamiento en nube |
 
 ### Logs de crons (referencia técnica)

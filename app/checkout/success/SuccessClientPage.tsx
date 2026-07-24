@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { Check, ArrowRight, Package, Mail, Home, MessageCircle, AlertTriangle } from 'lucide-react';
 import { useReducedMotion, reducedTransition } from '@/lib/motion';
 import { MUNDOTECH_SOCIAL } from '@/lib/mundotech-social';
+import { CASHEA_STATUS_CUSTOMER_COPY } from '@/lib/definitions';
 import type { EnrichedOrder } from './page';
 import { DualOrderMoney } from '@/components/order/DualOrderMoney';
 import {
@@ -113,8 +114,14 @@ export default function SuccessClientPage({ order }: Props) {
           </motion.div>
         </motion.div>
 
-        {/* Banner WhatsApp — solo para Cashea */}
-        {order.paymentMethod === 'Cashea' && (
+        {/*
+          Banner Cashea manual (coordinar por WhatsApp) — flujo ACTUAL en
+          producción hoy (CASHEA_ENABLED=false): `casheaStatus` es null porque
+          el pedido no pasó por /api/cashea/session. No tocar mientras el
+          flag esté apagado (Fase 7, "Prohibido... con flag off la UI actual
+          no cambia").
+        */}
+        {order.paymentMethod === 'Cashea' && !order.casheaStatus && (
           <motion.div variants={fadeUp} className="mt-6 space-y-3">
             <motion.a
               variants={fadeUp}
@@ -132,6 +139,18 @@ export default function SuccessClientPage({ order }: Props) {
               Coordinamos tu compra con Cashea por WhatsApp. Pagas la inicial en tu app Cashea
               y preparamos tu envío en cuanto confirmemos el pago.
             </p>
+          </motion.div>
+        )}
+
+        {/*
+          Banner Cashea AUTOMÁTICO (Fase 7, punto 1): solo aparece cuando el
+          pedido tiene `casheaStatus` (viene de /api/cashea/session — flujo
+          con CASHEA_ENABLED=true). Copy exacto por estado — nunca afirma
+          "pagado" salvo CONFIRMED (Sección 7 del documento maestro).
+        */}
+        {order.paymentMethod === 'Cashea' && order.casheaStatus && (
+          <motion.div variants={fadeUp} className="mt-6">
+            <CasheaAutomaticStatusBanner status={order.casheaStatus} />
           </motion.div>
         )}
 
@@ -265,6 +284,26 @@ export default function SuccessClientPage({ order }: Props) {
           </Link>
         </motion.div>
       </motion.div>
+    </div>
+  );
+}
+
+const CASHEA_BANNER_TONE_STYLES: Record<'success' | 'pending' | 'error', string> = {
+  success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  pending: 'border-amber-200 bg-amber-50 text-amber-800',
+  error:   'border-rose-200 bg-rose-50 text-rose-800',
+};
+
+/** Fase 7: copy por `casheaStatus` para el flujo automático — ver CASHEA_STATUS_CUSTOMER_COPY. */
+function CasheaAutomaticStatusBanner({ status }: { status: NonNullable<EnrichedOrder['casheaStatus']> }) {
+  const copy = CASHEA_STATUS_CUSTOMER_COPY[status];
+  return (
+    <div
+      role="status"
+      className={`rounded-2xl border p-4 sm:p-5 text-center ${CASHEA_BANNER_TONE_STYLES[copy.tone]}`}
+    >
+      <p className="text-sm font-bold">{copy.title}</p>
+      <p className="mt-1 text-xs leading-relaxed">{copy.description}</p>
     </div>
   );
 }

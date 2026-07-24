@@ -204,6 +204,7 @@ async function confirmCasheaOrder(
         firstNameFromDisplayName(displayName),
         String(order.orderNumber).padStart(4, '0'),
         order.id,
+        { casheaInitial: true },
       );
     } catch (emailError) {
       logError('cashea_confirmed_email_failed', emailError, {

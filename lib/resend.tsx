@@ -117,6 +117,16 @@ async function sendBrandedEmail(params: {
   }
 }
 
+/** Fase 7: la variante Cashea usa el mismo template con copy propio de "inicial confirmada". */
+export type PaymentValidatedEmailOptions = {
+  /**
+   * true SOLO cuando la transición a CONFIRMED viene de
+   * `processCasheaConfirmation` (lib/cashea-reconcile.ts) — el pago
+   * verificado es la INICIAL de Cashea, no el total del pedido.
+   */
+  casheaInitial?: boolean;
+};
+
 /**
  * Notificación de pago verificado manualmente desde admin. Los errores de Resend no relanzan.
  * `orderId` en este contexto es el número visible del pedido (ej. padded "0123").
@@ -125,7 +135,8 @@ export async function sendPaymentValidatedEmail(
   email: string,
   firstName: string,
   orderId: string,
-  orderUuid?: string
+  orderUuid?: string,
+  options: PaymentValidatedEmailOptions = {},
 ): Promise<void> {
   const resend = getResend();
   if (!resend) {
@@ -141,17 +152,21 @@ export async function sendPaymentValidatedEmail(
 
   const trimmedName = firstName.trim() || 'Cliente';
   const trimmedOrderRef = orderId.trim();
+  const casheaInitial = options.casheaInitial === true;
 
   await sendBrandedEmail({
     resend,
     to: trimmedEmail,
-    subject: 'MundoTech · Pago confirmado — tu pedido va en preparación',
+    subject: casheaInitial
+      ? 'MundoTech · Inicial de Cashea confirmada — tu pedido va en preparación'
+      : 'MundoTech · Pago confirmado — tu pedido va en preparación',
     logScope: 'payment-validated-email',
     element: (
       <PaymentValidatedEmail
         customerName={trimmedName}
         orderDisplayId={trimmedOrderRef}
         orderUuid={orderUuid}
+        casheaInitial={casheaInitial}
       />
     ),
   });

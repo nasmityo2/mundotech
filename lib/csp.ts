@@ -20,6 +20,10 @@
  *   - Cloudflare Insights (siempre)
  *   - Google Maps (frame-src)
  *   - Sentry DSN origin (solo si NEXT_PUBLIC_SENTRY_DSN está configurado)
+ *   - Cashea (script/connect/frame-src) — SOLO si NEXT_PUBLIC_CASHEA_ENABLED='true'
+ *     Y `CASHEA_CSP_DOMAINS` fue completada con dominios reales (Sección 12,
+ *     preguntas 14-15, docs/ENTREGABLE-CLIENTE/integracion-cashea.md). Vacía
+ *     hoy — no relaja la CSP con el flag apagado ni con dominios inventados.
  *
  * @see middleware.ts — aplica estos builders con nonce por request
  */
@@ -42,6 +46,38 @@ const MAP_SOURCES = ['https://iframe.mediadelivery.net', 'https://www.google.com
 
 /** Origen de Cloudflare Insights (connect-src). */
 const CF_INSIGHTS_CONNECT = 'https://static.cloudflareinsights.com';
+
+/**
+ * TODO(Sección 12, preguntas 14-15): dominios EXACTOS de Cashea (sandbox y
+ * producción, script del SDK, API de sus llamadas, y si el checkout abre
+ * iframe o solo hace redirect de documento) sin confirmar por Cashea todavía.
+ * Placeholders comentados a propósito — NO inventar valores. Mientras estos
+ * arrays sigan vacíos, `buildStrictScriptSrc`/`buildCachedScriptSrc`/
+ * `buildConnectSrc`/`buildFrameSrc` no agregan nada de Cashea a la CSP, ni
+ * siquiera con `NEXT_PUBLIC_CASHEA_ENABLED='true'` (fail-closed: nunca
+ * relajar la CSP con dominios no confirmados). Al recibir la respuesta
+ * oficial de Cashea, solo se rellenan estos arrays (Fase 10 — activación).
+ *
+ *   script:  ['https://TODO-sandbox.cashea.app', 'https://TODO.cashea.app']
+ *   connect: ['https://TODO-api-sandbox.cashea.app', 'https://TODO-api.cashea.app']
+ *   frame:   ['https://TODO-checkout.cashea.app'] // solo si el SDK abre iframe
+ */
+const CASHEA_CSP_DOMAINS: { script: readonly string[]; connect: readonly string[]; frame: readonly string[] } = {
+  script: [],
+  connect: [],
+  frame: [],
+};
+
+/**
+ * Espejo server-side del master switch cliente (Sección 5). Lectura directa
+ * de `process.env` (no `lib/cashea-config.ts`, que es exclusivo de servidor
+ * con validación estricta) — este builder es una función pura Edge-compatible
+ * y solo necesita saber si el flag cliente está en 'true', igual que hacen
+ * `ReviewStep.tsx`/`PaymentForm.tsx` con `NEXT_PUBLIC_CASHEA_ENABLED`.
+ */
+function isCasheaClientFlagOn(): boolean {
+  return process.env.NEXT_PUBLIC_CASHEA_ENABLED?.trim().toLowerCase() === 'true';
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -106,6 +142,7 @@ function buildConnectSrc(): string {
   parts.push(CF_INSIGHTS_CONNECT);
   const sentry = sentryHostname();
   if (sentry) parts.push(`https://${sentry}`);
+  if (isCasheaClientFlagOn()) parts.push(...CASHEA_CSP_DOMAINS.connect);
   return parts.join(' ');
 }
 
@@ -141,6 +178,7 @@ function buildStrictScriptSrc(nonce: string): string {
     "'strict-dynamic'",
     ...GOOGLE_ANALYTICS_SOURCES.script,
   ];
+  if (isCasheaClientFlagOn()) parts.push(...CASHEA_CSP_DOMAINS.script);
   // strict-dynamic anula 'self' en navegadores modernos, pero lo incluimos
   // como fallback para navegadores antiguos que no soportan strict-dynamic.
   return `'self' ${parts.join(' ')}`;
@@ -152,7 +190,15 @@ function buildStrictScriptSrc(nonce: string): string {
  */
 function buildCachedScriptSrc(): string {
   const parts: string[] = ["'unsafe-inline'", ...GOOGLE_ANALYTICS_SOURCES.script];
+  if (isCasheaClientFlagOn()) parts.push(...CASHEA_CSP_DOMAINS.script);
   return `'self' ${parts.join(' ')}`;
+}
+
+/** `frame-src` adicional de Cashea (solo si el flag cliente está encendido y hay dominios confirmados). */
+function buildFrameSrc(): string {
+  const parts: string[] = ["'self'", ...MAP_SOURCES];
+  if (isCasheaClientFlagOn()) parts.push(...CASHEA_CSP_DOMAINS.frame);
+  return parts.join(' ');
 }
 
 // ── Builders principales ───────────────────────────────────────────────────
@@ -180,7 +226,7 @@ export function buildStrictCsp(nonce: string): string {
     `media-src ${buildMediaSrc()}`,
     "font-src 'self' data:",
     `connect-src ${buildConnectSrc()}`,
-    `frame-src 'self' ${MAP_SOURCES.join(' ')}`,
+    `frame-src ${buildFrameSrc()}`,
     "object-src 'none'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
@@ -212,7 +258,7 @@ export function buildPublicCachedCsp(): string {
     `media-src ${buildMediaSrc()}`,
     "font-src 'self' data:",
     `connect-src ${buildConnectSrc()}`,
-    `frame-src 'self' ${MAP_SOURCES.join(' ')}`,
+    `frame-src ${buildFrameSrc()}`,
     "object-src 'none'",
     "frame-ancestors 'none'",
     "base-uri 'self'",

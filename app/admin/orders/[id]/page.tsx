@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Order, OrderStatus } from '@/lib/definitions';
+import { CASHEA_STATUS_ADMIN_LABELS, Order, OrderStatus } from '@/lib/definitions';
 import { getOrderDualMoney, hasFrozenBsPricing } from '@/lib/order-pricing';
 import { isStorePickupOrderAddress } from '@/lib/shipping-charge';
 import { DualOrderMoney, OrderFrozenRateBanner } from '@/components/order/DualOrderMoney';
 import { StatusUpdateMenu } from '@/app/components/admin/StatusUpdateMenu';
 import ShipOrderDialog from '@/app/components/admin/ShipOrderDialog';
 import { PaymentVerificationPanel } from '@/components/admin/PaymentVerificationPanel';
+import { CasheaAdminActions } from '@/components/admin/CasheaAdminActions';
 import {
   ArrowLeft, Package, MapPin, Clock, Copy, Check, Hash,
   Truck, ExternalLink, Edit3, FileText, Loader2, Printer, Ticket, Mail,
@@ -473,6 +474,77 @@ export default function AdminOrderDetailPage() {
           </div>
 
           <PaymentVerificationPanel order={order} onUpdate={setOrder} />
+
+          {/* Fase 7: bloque Cashea — solo visible cuando el pedido pasó por
+              /api/cashea/session (casheaStatus no nulo). No expone datos
+              sensibles; casheaOrderId es el idNumber devuelto por Cashea, no
+              una credencial. */}
+          {order.casheaStatus && (
+            <div className="bg-white border border-gray-200 rounded-2xl p-4">
+              <div className="flex items-center justify-between gap-2 mb-2.5">
+                <div className="flex items-center gap-2">
+                  <Hash size={14} className="text-gray-400" />
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Cashea</h3>
+                </div>
+                <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                  {CASHEA_STATUS_ADMIN_LABELS[order.casheaStatus]}
+                </span>
+              </div>
+              <dl className="text-sm space-y-1.5">
+                {order.casheaOrderId && (
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-gray-500">ID orden Cashea</dt>
+                    <dd className="text-right font-mono font-semibold text-navy break-all">{order.casheaOrderId}</dd>
+                  </div>
+                )}
+                {order.casheaInitialAmount != null && (
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-gray-500">Inicial verificada</dt>
+                    <dd className="font-medium text-gray-800">
+                      {order.casheaInitialAmount.toFixed(2)} {order.casheaCurrency ?? ''}
+                    </dd>
+                  </div>
+                )}
+                <div className="flex justify-between gap-2">
+                  <dt className="text-gray-500">Intentos de verificación</dt>
+                  <dd className="font-medium text-gray-800">{order.casheaAttemptCount ?? 0}</dd>
+                </div>
+                {order.casheaLastResponseCode && (
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-gray-500">Última respuesta</dt>
+                    <dd className="font-mono text-gray-800">{order.casheaLastResponseCode}</dd>
+                  </div>
+                )}
+                {order.casheaRedirectedAt && (
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-gray-500">Redirigido</dt>
+                    <dd className="text-gray-800">{formatDateTime(order.casheaRedirectedAt)}</dd>
+                  </div>
+                )}
+                {order.casheaReturnedAt && (
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-gray-500">Retornó</dt>
+                    <dd className="text-gray-800">{formatDateTime(order.casheaReturnedAt)}</dd>
+                  </div>
+                )}
+                {order.casheaConfirmedAt && (
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-gray-500">Confirmado</dt>
+                    <dd className="text-gray-800">{formatDateTime(order.casheaConfirmedAt)}</dd>
+                  </div>
+                )}
+                {order.casheaCancelledAt && (
+                  <div className="flex justify-between gap-2">
+                    <dt className="text-gray-500">Cancelado</dt>
+                    <dd className="text-gray-800">{formatDateTime(order.casheaCancelledAt)}</dd>
+                  </div>
+                )}
+              </dl>
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <CasheaAdminActions order={order} onUpdate={setOrder} />
+              </div>
+            </div>
+          )}
 
           <div className="bg-white border border-gray-200 rounded-2xl p-4">
             <div className="flex items-center gap-2 mb-2.5">

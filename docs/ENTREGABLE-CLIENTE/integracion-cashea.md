@@ -6,7 +6,7 @@
 
 ---
 
-## 0. Estado de implementación (actualizado 2026-07-23)
+## 0. Estado de implementación (actualizado 2026-07-23, Fase 9)
 
 | Fase | Nombre | Estado | Confirmación |
 | --- | --- | --- | --- |
@@ -16,17 +16,17 @@
 | 3 | Núcleo backend `lib/cashea.ts` | ✅ Completada | OK FASE 3 |
 | 4 | Endpoint backend de creación de sesión | ✅ Completada | OK FASE 4 |
 | 5 | Retorno, verificación idempotente y cancelación | ✅ Completada | OK FASE 5 |
-| 6 | Frontend checkout con SDK oficial | ⏸ Pendiente | Esperando **OK FASE 6** |
-| 7 | Página de éxito, correos y panel admin | ⏸ Pendiente | — |
-| 8 | Cron de reconciliación | ⏸ Pendiente | — |
-| 9 | Seguridad/CSP y pruebas E2E | ⏸ Pendiente | — |
+| 6 | Frontend checkout con SDK oficial | ✅ Completada | OK FASE 6 |
+| 7 | Página de éxito, correos y panel admin | ✅ Completada | OK FASE 7 |
+| 8 | Cron de reconciliación | ✅ Completada | OK FASE 8 |
+| 9 | Seguridad/CSP y pruebas E2E | ⏳ Implementada — esperando **OK FASE 9** | — |
 | 10 | Activación en producción (post-credenciales) | ⏸ Bloqueada | Requiere respuestas Sección 12 |
 
 **Flag en producción hoy:** `CASHEA_ENABLED=false` / `NEXT_PUBLIC_CASHEA_ENABLED=false` — el método Cashea sigue en modo manual (WhatsApp). Nada del flujo automático está activo.
 
-**Próximo paso para Cursor:** Fase 6 — frontend checkout con SDK oficial (`CasheaCheckoutButton.tsx`, edits checkout). Detalle en el doc de orquestación.
+**Próximo paso para Cursor:** confirmación literal **OK FASE 9** del operador para cerrar la fase. La Fase 10 (activación) sigue bloqueada por la Sección 12 (respuestas/credenciales de Cashea).
 
-### Entregables ya en el repo (Fases 0–5)
+### Entregables ya en el repo (Fases 0–9)
 
 | Área | Archivos |
 | --- | --- |
@@ -36,20 +36,35 @@
 | Cliente backend (Fase 3) | `lib/cashea.ts`, `lib/cashea.test.ts` |
 | Sesión Cashea (Fase 4) | `app/api/cashea/session/route.ts`, `lib/cashea-session.ts`, `lib/cashea-session.test.ts`, `tests/cashea-session-route.test.ts` |
 | Retorno + reconcile + cancel (Fase 5) | `app/checkout/cashea/return/route.ts`, `lib/cashea-reconcile.ts`, `lib/cashea-reconcile.test.ts`, `app/api/cashea/cancel/route.ts`, `tests/cashea-return-route.test.ts`, `tests/cashea-cancel-route.test.ts` |
+| Frontend SDK (Fase 6) | `app/components/checkout/CasheaCheckoutButton.tsx`, `types/cashea-web-checkout-sdk.d.ts`, edits en `CheckoutFlow.tsx`, `ReviewStep.tsx`, `PaymentForm.tsx`, `tests/cashea-checkout-button.test.tsx`, dependencia `cashea-web-checkout-sdk@1.1.19` (pin exacto en `package.json`) |
+| Success, emails, admin (Fase 7) | `app/checkout/success/SuccessClientPage.tsx`, `lib/definitions.ts`, `lib/definitions.test.ts`, `emails/mundotech/PaymentValidatedEmail.tsx`, `lib/resend.tsx`, `lib/cashea-reconcile.ts`, `app/admin/orders/[id]/page.tsx`, `components/admin/CasheaAdminActions.tsx`, `app/api/orders/[id]/cashea-verify/route.ts`, `tests/cashea-verify-route.test.ts` |
+| Cron de reconciliación (Fase 8) | `app/api/cron/cashea-reconcile/route.ts`, `app/api/cron/auto-cancel-orders/route.ts` (exclusión Cashea), `tests/cashea-reconcile-cron-route.test.ts`, `tests/auto-cancel-orders.test.ts` |
+| Seguridad/CSP y E2E (Fase 9) | `lib/csp.ts` (constante `CASHEA_CSP_DOMAINS` con placeholders vacíos), `lib/csp.test.ts`, `e2e/specs/cashea.spec.ts` |
 
-### Batería verde al cierre de Fase 5
+### Batería verde al cierre de Fase 9
 
 - `npm run typecheck` → OK
 - `npm run lint` → OK (0 errores; warnings preexistentes)
-- `npm test` → OK (21 test files, 205 tests)
-- `npm run build` → OK (incluye `ƒ /api/cashea/session`, `ƒ /api/cashea/cancel`, `ƒ /checkout/cashea/return`)
+- `npm test` → OK (26 test files, 235 tests)
+- `npm run build` → OK (rutas Cashea sin cambios de superficie)
+- `npx playwright test e2e/specs/cashea.spec.ts` → OK sobre BD aislada `mundotech_e2e_test` (nunca contra producción/dev), en dos corridas separadas:
+  - Grupo flag apagado (sin variables `CASHEA_*`): 3/3 passed.
+  - Grupo `@cashea-enabled` (variables sandbox **falsas** exportadas manualmente, nunca credenciales reales): 5/5 passed.
 
-### Notas operativas (no bloquean Fase 6)
+### Notas operativas (no bloquean Fase 9)
 
 1. **Prisma drift preexistente:** `prisma migrate dev` pide reset por drift en FK `PaymentUpload.orderId` (no relacionado con Cashea). La migración Cashea se aplicó con `prisma migrate diff` + `prisma migrate deploy`. Investigar por separado antes de usar `migrate dev` en este VPS.
-2. **TODOs pendientes de Cashea (Sección 12):** `verifyCasheaOrder` lanza `CasheaVerificationNotImplemented`; `DELIVERY_METHOD_MAP` usa placeholders; `CASHEA_CURRENCY` default `USD` sin confirmar.
+2. **TODOs pendientes de Cashea (Sección 12):** `verifyCasheaOrder` lanza `CasheaVerificationNotImplemented`; `DELIVERY_METHOD_MAP` usa placeholders (el README del SDK documenta `IN_STORE`/`DELIVERY`, distinto de los placeholders actuales); `CASHEA_CURRENCY` default `USD` sin confirmar.
 3. **Lock en reconcile (Fase 5):** `processCasheaConfirmation` usa transición optimista con `updateMany` (mismo patrón que `approve-binance/route.ts`), no `SELECT … FOR UPDATE`. La llamada a `verifyCasheaOrder` corre fuera de la transacción de BD; las escrituras (RETURNED o CONFIRMED) van en transacciones atómicas separadas.
-4. **Redirect post-retorno:** el handler redirige a `/checkout/success?orderId=…` (contrato real de `app/checkout/success/page.tsx`). El copy por `casheaStatus` queda para Fase 7.
+4. **Success page (Fase 7):** copy por `casheaStatus` en `SuccessClientPage.tsx` (`CASHEA_STATUS_CUSTOMER_COPY` en `lib/definitions.ts`). Solo se muestra si el pedido tiene `casheaStatus` (flujo automático); con flag off los pedidos Cashea manuales siguen viendo el banner WhatsApp existente.
+5. **Email Cashea (Fase 7):** `sendPaymentValidatedEmail(..., { casheaInitial: true })` desde `confirmCasheaOrder` — variante de subject/copy en `PaymentValidatedEmail.tsx`. Un solo envío por transición a `CONFIRMED` (idempotente desde Fase 5).
+6. **Admin (Fase 7):** bloque Cashea en `/admin/orders/[id]`; acciones "Verificar ahora" (`POST /api/orders/[id]/cashea-verify`) y "Cancelar en Cashea" (`POST /api/cashea/cancel`). Protegidas por permiso `ORDERS`. Ocultas en estados finales (`CONFIRMED`/`CANCELLED`).
+7. **Gap canal WhatsApp (Fase 6):** producción usa `CHECKOUT_MODE=whatsapp` → renderiza `WhatsAppCheckout.tsx`, no `CheckoutFlow`/`ReviewStep`. El SDK automático quedó cableado solo en el canal `full`. `WhatsAppCheckout.tsx` sigue en modo manual hasta integrarlo (decisión de producto/arquitectura pendiente; ver Sección 1 “ambos modos”).
+8. **Seguridad Fase 6/7:** verificado que el bundle cliente (`.next/static`) no contiene `casheaPrivateFetch`, `CASHEA_PRIVATE_API_KEY` ni `privateApiKey`.
+9. **Cron reconcile (Fase 8):** `app/api/cron/cashea-reconcile` reintenta `processCasheaConfirmation` (reutilizado sin cambios, Fase 5) para pedidos `RETURNED`/`VERIFYING` con `casheaOrderId`, con límite de 20 intentos y backoff simple (`5 × (intentos+1)` min, tope 60 min, sobre `updatedAt`). Marca `EXPIRED` (nunca cancela ni restaura stock) los pedidos `CREATED`/`REDIRECTED`/`RETURNED` cuya `casheaReservationExpiresAt` venció. Con `CASHEA_ENABLED=false` el cron responde no-op sin tocar la BD. `auto-cancel-orders` ahora excluye `casheaStatus` no nulo de su query (cambio mínimo, una línea). **Pendiente fuera de alcance de esta fase:** alta del cron en `deploy/crontab.vps`/`scripts/install-crontab.sh` (no listado en los archivos de la Fase 8 del documento de orquestación).
+10. **CSP (Fase 9):** `CASHEA_CSP_DOMAINS` (script/connect/frame) en `lib/csp.ts` queda con arrays **vacíos** y TODO explícito — verificado por `lib/csp.test.ts` que la CSP es bit-a-bit idéntica con `NEXT_PUBLIC_CASHEA_ENABLED` en `'true'` o `'false'` mientras esos arrays no se rellenen (fail-closed; no se inventan dominios de Cashea — Sección 12, preguntas 14-15).
+11. **E2E (Fase 9):** `e2e/specs/cashea.spec.ts` corre contra la BD de prueba aislada `mundotech_e2e_test` (guard `assertE2eDatabaseUrl`, nunca producción/dev). El grupo `@cashea-enabled` requiere exportar variables `CASHEA_*` sandbox **falsas** manualmente antes de `npm run test:e2e` (documentado en el encabezado del spec); sin ellas se salta solo (`test.skip`), sin romper CI. **Límite conocido y esperado:** ningún test puede llegar a `casheaStatus=CONFIRMED` porque `verifyCasheaOrder` sigue lanzando `CasheaVerificationNotImplemented` (Sección 4/12) — el "flujo feliz" verificable hoy termina en `RETURNED` ("Verificando tu pago"). Simular `CONFIRMED` habría requerido inventar el cuerpo del adaptador, prohibido por las reglas de la sesión; queda para la Fase 10.
+12. **Hallazgo colateral (no corregido, fuera de alcance):** se detectó una condición de carrera preexistente en `CheckoutFlow.tsx` (guard `cart.length === 0 && currentStep === 0 -> router.replace('/cart')`) que puede disparar una redirección espuria justo tras navegar por URL directa a `/checkout` mientras el contexto de carrito termina de resolver. No es específico de Cashea ni se modificó el componente (fuera del alcance de la Fase 9); el spec la evita navegando por botón desde `/cart` (mismo patrón que `e2e/specs/full-checkout-auth.spec.ts`).
 
 ---
 
@@ -89,7 +104,7 @@ Cashea automático se activa con `CASHEA_ENABLED=true`. Mientras esté en `false
 10. Al volver, el backend valida sesión + token + propiedad del pedido, guarda el `idNumber` recibido y marca `RETURNED`.
 11. La confirmación NO se hace por el simple retorno. Se llama a un **adaptador de verificación autoritativa** (`verifyCasheaOrder`) que consulta a Cashea el estado real de la orden/inicial.
 12. Solo si la verificación es exitosa se marca `paidAt`, se pasa el pedido a `En Proceso` y se envía el correo de pago confirmado. Todo idempotente.
-13. Si la verificación falla o queda pendiente, el pedido permanece pendiente para recuperación manual; un cron reintenta la verificación.
+13. Si la verificación falla o queda pendiente, el pedido permanece pendiente para recuperación manual; `GET /api/cron/cashea-reconcile` (Fase 8) reintenta `processCasheaConfirmation` con límite de intentos y backoff. Si la reserva vence sin confirmar, el mismo cron marca `EXPIRED` (nunca cancela ni restaura stock).
 14. Cancelación (manual desde admin o por reconciliación) llama a `DELETE /orders/{id}` de forma idempotente, restaura inventario y marca `CANCELLED`.
 
 ## 4. Dependencia bloqueante (aislada en 1 adaptador)
@@ -339,9 +354,9 @@ Prohibido: tocar rutas o UI en esta fase.
 <aside>
 ➡️
 
-**Estado (2026-07-23):** Fases 0–5 completadas y aprobadas. Fases 6–10 están redactadas en
+**Estado (2026-07-23):** Fases 0–8 completadas y aprobadas. Fases 9–10 están redactadas en
 [`docs/MundoTech-Cashea-Orquestacion-Cursor.md`](../MundoTech-Cashea-Orquestacion-Cursor.md).
-Siguiente paso: Fase 6 (frontend checkout con SDK oficial), tras confirmación **OK FASE 6**.
+Siguiente paso: Fase 9 (seguridad/CSP y pruebas E2E), tras confirmación **OK FASE 9**.
 
 </aside>
 
