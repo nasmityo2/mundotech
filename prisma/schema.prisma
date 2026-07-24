@@ -318,8 +318,9 @@ model Order {
   /// SESIÓN 06: fecha de expiración del guestAccessTokenHash. 72 h desde la
   /// creación. null si el pedido no tiene token (autenticado o legacy).
   guestAccessTokenExpiresAt  DateTime?
-  /// true = stock descontado al crear el pedido (comportamiento actual para checkout
-  /// completo). false = stock pendiente de descontar (pedidos WhatsApp).
+  /// true = las unidades continúan descontadas/reservadas.
+  /// false = no fueron descontadas (p. ej. WhatsApp pendiente) o ya fueron
+  /// liberadas al cancelar (marca atómica de reposición: true → false una sola vez).
   stockDeducted              Boolean           @default(true)
   /// Snapshot calculado al crear el pedido (dentro de la misma transacción del
   /// checkout). true SOLO cuando el método de envío es MRW/ZOOM/TEALCA y TODOS

@@ -94,7 +94,7 @@ beforeEach(() => {
 
   transactionMock.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(makeTx()));
   upsertMock.mockResolvedValue({});
-  applyOrderCancellationEffectsInTransactionMock.mockResolvedValue(undefined);
+  applyOrderCancellationEffectsInTransactionMock.mockResolvedValue({ stockRestored: false });
   sendOrderCancelledEmailMock.mockResolvedValue(undefined);
 });
 
@@ -168,7 +168,7 @@ describe('GET /api/cron/auto-cancel-orders', () => {
     expect(applyOrderCancellationEffectsInTransactionMock).toHaveBeenCalled();
   });
 
-  it('pasa el estado original al helper', async () => {
+  it('pasa el estado original al helper con stockClaimStatus Cancelado', async () => {
     findManyMock.mockResolvedValue([{ id: 'order-1', createdAt: new Date(CUTOFF_ISO) }]);
     findUniqueMock.mockResolvedValue(baseOrder({ status: 'Pendiente verificación Binance' }));
     updateManyMock.mockResolvedValue({ count: 1 });
@@ -178,6 +178,7 @@ describe('GET /api/cron/auto-cancel-orders', () => {
     expect(applyOrderCancellationEffectsInTransactionMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ status: 'Pendiente verificación Binance' }),
+      { stockClaimStatus: 'Cancelado' },
     );
   });
 
@@ -191,6 +192,7 @@ describe('GET /api/cron/auto-cancel-orders', () => {
     expect(applyOrderCancellationEffectsInTransactionMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ stockDeducted: false }),
+      { stockClaimStatus: 'Cancelado' },
     );
   });
 

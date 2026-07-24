@@ -40,13 +40,14 @@ export type WhatsAppOrderInput = {
   paymentDiscountPercent?: number;
   paymentCurrency?: string | null;
   /**
-   * Texto de la condición de envío ("Envío gratis" / "Cobro a destino" /
-   * "Retiro gratis en tienda"). Se calcula con lib/shipping-charge.ts a
+   * Texto de la condición de envío/retiro ("Envío gratis por MRW" /
+   * "Cobro a destino" / "Retiro en tienda"). STORE_PICKUP no es envío;
+   * FREE aplica solo a MRW. Se calcula con lib/shipping-charge.ts a
    * partir del snapshot autoritativo del pedido cuando está disponible
    * (ver ReviewStep/WhatsAppCheckout tras crear el pedido).
    */
   shippingChargeText?: string;
-  /** true = el método de envío es retiro en tienda (cambia la etiqueta a "Entrega"). */
+  /** true = el método es retiro en tienda (no es envío; etiqueta "Entrega"). */
   isStorePickup?: boolean;
 };
 

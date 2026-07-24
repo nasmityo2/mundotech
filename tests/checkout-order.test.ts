@@ -30,7 +30,7 @@ describe('checkout-order (payment methods)', () => {
 });
 
 describe('checkout-order (freeShipping)', () => {
-  it('orderItemSchema ignora freeShipping enviado por el cliente', () => {
+  it('18: orderItemSchema ignora freeShipping enviado por el cliente', () => {
     const r = orderItemSchema.safeParse({
       productId: 'prod_1',
       quantity: 1,
@@ -42,7 +42,7 @@ describe('checkout-order (freeShipping)', () => {
     }
   });
 
-  it('checkoutSchema no acepta freeShipping autoritativo del cliente en items', () => {
+  it('18: checkoutSchema no acepta freeShipping autoritativo del cliente en items', () => {
     const r = checkoutSchema.safeParse({
       customerName: 'Ana',
       shippingMethod: 'mrw',
@@ -60,5 +60,13 @@ describe('checkout-order (freeShipping)', () => {
       // un carrito manipulado no puede forzar FREE desde el payload.
       expect(resolveShippingChargeType(r.data.shippingMethod, [])).toBe('DESTINATION_CHARGE');
     }
+  });
+
+  it('17: Order.freeShipping solo true para MRW + todos true (espejo de resolve)', () => {
+    expect(resolveShippingChargeType('tienda', [true, true])).toBe('STORE_PICKUP');
+    expect(resolveShippingChargeType('mrw', [true, true])).toBe('FREE');
+    expect(resolveShippingChargeType('mrw', [true, false])).toBe('DESTINATION_CHARGE');
+    expect(resolveShippingChargeType('zoom', [true, true])).toBe('DESTINATION_CHARGE');
+    expect(resolveShippingChargeType('tealca', [true, true])).toBe('DESTINATION_CHARGE');
   });
 });

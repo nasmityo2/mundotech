@@ -32,6 +32,7 @@ interface Product {
   images:      string[];
   brand:       string;
   isActive?:   boolean;
+  /** Elegible para envío gratis exclusivamente por MRW. */
   freeShipping: boolean;
   description: string;
   specs?:      unknown | null;
@@ -395,7 +396,7 @@ function AdminProductsContent() {
                 : 'text-slate-600 bg-slate-50 border-slate-200'
             }`}
           >
-            {p.freeShipping ? 'Envío gratis' : 'Cobro a destino'}
+            {p.freeShipping ? 'Elegible: envío gratis por MRW' : 'Cobro a destino'}
           </span>
         </span>
       ),

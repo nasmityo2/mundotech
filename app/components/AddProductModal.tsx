@@ -29,6 +29,7 @@ interface Product {
   brand:       string;
   description: string;
   sku?:        string | null;
+  /** Elegible para envío gratis exclusivamente por MRW (no implica ZOOM/TEALCA gratis). */
   freeShipping?: boolean;
   specs?:      unknown | null;
   media?:      {
@@ -837,7 +838,7 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                   )}
                 </div>
 
-                {/* Envío gratis */}
+                {/* Envío gratis por MRW (elegibilidad; no aplica a ZOOM/TEALCA ni retiro) */}
                 <div className="sm:col-span-2">
                   <label className="flex items-start gap-3 rounded-xl border border-gray-200 p-4 cursor-pointer active:bg-gray-50">
                     <input
@@ -847,9 +848,11 @@ export default function AddProductModal({ isOpen, onClose, product, categories }
                       className="mt-0.5 h-5 w-5 rounded border-gray-300 accent-navy flex-shrink-0"
                     />
                     <span className="flex flex-col">
-                      <span className="text-sm font-bold text-gray-700">Envío gratis</span>
+                      <span className="text-sm font-bold text-gray-700">Envío gratis por MRW</span>
                       <span className="text-xs text-gray-500 mt-0.5">
-                        MundoTech cubre el envío de este producto. Si está desactivado, se aplicará cobro a destino.
+                        Marca este producto como elegible para envío gratis exclusivamente por MRW.
+                        Si el cliente elige ZOOM o TEALCA, será cobro a destino. En retiro en tienda
+                        no aplica envío.
                       </span>
                     </span>
                   </label>

@@ -140,23 +140,32 @@ export async function DELETE(
 
   const { id } = await params;
 
-  const order = await prisma.order.findUnique({
-    where: { id },
-    include: { items: true },
-  });
-  if (!order) {
-    return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 });
-  }
+  try {
+    await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id },
+        include: { items: true },
+      });
+      if (!order) {
+        const err = new Error('ORDER_NOT_FOUND');
+        err.name = 'OrderNotFoundError';
+        throw err;
+      }
 
-  await prisma.$transaction(async (tx) => {
-    await applyOrderCancellationEffectsInTransaction(tx, {
-      id: order.id,
-      status: order.status,
-      items: order.items,
-      stockDeducted: (order as { stockDeducted?: boolean | null }).stockDeducted ?? true,
+      await applyOrderCancellationEffectsInTransaction(tx, {
+        id: order.id,
+        status: order.status,
+        items: order.items,
+        stockDeducted: order.stockDeducted,
+      });
+      await tx.order.delete({ where: { id } });
     });
-    await tx.order.delete({ where: { id } });
-  });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'OrderNotFoundError') {
+      return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 });
+    }
+    throw err;
+  }
 
   return NextResponse.json({ success: true });
 }

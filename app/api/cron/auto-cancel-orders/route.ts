@@ -114,12 +114,18 @@ export async function GET(request: Request): Promise<NextResponse> {
 
         if (transition.count !== 1) return null;
 
-        await applyOrderCancellationEffectsInTransaction(tx, {
-          id: current.id,
-          status: current.status,
-          items: current.items,
-          stockDeducted: current.stockDeducted ?? true,
-        });
+        // Status en BD ya es Cancelado; conservar el original en `order.status`
+        // para shouldRestoreStockOnCancel y reclamar con stockClaimStatus.
+        await applyOrderCancellationEffectsInTransaction(
+          tx,
+          {
+            id: current.id,
+            status: current.status,
+            items: current.items,
+            stockDeducted: current.stockDeducted ?? true,
+          },
+          { stockClaimStatus: 'Cancelado' },
+        );
 
         return {
           id: current.id,

@@ -1,5 +1,9 @@
 /**
- * Regla única y compartida de "envío gratis por producto".
+ * Regla única y compartida del beneficio `Product.freeShipping`.
+ *
+ * Significado del flag de producto: elegible para envío gratis
+ * EXCLUSIVAMENTE por MRW. ZOOM y TEALCA son siempre cobro a destino.
+ * Retiro en tienda no es envío (STORE_PICKUP).
  *
  * Sin dependencias de servidor: no importa Prisma, React, `next/*` ni módulos
  * `server-only`. Se usa tanto desde componentes cliente (checkout Full y
@@ -16,12 +20,12 @@ export type ShippingChargeType = 'STORE_PICKUP' | 'FREE' | 'DESTINATION_CHARGE';
 /**
  * Resuelve el tipo de cobro de envío para un carrito/pedido.
  *
- * - `tienda`: siempre retiro en tienda (nunca "gratis" en el sentido de envío
- *   por transportista — es retiro, no despacho).
- * - MRW/ZOOM/TEALCA: gratis únicamente si TODOS los productos califican
- *   (`productFreeShippingFlags` no vacío y cada flag es `true`).
- * - Cualquier otro caso (incluye método `null`/`undefined`, carrito vacío o
- *   con al menos un producto sin el beneficio): cobro a destino.
+ * - `tienda`: siempre STORE_PICKUP (retiro; no es envío). No inspecciona productos.
+ * - `mrw` + carrito no vacío + TODOS los flags exactamente `true` → FREE
+ *   (beneficio MRW únicamente).
+ * - Cualquier otro caso → DESTINATION_CHARGE, incluyendo:
+ *   MRW con carrito vacío o mixto; ZOOM/TEALCA aunque todos sean true;
+ *   null; undefined; valores inesperados.
  */
 export function resolveShippingChargeType(
   shippingMethod: ShippingMethod,
@@ -31,11 +35,8 @@ export function resolveShippingChargeType(
     return 'STORE_PICKUP';
   }
 
-  const isCarrierShipping =
-    shippingMethod === 'mrw' || shippingMethod === 'zoom' || shippingMethod === 'tealca';
-
   if (
-    isCarrierShipping &&
+    shippingMethod === 'mrw' &&
     productFreeShippingFlags.length > 0 &&
     productFreeShippingFlags.every((flag) => flag === true)
   ) {
@@ -45,13 +46,16 @@ export function resolveShippingChargeType(
   return 'DESTINATION_CHARGE';
 }
 
-/** Texto visible (español) para cada tipo de cobro de envío. */
+/**
+ * Texto visible (español) para cada tipo de cobro.
+ * FREE = envío gratis por MRW; STORE_PICKUP = retiro (sin envío).
+ */
 export function shippingChargeLabel(type: ShippingChargeType): string {
   if (type === 'STORE_PICKUP') {
-    return 'Retiro gratis en tienda';
+    return 'Retiro en tienda';
   }
   if (type === 'FREE') {
-    return 'Envío gratis';
+    return 'Envío gratis por MRW';
   }
   return 'Cobro a destino';
 }
@@ -71,6 +75,7 @@ export function isStorePickupOrderAddress(shippingAddress: string | null | undef
 /**
  * Etiqueta visible para un pedido ya creado, usando solo snapshots
  * (`Order.freeShipping` + texto de dirección). Nunca consulta el producto actual.
+ * Prioriza retiro en tienda; luego `Order.freeShipping` (FREE = MRW).
  */
 export function orderShippingChargeLabelFromSnapshot(order: {
   freeShipping?: boolean | null;

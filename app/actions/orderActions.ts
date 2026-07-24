@@ -302,12 +302,17 @@ export async function rejectOrderPayment(
     if (transition.count === 0) return null;
 
     // Pasar stockDeducted para que solo restaure si el stock fue descontado.
-    await applyOrderCancellationEffectsInTransaction(tx, {
-      id: orderId,
-      status: existing.status,
-      items: existing.items,
-      stockDeducted: existing.stockDeducted ?? true,
-    });
+    // Status en BD ya es Cancelado; reclamar con stockClaimStatus.
+    await applyOrderCancellationEffectsInTransaction(
+      tx,
+      {
+        id: orderId,
+        status: existing.status,
+        items: existing.items,
+        stockDeducted: existing.stockDeducted ?? true,
+      },
+      { stockClaimStatus: 'Cancelado' },
+    );
 
     return tx.order.findUnique({
       where: { id: orderId },

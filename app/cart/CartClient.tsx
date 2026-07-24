@@ -193,7 +193,8 @@ const CartClient = () => {
                   <div className="flex items-center justify-between">
                     <dt className="text-slate-500">Envío</dt>
                     <dd className="text-xs text-slate-500 text-right">
-                      Retiro en tienda gratis · MRW lo pagas al recibir
+                      Envío gratis solo por MRW cuando todos los productos califican · ZOOM y
+                      TEALCA: cobro a destino · Retiro en tienda: sin envío
                     </dd>
                   </div>
                   <div className="border-t border-slate-100 pt-3 mt-2 flex items-end justify-between">

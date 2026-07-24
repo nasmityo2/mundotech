@@ -24,7 +24,9 @@ const bulkUpdateSchema = z.object({
   orderIds: z
     .array(z.string().min(1))
     .min(1, 'Se requiere al menos un pedido.')
-    .max(100, 'No se pueden actualizar más de 100 pedidos a la vez.'),
+    .max(100, 'No se pueden actualizar más de 100 pedidos a la vez.')
+    // Un mismo ID duplicado en el input no puede restaurar dos veces.
+    .transform((ids) => [...new Set(ids)]),
   status: z.enum(STATUS_ENUM_VALUES, {
     message: `Estado no válido para operación masiva. Opciones: ${BULK_ALLOWED_STATUSES.join(', ')}.`,
   }),
@@ -95,50 +97,70 @@ export async function POST(request: Request) {
     }
   }
 
-  const eligibleIds = eligible.map((o) => o.id);
+  // Orden estable de IDs para evitar deadlocks entre transacciones concurrentes.
+  const eligibleIds = eligible.map((o) => o.id).sort();
 
-  // PRD-190: al cancelar en bulk, revertir stock + cupón por pedido.
-  // PRD-050: recopilar destinatarios de email ANTES de la transacción.
-  let cancelledOrders: Array<{
+  const cancelledOrders: Array<{
     id: string;
     orderNumber: number;
     customerEmail: string | null;
     customerName: string;
   }> = [];
 
+  let updatedCount = 0;
+
   await prisma.$transaction(async (tx) => {
     if (status === 'Cancelado') {
+      // Releer dentro de la tx; excluir ya Cancelados; procesar uno a uno.
       const cancellable = await tx.order.findMany({
-        where: { id: { in: eligibleIds } },
+        where: {
+          id: { in: eligibleIds },
+          status: { not: 'Cancelado' satisfies OrderStatus },
+        },
         include: { items: true },
       });
+
+      cancellable.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 
       for (const order of cancellable) {
         await applyOrderCancellationEffectsInTransaction(tx, {
           id: order.id,
           status: order.status,
           items: order.items,
-          stockDeducted: (order as { stockDeducted?: boolean | null }).stockDeducted ?? true,
+          stockDeducted: order.stockDeducted,
         });
+
+        const transition = await tx.order.updateMany({
+          where: {
+            id: order.id,
+            status: { not: 'Cancelado' satisfies OrderStatus },
+          },
+          data: { status: 'Cancelado' satisfies OrderStatus },
+        });
+
+        if (transition.count === 1) {
+          cancelledOrders.push({
+            id: order.id,
+            orderNumber: order.orderNumber,
+            customerEmail: order.customerEmail,
+            customerName: order.customerName,
+          });
+        }
       }
 
-      cancelledOrders = cancellable.map((o) => ({
-        id: o.id,
-        orderNumber: o.orderNumber,
-        customerEmail: o.customerEmail,
-        customerName: o.customerName,
-      }));
+      updatedCount = cancelledOrders.length;
+    } else {
+      const result = await tx.order.updateMany({
+        where: { id: { in: eligibleIds } },
+        data: {
+          status,
+          // FASE 4.5: si algún flujo bulk llegara a marcar Entregado, registrar la
+          // fecha para el cron de reseñas (hoy el bulk se limita a En Proceso).
+          ...(status === 'Entregado' ? { deliveredAt: new Date() } : {}),
+        },
+      });
+      updatedCount = result.count;
     }
-
-    await tx.order.updateMany({
-      where: { id: { in: eligibleIds } },
-      data: {
-        status,
-        // FASE 4.5: si algún flujo bulk llegara a marcar Entregado, registrar la
-        // fecha para el cron de reseñas (hoy el bulk se limita a En Proceso).
-        ...(status === 'Entregado' ? { deliveredAt: new Date() } : {}),
-      },
-    });
   });
 
   // PRD-050: enviar email de cancelación por pedido (best-effort, fuera de la transacción).
@@ -159,8 +181,6 @@ export async function POST(request: Request) {
       }
     }
   }
-
-  const updatedCount = eligibleIds.length;
 
   return NextResponse.json({
     message: `${updatedCount} de ${orderIds.length} pedidos actualizados al estado '${status}'.`,

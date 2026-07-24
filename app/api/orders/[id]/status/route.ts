@@ -117,39 +117,79 @@ export async function PUT(
   const isCancelling = status === 'Cancelado';
 
   let updated: OrderWithRelations;
+  let stockRestored = false;
+  let didTransitionToCancelled = false;
 
   if (isCancelling) {
     // PRD-190: al cancelar, ejecutar dentro de una transacción:
-    // restaurar stock (solo si no venía de 'Enviado') Y revertir cupón.
-    // Usa applyOrderCancellationEffectsInTransaction que respeta shouldRestoreStockOnCancel.
-    const orderWithItems = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: { items: true },
-    });
+    // reclamar stockDeducted atómicamente + restaurar stock + revertir cupón.
+    // La orden se relee DENTRO de la tx para evitar snapshots obsoletos.
+    try {
+      const txResult = await prisma.$transaction(async (tx) => {
+        const orderWithItems = await tx.order.findUnique({
+          where: { id: orderId },
+          include: {
+            items: true,
+            customer: { select: { email: true, name: true } },
+          },
+        });
 
-    updated = await prisma.$transaction(async (tx) => {
-      if (orderWithItems) {
-        await applyOrderCancellationEffectsInTransaction(tx, {
+        if (!orderWithItems) {
+          const err = new Error('ORDER_NOT_FOUND');
+          err.name = 'OrderNotFoundError';
+          throw err;
+        }
+
+        // Idempotencia: ya Cancelado → no restaurar, devolver estado actual.
+        if (orderWithItems.status === 'Cancelado') {
+          return {
+            order: orderWithItems,
+            stockRestored: false,
+            didTransition: false,
+          };
+        }
+
+        const effects = await applyOrderCancellationEffectsInTransaction(tx, {
           id: orderWithItems.id,
           status: orderWithItems.status,
           items: orderWithItems.items,
-          stockDeducted: (orderWithItems as { stockDeducted?: boolean | null }).stockDeducted ?? true,
+          stockDeducted: orderWithItems.stockDeducted,
         });
-      }
-      return tx.order.update({
-        where: { id: orderId },
-        data: {
-          status,
-          ...trackingData,
-        },
-        include: {
-          items: true,
-          customer: { select: { email: true, name: true } },
-        },
-      });
-    });
 
-    logInfo('order_cancelled_stock_reverted', { orderId, operation: 'cancel_order' });
+        const result = await tx.order.update({
+          where: { id: orderId },
+          data: {
+            status,
+            ...trackingData,
+          },
+          include: {
+            items: true,
+            customer: { select: { email: true, name: true } },
+          },
+        });
+        return {
+          order: result,
+          stockRestored: effects.stockRestored,
+          didTransition: true,
+        };
+      });
+      updated = txResult.order;
+      stockRestored = txResult.stockRestored;
+      didTransitionToCancelled = txResult.didTransition;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'OrderNotFoundError') {
+        return NextResponse.json({ message: 'Pedido no encontrado.' }, { status: 404 });
+      }
+      throw err;
+    }
+
+    if (didTransitionToCancelled) {
+      if (stockRestored) {
+        logInfo('order_cancelled_stock_reverted', { orderId, operation: 'cancel_order' });
+      } else {
+        logInfo('order_cancelled_no_stock_restore', { orderId, operation: 'cancel_order' });
+      }
+    }
   } else {
     updated = await prisma.order.update({
       where: { id: orderId },
@@ -176,7 +216,7 @@ export async function PUT(
   const firstName = firstNameFromCustomerName(displayNameForEmail);
 
   // PRD-050: enviar email de cancelación al cliente (best-effort, fuera de la transacción).
-  if (isCancelling && recipientEmail) {
+  if (isCancelling && didTransitionToCancelled && recipientEmail) {
     const orderRef = orderPathSegment(updated.orderNumber);
     try {
       await sendOrderCancelledEmail(recipientEmail, firstName, orderRef);

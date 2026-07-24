@@ -183,7 +183,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         id: current.id,
         status: current.status,
         items: current.items,
-        stockDeducted: (current as { stockDeducted?: boolean | null }).stockDeducted ?? true,
+        stockDeducted: current.stockDeducted,
       });
 
       await tx.order.update({

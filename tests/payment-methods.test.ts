@@ -259,14 +259,61 @@ describe('payment-methods', () => {
     });
     for (const id of ['binancepay', 'zelle', 'efectivo-divisas'] as const) {
       const m = result.find((x) => x.id === id)!;
+      expect(m.discountEligible).toBe(true);
       expect(m.discountEnabled).toBe(true);
       expect(m.discountPercent).toBe(10);
     }
     for (const id of ['cashea', 'pagomovil', 'transferencia'] as const) {
       const m = result.find((x) => x.id === id)!;
+      expect(m.discountEligible).toBe(false);
       expect(m.discountEnabled).toBe(false);
       expect(m.discountPercent).toBe(0);
     }
+  });
+
+  it('19. Global ON 10%: BINANCE/ZELLE/CASH/CUSTOM = 10%', () => {
+    const custom = createCustomForeignCurrencyMethod(DEFAULT_PAYMENT_METHODS);
+    custom.active = false;
+    custom.discountEligible = false;
+    const result = applyGlobalDivisaDiscount([...DEFAULT_PAYMENT_METHODS, custom], {
+      enabled: true,
+      percent: 10,
+    });
+    for (const kind of ['BINANCE', 'ZELLE', 'CASH_FOREIGN_CURRENCY', 'CUSTOM_FOREIGN_CURRENCY'] as const) {
+      const methods = result.filter((m) => m.kind === kind);
+      expect(methods.length).toBeGreaterThan(0);
+      for (const m of methods) {
+        expect(m.discountEligible).toBe(true);
+        expect(m.discountEnabled).toBe(true);
+        expect(m.discountPercent).toBe(10);
+      }
+    }
+  });
+
+  it('20. CASHEA/PAGO_MOVIL/BANK_TRANSFER = 0%', () => {
+    const result = applyGlobalDivisaDiscount(DEFAULT_PAYMENT_METHODS, {
+      enabled: true,
+      percent: 10,
+    });
+    for (const kind of ['CASHEA', 'PAGO_MOVIL', 'BANK_TRANSFER'] as const) {
+      const m = result.find((x) => x.kind === kind)!;
+      expect(m.discountEligible).toBe(false);
+      expect(m.discountEnabled).toBe(false);
+      expect(m.discountPercent).toBe(0);
+    }
+  });
+
+  it('21. Divisa con discountEligible=false se normaliza a true y recibe el global', () => {
+    const binance = {
+      ...DEFAULT_PAYMENT_METHODS.find((m) => m.id === 'binancepay')!,
+      discountEligible: false,
+      discountEnabled: false,
+      discountPercent: 0,
+    };
+    const result = applyGlobalDivisaDiscount([binance], { enabled: true, percent: 12.5 });
+    expect(result[0]!.discountEligible).toBe(true);
+    expect(result[0]!.discountEnabled).toBe(true);
+    expect(result[0]!.discountPercent).toBe(12.5);
   });
 
   it('applyGlobalDivisaDiscount OFF → todos 0%', () => {
@@ -282,6 +329,31 @@ describe('payment-methods', () => {
     for (const m of result) {
       expect(m.discountEnabled).toBe(false);
       expect(m.discountPercent).toBe(0);
+    }
+  });
+
+  it('22. Flag OFF = todos 0%', () => {
+    const result = applyGlobalDivisaDiscount(DEFAULT_PAYMENT_METHODS, {
+      enabled: false,
+      percent: 10,
+    });
+    for (const m of result) {
+      expect(m.discountEnabled).toBe(false);
+      expect(m.discountPercent).toBe(0);
+    }
+  });
+
+  it('23. Porcentajes inválidos (NaN/Infinity/>100/negativos/>2 decimales) = descuento apagado', () => {
+    const invalids = [Number.NaN, Number.POSITIVE_INFINITY, 101, -1, 0, 10.123];
+    for (const percent of invalids) {
+      const result = applyGlobalDivisaDiscount(DEFAULT_PAYMENT_METHODS, {
+        enabled: true,
+        percent,
+      });
+      for (const m of result) {
+        expect(m.discountEnabled).toBe(false);
+        expect(m.discountPercent).toBe(0);
+      }
     }
   });
 });

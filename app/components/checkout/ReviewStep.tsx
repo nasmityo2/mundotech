@@ -673,7 +673,7 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
                       : 'text-slate-500 bg-slate-50 border-slate-200'
                   }`}
                 >
-                  {item.freeShipping ? 'Envío gratis' : 'Cobro a destino'}
+                  {item.freeShipping ? 'Elegible para envío gratis por MRW' : 'Cobro a destino'}
                 </span>
               </div>
               <p className="text-sm font-semibold text-navy nums whitespace-nowrap">

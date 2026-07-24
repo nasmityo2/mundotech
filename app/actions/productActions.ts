@@ -104,7 +104,7 @@ const productSchema = z.object({
     (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
     z.string().min(1).nullable().optional()
   ),
-  /** true = MundoTech cubre el envío; false = cobro a destino (default). */
+  /** true = elegible para envío gratis exclusivamente por MRW; false = sin beneficio MRW (default). */
   freeShipping: z.preprocess(parseFreeShippingFormValue, z.boolean()),
   // imagesJson: JSON array of URLs sent from the modal
   imagesJson: z.preprocess(

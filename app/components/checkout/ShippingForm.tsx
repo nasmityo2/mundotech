@@ -483,19 +483,17 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
         </p>
       ) : null}
 
-      {/* Envío gratis por producto — vista PRELIMINAR (el servidor recalcula al confirmar). */}
+      {/* Beneficio MRW / cobro — vista PRELIMINAR (el servidor recalcula al confirmar). */}
       {(() => {
         const chargeType = resolveShippingChargeType(shippingMethod, productFreeShippingFlags);
         const label = shippingChargeLabel(chargeType);
         const isFreeOrPickup = chargeType !== 'DESTINATION_CHARGE';
         const description =
           chargeType === 'STORE_PICKUP'
-            ? 'Puedes retirar tu pedido sin costo de envío.'
+            ? 'No aplica envío. Pagas en la web y retiras tu pedido en nuestro negocio.'
             : chargeType === 'FREE'
-              ? 'MundoTech cubre el envío de todos los productos de este pedido.'
-              : productFreeShippingFlags.length > 0 && productFreeShippingFlags.some((f) => f) && !productFreeShippingFlags.every((f) => f)
-                ? 'Tu carrito contiene uno o más productos que no incluyen envío gratis.'
-                : 'El costo del envío se paga directamente al transportista al retirar.';
+              ? 'MundoTech cubre el envío por MRW porque todos los productos califican.'
+              : 'El costo del envío se paga al transportista al recibir o retirar el pedido.';
         return (
           <div
             aria-live="polite"

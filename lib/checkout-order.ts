@@ -389,12 +389,14 @@ export async function executeCheckoutInTransactionWithMethod(
   }
   subtotalUsd = roundMoney2(subtotalUsd);
 
-  // Envío gratis (PRD envío-gratis): SIEMPRE se recalcula aquí, dentro de la
+  // Beneficio freeShipping (solo MRW): SIEMPRE se recalcula aquí, dentro de la
   // misma transacción, con los valores reales de `dbProducts`. Nunca se
   // aceptan flags del cliente — `items` (validado por orderItemSchema) no
   // tiene `freeShipping`, así que no hay nada que "confiar" del frontend.
+  // Product.freeShipping = elegible para envío gratis exclusivamente por MRW.
+  // ZOOM/TEALCA siempre DESTINATION_CHARGE; tienda siempre STORE_PICKUP.
   // `productIds` es el set único; cada producto pesa una vez en la regla
-  // "TODOS califican", sin importar cuántas líneas del carrito lo repitan.
+  // "TODOS califican" (MRW), sin importar cuántas líneas del carrito lo repitan.
   const authoritativeFreeShippingByProduct = new Map(
     dbProducts.map((p) => [p.id, p.freeShipping === true]),
   );
@@ -511,9 +513,9 @@ export async function executeCheckoutInTransactionWithMethod(
             quantity: item.quantity,
             price: unitVes,
             imageUrl: item.imageUrl ?? null,
-            // Snapshot individual del producto — independiente del resultado
-            // agregado del pedido (un carrito mixto puede tener líneas con
-            // freeShipping=true y otras con false).
+            // Snapshot individual: elegible para beneficio MRW (no implica
+            // que ZOOM/TEALCA sean gratis). Independiente del agregado del
+            // pedido (carrito mixto: líneas true y false).
             freeShipping: p.freeShipping === true,
           };
         }),
@@ -659,23 +661,63 @@ export async function restoreOrderStockInTransaction(
   }
 }
 
+export type CancellationEffectsOptions = {
+  /**
+   * Status que debe tener la fila en BD al reclamar `stockDeducted` (updateMany
+   * condicional). Por defecto = `order.status`. Usar `'Cancelado'` cuando la
+   * transición a Cancelado ya se hizo en la misma tx (cron / rechazo de pago).
+   */
+  stockClaimStatus?: OrderStatus | string;
+};
+
 /**
  * Efectos colaterales de cancelar un pedido, en UNA transacción:
- *  - restaura stock si el estado de origen lo amerita (`shouldRestoreStockOnCancel`),
- *  - revierte el canje del cupón (PRD-190) para que `usedCount` y el límite por
- *    usuario vuelvan a estar disponibles.
+ *  - reclama atómicamente `stockDeducted: true → false` y restaura inventario
+ *    solo si el claim gana (idempotente ante cancelaciones concurrentes);
+ *  - revierte el canje del cupón (PRD-190) de forma idempotente.
  * Usar en TODA ruta que cancele o elimine pedidos.
  */
 export async function applyOrderCancellationEffectsInTransaction(
   tx: Prisma.TransactionClient,
-  order: { id: string; status: OrderStatus | string; items: { productId: string; quantity: number }[]; stockDeducted?: boolean | null }
-): Promise<void> {
-  // Solo restaurar stock si el pedido lo tenía descontado (stockDeducted !== false).
-  // Pedidos WhatsApp (stockDeducted=false) nunca descontaron stock, no restaurar.
-  if (shouldRestoreStockOnCancel(order.status, 'Cancelado') && order.stockDeducted !== false) {
-    await restoreOrderStockInTransaction(tx, order.items);
+  order: {
+    id: string;
+    status: OrderStatus | string;
+    items: { productId: string; quantity: number }[];
+    stockDeducted?: boolean | null;
+  },
+  options?: CancellationEffectsOptions,
+): Promise<{ stockRestored: boolean }> {
+  let stockRestored = false;
+
+  // Solo restaurar stock si el estado de origen lo amerita y el pedido lo tenía
+  // descontado (stockDeducted !== false). WhatsApp (false) nunca descontó.
+  const shouldRestore =
+    shouldRestoreStockOnCancel(order.status, 'Cancelado') &&
+    order.stockDeducted !== false;
+
+  if (shouldRestore) {
+    const claimStatus = options?.stockClaimStatus ?? order.status;
+    // Claim atómico: solo un caller concurrente gana stockDeducted true → false.
+    const claim = await tx.order.updateMany({
+      where: {
+        id: order.id,
+        status: claimStatus,
+        stockDeducted: true,
+      },
+      data: {
+        stockDeducted: false,
+      },
+    });
+
+    if (claim.count === 1) {
+      await restoreOrderStockInTransaction(tx, order.items);
+      stockRestored = true;
+    }
+    // claim.count === 0 → reintento/concurrencia/no-op: no incrementar inventario.
   }
+
   await revertCouponRedemptionInTransaction(tx, order.id);
+  return { stockRestored };
 }
 
 /**

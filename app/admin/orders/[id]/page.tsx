@@ -390,7 +390,7 @@ export default function AdminOrderDetailPage() {
                           : 'text-slate-500 bg-slate-50 border-slate-200'
                       }`}
                     >
-                      {item.freeShipping ? 'Envío gratis' : 'Cobro a destino'}
+                      {item.freeShipping ? 'Elegible MRW' : 'Sin beneficio MRW'}
                     </span>
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5 nums">
@@ -433,7 +433,7 @@ export default function AdminOrderDetailPage() {
                 {isStorePickupOrderAddress(order.shippingDetails.address)
                   ? 'Retiro en tienda'
                   : order.freeShipping
-                    ? 'Envío gratis'
+                    ? 'Envío gratis por MRW'
                     : 'Cobro a destino'}
               </span>
             </div>

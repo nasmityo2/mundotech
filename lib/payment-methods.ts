@@ -584,22 +584,33 @@ export type GlobalDivisaDiscountConfig = {
 
 /**
  * Sobrescribe discountEnabled/discountPercent con el % global.
- * Fuente única: no muta los objetos de entrada.
+ * Elegibilidad autoritativa por `kind` (DISCOUNT_ELIGIBLE_KINDS), no por el
+ * flag almacenado. Fuente única: no muta los objetos de entrada.
+ * Fail-closed: NaN/Infinity/>100/negativos/>2 decimales ⇒ descuento apagado.
  */
 export function applyGlobalDivisaDiscount(
   methods: PaymentMethodConfig[],
   { enabled, percent }: GlobalDivisaDiscountConfig,
 ): PaymentMethodConfig[] {
+  const validPercent =
+    Number.isFinite(percent) &&
+    percent > 0 &&
+    percent <= 100 &&
+    Math.round(percent * 100) / 100 === percent;
+  const active = enabled === true && validPercent;
+
   return methods.map((method) => {
-    if (method.discountEligible === true) {
+    if (DISCOUNT_ELIGIBLE_KINDS.has(method.kind)) {
       return {
         ...method,
-        discountEnabled: enabled && percent > 0,
-        discountPercent: enabled ? percent : 0,
+        discountEligible: true,
+        discountEnabled: active,
+        discountPercent: active ? percent : 0,
       };
     }
     return {
       ...method,
+      discountEligible: false,
       discountEnabled: false,
       discountPercent: 0,
     };

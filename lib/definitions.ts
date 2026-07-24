@@ -40,7 +40,7 @@ export interface CartItemAPI {
   category: string;
   brand: string | null;
   images: string[];
-  /** true = MundoTech cubre el envío de este producto; false = cobro a destino. */
+  /** true = elegible para envío gratis exclusivamente por MRW; false = sin beneficio MRW. */
   freeShipping: boolean;
 }
 
@@ -252,7 +252,7 @@ export interface OrderItem {
   quantity:    number;
   price:       number;
   imageUrl?:   string;
-  /** Snapshot del beneficio del producto al crear el pedido. Nunca se recalcula. */
+  /** Snapshot: elegible para beneficio MRW al crear el pedido. Nunca se recalcula. */
   freeShipping: boolean;
 }
 
@@ -318,12 +318,17 @@ export interface Order {
   paymentRejectionReason?:   string | null;
   notes?:          string | null;
   channel?:        OrderChannel | null;
+  /**
+   * true = las unidades continúan descontadas/reservadas.
+   * false = no fueron descontadas o ya fueron liberadas al cancelar.
+   */
   stockDeducted?:  boolean | null;
   /**
    * Snapshot calculado por el servidor al crear el pedido (lib/checkout-order.ts):
-   * true SOLO si el método era MRW/ZOOM/TEALCA y TODOS los productos calificaban
-   * para envío gratis en ese momento. Nunca se recalcula — pedidos históricos
-   * no cambian si un producto cambia su beneficio después.
+   * true SOLO si el método era MRW y TODOS los productos calificaban para
+   * envío gratis por MRW en ese momento. ZOOM/TEALCA nunca quedan true.
+   * Retiro en tienda siempre false (no es envío). Nunca se recalcula —
+   * pedidos históricos no cambian si un producto cambia su beneficio después.
    */
   freeShipping:    boolean;
   /**
@@ -496,6 +501,7 @@ export function prismaOrderToOrder(o: {
   exchangeRateUsdBs?: DecimalLike | null;
   notes?: string | null;
   channel?: string | null;
+  /** true = unidades aún descontadas/reservadas; false = no descontadas o ya liberadas. */
   stockDeducted?: boolean | null;
   freeShipping?: boolean | null;
   casheaStatus?: string | null;
