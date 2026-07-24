@@ -50,6 +50,28 @@ export const PAYMENT_METHOD_KINDS = [
 
 export type PaymentMethodKind = (typeof PAYMENT_METHOD_KINDS)[number];
 
+export const PAYMENT_CURRENCY_GROUPS = ['VES', 'USD'] as const;
+export type PaymentCurrencyGroup =
+  (typeof PAYMENT_CURRENCY_GROUPS)[number];
+
+/** Grupo de moneda derivado autoritativamente del kind (no se persiste). */
+export function paymentMethodCurrencyGroup(
+  kind: PaymentMethodKind,
+): PaymentCurrencyGroup {
+  switch (kind) {
+    case 'PAGO_MOVIL':
+    case 'BANK_TRANSFER':
+    case 'CASHEA':
+      return 'VES';
+
+    case 'BINANCE':
+    case 'ZELLE':
+    case 'CASH_FOREIGN_CURRENCY':
+    case 'CUSTOM_FOREIGN_CURRENCY':
+      return 'USD';
+  }
+}
+
 export const FULL_DELIVERY_SCOPES = ['ANY', 'STORE_PICKUP_ONLY'] as const;
 export type FullDeliveryScope = (typeof FULL_DELIVERY_SCOPES)[number];
 
@@ -198,8 +220,11 @@ export const paymentMethodsArraySchema = z
         builtinKindsSeen.add(m.kind);
       }
 
-      // Active method validation
+      // Active method validation (canal-dependiente)
       if (m.active) {
+        const enabledInAnyChannel = m.enabledInWhatsapp || m.enabledInFull;
+        const needsFullConfiguration = m.active && m.enabledInFull;
+
         if (m.discountEnabled && m.discountPercent <= 0) {
           ctx.addIssue({
             code: 'custom',
@@ -207,30 +232,36 @@ export const paymentMethodsArraySchema = z
             path: [i, 'discountPercent'],
           });
         }
-        if (m.kind === 'ZELLE' && !m.recipientValue.trim()) {
+        if (m.kind === 'ZELLE' && needsFullConfiguration && !m.recipientValue.trim()) {
           ctx.addIssue({
             code: 'custom',
-            message: 'Zelle activo requiere destinatario.',
+            message: 'Zelle habilitado en checkout Full requiere un destinatario.',
             path: [i, 'recipientValue'],
           });
         }
-        if (m.kind === 'CUSTOM_FOREIGN_CURRENCY') {
+        if (m.kind === 'CUSTOM_FOREIGN_CURRENCY' && needsFullConfiguration) {
           if (!m.instructions.trim()) {
             ctx.addIssue({
               code: 'custom',
-              message: 'Método personalizado activo requiere instrucciones.',
+              message:
+                'El método personalizado habilitado en checkout Full requiere instrucciones.',
               path: [i, 'instructions'],
             });
           }
           if (!m.recipientValue.trim()) {
             ctx.addIssue({
               code: 'custom',
-              message: 'Método personalizado activo requiere destinatario.',
+              message:
+                'El método personalizado habilitado en checkout Full requiere destinatario.',
               path: [i, 'recipientValue'],
             });
           }
         }
-        if (m.kind === 'CASH_FOREIGN_CURRENCY' && m.acceptedCurrencies.length === 0) {
+        if (
+          m.kind === 'CASH_FOREIGN_CURRENCY' &&
+          enabledInAnyChannel &&
+          m.acceptedCurrencies.length === 0
+        ) {
           ctx.addIssue({
             code: 'custom',
             message: 'Efectivo activo requiere al menos una moneda.',
@@ -495,10 +526,22 @@ export type CheckoutPaymentMethodDto = {
   recipientValue: string;
   acceptedCurrencies: string[];
   fullDeliveryScope: FullDeliveryScope;
+  currencyGroup: PaymentCurrencyGroup;
 };
 
-/** ¿El método built-in está correctamente configurado según store settings? */
+/**
+ * ¿El método tiene todos los datos necesarios para checkout Full?
+ * Alias interno semántico: isMethodConfiguredForFull.
+ */
 export function isMethodConfigured(
+  method: PaymentMethodConfig,
+  settings: PaymentSettingsSlice,
+): boolean {
+  return isMethodConfiguredForFull(method, settings);
+}
+
+/** ¿Este método tiene todos los datos necesarios para checkout Full? */
+export function isMethodConfiguredForFull(
   method: PaymentMethodConfig,
   settings: PaymentSettingsSlice,
 ): boolean {
@@ -540,13 +583,22 @@ export function buildCheckoutPaymentMethods(
 
   return methods
     .filter((m) => m.active)
-    .filter((m) => (channel === 'whatsapp' ? m.enabledInWhatsapp : m.enabledInFull))
+    .filter((m) =>
+      channel === 'whatsapp' ? m.enabledInWhatsapp : m.enabledInFull,
+    )
     .filter((m) => {
-      // En WhatsApp, Pago Móvil / Transferencia se muestran aunque falten datos
-      // bancarios (se coordinan por chat). En Full sí exigen configuración.
-      if (channel === 'whatsapp' && (m.kind === 'PAGO_MOVIL' || m.kind === 'BANK_TRANSFER')) {
+      if (channel === 'whatsapp') {
+        // Los datos de recepción se coordinan por WhatsApp.
+        // Efectivo debe conservar moneda válida.
+        if (
+          m.kind === 'CASH_FOREIGN_CURRENCY' &&
+          m.acceptedCurrencies.length === 0
+        ) {
+          return false;
+        }
         return true;
       }
+
       return isMethodConfigured(m, settings);
     })
     .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -567,6 +619,7 @@ export function buildCheckoutPaymentMethods(
       recipientValue: m.recipientValue,
       acceptedCurrencies: m.acceptedCurrencies,
       fullDeliveryScope: m.fullDeliveryScope,
+      currencyGroup: paymentMethodCurrencyGroup(m.kind),
     }));
 }
 
@@ -708,8 +761,8 @@ export function resolveAndValidatePaymentMethod(
     );
   }
 
-  // Disponibilidad built-in (Full siempre; WhatsApp: PM/Transfer se coordinan por chat)
-  if (channel === 'web' || (method.kind !== 'PAGO_MOVIL' && method.kind !== 'BANK_TRANSFER')) {
+  // Configuración Full: solo en canal web. En WhatsApp se coordina por chat.
+  if (channel === 'web') {
     if (method.kind === 'PAGO_MOVIL' && !isPagoMovilConfigured(settings)) {
       throw new PaymentMethodValidationError('Pago Móvil no está configurado.');
     }

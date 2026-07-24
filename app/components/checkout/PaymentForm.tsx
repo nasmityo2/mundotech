@@ -12,6 +12,7 @@ import { isHeicFile, normalizeImageForUpload } from '@/lib/client-image-normaliz
 import {
   estimatePaymentDiscountUsd,
   type CheckoutPaymentMethodDto,
+  type PaymentCurrencyGroup,
 } from '@/lib/payment-methods';
 import { formatCurrency } from '@/lib/utils';
 
@@ -118,15 +119,80 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
     });
   }, [checkoutPaymentMethods, whatsappMode, shippingMethod]);
 
+  const vesMethods = useMemo(
+    () => visibleMethods.filter((m) => m.currencyGroup === 'VES'),
+    [visibleMethods],
+  );
+  const usdMethods = useMemo(
+    () => visibleMethods.filter((m) => m.currencyGroup === 'USD'),
+    [visibleMethods],
+  );
+
+  const resolveInitialGroup = useCallback((): PaymentCurrencyGroup => {
+    const initialId = initialData?.paymentMethodId;
+    if (initialId) {
+      const fromInitial = visibleMethods.find((m) => m.id === initialId);
+      if (fromInitial) return fromInitial.currencyGroup;
+    }
+    if (vesMethods.length > 0) return 'VES';
+    return 'USD';
+  }, [initialData?.paymentMethodId, visibleMethods, vesMethods.length]);
+
+  const [currencyGroup, setCurrencyGroup] = useState<PaymentCurrencyGroup>(resolveInitialGroup);
+
+  const groupMethods = currencyGroup === 'VES' ? vesMethods : usdMethods;
   const availableIds = useMemo(() => new Set(visibleMethods.map((m) => m.id)), [visibleMethods]);
   const selectedMethod = visibleMethods.find((m) => m.id === selected) ?? null;
 
+  const clearProof = useCallback(() => {
+    setProofFile(null);
+    setProofPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return '';
+    });
+  }, []);
+
+  const clearMethodSelection = useCallback(() => {
+    setSelected(null);
+    setPaymentCurrency(null);
+    setErrors({});
+    setReferenceNumber('');
+    clearProof();
+  }, [clearProof]);
+
+  const selectCurrencyGroup = (next: PaymentCurrencyGroup) => {
+    if (next === currencyGroup) return;
+    setCurrencyGroup(next);
+    if (selectedMethod && selectedMethod.currencyGroup !== next) {
+      clearMethodSelection();
+    }
+  };
+
+  // Reconstruir grupo al volver desde Review con un método ya elegido.
+  useEffect(() => {
+    const initialId = initialData?.paymentMethodId;
+    if (!initialId) return;
+    const m = visibleMethods.find((x) => x.id === initialId);
+    if (m) setCurrencyGroup(m.currencyGroup);
+  }, [initialData?.paymentMethodId, visibleMethods]);
+
+  // Si el grupo activo pierde todos sus métodos, saltar al primero disponible.
+  useEffect(() => {
+    if (groupMethods.length > 0) return;
+    if (vesMethods.length > 0) {
+      setCurrencyGroup('VES');
+      return;
+    }
+    if (usdMethods.length > 0) {
+      setCurrencyGroup('USD');
+    }
+  }, [groupMethods.length, vesMethods.length, usdMethods.length]);
+
   useEffect(() => {
     if (selected && !availableIds.has(selected)) {
-      setSelected(null);
-      setPaymentCurrency(null);
+      clearMethodSelection();
     }
-  }, [selected, availableIds]);
+  }, [selected, availableIds, clearMethodSelection]);
 
   useEffect(() => {
     if (!selectedMethod) return;
@@ -181,18 +247,21 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
     }
   }, []);
 
-  const clearProof = useCallback(() => {
-    setProofFile(null);
-    setProofPreviewUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return '';
-    });
-  }, []);
-
   const needsCurrency = Boolean(
     selectedMethod &&
       (selectedMethod.kind === 'CASH_FOREIGN_CURRENCY' ||
         selectedMethod.acceptedCurrencies.length > 0),
+  );
+
+  const needsWhatsappCoordination = Boolean(
+    whatsappMode &&
+      selectedMethod &&
+      (selectedMethod.kind === 'PAGO_MOVIL' ||
+        selectedMethod.kind === 'BANK_TRANSFER' ||
+        selectedMethod.kind === 'BINANCE' ||
+        (selectedMethod.kind === 'ZELLE' && !selectedMethod.recipientValue.trim()) ||
+        (selectedMethod.kind === 'CUSTOM_FOREIGN_CURRENCY' &&
+          !selectedMethod.recipientValue.trim())),
   );
 
   const buildPaymentData = (): PaymentFormData => {
@@ -410,46 +479,102 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
       </div>
 
       {visibleMethods.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {visibleMethods.map((m) => {
-            const Icon = methodIcon(m.kind);
-            const isActive = selected === m.id;
-            return (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => {
-                  setSelected(m.id);
-                  setErrors({});
-                  if (m.acceptedCurrencies.length === 1) {
-                    setPaymentCurrency(m.acceptedCurrencies[0] ?? null);
-                  } else if (m.kind !== 'CASH_FOREIGN_CURRENCY' && m.acceptedCurrencies.length === 0) {
-                    setPaymentCurrency(null);
-                  }
-                }}
-                className={`text-left rounded-2xl p-4 flex items-start gap-3 transition-all ${
-                  isActive
-                    ? 'border-2 border-navy bg-slate-50 shadow-soft'
-                    : 'border border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                  isActive ? 'bg-navy text-white' : 'bg-slate-100 text-slate-500'
-                }`}>
-                  <Icon size={17} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-navy">{m.name}</p>
-                  <p className="text-[12px] text-slate-500 mt-0.5">{m.description}</p>
-                  {m.discountEnabled && m.discountPercent > 0 && (
-                    <p className="mt-1.5 inline-flex text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-0.5">
-                      {m.discountPercent}% de descuento pagando en divisas
-                    </p>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+        <div className="space-y-4">
+          {(vesMethods.length > 0 || usdMethods.length > 0) && (
+            <div
+              role="tablist"
+              aria-label="Moneda o tipo de pago"
+              className="inline-flex w-full sm:w-auto rounded-xl border border-slate-200 bg-slate-50 p-1 gap-1"
+            >
+              {vesMethods.length > 0 && (
+                <button
+                  type="button"
+                  role="tab"
+                  id="payment-group-ves"
+                  aria-selected={currencyGroup === 'VES'}
+                  aria-controls="payment-group-ves-panel"
+                  onClick={() => selectCurrencyGroup('VES')}
+                  className={`flex-1 sm:flex-none min-h-[44px] px-4 rounded-lg text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy ${
+                    currencyGroup === 'VES'
+                      ? 'bg-white text-navy shadow-soft'
+                      : 'text-slate-600 hover:text-navy'
+                  }`}
+                >
+                  Bolívares
+                </button>
+              )}
+              {usdMethods.length > 0 && (
+                <button
+                  type="button"
+                  role="tab"
+                  id="payment-group-usd"
+                  aria-selected={currencyGroup === 'USD'}
+                  aria-controls="payment-group-usd-panel"
+                  onClick={() => selectCurrencyGroup('USD')}
+                  className={`flex-1 sm:flex-none min-h-[44px] px-4 rounded-lg text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy ${
+                    currencyGroup === 'USD'
+                      ? 'bg-white text-navy shadow-soft'
+                      : 'text-slate-600 hover:text-navy'
+                  }`}
+                >
+                  USD / divisas
+                </button>
+              )}
+            </div>
+          )}
+
+          {currencyGroup === 'USD' && usdMethods.length > 0 && (
+            <p className="text-[12px] text-slate-500">
+              Selecciona Binance, Zelle, efectivo u otro método en divisas habilitado.
+            </p>
+          )}
+
+          <div
+            role="tabpanel"
+            id={currencyGroup === 'VES' ? 'payment-group-ves-panel' : 'payment-group-usd-panel'}
+            aria-labelledby={currencyGroup === 'VES' ? 'payment-group-ves' : 'payment-group-usd'}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+          >
+            {groupMethods.map((m) => {
+              const Icon = methodIcon(m.kind);
+              const isActive = selected === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => {
+                    setSelected(m.id);
+                    setErrors({});
+                    if (m.acceptedCurrencies.length === 1) {
+                      setPaymentCurrency(m.acceptedCurrencies[0] ?? null);
+                    } else if (m.kind !== 'CASH_FOREIGN_CURRENCY' && m.acceptedCurrencies.length === 0) {
+                      setPaymentCurrency(null);
+                    }
+                  }}
+                  className={`text-left rounded-2xl p-4 flex items-start gap-3 transition-all ${
+                    isActive
+                      ? 'border-2 border-navy bg-slate-50 shadow-soft'
+                      : 'border border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    isActive ? 'bg-navy text-white' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    <Icon size={17} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-navy">{m.name}</p>
+                    <p className="text-[12px] text-slate-500 mt-0.5">{m.description}</p>
+                    {m.discountEnabled && m.discountPercent > 0 && (
+                      <p className="mt-1.5 inline-flex text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-0.5">
+                        {m.discountPercent}% de descuento pagando en divisas
+                      </p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       ) : (
         <div role="alert" className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
@@ -506,9 +631,16 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
         </motion.div>
       )}
 
-      {whatsappMode && selectedMethod && selectedMethod.kind !== 'BINANCE' && selectedMethod.kind !== 'CASHEA' && selectedMethod.kind !== 'ZELLE' && selectedMethod.kind !== 'CUSTOM_FOREIGN_CURRENCY' && selectedMethod.kind !== 'CASH_FOREIGN_CURRENCY' && (
+      {needsWhatsappCoordination && selectedMethod && (
         <p className="text-[12px] text-slate-600 leading-relaxed rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5">
-          Coordinaremos los datos de pago contigo por WhatsApp al confirmar tu pedido.
+          Coordinaremos los datos para pagar por {selectedMethod.name} contigo por WhatsApp al
+          confirmar el pedido.
+        </p>
+      )}
+
+      {whatsappMode && selectedMethod?.kind === 'CASH_FOREIGN_CURRENCY' && (
+        <p className="text-[12px] text-slate-600 leading-relaxed rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5">
+          Indica con qué moneda pagarás. Coordinaremos el resto por WhatsApp al confirmar el pedido.
         </p>
       )}
 

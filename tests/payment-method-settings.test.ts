@@ -6,6 +6,7 @@ import {
   mergePaymentMethodsWithDefaults,
   paymentMethodsArraySchema,
   isMethodConfigured,
+  createCustomForeignCurrencyMethod,
 } from '@/lib/payment-methods';
 
 describe('payment-method-settings', () => {
@@ -42,11 +43,56 @@ describe('payment-method-settings', () => {
     expect(ok.success).toBe(true);
   });
 
-  it('Zelle activo sin destinatario se rechaza', () => {
+  it('Zelle activo + Full ON sin destinatario se rechaza', () => {
     const list = DEFAULT_PAYMENT_METHODS.map((m) =>
-      m.id === 'zelle' ? { ...m, active: true, recipientValue: '' } : m,
+      m.id === 'zelle'
+        ? { ...m, active: true, enabledInFull: true, recipientValue: '' }
+        : m,
     );
     expect(paymentMethodsArraySchema.safeParse(list).success).toBe(false);
+  });
+
+  it('Zelle activo + WhatsApp ON + Full OFF + recipient vacío es válido', () => {
+    const list = DEFAULT_PAYMENT_METHODS.map((m) =>
+      m.id === 'zelle'
+        ? {
+            ...m,
+            active: true,
+            enabledInWhatsapp: true,
+            enabledInFull: false,
+            recipientValue: '',
+          }
+        : m,
+    );
+    expect(paymentMethodsArraySchema.safeParse(list).success).toBe(true);
+  });
+
+  it('Custom activo + WhatsApp ON + Full OFF + datos vacíos es válido', () => {
+    const custom = {
+      ...createCustomForeignCurrencyMethod(DEFAULT_PAYMENT_METHODS),
+      active: true,
+      enabledInWhatsapp: true,
+      enabledInFull: false,
+      instructions: '',
+      recipientValue: '',
+    };
+    expect(
+      paymentMethodsArraySchema.safeParse([...DEFAULT_PAYMENT_METHODS, custom]).success,
+    ).toBe(true);
+  });
+
+  it('Custom activo + Full ON + datos vacíos es inválido', () => {
+    const custom = {
+      ...createCustomForeignCurrencyMethod(DEFAULT_PAYMENT_METHODS),
+      active: true,
+      enabledInWhatsapp: true,
+      enabledInFull: true,
+      instructions: '',
+      recipientValue: '',
+    };
+    expect(
+      paymentMethodsArraySchema.safeParse([...DEFAULT_PAYMENT_METHODS, custom]).success,
+    ).toBe(false);
   });
 
   it('descuento activo con porcentaje 0 se rechaza si método activo', () => {

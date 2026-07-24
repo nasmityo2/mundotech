@@ -5,7 +5,7 @@ import type { PaymentMethodConfig, PaymentSettingsSlice } from '@/lib/payment-me
 import {
   createCustomForeignCurrencyMethod,
   isDeletablePaymentMethod,
-  isMethodConfigured,
+  isMethodConfiguredForFull,
   DISCOUNT_ELIGIBLE_KINDS,
 } from '@/lib/payment-methods';
 import {
@@ -42,6 +42,33 @@ function showRecipientFields(kind: PaymentMethodConfig['kind']): boolean {
 
 function usesAccountSection(kind: PaymentMethodConfig['kind']): boolean {
   return kind === 'PAGO_MOVIL' || kind === 'BANK_TRANSFER' || kind === 'BINANCE';
+}
+
+function channelConfigHelp(
+  method: PaymentMethodConfig,
+): string | null {
+  if (
+    method.kind !== 'BINANCE' &&
+    method.kind !== 'ZELLE' &&
+    method.kind !== 'CUSTOM_FOREIGN_CURRENCY'
+  ) {
+    return null;
+  }
+  if (method.enabledInFull) {
+    return 'Checkout Full requiere los datos del destinatario para completar el pago dentro de la web.';
+  }
+  if (method.enabledInWhatsapp) {
+    return 'En WhatsApp estos datos son opcionales. Los coordinaremos con el cliente después de crear el pedido.';
+  }
+  return null;
+}
+
+/** WhatsApp listo salvo efectivo sin monedas. */
+function isWhatsappReady(method: PaymentMethodConfig): boolean {
+  if (method.kind === 'CASH_FOREIGN_CURRENCY') {
+    return method.acceptedCurrencies.length > 0;
+  }
+  return true;
 }
 
 export function PaymentMethodsAdminSection({
@@ -132,10 +159,10 @@ export function PaymentMethodsAdminSection({
         {methods.map((method, index) => {
           const open = openId === method.id;
           const panelId = `${baseId}-${method.id}-panel`;
-          const configured = isMethodConfigured(method, settingsSlice);
+          const fullReady = isMethodConfiguredForFull(method, settingsSlice);
           const canDiscount = DISCOUNT_ELIGIBLE_KINDS.has(method.kind);
-          const canDetermineConfig =
-            method.kind !== 'CASHEA' || accountSettings !== undefined;
+          const whatsappReady = isWhatsappReady(method);
+          const channelHelp = channelConfigHelp(method);
 
           return (
             <div
@@ -161,18 +188,18 @@ export function PaymentMethodsAdminSection({
                       label={method.active ? 'Activo' : 'Inactivo'}
                     />
                     {method.enabledInWhatsapp && (
-                      <StatusBadge status="neutral" label="WhatsApp" />
-                    )}
-                    {method.enabledInFull && (
-                      <StatusBadge status="neutral" label="Full" />
-                    )}
-                    {canDiscount && <StatusBadge status="ok" label="Divisa" />}
-                    {canDetermineConfig && method.kind !== 'CASHEA' && (
                       <StatusBadge
-                        status={configured ? 'ok' : 'warn'}
-                        label={configured ? 'Configurado' : 'Incompleto'}
+                        status={whatsappReady ? 'ok' : 'warn'}
+                        label={whatsappReady ? 'WhatsApp listo' : 'WhatsApp incompleto'}
                       />
                     )}
+                    {method.enabledInFull && (
+                      <StatusBadge
+                        status={fullReady ? 'ok' : 'warn'}
+                        label={fullReady ? 'Full listo' : 'Full incompleto'}
+                      />
+                    )}
+                    {canDiscount && <StatusBadge status="ok" label="Divisa" />}
                   </div>
                 </button>
                 <button
@@ -229,12 +256,21 @@ export function PaymentMethodsAdminSection({
                         checked={method.enabledInFull}
                         onChange={(v) => updateAt(index, { enabledInFull: v })}
                       />
+                      {method.enabledInFull && (
+                        <p className="text-[11px] text-slate-500">
+                          Si activas checkout Full, debes completar los datos necesarios para que el
+                          cliente pueda pagar sin coordinación manual.
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-3">
                       <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">
                         Datos mostrados al cliente
                       </h4>
+                      {channelHelp && (
+                        <HelpCallout variant="info">{channelHelp}</HelpCallout>
+                      )}
                       <Field
                         label="Nombre"
                         value={method.name}

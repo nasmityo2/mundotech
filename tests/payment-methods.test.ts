@@ -11,6 +11,7 @@ import {
   buildCheckoutPaymentMethods,
   createCustomForeignCurrencyMethod,
   applyGlobalDivisaDiscount,
+  paymentMethodCurrencyGroup,
   type PaymentMethodConfig,
 } from '@/lib/payment-methods';
 
@@ -127,9 +128,10 @@ describe('payment-methods', () => {
     expect(paymentMethodsArraySchema.safeParse(list).success).toBe(false);
   });
 
-  it('custom activo sin destinatario se rechaza', () => {
+  it('custom activo + Full ON sin destinatario se rechaza', () => {
     const custom = createCustomForeignCurrencyMethod(DEFAULT_PAYMENT_METHODS);
     custom.active = true;
+    custom.enabledInFull = true;
     custom.instructions = 'Paga aquí';
     custom.recipientValue = '';
     expect(paymentMethodsArraySchema.safeParse([...DEFAULT_PAYMENT_METHODS, custom]).success).toBe(false);
@@ -355,5 +357,246 @@ describe('payment-methods', () => {
         expect(m.discountPercent).toBe(0);
       }
     }
+  });
+
+  describe('validación por canal y currencyGroup', () => {
+    it('Zelle active + WhatsApp ON + Full OFF + recipient vacío: schema válido', () => {
+      const list = DEFAULT_PAYMENT_METHODS.map((m) =>
+        m.id === 'zelle'
+          ? {
+              ...m,
+              active: true,
+              enabledInWhatsapp: true,
+              enabledInFull: false,
+              recipientValue: '',
+            }
+          : m,
+      );
+      expect(paymentMethodsArraySchema.safeParse(list).success).toBe(true);
+    });
+
+    it('Zelle active + Full ON + recipient vacío: schema inválido en recipientValue', () => {
+      const list = DEFAULT_PAYMENT_METHODS.map((m) =>
+        m.id === 'zelle'
+          ? {
+              ...m,
+              active: true,
+              enabledInWhatsapp: true,
+              enabledInFull: true,
+              recipientValue: '',
+            }
+          : m,
+      );
+      const parsed = paymentMethodsArraySchema.safeParse(list);
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) {
+        expect(
+          parsed.error.issues.some(
+            (i) =>
+              i.path.includes('recipientValue') ||
+              String(i.message).includes('destinatario'),
+          ),
+        ).toBe(true);
+      }
+    });
+
+    it('Custom active + WhatsApp ON + Full OFF + datos vacíos: schema válido', () => {
+      const custom = createCustomForeignCurrencyMethod(DEFAULT_PAYMENT_METHODS);
+      custom.active = true;
+      custom.enabledInWhatsapp = true;
+      custom.enabledInFull = false;
+      custom.instructions = '';
+      custom.recipientValue = '';
+      expect(
+        paymentMethodsArraySchema.safeParse([...DEFAULT_PAYMENT_METHODS, custom]).success,
+      ).toBe(true);
+    });
+
+    it('Custom active + Full ON + datos vacíos: schema inválido', () => {
+      const custom = createCustomForeignCurrencyMethod(DEFAULT_PAYMENT_METHODS);
+      custom.active = true;
+      custom.enabledInFull = true;
+      custom.instructions = '';
+      custom.recipientValue = '';
+      expect(
+        paymentMethodsArraySchema.safeParse([...DEFAULT_PAYMENT_METHODS, custom]).success,
+      ).toBe(false);
+    });
+
+    it('Binance active + WhatsApp ON + Pay ID vacío: aparece en WhatsApp', () => {
+      const methods = DEFAULT_PAYMENT_METHODS.map((m) =>
+        m.id === 'binancepay'
+          ? { ...m, active: true, enabledInWhatsapp: true, enabledInFull: true }
+          : m,
+      );
+      const dto = buildCheckoutPaymentMethods(
+        { ...settingsSlice, binancePayId: '', paymentMethods: methods },
+        'whatsapp',
+      );
+      expect(dto.find((m) => m.id === 'binancepay')).toBeTruthy();
+    });
+
+    it('Binance active + Full ON + Pay ID vacío: no aparece en Full', () => {
+      const methods = DEFAULT_PAYMENT_METHODS.map((m) =>
+        m.id === 'binancepay'
+          ? { ...m, active: true, enabledInWhatsapp: true, enabledInFull: true }
+          : m,
+      );
+      const dto = buildCheckoutPaymentMethods(
+        { ...settingsSlice, binancePayId: '', paymentMethods: methods },
+        'web',
+      );
+      expect(dto.find((m) => m.id === 'binancepay')).toBeUndefined();
+    });
+
+    it('resolveAndValidatePaymentMethod acepta Binance sin Pay ID en WhatsApp', () => {
+      const methods = [
+        normalizePaymentMethod({
+          ...DEFAULT_PAYMENT_METHODS.find((m) => m.id === 'binancepay')!,
+          active: true,
+          enabledInWhatsapp: true,
+        }),
+      ];
+      const resolved = resolveAndValidatePaymentMethod({
+        methods,
+        paymentMethodId: 'binancepay',
+        channel: 'whatsapp',
+        settings: { ...settingsSlice, binancePayId: '' },
+      });
+      expect(resolved.method.id).toBe('binancepay');
+    });
+
+    it('resolveAndValidatePaymentMethod rechaza Binance sin Pay ID en web', () => {
+      const methods = [
+        normalizePaymentMethod({
+          ...DEFAULT_PAYMENT_METHODS.find((m) => m.id === 'binancepay')!,
+          active: true,
+          enabledInFull: true,
+        }),
+      ];
+      expect(() =>
+        resolveAndValidatePaymentMethod({
+          methods,
+          paymentMethodId: 'binancepay',
+          channel: 'web',
+          settings: { ...settingsSlice, binancePayId: '' },
+          paymentReference: '1',
+          paymentUploadToken: 'tok',
+        }),
+      ).toThrow(/Binance/i);
+    });
+
+    it('resolveAndValidatePaymentMethod acepta Zelle sin recipient en WhatsApp', () => {
+      const methods = [
+        normalizePaymentMethod({
+          ...DEFAULT_PAYMENT_METHODS.find((m) => m.id === 'zelle')!,
+          active: true,
+          enabledInWhatsapp: true,
+          enabledInFull: false,
+          recipientValue: '',
+        }),
+      ];
+      const resolved = resolveAndValidatePaymentMethod({
+        methods,
+        paymentMethodId: 'zelle',
+        channel: 'whatsapp',
+        settings: settingsSlice,
+        paymentCurrency: 'USD',
+      });
+      expect(resolved.method.id).toBe('zelle');
+    });
+
+    it('resolveAndValidatePaymentMethod rechaza Zelle sin recipient en web', () => {
+      const methods = [
+        normalizePaymentMethod({
+          ...DEFAULT_PAYMENT_METHODS.find((m) => m.id === 'zelle')!,
+          active: true,
+          enabledInFull: true,
+          recipientValue: '',
+        }),
+      ];
+      expect(() =>
+        resolveAndValidatePaymentMethod({
+          methods,
+          paymentMethodId: 'zelle',
+          channel: 'web',
+          settings: settingsSlice,
+          paymentCurrency: 'USD',
+          paymentReference: '1',
+          paymentUploadToken: 'tok',
+        }),
+      ).toThrow(/Zelle/i);
+    });
+
+    it('Efectivo activo sin acceptedCurrencies: inválido', () => {
+      const list = DEFAULT_PAYMENT_METHODS.map((m) =>
+        m.id === 'efectivo-divisas'
+          ? { ...m, active: true, acceptedCurrencies: [] as string[] }
+          : m,
+      );
+      expect(paymentMethodsArraySchema.safeParse(list).success).toBe(false);
+    });
+
+    it('Efectivo con moneda no aceptada: servidor rechaza', () => {
+      const cash = normalizePaymentMethod({
+        ...DEFAULT_PAYMENT_METHODS.find((m) => m.id === 'efectivo-divisas')!,
+        active: true,
+      });
+      expect(() =>
+        resolveAndValidatePaymentMethod({
+          methods: [cash],
+          paymentMethodId: 'efectivo-divisas',
+          channel: 'whatsapp',
+          settings: settingsSlice,
+          paymentCurrency: 'GBP',
+        }),
+      ).toThrow(/aceptada/i);
+    });
+
+    it('Grupos currencyGroup por kind', () => {
+      expect(paymentMethodCurrencyGroup('PAGO_MOVIL')).toBe('VES');
+      expect(paymentMethodCurrencyGroup('BANK_TRANSFER')).toBe('VES');
+      expect(paymentMethodCurrencyGroup('CASHEA')).toBe('VES');
+      expect(paymentMethodCurrencyGroup('BINANCE')).toBe('USD');
+      expect(paymentMethodCurrencyGroup('ZELLE')).toBe('USD');
+      expect(paymentMethodCurrencyGroup('CASH_FOREIGN_CURRENCY')).toBe('USD');
+      expect(paymentMethodCurrencyGroup('CUSTOM_FOREIGN_CURRENCY')).toBe('USD');
+    });
+
+    it('DTO incluye currencyGroup derivado del kind', () => {
+      const dto = buildCheckoutPaymentMethods(
+        { ...settingsSlice, paymentMethods: DEFAULT_PAYMENT_METHODS },
+        'whatsapp',
+      );
+      expect(dto.find((m) => m.id === 'pagomovil')?.currencyGroup).toBe('VES');
+      expect(dto.find((m) => m.id === 'binancepay')?.currencyGroup).toBe('USD');
+    });
+
+    it('Cashea continúa sin descuento', () => {
+      const result = applyGlobalDivisaDiscount(DEFAULT_PAYMENT_METHODS, {
+        enabled: true,
+        percent: 10,
+      });
+      const cashea = result.find((m) => m.kind === 'CASHEA')!;
+      expect(cashea.discountEligible).toBe(false);
+      expect(cashea.discountEnabled).toBe(false);
+      expect(cashea.discountPercent).toBe(0);
+    });
+
+    it('Métodos de divisa conservan el descuento global', () => {
+      const result = applyGlobalDivisaDiscount(DEFAULT_PAYMENT_METHODS, {
+        enabled: true,
+        percent: 8,
+      });
+      for (const kind of [
+        'BINANCE',
+        'ZELLE',
+        'CASH_FOREIGN_CURRENCY',
+      ] as const) {
+        const m = result.find((x) => x.kind === kind)!;
+        expect(m.discountEnabled).toBe(true);
+        expect(m.discountPercent).toBe(8);
+      }
+    });
   });
 });

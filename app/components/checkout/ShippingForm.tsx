@@ -491,9 +491,7 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
         const description =
           chargeType === 'STORE_PICKUP'
             ? 'No aplica envío. Pagas en la web y retiras tu pedido en nuestro negocio.'
-            : chargeType === 'FREE'
-              ? 'MundoTech cubre el envío por MRW porque todos los productos califican.'
-              : 'El costo del envío se paga al transportista al recibir o retirar el pedido.';
+            : 'El costo del envío se paga al transportista al recibir o retirar el pedido.';
         return (
           <div
             aria-live="polite"

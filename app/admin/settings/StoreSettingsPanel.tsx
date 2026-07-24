@@ -176,18 +176,18 @@ export function StoreSettingsPanel({
 
   const saveBarStatus: SaveBarStatus = useMemo(() => {
     if (savingGeneral || isSavingEstimates) return 'saving';
-    if (savedGeneral || savedEstimates) return 'saved';
     if (saveError || estimatesError) return 'error';
     if (dirty) return 'dirty';
+    if (savedGeneral || savedEstimates) return 'saved';
     return 'idle';
   }, [
     savingGeneral,
     isSavingEstimates,
-    savedGeneral,
-    savedEstimates,
     saveError,
     estimatesError,
     dirty,
+    savedGeneral,
+    savedEstimates,
   ]);
 
   const bothDirty = dirtyGeneral && dirtyEstimates;
