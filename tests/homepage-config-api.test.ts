@@ -1,5 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { NextResponse } from 'next/server';
+import { DEFAULT_HOMEPAGE_SHELVES } from '@/lib/homepage-config';
+
+const findUnique = vi.fn();
+const findManyProducts = vi.fn();
+const upsert = vi.fn();
 
 vi.mock('@/lib/admin-access-server', () => ({
   requirePermission: vi.fn(),
@@ -13,10 +18,11 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     appConfig: {
       findMany: vi.fn(),
-      upsert: vi.fn(),
+      findUnique: (...args: unknown[]) => findUnique(...args),
+      upsert: (...args: unknown[]) => upsert(...args),
     },
     product: {
-      findMany: vi.fn(async () => []),
+      findMany: (...args: unknown[]) => findManyProducts(...args),
     },
   },
 }));
@@ -29,7 +35,17 @@ vi.mock('next/cache', () => ({
 import { requirePermission } from '@/lib/admin-access-server';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 import { PUT } from '@/app/api/config/homepage/route';
-import { DEFAULT_HOMEPAGE_SHELVES } from '@/lib/homepage-config';
+
+async function putShelves(featuredProductIds: string[]) {
+  const req = new Request('http://localhost/api/config/homepage', {
+    method: 'PUT',
+    body: JSON.stringify({
+      key: 'homepage_shelves',
+      value: { ...DEFAULT_HOMEPAGE_SHELVES, featuredProductIds },
+    }),
+  });
+  return PUT(req);
+}
 
 describe('PUT /api/config/homepage', () => {
   beforeEach(() => {
@@ -38,6 +54,9 @@ describe('PUT /api/config/homepage', () => {
     vi.mocked(requirePermission).mockResolvedValue({
       authorized: true,
     } as never);
+    findUnique.mockResolvedValue(null);
+    findManyProducts.mockResolvedValue([]);
+    upsert.mockResolvedValue({});
   });
 
   it('payload no autorizado se rechaza', async () => {
@@ -85,17 +104,62 @@ describe('PUT /api/config/homepage', () => {
   });
 
   it('rechaza shelves con más de 8 destacados', async () => {
-    const req = new Request('http://localhost/api/config/homepage', {
-      method: 'PUT',
-      body: JSON.stringify({
-        key: 'homepage_shelves',
-        value: {
-          ...DEFAULT_HOMEPAGE_SHELVES,
-          featuredProductIds: Array.from({ length: 9 }, (_, i) => `id-${i}`),
-        },
+    const res = await putShelves(
+      Array.from({ length: 9 }, (_, i) => `id-${i}`),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it('ID nuevo activo aceptado', async () => {
+    findManyProducts.mockResolvedValue([{ id: 'new-1', isActive: true }]);
+    const res = await putShelves(['new-1']);
+    expect(res.status).toBe(200);
+    expect(upsert).toHaveBeenCalled();
+  });
+
+  it('ID nuevo inactivo rechazado', async () => {
+    findManyProducts.mockResolvedValue([{ id: 'new-1', isActive: false }]);
+    const res = await putShelves(['new-1']);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.inactive).toContain('new-1');
+  });
+
+  it('ID nuevo inexistente rechazado', async () => {
+    findManyProducts.mockResolvedValue([]);
+    const res = await putShelves(['missing-1']);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.missing).toContain('missing-1');
+  });
+
+  it('ID guardado previamente y luego inactivo se conserva', async () => {
+    findUnique.mockResolvedValue({
+      value: JSON.stringify({
+        ...DEFAULT_HOMEPAGE_SHELVES,
+        featuredProductIds: ['old-1'],
       }),
     });
-    const res = await PUT(req);
+    // No se consulta producto porque old-1 no es nuevo.
+    const res = await putShelves(['old-1']);
+    expect(res.status).toBe(200);
+    expect(findManyProducts).not.toHaveBeenCalled();
+  });
+
+  it('ID guardado previamente y luego ausente se conserva', async () => {
+    findUnique.mockResolvedValue({
+      value: JSON.stringify({
+        ...DEFAULT_HOMEPAGE_SHELVES,
+        featuredProductIds: ['ghost-1'],
+      }),
+    });
+    const res = await putShelves(['ghost-1']);
+    expect(res.status).toBe(200);
+    expect(findManyProducts).not.toHaveBeenCalled();
+  });
+
+  it('IDs duplicados rechazados', async () => {
+    const res = await putShelves(['a', 'a']);
     expect(res.status).toBe(400);
   });
 });

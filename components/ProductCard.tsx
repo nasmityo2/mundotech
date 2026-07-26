@@ -95,7 +95,10 @@ const ProductCard = ({
   };
 
   return (
-    <div className="group block h-full">
+    <div
+      className="group block h-full"
+      data-testid={`product-card-${product.id}`}
+    >
       <div className="card-interactive relative flex h-full flex-col overflow-hidden shadow-soft focus-within:ring-2 focus-within:ring-navy active:scale-[0.99] motion-reduce:active:scale-100">
         <div className="relative aspect-square overflow-hidden bg-white">
           <Image

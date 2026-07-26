@@ -78,26 +78,62 @@ test.describe('Mobile smoke — Android/iOS reales', () => {
   });
 
   test('carrusel de estantería: primer producto completo y snap', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    async function assertCarouselAt(width: number, height: number) {
+      await page.setViewportSize({ width, height });
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
 
-    const carousel = page.locator('.snap-x.snap-mandatory').first();
-    if ((await carousel.count()) === 0) {
-      test.skip();
-      return;
+      const carousel = page.getByTestId('product-shelf-carousel').first();
+      if ((await carousel.count()) === 0) {
+        test.skip();
+        return;
+      }
+
+      const firstCard = carousel.getByTestId('product-card').first();
+      await expect(firstCard).toBeVisible();
+
+      const fullyVisible = await firstCard.evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        return (
+          rect.left >= 0 &&
+          rect.right <= (window.innerWidth || document.documentElement.clientWidth) + 1
+        );
+      });
+      expect(fullyVisible, `primer card no cabe completo en ${width}px`).toBe(true);
+
+      await carousel.evaluate((el) => {
+        (el as HTMLElement).scrollLeft += 120;
+      });
+
+      await expect
+        .poll(async () => {
+          return carousel.evaluate((el) => {
+            const cards = Array.from(
+              el.querySelectorAll('[data-testid="product-card"]'),
+            ) as HTMLElement[];
+            if (cards.length === 0) return false;
+            const left = el.scrollLeft;
+            // Alineación razonable a un snap-start (±8 px).
+            return cards.some((card) => Math.abs(card.offsetLeft - left) <= 8);
+          });
+        }, { timeout: 3000 })
+        .toBe(true);
+
+      // Dos rAF para estabilizar layout
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => resolve());
+            });
+          }),
+      );
+
+      await assertNoHorizontalOverflow(page);
     }
 
-    const firstCard = carousel.locator('.snap-start').first();
-    await expect(firstCard).toBeVisible();
-    const box = await firstCard.boundingBox();
-    expect(box, 'primer producto sin boundingBox').not.toBeNull();
-    if (box) {
-      expect(box.x).toBeGreaterThanOrEqual(0);
-      expect(box.width).toBeGreaterThan(100);
-    }
-
-    await assertNoHorizontalOverflow(page);
+    await assertCarouselAt(390, 844);
+    await assertCarouselAt(320, 800);
   });
 
   test('viewport 320: sin overflow horizontal del documento', async ({ page }) => {

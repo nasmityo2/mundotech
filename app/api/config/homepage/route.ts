@@ -125,18 +125,53 @@ export async function PUT(request: Request) {
     }
 
     const ids = parsed.data.featuredProductIds;
-    if (ids.length > 0) {
-      const existing = await prisma.product.findMany({
-        where: { id: { in: ids } },
-        select: { id: true },
+
+    // Solo IDs *nuevos* deben existir y estar activos.
+    // Los previamente guardados se conservan aunque estén inactivos/ausentes.
+    const previousRow = await prisma.appConfig.findUnique({
+      where: { key: 'homepage_shelves' },
+      select: { value: true },
+    });
+    let previousIds = new Set<string>();
+    if (previousRow?.value) {
+      try {
+        previousIds = new Set(
+          normalizeHomepageShelves(JSON.parse(previousRow.value))
+            .featuredProductIds,
+        );
+      } catch {
+        previousIds = new Set();
+      }
+    }
+
+    const newlyAddedIds = ids.filter((id) => !previousIds.has(id));
+    if (newlyAddedIds.length > 0) {
+      const products = await prisma.product.findMany({
+        where: { id: { in: newlyAddedIds } },
+        select: { id: true, isActive: true },
       });
-      const existingSet = new Set(existing.map((p) => p.id));
-      const missing = ids.filter((id) => !existingSet.has(id));
+      const byId = new Map(products.map((p) => [p.id, p]));
+
+      const missing = newlyAddedIds.filter((id) => !byId.has(id));
       if (missing.length > 0) {
         return NextResponse.json(
           {
-            error: 'Uno o más productos destacados no existen.',
+            error: 'Uno o más productos destacados nuevos no existen.',
             missing,
+          },
+          { status: 400 },
+        );
+      }
+
+      const inactive = newlyAddedIds.filter(
+        (id) => byId.get(id)?.isActive !== true,
+      );
+      if (inactive.length > 0) {
+        return NextResponse.json(
+          {
+            error:
+              'No se pueden agregar productos inactivos a la selección destacada.',
+            inactive,
           },
           { status: 400 },
         );

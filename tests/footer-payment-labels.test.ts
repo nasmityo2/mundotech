@@ -90,6 +90,43 @@ describe('footer payment method labels', () => {
     expect(joined).not.toContain('SECRET');
     expect(joined).not.toMatch(/recipient|instruction|account|rif/i);
   });
+
+  it('método exclusivo WhatsApp con sortOrder bajo aparece antes que web', () => {
+    const methods = DEFAULT_PAYMENT_METHODS.map((m) => {
+      if (m.id === 'zelle') {
+        return {
+          ...m,
+          active: true,
+          enabledInWhatsapp: true,
+          enabledInFull: false,
+          sortOrder: 1,
+          recipientValue: 'zelle@example.com',
+        };
+      }
+      if (m.id === 'pagomovil') {
+        return {
+          ...m,
+          active: true,
+          enabledInWhatsapp: false,
+          enabledInFull: true,
+          sortOrder: 20,
+        };
+      }
+      return {
+        ...m,
+        active: false,
+        enabledInWhatsapp: false,
+        enabledInFull: false,
+      };
+    });
+
+    const labels = buildFooterPaymentMethodLabels(settingsWith(methods));
+    expect(labels[0]).toBe('Zelle');
+    expect(labels.some((n) => /pago\s*m[oó]vil/i.test(n))).toBe(true);
+    expect(labels.indexOf('Zelle')).toBeLessThan(
+      labels.findIndex((n) => /pago\s*m[oó]vil/i.test(n)),
+    );
+  });
 });
 
 describe('SiteShellData payment surface', () => {

@@ -522,12 +522,20 @@ export default function HomeManagerPage() {
 
       {/* ═══ ESTANTERÍAS DE PRODUCTOS ══════════════════════════════════════════════ */}
       {tab === 'shelves' && (
-        <ShelvesEditor initial={shelves} loading={loadingCfg} />
+        <ShelvesEditor
+          initial={shelves}
+          loading={loadingCfg}
+          onSaved={setShelves}
+        />
       )}
 
       {/* ═══ ENVÍO GRATIS MRW ══════════════════════════════════════════════════════ */}
       {tab === 'freeShipping' && (
-        <FreeShippingEditor initial={freeShipping} loading={loadingCfg} />
+        <FreeShippingEditor
+          initial={freeShipping}
+          loading={loadingCfg}
+          onSaved={setFreeShipping}
+        />
       )}
     </div>
   );

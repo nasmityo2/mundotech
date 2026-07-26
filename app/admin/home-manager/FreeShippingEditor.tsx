@@ -8,18 +8,26 @@ import {
 } from '@/lib/homepage-config';
 import HomeFreeShippingStrip from '@/app/components/HomeFreeShippingStrip';
 
+function cloneFreeShipping(
+  config: HomepageFreeShippingConfig,
+): HomepageFreeShippingConfig {
+  return structuredClone(config);
+}
+
 export default function FreeShippingEditor({
   initial,
   loading,
+  onSaved,
 }: {
   initial: HomepageFreeShippingConfig | null;
   loading: boolean;
+  onSaved?: (config: HomepageFreeShippingConfig) => void;
 }) {
-  const [draft, setDraft] = useState<HomepageFreeShippingConfig>(
-    initial ?? DEFAULT_HOMEPAGE_FREE_SHIPPING,
+  const [draft, setDraft] = useState<HomepageFreeShippingConfig>(() =>
+    cloneFreeShipping(initial ?? DEFAULT_HOMEPAGE_FREE_SHIPPING),
   );
-  const [saved, setSaved] = useState<HomepageFreeShippingConfig>(
-    initial ?? DEFAULT_HOMEPAGE_FREE_SHIPPING,
+  const [saved, setSaved] = useState<HomepageFreeShippingConfig>(() =>
+    cloneFreeShipping(initial ?? DEFAULT_HOMEPAGE_FREE_SHIPPING),
   );
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
@@ -27,8 +35,8 @@ export default function FreeShippingEditor({
 
   useEffect(() => {
     if (!initial) return;
-    setDraft(initial);
-    setSaved(initial);
+    setDraft(cloneFreeShipping(initial));
+    setSaved(cloneFreeShipping(initial));
   }, [initial]);
 
   const dirty = useMemo(
@@ -73,8 +81,10 @@ export default function FreeShippingEditor({
         setStatusMsg(d.error ?? 'Error al guardar.');
         return;
       }
-      setDraft(payload);
-      setSaved(payload);
+      const snapshot = cloneFreeShipping(payload);
+      setDraft(cloneFreeShipping(snapshot));
+      setSaved(cloneFreeShipping(snapshot));
+      onSaved?.(cloneFreeShipping(snapshot));
       setStatus('saved');
       setStatusMsg('Configuración de envío gratis guardada.');
     } catch {

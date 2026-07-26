@@ -36,6 +36,7 @@ import { logInfo, logWarn } from '@/lib/safe-logger';
 export const SHELL_CACHE_TAGS = [
   'site-shell',
   'settings',
+  'store-settings',
   'site-content',
   'seo-local',
   'announcement',

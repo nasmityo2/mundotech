@@ -70,18 +70,24 @@ function validateShelves(config: HomepageShelvesConfig): string | null {
   return null;
 }
 
+function cloneShelves(config: HomepageShelvesConfig): HomepageShelvesConfig {
+  return structuredClone(config);
+}
+
 export default function ShelvesEditor({
   initial,
   loading,
+  onSaved,
 }: {
   initial: HomepageShelvesConfig | null;
   loading: boolean;
+  onSaved?: (config: HomepageShelvesConfig) => void;
 }) {
-  const [draft, setDraft] = useState<HomepageShelvesConfig>(
-    initial ?? DEFAULT_HOMEPAGE_SHELVES,
+  const [draft, setDraft] = useState<HomepageShelvesConfig>(() =>
+    cloneShelves(initial ?? DEFAULT_HOMEPAGE_SHELVES),
   );
-  const [saved, setSaved] = useState<HomepageShelvesConfig>(
-    initial ?? DEFAULT_HOMEPAGE_SHELVES,
+  const [saved, setSaved] = useState<HomepageShelvesConfig>(() =>
+    cloneShelves(initial ?? DEFAULT_HOMEPAGE_SHELVES),
   );
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
@@ -95,8 +101,8 @@ export default function ShelvesEditor({
 
   useEffect(() => {
     if (!initial) return;
-    setDraft(initial);
-    setSaved(initial);
+    setDraft(cloneShelves(initial));
+    setSaved(cloneShelves(initial));
   }, [initial]);
 
   const dirty = useMemo(() => !shelvesEqual(draft, saved), [draft, saved]);
@@ -228,7 +234,10 @@ export default function ShelvesEditor({
         setStatusMsg(d.error ?? 'Error al guardar.');
         return;
       }
-      setSaved(draft);
+      const snapshot = cloneShelves(draft);
+      setDraft(cloneShelves(snapshot));
+      setSaved(cloneShelves(snapshot));
+      onSaved?.(cloneShelves(snapshot));
       setStatus('saved');
       setStatusMsg('Estanterías guardadas correctamente.');
     } catch {
@@ -458,30 +467,24 @@ export default function ShelvesEditor({
           ) : null}
         </div>
 
-        {selectedDetails.length > 0 ? (
-          <ul className="space-y-2">
+        {draft.featuredProductIds.length > 0 ? (
+          <ul className="space-y-2" data-testid="featured-selected-list">
             {draft.featuredProductIds.map((id, index) => {
-              const product =
-                selectedDetails.find((p) => p.id === id) ??
-                ({
-                  id,
-                  name: id,
-                  sku: null,
-                  price: 0,
-                  stock: 0,
-                  isActive: false,
-                  image: '',
-                } satisfies AdminProductHit);
+              const product = selectedDetails.find((p) => p.id === id);
+              const label = product?.name ?? 'Producto no disponible';
+              const truncatedId =
+                id.length > 12 ? `${id.slice(0, 8)}…${id.slice(-4)}` : id;
               return (
                 <li
                   key={id}
                   className="flex items-center gap-2 border border-gray-100 rounded-xl p-2"
+                  data-testid={`featured-selected-${id}`}
                 >
                   <span className="text-xs font-bold text-gray-400 w-5 text-center">
                     {index + 1}
                   </span>
                   <div className="relative h-10 w-10 flex-shrink-0 rounded-lg overflow-hidden bg-gray-50">
-                    {product.image ? (
+                    {product?.image ? (
                       <Image
                         src={product.image}
                         alt=""
@@ -492,20 +495,37 @@ export default function ShelvesEditor({
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-navy truncate">
-                      {product.name}
-                    </p>
-                    <p className="text-[11px] text-gray-500">
-                      Stock {product.stock}
-                      {!product.isActive ? ' · Inactivo (oculto en home)' : ''}
-                      {product.stock <= 0 ? ' · Agotado (oculto en home)' : ''}
-                    </p>
+                    {product ? (
+                      <>
+                        <p className="text-sm font-semibold text-navy truncate">
+                          {product.name}
+                        </p>
+                        <p className="text-[11px] text-gray-500">
+                          Stock {product.stock}
+                          {!product.isActive
+                            ? ' · Inactivo (oculto en home)'
+                            : ''}
+                          {product.stock <= 0
+                            ? ' · Agotado (oculto en home)'
+                            : ''}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-semibold text-navy truncate">
+                          Producto no disponible
+                        </p>
+                        <p className="text-[11px] text-gray-500 font-mono truncate">
+                          {truncatedId}
+                        </p>
+                      </>
+                    )}
                   </div>
                   <button
                     type="button"
                     onClick={() => moveFeatured(id, -1)}
                     disabled={index === 0}
-                    aria-label={`Subir producto ${product.name}`}
+                    aria-label={`Subir producto ${label}`}
                     className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-gray-200 disabled:opacity-40"
                   >
                     <ArrowUp size={15} />
@@ -514,7 +534,7 @@ export default function ShelvesEditor({
                     type="button"
                     onClick={() => moveFeatured(id, 1)}
                     disabled={index === draft.featuredProductIds.length - 1}
-                    aria-label={`Bajar producto ${product.name}`}
+                    aria-label={`Bajar producto ${label}`}
                     className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-gray-200 disabled:opacity-40"
                   >
                     <ArrowDown size={15} />
@@ -522,7 +542,7 @@ export default function ShelvesEditor({
                   <button
                     type="button"
                     onClick={() => removeFeatured(id)}
-                    aria-label={`Quitar producto ${product.name}`}
+                    aria-label={`Quitar producto ${label}`}
                     className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-red-100 text-red-600"
                   >
                     <Trash2 size={15} />

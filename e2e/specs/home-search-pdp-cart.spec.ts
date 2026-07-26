@@ -19,16 +19,28 @@ test.describe('Home → Search → PDP → Cart', () => {
   test('producto agotado no aparece en estanterías del home pero su URL sigue', async ({
     page,
   }) => {
+    const outOfStockName = E2E_PRODUCTS.noStock.name;
+
     await page.goto('/');
     await page.waitForLoadState('networkidle');
-    const homeText = await page.locator('main, body').innerText();
-    // El nombre puede existir en otros sitios; verificamos que la ficha siga viva.
+
+    const shelves = page.getByTestId('product-shelf');
+    // Puede haber 0–N estanterías; en ninguna debe figurar el agotado.
+    const shelfCount = await shelves.count();
+    for (let i = 0; i < shelfCount; i++) {
+      await expect(shelves.nth(i).getByText(outOfStockName)).toHaveCount(0);
+    }
+    await expect(
+      page.getByTestId('product-shelf').getByTestId('product-card').filter({
+        hasText: outOfStockName,
+      }),
+    ).toHaveCount(0);
+
     await page.goto(productPdpPath(E2E_PRODUCTS.noStock.slug));
-    await expect(page.getByRole('heading', { name: E2E_PRODUCTS.noStock.name })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: outOfStockName }),
+    ).toBeVisible();
     await expect(page.getByText('Agotado').first()).toBeVisible();
-    // En home, si aparece, no debe estar dentro de un ProductShelf card activo típico;
-    // la garantía fuerte es la exclusión por consulta (cubierta en unit tests).
-    expect(homeText).toBeTruthy();
   });
 
   test('búsqueda encuentra producto con stock', async ({ page }) => {

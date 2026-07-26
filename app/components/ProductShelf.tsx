@@ -84,7 +84,10 @@ const ProductShelf = ({
   const analyticsListId = listId || slugify(title);
 
   return (
-    <section className="py-5 sm:py-8 w-full max-w-full overflow-x-hidden">
+    <section
+      className="py-5 sm:py-8 w-full max-w-full overflow-x-hidden"
+      data-testid="product-shelf"
+    >
       <TrackViewItemList
         listId={analyticsListId}
         listName={title}
@@ -142,11 +145,16 @@ const ProductShelf = ({
 
       <div className="-mx-4 sm:mx-0">
         {/* Móvil: ~44vw, snap mandatory, padding lateral, sin overflow de página */}
-        <div className="flex gap-3 overflow-x-auto overscroll-x-contain touch-pan-x scrollbar-hide snap-x snap-mandatory scroll-px-4 px-4 pb-2 sm:hidden">
+        <div
+          className="flex gap-3 overflow-x-auto overscroll-x-contain touch-pan-x scrollbar-hide snap-x snap-mandatory scroll-px-4 px-4 pb-2 sm:hidden"
+          data-testid="product-shelf-carousel"
+        >
           {slice.map((product, index) => (
             <div
               key={product.id}
               className="flex-shrink-0 w-[44vw] min-w-[150px] max-w-[178px] snap-start"
+              data-testid="product-card"
+              data-product-id={product.id}
             >
               <ProductCard
                 product={toCardProduct(product)}
@@ -172,25 +180,35 @@ const ProductShelf = ({
 
         <div className="hidden sm:grid sm:grid-cols-2 md:grid-cols-3 gap-4 lg:hidden">
           {slice.map((product, index) => (
-            <ProductCard
+            <div
               key={product.id}
-              product={toCardProduct(product)}
-              analyticsListId={analyticsListId}
-              analyticsListName={title}
-              analyticsIndex={index}
-            />
+              data-testid="product-card"
+              data-product-id={product.id}
+            >
+              <ProductCard
+                product={toCardProduct(product)}
+                analyticsListId={analyticsListId}
+                analyticsListName={title}
+                analyticsIndex={index}
+              />
+            </div>
           ))}
         </div>
 
         <div className="hidden lg:grid grid-cols-4 xl:grid-cols-6 gap-4">
           {slice.map((product, index) => (
-            <ProductCard
+            <div
               key={product.id}
-              product={toCardProduct(product)}
-              analyticsListId={analyticsListId}
-              analyticsListName={title}
-              analyticsIndex={index}
-            />
+              data-testid="product-card"
+              data-product-id={product.id}
+            >
+              <ProductCard
+                product={toCardProduct(product)}
+                analyticsListId={analyticsListId}
+                analyticsListName={title}
+                analyticsIndex={index}
+              />
+            </div>
           ))}
         </div>
       </div>
