@@ -28,6 +28,7 @@ import { readSeoLocal, describeOpeningHours, type SeoLocal } from '@/lib/seo-loc
 import { readSiteContent, type SiteContent } from '@/lib/site-content';
 import { readAnnouncement, type Announcement } from '@/lib/announcement';
 import { resolveCategoryPathFromProductCategory } from '@/lib/resolve-category-path';
+import { buildFooterPaymentMethodLabels } from '@/lib/footer-payment-labels';
 import { logInfo, logWarn } from '@/lib/safe-logger';
 
 // ── Tags de caché ───────────────────────────────────────────────────────────
@@ -54,7 +55,6 @@ export const CACHE_TAG_CATEGORIES = 'categories';
 // ── DTO público (sin datos bancarios) ──────────────────────────────────────
 
 export type SiteShellFooterCategoryPaths = {
-  gamingPath: string;
   accesoriosPath: string;
 };
 
@@ -68,7 +68,8 @@ export type SiteShellContact = {
 
 /**
  * DTO serializable con todo lo que layout.tsx y Footer.tsx necesitan.
- * Excluye: pagoMovil, transferencia, binancePayId, binanceQrUrl.
+ * Excluye: pagoMovil, transferencia, binancePayId, binanceQrUrl,
+ * recipientValue, instructions y cualquier dato financiero privado.
  */
 export type SiteShellData = {
   /** Anuncio de la barra superior. */
@@ -92,22 +93,24 @@ export type SiteShellData = {
   categoryPaths: SiteShellFooterCategoryPaths;
   /** Horarios formateados para el footer. */
   openingHours: { day: string; hours: string }[];
+  /** Nombres públicos de métodos activos en web y/o WhatsApp. */
+  paymentMethodLabels: string[];
 };
 
 // ── Función de lectura interna (raw, sin cache) ────────────────────────────
 
 async function buildSiteShellData(): Promise<SiteShellData> {
-  const [settings, seoLocal, siteContent, announcement, gamingPath, accesoriosPath] =
+  const [settings, seoLocal, siteContent, announcement, accesoriosPath] =
     await Promise.all([
       readSettings(),
       readSeoLocal(),
       readSiteContent(),
       readAnnouncement(),
-      resolveCategoryPathFromProductCategory('Consolas'),
       resolveCategoryPathFromProductCategory('Accesorios'),
     ]);
 
   const hours = describeOpeningHours(seoLocal);
+  const paymentMethodLabels = buildFooterPaymentMethodLabels(settings);
 
   const dto: SiteShellData = {
     announcement,
@@ -123,8 +126,9 @@ async function buildSiteShellData(): Promise<SiteShellData> {
     },
     seoLocal,
     siteContent,
-    categoryPaths: { gamingPath, accesoriosPath },
+    categoryPaths: { accesoriosPath },
     openingHours: hours,
+    paymentMethodLabels,
   };
 
   return dto;
@@ -168,8 +172,6 @@ export const getCachedSiteShellData = unstable_cache(
         route: 'lib/site-shell-cache',
       });
 
-      // Fallback mínimo: permite que la página renderice incluso si
-      // la BD está caída o hay un error de esquema.
       const fallbackSeo: SeoLocal = {
         legalName: 'Mundo Tech',
         slogan: 'Conectados Contigo',
@@ -208,8 +210,9 @@ export const getCachedSiteShellData = unstable_cache(
           productTrust: [{ icon: 'shield', title: 'Tienda en línea', sub: '' }],
           popup: { enabled: false, badge: '', title: '', text: '', ctaText: '', ctaLink: '/productos', imageUrl: '', frequencyDays: 7, delaySeconds: 6, endsAt: '' },
         },
-        categoryPaths: { gamingPath: '/productos', accesoriosPath: '/productos' },
+        categoryPaths: { accesoriosPath: '/productos' },
         openingHours: [],
+        paymentMethodLabels: [],
       };
     }
   },
@@ -219,3 +222,6 @@ export const getCachedSiteShellData = unstable_cache(
     revalidate: SHELL_CACHE_REVALIDATE,
   },
 );
+
+/** Expuesto para tests unitarios (sin caché). */
+export { buildSiteShellData as buildSiteShellDataForTests };

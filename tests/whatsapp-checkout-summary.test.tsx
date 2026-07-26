@@ -126,6 +126,7 @@ describe('WhatsAppCheckout resumen reactivo', () => {
     expect(screen.getByText(/−US\$39\.27|−\$39\.27/)).toBeTruthy();
     expect(screen.getAllByText(/US\$79\.73|\$79\.73/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Estimado según el método seleccionado/i)).toBeTruthy();
+    expect(within(summary).queryByText(/≈ Bs\./)).toBeNull();
 
     // Precios tachados / descontados en la línea
     const productRow = screen.getByText('Producto A').closest('li')!;
@@ -148,5 +149,6 @@ describe('WhatsAppCheckout resumen reactivo', () => {
     expect(screen.queryByText(/Estimado según el método seleccionado/i)).toBeNull();
     expect(productRow.querySelector('.line-through')).toBeNull();
     expect(within(summary).getAllByText(/US\$119\.00|\$119\.00/).length).toBeGreaterThan(0);
+    expect(within(summary).getByText(/≈ Bs\./)).toBeTruthy();
   });
 });

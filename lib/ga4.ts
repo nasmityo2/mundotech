@@ -32,7 +32,9 @@ export type Ga4Event =
   | 'begin_checkout'
   | 'add_shipping_info'
   | 'add_payment_info'
-  | 'purchase';
+  | 'purchase'
+  | 'view_promotion'
+  | 'select_promotion';
 
 export type AnalyticsConsent = 'granted' | 'denied';
 
@@ -50,7 +52,7 @@ export const ANALYTICS_CONSENT_EVENT = 'mt-analytics-consent';
 const GA4_EVENT_TOP_KEYS: Record<Ga4Event, readonly string[]> = {
   view_item: ['currency', 'value', 'items'],
   view_item_list: ['item_list_id', 'item_list_name', 'items'],
-  select_item: ['currency', 'items'],
+  select_item: ['currency', 'items', 'item_list_id', 'item_list_name'],
   add_to_cart: ['currency', 'value', 'items'],
   remove_from_cart: ['currency', 'value', 'items'],
   view_cart: ['currency', 'value', 'items'],
@@ -58,6 +60,20 @@ const GA4_EVENT_TOP_KEYS: Record<Ga4Event, readonly string[]> = {
   add_shipping_info: ['currency', 'value', 'shipping_tier', 'items'],
   add_payment_info: ['currency', 'value', 'payment_type', 'items'],
   purchase: ['transaction_id', 'value', 'currency', 'coupon', 'items'],
+  view_promotion: [
+    'promotion_id',
+    'promotion_name',
+    'creative_name',
+    'creative_slot',
+    'items',
+  ],
+  select_promotion: [
+    'promotion_id',
+    'promotion_name',
+    'creative_name',
+    'creative_slot',
+    'items',
+  ],
 };
 
 const PII_KEYS = new Set([
@@ -237,6 +253,17 @@ function sanitizeParams(
     }
 
     if (key === 'shipping_tier' || key === 'payment_type' || key === 'item_list_id' || key === 'item_list_name') {
+      const text = sanitizeString(params[key], 128);
+      if (text) sanitized[key] = text;
+      continue;
+    }
+
+    if (
+      key === 'promotion_id' ||
+      key === 'promotion_name' ||
+      key === 'creative_name' ||
+      key === 'creative_slot'
+    ) {
       const text = sanitizeString(params[key], 128);
       if (text) sanitized[key] = text;
       continue;

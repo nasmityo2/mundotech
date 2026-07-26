@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Phone, MapPin, Mail, Clock } from 'lucide-react';
 import type { SiteShellData } from '@/lib/site-shell-cache';
 import { whatsappHref } from '@/lib/mundotech-social';
+import { resolveFooterPhoneLinks } from '@/lib/footer-phones';
 import Logo from '@/components/Logo';
 
 /** Glyph de Instagram (lucide 1.x no exporta iconos de marca). */
@@ -17,15 +18,21 @@ const InstagramGlyph = ({ size = 15 }: { size?: number }) => (
  * Footer de la tienda. Todos los datos se reciben vía props desde layout.tsx
  * — nunca consulta Prisma directamente. SESIÓN 15.
  *
- * Los métodos de pago listados son exactamente los que acepta el checkout:
- * nada de prometer lo que no hay.
+ * Los métodos de pago listados son exactamente los que acepta el checkout
+ * (unión web + WhatsApp), sin datos privados.
  */
 export default function Footer({ shellData }: { shellData: SiteShellData }) {
-  const { settings, siteContent: content, categoryPaths, openingHours } = shellData;
+  const { settings, siteContent: content, categoryPaths, openingHours, paymentMethodLabels } =
+    shellData;
 
   const waHref = whatsappHref(
     content.whatsapp.phone || settings.phone,
     'Hola MundoTech, los contacto desde la página web.',
+  );
+
+  const phoneLinks = resolveFooterPhoneLinks(settings.phone, settings.phone2);
+  const paymentLabels = Array.from(
+    new Set(paymentMethodLabels.map((n) => n.trim()).filter(Boolean)),
   );
 
   return (
@@ -62,15 +69,16 @@ export default function Footer({ shellData }: { shellData: SiteShellData }) {
                   </span>
                 </div>
               )}
-              {settings.phone && (
+              {phoneLinks.map((phone) => (
                 <a
-                  href={`tel:+58${settings.phone.replace(/^0/, '').replace(/[-\s]/g, '')}`}
+                  key={phone.href + phone.display}
+                  href={phone.href}
                   className="flex items-center gap-2 text-[13px] text-on-dark hover:text-brand-yellow transition-colors"
                 >
                   <Phone size={13} className="text-brand-yellow flex-shrink-0" aria-hidden="true" />
-                  {settings.phone}{settings.phone2 ? ` · ${settings.phone2}` : ''}
+                  {phone.display}
                 </a>
-              )}
+              ))}
               <a
                 href={`mailto:${settings.email}`}
                 className="flex items-center gap-2 text-[13px] text-on-dark hover:text-brand-yellow transition-colors"
@@ -101,7 +109,6 @@ export default function Footer({ shellData }: { shellData: SiteShellData }) {
               <li><Link href="/productos"                className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Catálogo</Link></li>
               <li><Link href="/nosotros"                 className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Quiénes somos</Link></li>
               <li><Link href="/tienda-barquisimeto"      className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Nuestra tienda</Link></li>
-              <li><Link href={categoryPaths.gamingPath}   className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Gaming</Link></li>
               <li><Link href={categoryPaths.accesoriosPath} className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Accesorios</Link></li>
             </ul>
           </div>
@@ -111,7 +118,6 @@ export default function Footer({ shellData }: { shellData: SiteShellData }) {
             <h3 className="text-sm font-bold uppercase tracking-widest text-gray-300 mb-4">Ayuda</h3>
             <ul className="space-y-2">
               <li><Link href="/account/orders"   className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Mis pedidos</Link></li>
-              {/* FASE 4.2: seguimiento público (invitados) — número + cédula */}
               <li><Link href="/pedido"           className="text-sm text-on-dark hover:text-brand-yellow transition-colors">¿Dónde está mi pedido?</Link></li>
               <li><Link href="/devoluciones"     className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Devoluciones y garantía</Link></li>
               <li><Link href="/shipping-policy"  className="text-sm text-on-dark hover:text-brand-yellow transition-colors">Envíos</Link></li>
@@ -138,15 +144,18 @@ export default function Footer({ shellData }: { shellData: SiteShellData }) {
               ) : null}
             </div>
 
-            <h3 className="text-sm font-bold uppercase tracking-widest text-gray-300 mb-3">Así nos pagas</h3>
-            <div className="flex flex-wrap gap-2">
-              {/* Exactamente los métodos que acepta el checkout */}
-              {['Pago Móvil', 'Transferencia', 'Binance Pay'].map(m => (
-                <span key={m} className="bg-white/5 border border-white/10 text-[11px] font-semibold px-2.5 py-1 rounded-md text-gray-300">
-                  {m}
-                </span>
-              ))}
-            </div>
+            {paymentLabels.length > 0 ? (
+              <>
+                <h3 className="text-sm font-bold uppercase tracking-widest text-gray-300 mb-3">Así nos pagas</h3>
+                <div className="flex flex-wrap gap-2">
+                  {paymentLabels.map((m) => (
+                    <span key={m} className="bg-white/5 border border-white/10 text-[11px] font-semibold px-2.5 py-1 rounded-md text-gray-300">
+                      {m}
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : null}
             <p className="mt-3 text-[11.5px] leading-relaxed text-on-dark">
               Precios en dólares y bolívares, a la tasa del día. El total en Bs se
               calcula al momento de pagar.

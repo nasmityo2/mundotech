@@ -617,7 +617,7 @@ const WhatsAppCheckout = ({
                     {formatCurrency(total)}
                   </span>
                 </div>
-                {exchangeRate > 0 && (
+                {exchangeRate > 0 && selectedPaymentMethod?.currencyGroup !== 'USD' && (
                   <p className="text-right text-[12px] text-slate-500 nums">
                     ≈ Bs. {new Intl.NumberFormat('es-VE', {
                       minimumFractionDigits: 2,

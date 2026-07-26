@@ -68,7 +68,6 @@ const TRUST_ITEMS = [
 // contra la tabla Category (fallback /productos si no existe la categoría).
 const CATEGORY_CARDS = [
   { label: 'Gadgets y accesorios', category: 'Accesorios' },
-  { label: 'Consolas gaming',      category: 'Consolas' },
   { label: 'Computadoras',         category: 'Computadoras' },
   { label: 'Electrodomésticos',    category: 'Electrodomesticos' },
   { label: 'Audio y video',        category: 'Audio' },

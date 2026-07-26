@@ -77,6 +77,36 @@ test.describe('Mobile smoke — Android/iOS reales', () => {
     await assertNoHorizontalOverflow(page);
   });
 
+  test('carrusel de estantería: primer producto completo y snap', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+
+    const carousel = page.locator('.snap-x.snap-mandatory').first();
+    if ((await carousel.count()) === 0) {
+      test.skip();
+      return;
+    }
+
+    const firstCard = carousel.locator('.snap-start').first();
+    await expect(firstCard).toBeVisible();
+    const box = await firstCard.boundingBox();
+    expect(box, 'primer producto sin boundingBox').not.toBeNull();
+    if (box) {
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.width).toBeGreaterThan(100);
+    }
+
+    await assertNoHorizontalOverflow(page);
+  });
+
+  test('viewport 320: sin overflow horizontal del documento', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await assertNoHorizontalOverflow(page);
+  });
+
   test('CategoryDrawer: abrir y cerrar por Escape y por tap', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
@@ -142,7 +172,7 @@ test.describe('Mobile smoke — Android/iOS reales', () => {
     await lightbox.getByRole('button', { name: 'Cerrar' }).tap();
     await expect(lightbox).not.toBeVisible({ timeout: 5_000 });
 
-    const addBtn = page.getByRole('button', { name: / Añadir al carrito/i });
+    const addBtn = page.getByRole('button', { name: /Añadir al carrito/i });
     await expect(addBtn).toBeVisible();
     await assertMinTapTarget(addBtn, 'Add to cart button');
     await addBtn.tap();
@@ -180,7 +210,7 @@ test.describe('Mobile smoke — Android/iOS reales', () => {
     await mockHeicConversion(page);
 
     await page.goto(productPdpPath(E2E_PRODUCTS.inStock.slug));
-    await page.getByRole('button', { name: / Añadir al carrito/i }).click();
+    await page.getByRole('button', { name: /Añadir al carrito/i }).click();
     await page.waitForTimeout(800);
 
     await page.goto('/checkout');
@@ -289,7 +319,7 @@ test.describe('Mobile smoke — Android/iOS reales', () => {
     await page.goto(productPdpPath(E2E_PRODUCTS.inStock.slug));
     await page.waitForLoadState('networkidle');
 
-    await page.getByRole('button', { name: / Añadir al carrito/i }).tap();
+    await page.getByRole('button', { name: /Añadir al carrito/i }).tap();
     const cartDialog = page.getByRole('dialog', { name: /Carrito de compras/i });
     await expect(cartDialog).toBeVisible({ timeout: 15_000 });
     await page.keyboard.press('Escape');

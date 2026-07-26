@@ -1,12 +1,10 @@
 /**
  * Cached reads for the home page (ISR, revalidate=300).
  *
- * SESIÓN 14 — Cada shelf tiene su propia consulta acotada con take+select
- * mínimo. Ninguna regeneración ISR carga el catálogo completo de productos.
+ * Cada shelf tiene su propia consulta acotada con take+select mínimo.
+ * Ninguna regeneración ISR carga el catálogo completo de productos.
  *
- * Heavy Prisma queries are wrapped in unstable_cache so ISR regeneration
- * hits the Next.js Data Cache instead of Postgres on every revalidation.
- * Tags align with lib/catalog-cache.ts where applicable.
+ * Tags: catalog, homepage-config, banners, categories, promotions, etc.
  */
 
 import { unstable_cache } from 'next/cache';
@@ -15,6 +13,20 @@ import { d, dn } from '@/lib/decimal';
 import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
 import { readSiteContent } from '@/lib/site-content';
 import { readSettings } from '@/lib/data-store';
+import {
+  normalizeHomepageFreeShipping,
+  normalizeHomepageShelves,
+  type HomepageFreeShippingConfig,
+  type HomepageShelvesConfig,
+} from '@/lib/homepage-config';
+import {
+  filterOfferShelfProducts,
+  orderFeaturedProducts,
+  type HomeShelfProduct,
+} from '@/lib/home-shelf-products';
+
+export type { HomeShelfProduct } from '@/lib/home-shelf-products';
+export { filterOfferShelfProducts, orderFeaturedProducts } from '@/lib/home-shelf-products';
 
 /** Matches export const revalidate in app/page.tsx (PRD-140). */
 const REVALIDATE = 300;
@@ -23,25 +35,13 @@ const HOMEPAGE_CONFIG_KEYS = [
   'homepage_flashdeals',
   'homepage_shelves',
   'homepage_benefits',
+  'homepage_free_shipping',
 ] as const;
 
-/**
- * Tipo compartido para productos de las estanterías del home.
- * price ya convertido a number, originalPrice a number | null.
- */
-export type HomeShelfProduct = {
-  id: string;
-  slug: string | null;
-  name: string;
-  description: string | null;
-  price: number;
-  originalPrice: number | null;
-  stock: number;
-  category: string;
-  brand: string | null;
-  images: string[];
-  freeShipping: boolean;
-};
+const ACTIVE_IN_STOCK = {
+  isActive: true,
+  stock: { gt: 0 },
+} as const;
 
 /** Convierte filas Prisma con Decimal al tipo HomeShelfProduct. */
 function toHomeShelfProduct(p: {
@@ -75,13 +75,12 @@ function toHomeShelfProduct(p: {
 // ── Product shelves (cada una con take acotado) ────────────────────────────
 
 /**
- * Novedades: últimos 8 productos activos.
- * SESIÓN 14 — take 8, nunca catálogo completo.
+ * Novedades: últimos 8 productos activos con stock > 0.
  */
 export const getCachedNewestProducts = unstable_cache(
   async (): Promise<HomeShelfProduct[]> => {
     const rows = await prisma.product.findMany({
-      where: { isActive: true },
+      where: { ...ACTIVE_IN_STOCK },
       orderBy: { createdAt: 'desc' },
       take: 8,
       select: PRODUCT_CARD_SELECT,
@@ -93,26 +92,59 @@ export const getCachedNewestProducts = unstable_cache(
 );
 
 /**
- * Ofertas: productos con originalPrice no null, máximo 24 en BD.
- * Luego filtra en memoria los que realmente tienen rebaja (originalPrice > price)
- * y retorna máximo 10. DB-safe: nunca catálogo completo.
- * SESIÓN 14 — take 24, filtra en memoria, máximo 10.
+ * Ofertas: originalPrice no null, take 24, filtra rebaja real, máx. 8.
  */
 export const getCachedFlashDeals = unstable_cache(
   async (): Promise<HomeShelfProduct[]> => {
     const rows = await prisma.product.findMany({
-      where: { isActive: true, originalPrice: { not: null } },
+      where: {
+        ...ACTIVE_IN_STOCK,
+        originalPrice: { not: null },
+      },
       orderBy: { createdAt: 'desc' },
       take: 24,
       select: PRODUCT_CARD_SELECT,
     });
-    return rows
-      .map(toHomeShelfProduct)
-      .filter((p) => p.originalPrice != null && p.originalPrice > p.price)
-      .slice(0, 10);
+    return filterOfferShelfProducts(rows.map(toHomeShelfProduct), 8);
   },
   ['home-flash-deals'],
   { tags: ['catalog'], revalidate: REVALIDATE },
+);
+
+/**
+ * Destacados: consulta solo los IDs dados (máx. 8), activos con stock,
+ * reordenados en memoria según featuredProductIds. Sin sustitutos.
+ */
+export async function getFeaturedProductsByIds(
+  featuredProductIds: string[],
+): Promise<HomeShelfProduct[]> {
+  const ids = featuredProductIds
+    .map((id) => id.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+
+  if (ids.length === 0) return [];
+
+  return getCachedFeaturedProducts(ids);
+}
+
+const getCachedFeaturedProducts = unstable_cache(
+  async (ids: string[]): Promise<HomeShelfProduct[]> => {
+    if (ids.length === 0) return [];
+
+    const rows = await prisma.product.findMany({
+      where: {
+        id: { in: ids },
+        ...ACTIVE_IN_STOCK,
+      },
+      select: PRODUCT_CARD_SELECT,
+    });
+
+    const products = rows.map(toHomeShelfProduct);
+    return orderFeaturedProducts(products, ids);
+  },
+  ['home-featured-products'],
+  { tags: ['catalog', 'homepage-config'], revalidate: REVALIDATE },
 );
 
 export const getCachedHeroBanners = unstable_cache(
@@ -163,10 +195,10 @@ export const getCachedHomeDiscoverBanners = unstable_cache(
 export const getCachedHomeFeaturedCategories = unstable_cache(
   () =>
     prisma.category.findMany({
-      where:   { isFeatured: true },
+      where: { isFeatured: true },
       orderBy: [{ order: 'asc' }, { name: 'asc' }],
-      select:  { name: true, slug: true, imageUrl: true },
-      take:    12,
+      select: { name: true, slug: true, imageUrl: true },
+      take: 12,
     }),
   ['home-featured-categories'],
   { tags: ['categories'], revalidate: REVALIDATE },
@@ -193,8 +225,15 @@ export const getCachedHomePromotions = unstable_cache(
   { tags: ['promotions'], revalidate: REVALIDATE },
 );
 
+export type HomepageConfigCached = {
+  flashConfig: { title: string; endHour: number } | null;
+  shelvesConfig: HomepageShelvesConfig;
+  benefitsConfig: { title: string; sub: string }[] | null;
+  freeShippingConfig: HomepageFreeShippingConfig;
+};
+
 export const getCachedHomepageConfig = unstable_cache(
-  async () => {
+  async (): Promise<HomepageConfigCached> => {
     const configRows = await prisma.appConfig.findMany({
       where: { key: { in: [...HOMEPAGE_CONFIG_KEYS] } },
     });
@@ -208,13 +247,17 @@ export const getCachedHomepageConfig = unstable_cache(
       }),
     );
     return {
-      flashConfig: configMap['homepage_flashdeals'] as { title: string; endHour: number } | null,
-      shelvesConfig: configMap['homepage_shelves'] as {
-        bestsellers: { title: string; badge: string; subtitle: string };
-        newest: { title: string; badge: string; subtitle: string };
-        recommended: { title: string; badge: string; subtitle: string };
+      flashConfig: configMap['homepage_flashdeals'] as {
+        title: string;
+        endHour: number;
       } | null,
-      benefitsConfig: configMap['homepage_benefits'] as { title: string; sub: string }[] | null,
+      shelvesConfig: normalizeHomepageShelves(configMap['homepage_shelves']),
+      benefitsConfig: configMap['homepage_benefits'] as
+        | { title: string; sub: string }[]
+        | null,
+      freeShippingConfig: normalizeHomepageFreeShipping(
+        configMap['homepage_free_shipping'],
+      ),
     };
   },
   ['homepage-config'],

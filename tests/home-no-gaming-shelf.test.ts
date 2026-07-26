@@ -25,3 +25,14 @@ describe('home — sin estantería gaming automática', () => {
     expect(src).not.toContain("'portatil'");
   });
 });
+
+describe('home-cache query contracts', () => {
+  it('novedades y ofertas exigen isActive y stock > 0 en el código', () => {
+    const src = readFileSync(resolve(process.cwd(), 'lib/home-cache.ts'), 'utf8');
+    expect(src).toContain('isActive: true');
+    expect(src).toContain('stock: { gt: 0 }');
+    expect(src).toContain('originalPrice: { not: null }');
+    expect(src).toContain('getFeaturedProductsByIds');
+    expect(src).toContain('orderFeaturedProducts');
+  });
+});

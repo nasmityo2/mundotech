@@ -5,8 +5,16 @@ import Image from 'next/image';
 import {
   LayoutDashboard, Star, StarOff, Upload, Loader2,
   Save, RefreshCw, X, ImageIcon, Tag, Zap, ShieldCheck,
-  Eye, EyeOff, Palette, Sparkles, ListChecks, Clock,
+  Eye, EyeOff, Palette, ListChecks, Clock,
 } from 'lucide-react';
+import ShelvesEditor from './ShelvesEditor';
+import FreeShippingEditor from './FreeShippingEditor';
+import {
+  DEFAULT_HOMEPAGE_FREE_SHIPPING,
+  DEFAULT_HOMEPAGE_SHELVES,
+  type HomepageFreeShippingConfig,
+  type HomepageShelvesConfig,
+} from '@/lib/homepage-config';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,21 +31,16 @@ interface Promotion {
 
 interface BenefitItem { title: string; sub: string }
 interface FlashConfig  { title: string; endHour: number }
-interface ShelfRow     { title: string; badge: string; subtitle: string }
-interface ShelvesConfig {
-  bestsellers: ShelfRow;
-  newest:      ShelfRow;
-  recommended: ShelfRow;
-}
 
-type TabId = 'categories' | 'promotions' | 'benefits' | 'flash' | 'shelves';
+type TabId = 'categories' | 'promotions' | 'benefits' | 'flash' | 'shelves' | 'freeShipping';
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'categories', label: '🗂 Categorías',          icon: null },
-  { id: 'promotions', label: '🏷 Ofertas del Día',     icon: null },
-  { id: 'benefits',   label: '✅ Barra de Beneficios', icon: null },
-  { id: 'flash',      label: '⚡ Flash Deals',          icon: null },
-  { id: 'shelves',    label: '📚 Títulos de Sección',  icon: null },
+  { id: 'categories',    label: '🗂 Categorías',              icon: null },
+  { id: 'promotions',    label: '🏷 Ofertas del Día',         icon: null },
+  { id: 'benefits',      label: '✅ Barra de Beneficios',     icon: null },
+  { id: 'flash',         label: '⚡ Flash Deals',              icon: null },
+  { id: 'shelves',       label: '📚 Estanterías de productos', icon: null },
+  { id: 'freeShipping',  label: '🚚 Envío gratis MRW',        icon: null },
 ];
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
@@ -50,12 +53,6 @@ const DEFAULT_BENEFITS: BenefitItem[] = [
 ];
 
 const DEFAULT_FLASH: FlashConfig = { title: 'Ofertas MundoTech', endHour: 23 };
-
-const DEFAULT_SHELVES: ShelvesConfig = {
-  bestsellers:  { title: 'Lo más vendido en MundoTech',  badge: 'Más vendidos',    subtitle: 'Productos destacados de la tienda.' },
-  newest:       { title: 'Novedades en tecnología',       badge: 'Recién llegados', subtitle: '' },
-  recommended:  { title: 'Selección MundoTech',           badge: 'Recomendados',    subtitle: 'Elegidos por nuestro equipo — calidad garantizada.' },
-};
 
 const PROMO_DEFAULTS = [
   { order: 1, title: 'Hasta 30%\nde descuento', subtitle: 'En consolas, gadgets y tech seleccionados', discountText: 'Hasta 30%', bgColor: '#FFD700', link: '/productos', active: true, imageUrl: null, subtitle_ph: 'Descripción de la oferta' },
@@ -145,10 +142,10 @@ export default function HomeManagerPage() {
   const [loadingCfg, setLoadingCfg]     = useState(true);
   const [benefits, setBenefits]         = useState<BenefitItem[]>(DEFAULT_BENEFITS);
   const [flash, setFlash]               = useState<FlashConfig>(DEFAULT_FLASH);
-  const [shelves, setShelves]           = useState<ShelvesConfig>(DEFAULT_SHELVES);
+  const [shelves, setShelves]           = useState<HomepageShelvesConfig>(DEFAULT_HOMEPAGE_SHELVES);
+  const [freeShipping, setFreeShipping] = useState<HomepageFreeShippingConfig>(DEFAULT_HOMEPAGE_FREE_SHIPPING);
   const [savingBenefits, setSavingBenefits] = useState(false);
   const [savingFlash, setSavingFlash]       = useState(false);
-  const [savingShelves, setSavingShelves]   = useState(false);
   const [cfgMsg, setCfgMsg]               = useState('');
 
   // ── Fetches ──────────────────────────────────────────────────────────────────
@@ -184,6 +181,7 @@ export default function HomeManagerPage() {
       if (d.homepage_benefits)  setBenefits(d.homepage_benefits);
       if (d.homepage_flashdeals) setFlash(d.homepage_flashdeals);
       if (d.homepage_shelves)   setShelves(d.homepage_shelves);
+      if (d.homepage_free_shipping) setFreeShipping(d.homepage_free_shipping);
     } finally { setLoadingCfg(false); }
   };
 
@@ -522,69 +520,14 @@ export default function HomeManagerPage() {
         </div>
       )}
 
-      {/* ═══ TÍTULOS DE SECCIÓN ════════════════════════════════════════════════════ */}
+      {/* ═══ ESTANTERÍAS DE PRODUCTOS ══════════════════════════════════════════════ */}
       {tab === 'shelves' && (
-        <div className="max-w-2xl">
-          <div className="flex items-start gap-3 mb-5 bg-purple-50 border border-purple-100 rounded-xl p-4">
-            <Sparkles size={18} className="text-purple-500 mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="text-sm font-bold text-purple-800">Títulos de las estanterías de productos</p>
-              <p className="text-xs text-purple-600 mt-0.5">Cambia los títulos, badges y subtítulos de los tres grupos de productos de la Home.</p>
-            </div>
-          </div>
+        <ShelvesEditor initial={shelves} loading={loadingCfg} />
+      )}
 
-          {loadingCfg ? (
-            <div className="flex justify-center py-10"><Loader2 size={28} className="animate-spin text-gray-400" /></div>
-          ) : (
-            <div className="space-y-4">
-              {(Object.entries(shelves) as [keyof ShelvesConfig, ShelfRow][]).map(([key, shelf]) => {
-                const labels: Record<keyof ShelvesConfig, string> = {
-                  bestsellers: 'Más vendidos',
-                  newest:      'Recién llegados',
-                  recommended: 'Recomendados',
-                };
-                return (
-                  <div key={key} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
-                    <p className="text-sm font-black text-navy">Sección: {labels[key]}</p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="col-span-2">
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1">Título principal</label>
-                        <input type="text" value={shelf.title}
-                          onChange={e => setShelves(s => ({ ...s, [key]: { ...s[key], title: e.target.value } }))}
-                          className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-navy/20" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1">Badge (etiqueta)</label>
-                        <input type="text" value={shelf.badge}
-                          onChange={e => setShelves(s => ({ ...s, [key]: { ...s[key], badge: e.target.value } }))}
-                          className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-navy/20" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1">Subtítulo (opcional)</label>
-                        <input type="text" value={shelf.subtitle}
-                          onChange={e => setShelves(s => ({ ...s, [key]: { ...s[key], subtitle: e.target.value } }))}
-                          className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-navy/20" />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {cfgMsg && tab === 'shelves' && (
-                <p className={`text-sm font-semibold ${cfgMsg.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>{cfgMsg}</p>
-              )}
-
-              <button type="button"
-                onClick={() => saveConfig('homepage_shelves', shelves, setSavingShelves)}
-                disabled={savingShelves}
-                className="flex items-center gap-2 bg-navy text-white text-sm font-bold px-6 py-2.5 rounded-xl hover:bg-navy/90 disabled:opacity-50 transition-colors"
-              >
-                {savingShelves ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                Guardar títulos de sección
-              </button>
-            </div>
-          )}
-        </div>
+      {/* ═══ ENVÍO GRATIS MRW ══════════════════════════════════════════════════════ */}
+      {tab === 'freeShipping' && (
+        <FreeShippingEditor initial={freeShipping} loading={loadingCfg} />
       )}
     </div>
   );

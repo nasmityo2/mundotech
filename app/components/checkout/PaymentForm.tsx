@@ -529,12 +529,6 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
             </div>
           )}
 
-          {currencyGroup === 'USD' && usdMethods.length > 0 && (
-            <p className="text-[12px] text-slate-500">
-              Selecciona Binance, Zelle, efectivo u otro método en divisas habilitado.
-            </p>
-          )}
-
           <div
             role="tabpanel"
             id={currencyGroup === 'VES' ? 'payment-group-ves-panel' : 'payment-group-usd-panel'}

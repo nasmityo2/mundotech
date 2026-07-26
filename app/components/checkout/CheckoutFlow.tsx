@@ -90,6 +90,10 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
   const router = useRouter();
   const subtotal = getCartTotal();
   const total    = subtotal;
+  const selectedPaymentMethod =
+    checkoutPaymentMethods.find((m) => m.id === paymentData?.paymentMethodId) ?? null;
+  const showBsEquivalent =
+    exchangeRate > 0 && selectedPaymentMethod?.currencyGroup !== 'USD';
 
   // PRD-061: al entrar al checkout re-validamos precio/stock contra la BD
   // (el carrito invitado vive en localStorage y puede traer precios viejos).
@@ -339,8 +343,8 @@ const CheckoutFlow = ({ pagoMovil, transferencia, supportPhone, binancePayId, bi
                     {formatCurrency(total)}
                   </span>
                 </div>
-                {/* PRD-022: el cobro real es en bolívares — mostrar el equivalente. */}
-                {exchangeRate > 0 && (
+                {/* Equivalente en Bs solo para métodos en bolívares (no divisas). */}
+                {showBsEquivalent && (
                   <p className="text-right text-[12px] text-slate-500 nums">
                     ≈ Bs. {new Intl.NumberFormat('es-VE', {
                       minimumFractionDigits: 2,

@@ -5,6 +5,8 @@ import DiscoverMosaic from '@/app/components/DiscoverMosaic';
 import CategoryRow from '@/app/components/CategoryRow';
 import ProductShelf from '@/app/components/ProductShelf';
 import Benefits, { type BenefitItem } from '@/app/components/Benefits';
+import HomeFreeShippingStrip from '@/app/components/HomeFreeShippingStrip';
+import PromotionLink from '@/app/components/PromotionLink';
 import { DEFAULT_SITE_CONTENT } from '@/lib/site-content';
 import { DEFAULT_SETTINGS } from '@/lib/data-store';
 import type { SiteContent } from '@/lib/site-content-schema';
@@ -12,6 +14,7 @@ import type { StoreSettings } from '@/lib/data-store';
 import {
   getCachedNewestProducts,
   getCachedFlashDeals,
+  getFeaturedProductsByIds,
   getCachedHeroBanners,
   getCachedHomePromoBanners,
   getCachedHomeDiscoverBanners,
@@ -21,25 +24,30 @@ import {
   getCachedHomepageConfig,
   getCachedHomeSiteContent,
   getCachedHomeSettings,
+  type HomeShelfProduct,
 } from '@/lib/home-cache';
-import Link from 'next/link';
+import {
+  DEFAULT_HOMEPAGE_FREE_SHIPPING,
+  DEFAULT_HOMEPAGE_SHELVES,
+  SHELF_BADGE_COLORS,
+  SHELF_VIEW_ALL,
+  type HomeShelfKey,
+  type HomepageFreeShippingConfig,
+  type HomepageShelvesConfig,
+} from '@/lib/homepage-config';
+import { buildHomeShelfSections } from '@/lib/home-sections';
 import Image from 'next/image';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 
 const Promotions = dynamic(() => import('@/app/components/Promotions'));
 
 // PRD-140 — ISR: 5 min máximo de obsolescencia para precio/stock visibles.
-// Las mutaciones relevantes también revalidan on-demand: tasa USD/Bs en
-// configActions.updateExchangeRate (PRD-142); precio/stock de producto en
-// quickUpdate* (PRD-024, segmento 02) y delete (PRD-233, ver DEPENDENCIA-05).
 export const revalidate = 300;
 
 export const metadata: Metadata = {
-  // H02/P08: título absoluto — ya lleva la marca, el template no la duplica.
   title: { absolute: 'MundoTech Barquisimeto | Tecnología, gadgets y variedades' },
-  // P89/H58: sin la promesa "Delivery en 24h" (contradecía /shipping-policy);
-  // 140–160 chars con keyword principal "tecnología en Barquisimeto".
   description:
     'Tienda de variedades en Barquisimeto: tecnología, gadgets, hogar, cocina, fitness, salud y cuidado personal. Paga en USD o Bs y recibe en toda Venezuela.',
   alternates: { canonical: '/' },
@@ -63,35 +71,20 @@ interface CtaBannerData {
   link: string | null;
 }
 
-interface ShelfConfig {
-  title: string;
-  badge: string;
-  subtitle: string;
-}
-
-interface ShelvesConfig {
-  bestsellers: ShelfConfig;
-  newest: ShelfConfig;
-  recommended: ShelfConfig;
-}
-
-/**
- * PRD-113 / PRD-258: fallback de beneficios construido desde las fuentes de
- * verdad vivas (site-content + settings) — una sola versión del claim de
- * delivery y del teléfono en home y ficha de producto, sin hardcode en UI.
- */
-function buildBenefitsFallback(siteContent: SiteContent, settings: StoreSettings): BenefitItem[] {
+function buildBenefitsFallback(
+  siteContent: SiteContent,
+  settings: StoreSettings,
+): BenefitItem[] {
   const trustItems: BenefitItem[] = siteContent.productTrust.map((t) => ({
     title: t.title,
-    sub:   t.sub,
+    sub: t.sub,
   }));
   const whatsappItem: BenefitItem | null = settings.phone
     ? {
         title: 'WhatsApp directo con el equipo',
-        sub:   `${settings.phone} · te respondemos rápido`,
+        sub: `${settings.phone} · te respondemos rápido`,
       }
     : null;
-  // Orden visual: delivery primero si existe, luego garantía, WhatsApp y pagos (máx. 4).
   const ordered = [
     ...trustItems.slice(0, 2),
     ...(whatsappItem ? [whatsappItem] : []),
@@ -101,9 +94,6 @@ function buildBenefitsFallback(siteContent: SiteContent, settings: StoreSettings
 }
 
 async function getData() {
-  // PRD-138: la home es ISR — sin try/catch, un fallo puntual de BD durante la
-  // regeneración rompe la página completa. Con fallbacks seguros, la home
-  // renderiza vacía-pero-viva y el error queda registrado.
   try {
     const [
       newestProducts,
@@ -114,7 +104,7 @@ async function getData() {
       featuredCategories,
       ctaBannerRow,
       activePromotions,
-      { shelvesConfig, benefitsConfig },
+      homepageConfig,
       siteContent,
       settings,
     ] = await Promise.all([
@@ -131,9 +121,15 @@ async function getData() {
       getCachedHomeSettings(),
     ]);
 
+    const shelvesConfig = homepageConfig.shelvesConfig;
+    const featuredProducts = await getFeaturedProductsByIds(
+      shelvesConfig.featuredProductIds,
+    );
+
     return {
       newestProducts,
       flashDeals,
+      featuredProducts,
       heroBanners,
       promoBanners,
       discoverBanners,
@@ -141,23 +137,26 @@ async function getData() {
       ctaBannerRow,
       activePromotions,
       shelvesConfig,
-      benefitsConfig,
+      benefitsConfig: homepageConfig.benefitsConfig,
+      freeShippingConfig: homepageConfig.freeShippingConfig,
       siteContent,
       settings,
     };
   } catch (error) {
     console.error('[home] getData falló — se renderiza con fallbacks seguros:', error);
     return {
-      newestProducts: [],
-      flashDeals: [],
+      newestProducts: [] as HomeShelfProduct[],
+      flashDeals: [] as HomeShelfProduct[],
+      featuredProducts: [] as HomeShelfProduct[],
       heroBanners: [],
       promoBanners: [],
       discoverBanners: [],
       featuredCategories: [],
       ctaBannerRow: null,
       activePromotions: [],
-      shelvesConfig: null,
+      shelvesConfig: DEFAULT_HOMEPAGE_SHELVES,
       benefitsConfig: null,
+      freeShippingConfig: DEFAULT_HOMEPAGE_FREE_SHIPPING,
       siteContent: DEFAULT_SITE_CONTENT,
       settings: DEFAULT_SETTINGS,
     };
@@ -165,8 +164,7 @@ async function getData() {
 }
 
 function CtaBanner({ data }: { data: CtaBannerData | null }) {
-  const title =
-    data?.title ?? 'Lo que ves aquí, lo tenemos en la tienda.';
+  const title = data?.title ?? 'Lo que ves aquí, lo tenemos en la tienda.';
   const subtitle =
     data?.subtitle ??
     'Catálogo con stock real del local en Carrera 21 con esquina calle 21, Centro. Si lo quieres ya, pásate por la tienda; si no, te lo enviamos.';
@@ -174,6 +172,12 @@ function CtaBanner({ data }: { data: CtaBannerData | null }) {
   const ctaText = data?.ctaText ?? 'Explorar todo el catálogo';
   const link = data?.link ?? '/productos';
   const img = data?.imageUrl ?? '';
+  const promotion = {
+    promotion_id: 'home-cta-banner',
+    promotion_name: title,
+    creative_name: img ? 'cta-banner-image' : 'cta-banner-default',
+    creative_slot: 'home_cta_banner',
+  };
 
   return (
     <div className="relative mt-6 sm:mt-8 overflow-hidden card-elevated-lg">
@@ -199,24 +203,56 @@ function CtaBanner({ data }: { data: CtaBannerData | null }) {
           <h2 className="text-balance text-[1.25rem] xs:text-[1.4rem] sm:text-2xl md:text-3xl lg:text-[2.25rem] font-bold tracking-tight text-navy leading-tight">
             {title}
           </h2>
-          <p className="mt-2 max-w-lg text-[13px] sm:text-[14px] font-medium text-slate-600 mx-auto sm:mx-0">{subtitle}</p>
+          <p className="mt-2 max-w-lg text-[13px] sm:text-[14px] font-medium text-slate-600 mx-auto sm:mx-0">
+            {subtitle}
+          </p>
         </div>
-        <Link
+        <PromotionLink
           href={link}
+          promotion={promotion}
           className="btn-mundotech-shimmer w-full sm:w-auto inline-flex min-h-[52px] flex-shrink-0 items-center justify-center gap-2 rounded-xl border border-[#E6C200] bg-[#FFD700] px-6 sm:px-7 text-[13px] sm:text-sm font-black text-black shadow-md transition-all duration-300 active:scale-[0.98] hover:bg-[#FFE03A]"
         >
           {ctaText} <ArrowRight size={16} />
-        </Link>
+        </PromotionLink>
       </div>
     </div>
   );
 }
 
+function renderShelf(opts: {
+  key: HomeShelfKey;
+  config: HomepageShelvesConfig;
+  products: HomeShelfProduct[];
+}): ReactNode {
+  const settings = opts.config.shelves[opts.key];
+  if (!settings.enabled) return null;
+  if (opts.products.length === 0) return null;
+
+  const view = SHELF_VIEW_ALL[opts.key];
+  return (
+    <ProductShelf
+      key={`shelf-${opts.key}`}
+      listId={`home-${opts.key}`}
+      badge={settings.badge}
+      badgeColor={SHELF_BADGE_COLORS[opts.key]}
+      title={settings.title}
+      subtitle={settings.subtitle || undefined}
+      products={opts.products}
+      viewAllHref={view.href}
+      viewAllLabel={view.label}
+      viewAllShortLabel={view.shortLabel}
+      theme="light"
+      maxItems={8}
+      priorityFirstItems={0}
+    />
+  );
+}
 
 const HomePage = async () => {
   const {
     newestProducts,
     flashDeals,
+    featuredProducts,
     heroBanners,
     promoBanners,
     discoverBanners,
@@ -225,23 +261,53 @@ const HomePage = async () => {
     activePromotions,
     shelvesConfig,
     benefitsConfig,
+    freeShippingConfig,
     siteContent,
     settings,
   } = await getData();
 
-  // Beneficios: config del admin si existe; si no, fallback desde las fuentes
-  // vivas (site-content + settings) — PRD-113 / PRD-258.
   const benefitsItems =
     benefitsConfig && benefitsConfig.length > 0
       ? benefitsConfig
       : buildBenefitsFallback(siteContent, settings);
 
-  const novedadesTitle = shelvesConfig?.newest?.title ?? 'Novedades en MundoTech';
-  const novedadesBadge = shelvesConfig?.newest?.badge ?? 'Recién llegados';
+  const productByShelf: Record<HomeShelfKey, HomeShelfProduct[]> = {
+    offers: flashDeals,
+    newest: newestProducts,
+    featured: featuredProducts,
+  };
+
+  const shelfSlots = shelvesConfig.order.map((key) => {
+    const settingsRow = shelvesConfig.shelves[key];
+    const products = settingsRow.enabled ? productByShelf[key] : [];
+    return {
+      key,
+      hasProducts: settingsRow.enabled && products.length > 0,
+      node: renderShelf({ key, config: shelvesConfig, products }),
+    };
+  });
+
+  const midSections = buildHomeShelfSections({
+    shelves: shelfSlots,
+    discover: <DiscoverMosaic key="discover" banners={discoverBanners} />,
+    categories: (
+      <CategoryRow key="categories" categories={featuredCategories} />
+    ),
+    promotions: (
+      <div key="promotions" className="mt-6 sm:mt-8">
+        <Promotions
+          promotions={
+            activePromotions.length > 0 ? activePromotions : undefined
+          }
+        />
+      </div>
+    ),
+  });
+
+  const fs: HomepageFreeShippingConfig = freeShippingConfig;
 
   return (
     <div className="w-full max-w-full overflow-x-hidden">
-      {/* Hero — ancho completo solo en móvil (< sm); desde sm conserva el padding del container */}
       <div className="-mx-4 w-[calc(100%+2rem)] sm:mx-0 sm:w-full">
         <div className="-mt-1 sm:-mt-2">
           <HomeHeroCyber
@@ -257,52 +323,17 @@ const HomePage = async () => {
         <PromoBanners banners={promoBanners} />
       </div>
 
-      {/* Barra de beneficios — editable desde Admin → Gestor Home */}
       <div className="-mx-4 w-[calc(100%+2rem)] sm:mx-0 sm:w-full mt-4 sm:mt-6">
         <div className="overflow-hidden rounded-none border-y border-border bg-surface-muted sm:rounded-2xl sm:border sm:shadow-soft">
           <Benefits items={benefitsItems} />
         </div>
       </div>
 
+      {fs.enabled ? <HomeFreeShippingStrip text={fs.text} /> : null}
+
       <div className="w-full max-w-full overflow-x-hidden mt-5 sm:mt-8">
         <div className="w-full max-w-full pb-12 pt-1 sm:pt-2">
-          <ProductShelf
-            badge="Ofertas"
-            badgeColor="red"
-            title="Ofertas del Día"
-            subtitle="Precios especiales por tiempo limitado"
-            products={flashDeals}
-            viewAllHref="/ofertas"
-            viewAllLabel="Ver todas las ofertas"
-            theme="light"
-            maxItems={8}
-            priorityFirstItems={0}
-          />
-
-          <DiscoverMosaic banners={discoverBanners} />
-
-          <CategoryRow categories={featuredCategories} />
-
-          <ProductShelf
-            badge={novedadesBadge}
-            badgeColor="yellow"
-            title={novedadesTitle}
-            products={newestProducts}
-            viewAllHref="/productos"
-            viewAllLabel="Ver todas las novedades"
-            theme="light"
-            maxItems={8}
-            priorityFirstItems={0}
-          />
-
-          <div className="mt-6 sm:mt-8">
-            <Promotions
-              promotions={
-                activePromotions.length > 0 ? activePromotions : undefined
-              }
-            />
-          </div>
-
+          {midSections}
           <CtaBanner data={ctaBannerRow} />
         </div>
       </div>

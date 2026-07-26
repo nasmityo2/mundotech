@@ -919,15 +919,17 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
           <span className="text-navy">Total</span>
           <span className="text-navy nums">{formatCurrency(total)}</span>
         </div>
-        {exchangeRate > 0 && (
+        {exchangeRate > 0 && selectedPaymentMethod?.currencyGroup !== 'USD' && (
           <div className="flex justify-between text-sm">
             <span className="text-slate-500">Total a pagar en bolívares</span>
             <span className="text-navy font-semibold nums">{formatBsApprox(total, exchangeRate)}</span>
           </div>
         )}
-        <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
-          El pago se realiza en bolívares. El monto definitivo se fija al confirmar y te llega por correo.
-        </p>
+        {selectedPaymentMethod?.currencyGroup !== 'USD' && (
+          <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
+            El pago se realiza en bolívares. El monto definitivo se fija al confirmar y te llega por correo.
+          </p>
+        )}
       </div>
 
       {error && (
@@ -995,7 +997,11 @@ const ReviewStep = ({ shippingData, paymentData, checkoutPaymentMethods = [], wh
           ) : (
             <>
               {whatsappMode && !isCasheaAutomatic ? 'Enviar pedido por WhatsApp' : `Confirmar pedido — ${formatCurrency(total)}`}
-              {(!whatsappMode || isCasheaAutomatic) && exchangeRate > 0 ? ` (≈ ${formatBsApprox(total, exchangeRate)})` : ''}
+              {(!whatsappMode || isCasheaAutomatic) &&
+              exchangeRate > 0 &&
+              selectedPaymentMethod?.currencyGroup !== 'USD'
+                ? ` (≈ ${formatBsApprox(total, exchangeRate)})`
+                : ''}
             </>
           )}
         </button>

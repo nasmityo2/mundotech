@@ -308,8 +308,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
     storePhone: settings.phone,
   });
 
-  const brandPart = isGenericBrand(product.brand) ? null : product.brand;
-  const brandChipLabel = [brandPart, product.category].filter(Boolean).join(' · ');
+  const brandChipLabel = isGenericBrand(product.brand) ? null : product.brand;
   const isLowStock = !isOut && product.stock <= 5;
 
   return (
@@ -357,7 +356,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
         {/* Información — tarjeta flotante */}
         <div className="card-elevated p-5 sm:p-6 lg:p-6 pb-20 sm:pb-6 flex flex-col">
 
-          {/* Marca / categoría — oculta placeholders genéricos de marca */}
+          {/* Marca — oculta placeholders genéricos */}
           {brandChipLabel && (
             <div className="flex items-center gap-2 flex-wrap mb-3">
               <span className="chip-brand">{brandChipLabel}</span>
@@ -409,6 +408,12 @@ export default async function ProductDetailPage({ params }: PageProps) {
             <p className="mt-2 text-[13px] sm:text-sm text-on-light nums break-words">
               <span className="font-semibold text-price-on-light">Bs. {new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(bsPrice)}</span>
             </p>
+            {product.freeShipping === true && !isOut ? (
+              <p className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[#E6C200]/70 bg-[#FFF8D1] px-2.5 py-1.5 text-[12px] sm:text-[13px] font-semibold text-navy">
+                <Truck size={14} aria-hidden="true" className="flex-shrink-0" />
+                Envío gratis por MRW
+              </p>
+            ) : null}
           </div>
 
           <PaymentMethods />

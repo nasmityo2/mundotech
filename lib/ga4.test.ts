@@ -448,6 +448,69 @@ describe('track con GA4_ID ausente', () => {
   });
 });
 
+describe('track — promotions y select_item enriquecido', () => {
+  beforeEach(() => {
+    unmockGtag();
+    setGa4Id('G-TEST123');
+  });
+
+  afterEach(() => {
+    unmockGtag();
+  });
+
+  it('select_item acepta item_list_id, item_list_name e index en item', () => {
+    const gtag = mockGtag();
+    grantConsent();
+    const sent = track('select_item', {
+      currency: 'USD',
+      item_list_id: 'home-offers',
+      item_list_name: 'Ofertas del Día',
+      items: [{ item_id: 'p1', item_name: 'Prod', index: 3 }],
+    });
+    expect(sent).toBe(true);
+    expect(payloadFromGtag(gtag)).toEqual({
+      currency: 'USD',
+      item_list_id: 'home-offers',
+      item_list_name: 'Ofertas del Día',
+      items: [{ item_id: 'p1', item_name: 'Prod', index: 3 }],
+    });
+  });
+
+  it('view_promotion y select_promotion con payload sanitizado', () => {
+    const gtag = mockGtag();
+    grantConsent();
+    expect(
+      track('view_promotion', {
+        promotion_id: 'promo-banner-1',
+        promotion_name: 'Promo',
+        creative_name: 'img',
+        creative_slot: 'home_promo_banners_1',
+      }),
+    ).toBe(true);
+    expect(
+      track('select_promotion', {
+        promotion_id: 'promo-banner-1',
+        promotion_name: 'Promo',
+        creative_slot: 'home_promo_banners_1',
+      }),
+    ).toBe(true);
+    expect(gtag).toHaveBeenCalledTimes(2);
+  });
+
+  it('sin consentimiento no envía view_promotion', () => {
+    const gtag = mockGtag();
+    denyConsent();
+    expect(
+      track('view_promotion', {
+        promotion_id: 'x',
+        promotion_name: 'y',
+        creative_slot: 'z',
+      }),
+    ).toBe(false);
+    expect(gtag).not.toHaveBeenCalled();
+  });
+});
+
 afterEach(() => {
   setGa4Id(ORIGINAL_GA4_ID);
 });
