@@ -156,7 +156,7 @@ export default function HomeHeroCyber({
 
   return (
     <section className="relative w-full max-w-full overflow-hidden rounded-none bg-black antialiased shadow-[0_18px_45px_-16px_rgba(0,0,0,0.28)] ring-0 sm:rounded-2xl sm:ring-1 sm:ring-black/10">
-      <div className="relative w-full aspect-[1024/360] sm:aspect-[21/9] lg:aspect-[24/9] max-h-[480px]">
+      <div className="relative w-full aspect-[2/1] sm:aspect-[21/9] lg:aspect-[24/9] max-h-[480px]">
         {slide.img ? (
           <div className="absolute inset-0">
             {slides.map((s, i) => {

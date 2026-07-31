@@ -308,7 +308,7 @@ const HomePage = async () => {
 
   return (
     <div className="w-full max-w-full overflow-x-hidden">
-      <div className="-mx-4 w-[calc(100%+2rem)] sm:mx-0 sm:w-full">
+      <div className="relative left-1/2 w-screen max-w-none -translate-x-1/2 sm:left-auto sm:w-full sm:max-w-full sm:translate-x-0">
         <div className="-mt-1 sm:-mt-2">
           <HomeHeroCyber
             slides={heroBanners.length > 0 ? heroBanners : undefined}
