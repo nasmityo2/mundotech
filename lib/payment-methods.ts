@@ -611,7 +611,9 @@ export function buildCheckoutPaymentMethods(
       id: m.id,
       kind: m.kind,
       name: m.name,
-      description: m.description,
+      // En WhatsApp el comprobante/Order ID se coordina por chat, no en el sitio.
+      description:
+        channel === 'whatsapp' && m.kind === 'BINANCE' ? '' : m.description,
       discountEnabled: Boolean(m.discountEligible && m.discountEnabled && m.discountPercent > 0),
       discountPercent:
         m.discountEligible && m.discountEnabled ? m.discountPercent : 0,

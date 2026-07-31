@@ -486,6 +486,8 @@ const ShippingForm = forwardRef<ShippingFormHandle, ShippingFormProps>(({ onForm
       {/* Beneficio MRW / cobro — vista PRELIMINAR (el servidor recalcula al confirmar). */}
       {(() => {
         const chargeType = resolveShippingChargeType(shippingMethod, productFreeShippingFlags);
+        // En WhatsApp no se paga en la web: omitir el aviso de retiro en tienda.
+        if (whatsappMode && chargeType === 'STORE_PICKUP') return null;
         const label = shippingChargeLabel(chargeType);
         const isFreeOrPickup = chargeType !== 'DESTINATION_CHARGE';
         const description =

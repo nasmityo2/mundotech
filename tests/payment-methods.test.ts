@@ -434,7 +434,10 @@ describe('payment-methods', () => {
         { ...settingsSlice, binancePayId: '', paymentMethods: methods },
         'whatsapp',
       );
-      expect(dto.find((m) => m.id === 'binancepay')).toBeTruthy();
+      const binance = dto.find((m) => m.id === 'binancepay');
+      expect(binance).toBeTruthy();
+      // En WS no se pide captura/Order ID en el sitio.
+      expect(binance?.description).toBe('');
     });
 
     it('Binance active + Full ON + Pay ID vacío: no aparece en Full', () => {

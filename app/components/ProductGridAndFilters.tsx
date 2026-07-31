@@ -573,7 +573,7 @@ const ProductGridAndFilters = ({
             </button>
           </div>
         ) : isPending ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
             {Array.from({ length: Math.min(initialProducts.length, 8) }).map((_, i) => (
               <ProductCardSkeleton key={i} />
             ))}
@@ -588,7 +588,7 @@ const ProductGridAndFilters = ({
                 ? { visible: { transition: { staggerChildren: 0, delayChildren: 0 } } }
                 : { visible: { transition: { staggerChildren: 0.04 } } }
             }
-            className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5"
+            className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-5"
           >
             {initialProducts.map((product) => (
               <motion.div

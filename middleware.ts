@@ -5,7 +5,6 @@ import { getToken } from 'next-auth/jwt';
 import { pathnameToLoginNextSlug, pathFromLoginNextSlug } from '@/lib/auth-path';
 import { buildPublicCachedCsp, buildStrictCsp } from '@/lib/csp';
 import { isFullCheckout, isWhatsAppCheckout } from '@/lib/checkout-mode';
-import { slugify } from '@/lib/slugify';
 import {
   LOGIN_RETURN_COOKIE_NAME,
   LOGIN_RETURN_PROMOTED_HEADER,
@@ -161,18 +160,8 @@ export async function middleware(req: NextRequest) {
     return withCsp(NextResponse.redirect(url, { status: 301 }));
   }
 
-  // P47/P48: Deprecar /productos?cat=X → 301 /categoria/[slug].
-  // Usa slugify() (Edge-compatible) que es la misma función con la que se generan
-  // los slugs de Category en /api/categories/sync. Si el valor cat produce un slug
-  // vacío, redirige a /productos (sin query) para no generar un 404.
-  if (pathname === '/productos' && req.nextUrl.searchParams.has('cat')) {
-    const raw = req.nextUrl.searchParams.get('cat') ?? '';
-    const catSlug = slugify(decodeURIComponent(raw));
-    const destination = catSlug
-      ? new URL(`/categoria/${catSlug}`, req.url)
-      : new URL('/productos', req.url);
-    return NextResponse.redirect(destination, { status: 301 });
-  }
+  // Filtro de categoría en /productos?cat=X se queda en el catálogo (sin 301 a /categoria).
+  // Las páginas SEO /categoria/[slug] siguen disponibles desde el menú y enlaces directos.
 
   if (pathname === '/login' || pathname === '/registro') {
     return withCsp(promoteLoginReturnCookieToRequestHeader(req, nonce));

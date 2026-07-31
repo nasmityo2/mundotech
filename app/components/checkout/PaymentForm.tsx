@@ -564,7 +564,9 @@ const PaymentForm = forwardRef<PaymentFormHandle, PaymentFormProps>(({
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-navy">{m.name}</p>
-                    <p className="text-[12px] text-slate-500 mt-0.5">{m.description}</p>
+                    {m.description ? (
+                      <p className="text-[12px] text-slate-500 mt-0.5">{m.description}</p>
+                    ) : null}
                   </div>
                 </button>
               );
