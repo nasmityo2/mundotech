@@ -50,17 +50,6 @@ function Countdown({ targetHours }: { targetHours: number }) {
   );
 }
 
-// ─── Fallback ────────────────────────────────────────────────────────────────
-
-const FALLBACK_PROMO: PromoData = {
-  title:        'Hasta 30% de descuento',
-  subtitle:     'En consolas, gadgets y tech seleccionados',
-  discountText: 'Hasta 30%',
-  imageUrl:     null,
-  bgColor:      '#0B1220',
-  link:         '/productos',
-};
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 interface CategoryItem {
@@ -99,18 +88,23 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
       .catch((err) => console.error('[CategoryDrawer] Error al cargar categorías:', err));
   }, [open]);
 
-  // PERF-07: la promo solo se pide al abrir el drawer (antes: en cada visita,
-  // aunque el menú nunca se abriera) y se valida res.ok (RUN-12).
-  const promoLoadedRef = useRef(false);
+  // Solo al abrir el drawer (PERF-07). Se vuelve a pedir en cada apertura para
+  // reflejar altas/bajas del admin sin recargar la página.
   useEffect(() => {
-    if (!open || promoLoadedRef.current) return;
-    promoLoadedRef.current = true;
+    if (!open) return;
+    let cancelled = false;
     fetch('/api/promotions?active=true')
       .then(r => (r.ok ? r.json() : null))
       .then((data: unknown) => {
+        if (cancelled) return;
         if (Array.isArray(data) && data.length > 0) setPromo(data[0] as PromoData);
+        else setPromo(null);
       })
-      .catch((err) => console.error('[CategoryDrawer] Error al cargar promo:', err));
+      .catch((err) => {
+        if (!cancelled) setPromo(null);
+        console.error('[CategoryDrawer] Error al cargar promo:', err);
+      });
+    return () => { cancelled = true; };
   }, [open]);
 
   // Lock compartido: no pisa el overflow de otros drawers (cart/búsqueda).
@@ -119,8 +113,6 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
   // Focus trap full: foco inicial en "Todos los productos" (firstCatRef).
   // El hook se encarga del foco inicial, Tab/Shift+Tab y Escape.
   useFocusTrap({ containerRef: drawerRef, enabled: open, onClose });
-
-  const display = promo ?? FALLBACK_PROMO;
 
   return (
     <AnimatePresence>
@@ -176,46 +168,48 @@ export default function CategoryDrawer({ open, onClose }: CategoryDrawerProps) {
             {/* ── Body scrollable ──────────────────────────────────── */}
             <div className="flex-1 overflow-y-auto scrollbar-hide">
 
-              {/* Banner Promo */}
-              <div className="m-4">
-                <div
-                  className="relative overflow-hidden rounded-2xl p-5 text-white"
-                  style={{ backgroundColor: display.bgColor }}
-                >
-                  <div className="absolute inset-0 mesh-light opacity-60 pointer-events-none" />
-                  <div className="absolute -top-6 -right-6 w-24 h-24 bg-brand-yellow/15 rounded-full pointer-events-none" />
+              {/* Banner solo si hay oferta activa en el admin (sin fallback hardcodeado). */}
+              {promo && (
+                <div className="m-4">
+                  <div
+                    className="relative overflow-hidden rounded-2xl p-5 text-white"
+                    style={{ backgroundColor: promo.bgColor }}
+                  >
+                    <div className="absolute inset-0 mesh-light opacity-60 pointer-events-none" />
+                    <div className="absolute -top-6 -right-6 w-24 h-24 bg-brand-yellow/15 rounded-full pointer-events-none" />
 
-                  <div className="relative">
-                    <span className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur border border-white/15 text-white text-[10px] font-semibold px-2.5 py-1 rounded-full mb-3">
-                      <Sparkles size={10} className="text-brand-yellow" />
-                      Promo MundoTech
-                    </span>
+                    <div className="relative">
+                      <span className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur border border-white/15 text-white text-[10px] font-semibold px-2.5 py-1 rounded-full mb-3">
+                        <Sparkles size={10} className="text-brand-yellow" />
+                        Promo MundoTech
+                      </span>
 
-                    <div className="inline-flex items-center gap-1.5 bg-emerald-500 text-white text-[10px] font-semibold px-2.5 py-1 rounded-full mb-3 ml-2">
-                      <Clock size={10} />
-                      <Countdown targetHours={48} />
+                      <div className="inline-flex items-center gap-1.5 bg-emerald-500 text-white text-[10px] font-semibold px-2.5 py-1 rounded-full mb-3 ml-2">
+                        <Clock size={10} />
+                        <Countdown targetHours={48} />
+                      </div>
+
+                      <h3 className="text-white font-bold text-lg leading-tight mb-1.5 tracking-tight">
+                        {promo.title}
+                      </h3>
+
+                      {promo.subtitle && (
+                        <p className="text-white/65 text-xs leading-relaxed mb-4">
+                          {promo.subtitle}
+                        </p>
+                      )}
+
+                      <Link
+                        href={promo.link}
+                        onClick={onClose}
+                        className="inline-flex items-center gap-1.5 bg-brand-yellow text-navy text-xs font-bold px-4 min-h-[44px] rounded-xl hover:bg-[#FFE03A] shadow-soft transition-all"
+                      >
+                        <Zap size={12} /> Ver oferta
+                      </Link>
                     </div>
-
-                    <h3 className="text-white font-bold text-lg leading-tight mb-1.5 tracking-tight">
-                      {display.title}
-                    </h3>
-
-                    {display.subtitle && (
-                      <p className="text-white/65 text-xs leading-relaxed mb-4">
-                        {display.subtitle}
-                      </p>
-                    )}
-
-                    <Link
-                      href={display.link}
-                      onClick={onClose}
-                      className="inline-flex items-center gap-1.5 bg-brand-yellow text-navy text-xs font-bold px-4 min-h-[44px] rounded-xl hover:bg-[#FFE03A] shadow-soft transition-all"
-                    >
-                      <Zap size={12} /> Ver oferta
-                    </Link>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* ── Sección: Categorías ──────────────────────────── */}
               <div className="px-4 pb-2">

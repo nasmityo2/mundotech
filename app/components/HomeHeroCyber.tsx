@@ -156,7 +156,7 @@ export default function HomeHeroCyber({
 
   return (
     <section className="relative w-full max-w-full overflow-hidden rounded-none bg-black antialiased shadow-[0_18px_45px_-16px_rgba(0,0,0,0.28)] ring-0 sm:rounded-2xl sm:ring-1 sm:ring-black/10">
-      <div className="relative w-full aspect-[2/1] sm:aspect-[21/9] lg:aspect-[24/9] max-h-[480px]">
+      <div className="relative w-full aspect-[16/9] sm:aspect-[21/9] lg:aspect-[24/9] max-h-[480px]">
         {slide.img ? (
           <div className="absolute inset-0">
             {slides.map((s, i) => {
@@ -182,7 +182,7 @@ export default function HomeHeroCyber({
                   fetchPriority={priorityImages && i === 0 ? 'high' : 'auto'}
                   quality={priorityImages && i === 0 ? 68 : 65}
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1400px"
-                  className={`absolute inset-0 object-contain sm:object-cover transition-opacity duration-700 ease-out motion-reduce:transition-none ${
+                  className={`absolute inset-0 object-cover transition-opacity duration-700 ease-out motion-reduce:transition-none ${
                     isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
                   }`}
                   style={{ objectPosition: mapFocal(s.focal) }}
