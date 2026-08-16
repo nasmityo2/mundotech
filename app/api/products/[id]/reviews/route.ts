@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { rateLimit, getClientIp } from '@/lib/rate-limit';
-import { rejectInvalidMutationOrigin } from '@/lib/security';
+import { rejectInvalidMutationOrigin, safeZodFlatten } from '@/lib/security';
 import {
   reviewInputSchema,
   reviewToClient,
@@ -51,9 +51,8 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!rejectInvalidMutationOrigin(request)) {
-    return NextResponse.json({ error: 'Origen no permitido.' }, { status: 403 });
-  }
+  const originCheck = rejectInvalidMutationOrigin(request);
+  if (originCheck) return originCheck;
 
   const ip = getClientIp(request);
   if (await rateLimit(`reviews:post:ip:${ip}`, { limit: 8, windowMs: 60_000 })) {
@@ -82,7 +81,7 @@ export async function POST(
     const parsed = reviewInputSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Datos de la reseña inválidos.', errors: parsed.error.flatten() },
+        { error: 'Datos de la reseña inválidos.', errors: safeZodFlatten(parsed.error.flatten()) },
         { status: 422 }
       );
     }

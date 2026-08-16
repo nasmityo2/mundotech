@@ -3,10 +3,8 @@
  * Una sola pasada, sin ternarios anidados en page.tsx.
  */
 import type { ReactNode } from 'react';
-import type { HomeShelfKey } from '@/lib/homepage-config';
-
 export type HomeShelfSlot = {
-  key: HomeShelfKey;
+  key: string;
   node: ReactNode;
   /** true si la estantería tiene productos válidos para renderizar. */
   hasProducts: boolean;

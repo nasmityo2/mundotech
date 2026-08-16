@@ -19,7 +19,7 @@ import { isValidWhatsAppPhone, normalizeWhatsAppPhone } from '@/lib/whatsapp-pho
 import { markCartRecovered } from '@/lib/abandoned-cart';
 import { sendOrderConfirmationEmail } from '@/lib/resend';
 import { rateLimitCritical, getClientIp, hashForBucket } from '@/lib/rate-limit';
-import { rejectInvalidMutationOrigin, buildRateLimitedResponse } from '@/lib/security';
+import { rejectInvalidMutationOrigin, buildRateLimitedResponse, safeZodIssues } from '@/lib/security';
 import { d, dn } from '@/lib/decimal';
 import { hashToken } from '@/lib/security';
 import { CHECKOUT_MODE, isWhatsAppCheckout } from '@/lib/checkout-mode';
@@ -201,7 +201,7 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       logWarn('checkout_validation_failed', { status: 400, route: '/api/orders', operation: 'checkout' });
       return NextResponse.json(
-        { message: 'Datos de pedido inválidos.', errors: parsed.error.issues },
+        { message: 'Datos de pedido inválidos.', errors: safeZodIssues(parsed.error.issues) },
         { status: 400 }
       );
     }

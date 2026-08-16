@@ -15,6 +15,8 @@ import {
 import {
   DEFAULT_HOMEPAGE_SHELVES,
   HOME_SHELF_KEYS,
+  MAX_CATEGORY_SHELVES,
+  type HomeCategoryShelf,
   type HomeShelfKey,
   type HomepageShelvesConfig,
 } from '@/lib/homepage-config';
@@ -27,6 +29,13 @@ type AdminProductHit = {
   stock: number;
   isActive: boolean;
   image: string;
+};
+
+type AdminCategoryHit = {
+  id: string;
+  name: string;
+  slug: string;
+  productCount?: number;
 };
 
 const SHELF_LABELS: Record<HomeShelfKey, string> = {
@@ -62,6 +71,28 @@ function validateShelves(config: HomepageShelvesConfig): string | null {
     if (seen.has(id)) return 'Hay productos destacados duplicados.';
     seen.add(id);
   }
+  if (config.categoryShelves.length > MAX_CATEGORY_SHELVES) {
+    return `Máximo ${MAX_CATEGORY_SHELVES} estanterías por categoría.`;
+  }
+  const seenCats = new Set<string>();
+  for (const shelf of config.categoryShelves) {
+    if (!shelf.title.trim()) {
+      return 'Cada estantería de categoría necesita un título.';
+    }
+    if (shelf.title.length > 80) {
+      return 'El título de una estantería de categoría supera 80 caracteres.';
+    }
+    if (shelf.badge.length > 40) {
+      return 'El badge de una estantería de categoría supera 40 caracteres.';
+    }
+    if (shelf.subtitle.length > 160) {
+      return 'El subtítulo de una estantería de categoría supera 160 caracteres.';
+    }
+    if (seenCats.has(shelf.categoryId)) {
+      return 'Hay categorías duplicadas en las estanterías.';
+    }
+    seenCats.add(shelf.categoryId);
+  }
   const orderSeen = new Set<HomeShelfKey>();
   for (const key of config.order) {
     if (orderSeen.has(key)) return 'El orden de estanterías tiene claves duplicadas.';
@@ -71,7 +102,11 @@ function validateShelves(config: HomepageShelvesConfig): string | null {
 }
 
 function cloneShelves(config: HomepageShelvesConfig): HomepageShelvesConfig {
-  return structuredClone(config);
+  const cloned = structuredClone(config);
+  if (!Array.isArray(cloned.categoryShelves)) {
+    cloned.categoryShelves = [];
+  }
+  return cloned;
 }
 
 export default function ShelvesEditor({
@@ -98,6 +133,9 @@ export default function ShelvesEditor({
   const [searching, setSearching] = useState(false);
   const [hits, setHits] = useState<AdminProductHit[]>([]);
   const [selectedDetails, setSelectedDetails] = useState<AdminProductHit[]>([]);
+
+  const [categories, setCategories] = useState<AdminCategoryHit[]>([]);
+  const [categoryQuery, setCategoryQuery] = useState('');
 
   useEffect(() => {
     if (!initial) return;
@@ -126,6 +164,24 @@ export default function ShelvesEditor({
   useEffect(() => {
     void loadSelectedDetails(draft.featuredProductIds);
   }, [draft.featuredProductIds, loadSelectedDetails]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch('/api/categories');
+        const d = await r.json();
+        if (!cancelled) {
+          setCategories(Array.isArray(d) ? d : []);
+        }
+      } catch {
+        if (!cancelled) setCategories([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -210,6 +266,74 @@ export default function ShelvesEditor({
     setStatus('idle');
   };
 
+  const addCategoryShelf = (category: AdminCategoryHit) => {
+    setDraft((prev) => {
+      if (prev.categoryShelves.some((s) => s.categoryId === category.id)) {
+        return prev;
+      }
+      if (prev.categoryShelves.length >= MAX_CATEGORY_SHELVES) return prev;
+      const next: HomeCategoryShelf = {
+        categoryId: category.id,
+        enabled: true,
+        title: category.name,
+        badge: category.name,
+        subtitle: '',
+      };
+      return {
+        ...prev,
+        categoryShelves: [...prev.categoryShelves, next],
+      };
+    });
+    setStatus('idle');
+    setStatusMsg('');
+  };
+
+  const updateCategoryShelf = (
+    categoryId: string,
+    patch: Partial<HomeCategoryShelf>,
+  ) => {
+    setDraft((prev) => ({
+      ...prev,
+      categoryShelves: prev.categoryShelves.map((shelf) =>
+        shelf.categoryId === categoryId ? { ...shelf, ...patch } : shelf,
+      ),
+    }));
+    setStatus('idle');
+    setStatusMsg('');
+  };
+
+  const moveCategoryShelf = (categoryId: string, direction: -1 | 1) => {
+    setDraft((prev) => {
+      const shelves = [...prev.categoryShelves];
+      const idx = shelves.findIndex((s) => s.categoryId === categoryId);
+      const next = idx + direction;
+      if (idx < 0 || next < 0 || next >= shelves.length) return prev;
+      [shelves[idx], shelves[next]] = [shelves[next]!, shelves[idx]!];
+      return { ...prev, categoryShelves: shelves };
+    });
+    setStatus('idle');
+  };
+
+  const removeCategoryShelf = (categoryId: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      categoryShelves: prev.categoryShelves.filter(
+        (s) => s.categoryId !== categoryId,
+      ),
+    }));
+    setStatus('idle');
+  };
+
+  const availableCategories = useMemo(() => {
+    const selected = new Set(draft.categoryShelves.map((s) => s.categoryId));
+    const q = categoryQuery.trim().toLowerCase();
+    return categories.filter((c) => {
+      if (selected.has(c.id)) return false;
+      if (!q) return true;
+      return c.name.toLowerCase().includes(q) || c.slug.toLowerCase().includes(q);
+    });
+  }, [categories, categoryQuery, draft.categoryShelves]);
+
   const save = async () => {
     const error = validateShelves(draft);
     setInlineError(error);
@@ -263,7 +387,9 @@ export default function ShelvesEditor({
         <div>
           <p className="text-sm font-bold text-purple-800">Estanterías de productos</p>
           <p className="text-xs text-purple-600 mt-0.5">
-            Activa, reordena y edita Ofertas, Recién llegados y Destacados. Máximo 8 productos por fila.
+            Activa, reordena y edita Ofertas, Recién llegados y Destacados.
+            También puedes elegir categorías para mostrar sus productos como
+            estanterías en el home. Máximo 8 productos por fila.
           </p>
         </div>
       </div>
@@ -382,6 +508,233 @@ export default function ShelvesEditor({
           </div>
         );
       })}
+
+      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="text-sm font-black text-navy">
+              Estanterías por categoría
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {draft.categoryShelves.length} de {MAX_CATEGORY_SHELVES}{' '}
+              seleccionadas. Cada una aparece en el home como Novedades, con
+              los productos de esa categoría.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label
+            htmlFor="category-shelf-search"
+            className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1"
+          >
+            Buscar categoría
+          </label>
+          <div className="relative">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              aria-hidden
+            />
+            <input
+              id="category-shelf-search"
+              type="search"
+              value={categoryQuery}
+              onChange={(e) => setCategoryQuery(e.target.value)}
+              placeholder="Ej. cocina, gadgets…"
+              className="w-full text-sm border border-gray-200 rounded-lg pl-9 pr-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-navy/20"
+            />
+          </div>
+          {availableCategories.length > 0 ? (
+            <ul className="mt-2 divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
+              {availableCategories.slice(0, 12).map((cat) => {
+                const disabled =
+                  draft.categoryShelves.length >= MAX_CATEGORY_SHELVES;
+                return (
+                  <li
+                    key={cat.id}
+                    className="flex items-center gap-3 p-2.5 bg-white"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-navy truncate">
+                        {cat.name}
+                      </p>
+                      <p className="text-[11px] text-gray-500">
+                        {typeof cat.productCount === 'number'
+                          ? `${cat.productCount} productos`
+                          : `/${cat.slug}`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => addCategoryShelf(cat)}
+                      className="min-h-[44px] px-3 rounded-lg text-xs font-bold bg-navy text-white disabled:opacity-40"
+                    >
+                      Agregar
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : categoryQuery.trim() ? (
+            <p className="text-xs text-gray-500 mt-2">
+              No hay categorías disponibles con ese nombre.
+            </p>
+          ) : null}
+        </div>
+
+        {draft.categoryShelves.length > 0 ? (
+          <ul className="space-y-3" data-testid="category-shelves-list">
+            {draft.categoryShelves.map((shelf, index) => {
+              const category = categories.find((c) => c.id === shelf.categoryId);
+              const label = category?.name ?? 'Categoría no disponible';
+              return (
+                <li
+                  key={shelf.categoryId}
+                  className="border border-gray-100 rounded-xl p-3 space-y-3"
+                  data-testid={`category-shelf-${shelf.categoryId}`}
+                >
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-gray-400 w-5 text-center">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-navy truncate">
+                        {label}
+                      </p>
+                      {category ? (
+                        <p className="text-[11px] text-gray-500">
+                          {typeof category.productCount === 'number'
+                            ? `${category.productCount} productos · `
+                            : ''}
+                          /categoria/{category.slug}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-gray-500">
+                          Ya no existe en el catálogo (oculta en home)
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={shelf.enabled}
+                      aria-label={`${shelf.enabled ? 'Desactivar' : 'Activar'} estantería ${label}`}
+                      onClick={() =>
+                        updateCategoryShelf(shelf.categoryId, {
+                          enabled: !shelf.enabled,
+                        })
+                      }
+                      className={`min-h-[44px] px-3 rounded-lg text-xs font-bold ${
+                        shelf.enabled
+                          ? 'bg-green-50 text-green-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}
+                    >
+                      {shelf.enabled ? 'Activa' : 'Inactiva'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveCategoryShelf(shelf.categoryId, -1)}
+                      disabled={index === 0}
+                      aria-label={`Subir estantería ${label}`}
+                      className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-gray-200 disabled:opacity-40"
+                    >
+                      <ArrowUp size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveCategoryShelf(shelf.categoryId, 1)}
+                      disabled={index === draft.categoryShelves.length - 1}
+                      aria-label={`Bajar estantería ${label}`}
+                      className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-gray-200 disabled:opacity-40"
+                    >
+                      <ArrowDown size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeCategoryShelf(shelf.categoryId)}
+                      aria-label={`Quitar estantería ${label}`}
+                      className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg border border-red-100 text-red-600"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="sm:col-span-2">
+                      <label
+                        htmlFor={`cat-shelf-title-${shelf.categoryId}`}
+                        className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1"
+                      >
+                        Título
+                      </label>
+                      <input
+                        id={`cat-shelf-title-${shelf.categoryId}`}
+                        type="text"
+                        maxLength={80}
+                        value={shelf.title}
+                        onChange={(e) =>
+                          updateCategoryShelf(shelf.categoryId, {
+                            title: e.target.value,
+                          })
+                        }
+                        className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-navy/20"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor={`cat-shelf-badge-${shelf.categoryId}`}
+                        className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1"
+                      >
+                        Badge
+                      </label>
+                      <input
+                        id={`cat-shelf-badge-${shelf.categoryId}`}
+                        type="text"
+                        maxLength={40}
+                        value={shelf.badge}
+                        onChange={(e) =>
+                          updateCategoryShelf(shelf.categoryId, {
+                            badge: e.target.value,
+                          })
+                        }
+                        className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-navy/20"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor={`cat-shelf-subtitle-${shelf.categoryId}`}
+                        className="block text-[10px] font-bold text-gray-500 uppercase tracking-wide mb-1"
+                      >
+                        Subtítulo
+                      </label>
+                      <input
+                        id={`cat-shelf-subtitle-${shelf.categoryId}`}
+                        type="text"
+                        maxLength={160}
+                        value={shelf.subtitle}
+                        onChange={(e) =>
+                          updateCategoryShelf(shelf.categoryId, {
+                            subtitle: e.target.value,
+                          })
+                        }
+                        className="w-full text-sm border border-gray-200 rounded-lg px-2.5 py-2 focus:outline-none focus:ring-2 focus:ring-navy/20"
+                      />
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-xs text-gray-500">
+            Aún no hay categorías seleccionadas. Elige una para que sus
+            productos aparezcan en el home.
+          </p>
+        )}
+      </div>
 
       <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">

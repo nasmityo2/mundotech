@@ -8,7 +8,18 @@ import { z } from 'zod';
 export const HOME_SHELF_KEYS = ['offers', 'newest', 'featured'] as const;
 export type HomeShelfKey = (typeof HOME_SHELF_KEYS)[number];
 
+export const MAX_CATEGORY_SHELVES = 6;
+
 export interface HomeShelfSettings {
+  enabled: boolean;
+  title: string;
+  badge: string;
+  subtitle: string;
+}
+
+/** Estantería extra en home: productos de una categoría del catálogo. */
+export interface HomeCategoryShelf {
+  categoryId: string;
   enabled: boolean;
   title: string;
   badge: string;
@@ -23,6 +34,7 @@ export interface HomepageShelvesConfig {
     featured: HomeShelfSettings;
   };
   featuredProductIds: string[];
+  categoryShelves: HomeCategoryShelf[];
 }
 
 export interface HomepageFreeShippingConfig {
@@ -66,6 +78,7 @@ export const DEFAULT_HOMEPAGE_SHELVES: HomepageShelvesConfig = {
     },
   },
   featuredProductIds: [],
+  categoryShelves: [],
 };
 
 export const DEFAULT_HOMEPAGE_FREE_SHIPPING: HomepageFreeShippingConfig = {
@@ -94,6 +107,18 @@ export const homepageShelvesConfigSchema = z
       .array(z.string().trim().min(1).max(64))
       .max(8)
       .default([]),
+    categoryShelves: z
+      .array(
+        z.object({
+          categoryId: z.string().trim().min(1).max(64),
+          enabled: z.boolean(),
+          title: z.string().trim().min(1).max(80),
+          badge: z.string().trim().max(40).default(''),
+          subtitle: z.string().trim().max(160).default(''),
+        }),
+      )
+      .max(MAX_CATEGORY_SHELVES)
+      .default([]),
   })
   .strict()
   .superRefine((data, ctx) => {
@@ -121,6 +146,19 @@ export const homepageShelvesConfigSchema = z
         return;
       }
       ids.add(id);
+    }
+
+    const catIds = new Set<string>();
+    for (const [index, shelf] of data.categoryShelves.entries()) {
+      if (catIds.has(shelf.categoryId)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'categoryShelves no puede contener categorías duplicadas.',
+          path: ['categoryShelves', index, 'categoryId'],
+        });
+        return;
+      }
+      catIds.add(shelf.categoryId);
     }
   });
 
@@ -196,6 +234,31 @@ function normalizeFeaturedIds(raw: unknown): string[] {
   return ids;
 }
 
+export function normalizeCategoryShelves(raw: unknown): HomeCategoryShelf[] {
+  if (!Array.isArray(raw)) return [];
+  const shelves: HomeCategoryShelf[] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    const obj = entry as Record<string, unknown>;
+    if (typeof obj.categoryId !== 'string') continue;
+    const categoryId = obj.categoryId.trim().slice(0, 64);
+    if (!categoryId || seen.has(categoryId)) continue;
+    const title = asTrimmedString(obj.title, 80, '');
+    if (!title) continue;
+    seen.add(categoryId);
+    shelves.push({
+      categoryId,
+      enabled: typeof obj.enabled === 'boolean' ? obj.enabled : true,
+      title,
+      badge: asOptionalString(obj.badge, 40),
+      subtitle: asOptionalString(obj.subtitle, 160),
+    });
+    if (shelves.length >= MAX_CATEGORY_SHELVES) break;
+  }
+  return shelves;
+}
+
 function shelfFromPartial(
   raw: unknown,
   defaults: HomeShelfSettings,
@@ -254,6 +317,7 @@ export function normalizeHomepageShelves(raw: unknown): HomepageShelvesConfig {
         },
       },
       featuredProductIds: [],
+      categoryShelves: [],
     };
   }
 
@@ -275,6 +339,7 @@ export function normalizeHomepageShelves(raw: unknown): HomepageShelvesConfig {
       featured: shelfFromPartial(shelvesRaw.featured, defaults.shelves.featured),
     },
     featuredProductIds: normalizeFeaturedIds(obj.featuredProductIds),
+    categoryShelves: normalizeCategoryShelves(obj.categoryShelves),
   };
 }
 
@@ -406,10 +471,80 @@ export function parseHomepageShelvesForSave(raw: unknown): {
     }
   }
 
+  if (Array.isArray(obj.categoryShelves)) {
+    if (obj.categoryShelves.length > MAX_CATEGORY_SHELVES) {
+      return {
+        success: false,
+        error: new z.ZodError([
+          {
+            code: 'custom',
+            message: `Máximo ${MAX_CATEGORY_SHELVES} estanterías por categoría.`,
+            path: ['categoryShelves'],
+          },
+        ]),
+      };
+    }
+    const seenCats = new Set<string>();
+    for (const [index, entry] of obj.categoryShelves.entries()) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        return {
+          success: false,
+          error: new z.ZodError([
+            {
+              code: 'custom',
+              message: 'Estantería de categoría inválida.',
+              path: ['categoryShelves', index],
+            },
+          ]),
+        };
+      }
+      const row = entry as Record<string, unknown>;
+      if (typeof row.categoryId !== 'string' || !row.categoryId.trim()) {
+        return {
+          success: false,
+          error: new z.ZodError([
+            {
+              code: 'custom',
+              message: 'ID de categoría inválido.',
+              path: ['categoryShelves', index, 'categoryId'],
+            },
+          ]),
+        };
+      }
+      const catId = row.categoryId.trim();
+      if (typeof row.title !== 'string' || !row.title.trim()) {
+        return {
+          success: false,
+          error: new z.ZodError([
+            {
+              code: 'custom',
+              message: 'El título de la estantería de categoría es obligatorio.',
+              path: ['categoryShelves', index, 'title'],
+            },
+          ]),
+        };
+      }
+      if (seenCats.has(catId)) {
+        return {
+          success: false,
+          error: new z.ZodError([
+            {
+              code: 'custom',
+              message: 'categoryShelves no puede contener categorías duplicadas.',
+              path: ['categoryShelves', index, 'categoryId'],
+            },
+          ]),
+        };
+      }
+      seenCats.add(catId);
+    }
+  }
+
   const candidate = {
     ...obj,
     order: normalizeShelfOrder(obj.order),
     featuredProductIds: normalizeFeaturedIds(obj.featuredProductIds),
+    categoryShelves: normalizeCategoryShelves(obj.categoryShelves),
   };
 
   const parsed = homepageShelvesConfigSchema.safeParse(candidate);
@@ -422,6 +557,7 @@ export function parseHomepageShelvesForSave(raw: unknown): {
       ...parsed.data,
       order: normalizeShelfOrder(parsed.data.order),
       featuredProductIds: normalizeFeaturedIds(parsed.data.featuredProductIds),
+      categoryShelves: normalizeCategoryShelves(parsed.data.categoryShelves),
     },
   };
 }

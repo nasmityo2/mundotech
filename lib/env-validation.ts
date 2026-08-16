@@ -30,6 +30,10 @@ const REQUIRED_IN_PRODUCTION = [
   'R2_PRIVATE_ACCESS_KEY_ID',
   'R2_PRIVATE_SECRET_ACCESS_KEY',
   'CHECKOUT_MODE',
+  // Sin esto en producción, el rate limiting cae al fallback en memoria del
+  // proceso: cada `pm2 restart`/deploy borra los contadores de fuerza bruta.
+  'UPSTASH_REDIS_REST_URL',
+  'UPSTASH_REDIS_REST_TOKEN',
 ] as const;
 
 /** PRD-060: valores admitidos para DEPLOYMENT_ENV (extracción segura de IP). */

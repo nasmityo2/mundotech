@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { requireUser } from '@/lib/api-auth';
-import { rejectInvalidMutationOrigin } from '@/lib/security';
+import { rejectInvalidMutationOrigin, safeZodIssues } from '@/lib/security';
 import { upsertCartItem } from '@/lib/cart';
 
 const bodySchema = z.object({
@@ -29,7 +29,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Datos inválidos.', details: error.issues }, { status: 400 });
+      return NextResponse.json({ error: 'Datos inválidos.', details: safeZodIssues(error.issues) }, { status: 400 });
     }
     logError('cart_items_patch_failed', error, { route: '/api/cart/items' });
     return NextResponse.json({ error: 'Error al actualizar el carrito.' }, { status: 500 });

@@ -42,12 +42,12 @@ export default function GlobalLoading() {
 function ProductCardSkeleton() {
   return (
     <div className="bg-white rounded-2xl shadow-card overflow-hidden">
-      <div className="skeleton aspect-square w-full" />
-      <div className="p-3 space-y-2">
+      <div className="skeleton aspect-[4/5] sm:aspect-square w-full" />
+      <div className="px-2 pt-1.5 pb-2 sm:p-3 space-y-2">
         <div className="skeleton h-3 w-3/4 rounded-full" />
         <div className="skeleton h-3 w-1/2 rounded-full" />
         <div className="skeleton h-5 w-2/3 rounded-full mt-2" />
-        <div className="skeleton h-8 w-full rounded-xl mt-1" />
+        <div className="skeleton h-8 sm:h-10 w-full rounded-full mt-1" />
       </div>
     </div>
   );

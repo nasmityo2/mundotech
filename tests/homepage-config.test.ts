@@ -22,6 +22,7 @@ describe('homepage_shelves V2', () => {
     expect(DEFAULT_HOMEPAGE_SHELVES.shelves.newest.badge).toBe('Recién llegados');
     expect(DEFAULT_HOMEPAGE_SHELVES.shelves.featured.badge).toBe('Destacados');
     expect(DEFAULT_HOMEPAGE_SHELVES.featuredProductIds).toEqual([]);
+    expect(DEFAULT_HOMEPAGE_SHELVES.categoryShelves).toEqual([]);
   });
 
   it('lee configuración V2 válida', () => {
@@ -53,7 +54,54 @@ describe('homepage_shelves V2', () => {
     expect(normalized.order).toEqual(['featured', 'offers', 'newest']);
     expect(normalized.shelves.offers.enabled).toBe(false);
     expect(normalized.featuredProductIds).toEqual(['a', 'b']);
+    expect(normalized.categoryShelves).toEqual([]);
     expect(homepageShelvesConfigSchema.safeParse(normalized).success).toBe(true);
+  });
+
+  it('conserva estanterías por categoría válidas', () => {
+    const raw = {
+      ...DEFAULT_HOMEPAGE_SHELVES,
+      categoryShelves: [
+        {
+          categoryId: 'cat-1',
+          enabled: true,
+          title: 'Cocina',
+          badge: 'Cocina',
+          subtitle: 'Para el hogar',
+        },
+        {
+          categoryId: 'cat-1',
+          enabled: true,
+          title: 'Duplicada',
+          badge: '',
+          subtitle: '',
+        },
+        {
+          categoryId: 'cat-2',
+          enabled: false,
+          title: '  Gadgets  ',
+          badge: 'New',
+          subtitle: '',
+        },
+      ],
+    };
+    const normalized = normalizeHomepageShelves(raw);
+    expect(normalized.categoryShelves).toEqual([
+      {
+        categoryId: 'cat-1',
+        enabled: true,
+        title: 'Cocina',
+        badge: 'Cocina',
+        subtitle: 'Para el hogar',
+      },
+      {
+        categoryId: 'cat-2',
+        enabled: false,
+        title: 'Gadgets',
+        badge: 'New',
+        subtitle: '',
+      },
+    ]);
   });
 
   it('migra en memoria la configuración antigua', () => {
@@ -85,6 +133,7 @@ describe('homepage_shelves V2', () => {
       DEFAULT_HOMEPAGE_SHELVES.shelves.offers.title,
     );
     expect(normalized.featuredProductIds).toEqual([]);
+    expect(normalized.categoryShelves).toEqual([]);
   });
 
   it('normaliza order sin duplicados y completa faltantes', () => {
@@ -124,6 +173,80 @@ describe('homepage_shelves V2', () => {
       featuredProductIds: ['a', 'a'],
     });
     expect(parsed.success).toBe(false);
+  });
+
+  it('rechaza más de 6 estanterías por categoría', () => {
+    const categoryShelves = Array.from({ length: 7 }, (_, i) => ({
+      categoryId: `cat-${i}`,
+      enabled: true,
+      title: `Cat ${i}`,
+      badge: '',
+      subtitle: '',
+    }));
+    const parsed = parseHomepageShelvesForSave({
+      ...DEFAULT_HOMEPAGE_SHELVES,
+      categoryShelves,
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it('rechaza categorías duplicadas al guardar', () => {
+    const parsed = parseHomepageShelvesForSave({
+      ...DEFAULT_HOMEPAGE_SHELVES,
+      categoryShelves: [
+        {
+          categoryId: 'cat-1',
+          enabled: true,
+          title: 'Uno',
+          badge: '',
+          subtitle: '',
+        },
+        {
+          categoryId: 'cat-1',
+          enabled: true,
+          title: 'Dos',
+          badge: '',
+          subtitle: '',
+        },
+      ],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it('rechaza título vacío en estantería de categoría', () => {
+    const parsed = parseHomepageShelvesForSave({
+      ...DEFAULT_HOMEPAGE_SHELVES,
+      categoryShelves: [
+        {
+          categoryId: 'cat-1',
+          enabled: true,
+          title: '   ',
+          badge: '',
+          subtitle: '',
+        },
+      ],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it('acepta una estantería de categoría válida', () => {
+    const parsed = parseHomepageShelvesForSave({
+      ...DEFAULT_HOMEPAGE_SHELVES,
+      categoryShelves: [
+        {
+          categoryId: 'cat-1',
+          enabled: true,
+          title: 'Cocina',
+          badge: 'Cocina',
+          subtitle: '',
+        },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.categoryShelves).toHaveLength(1);
+      expect(parsed.data.categoryShelves[0]?.categoryId).toBe('cat-1');
+    }
   });
 
   it('rechaza título vacío al guardar V2', () => {

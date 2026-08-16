@@ -15,6 +15,7 @@ import {
   getCachedNewestProducts,
   getCachedFlashDeals,
   getFeaturedProductsByIds,
+  getCategoryShelvesForHome,
   getCachedHeroBanners,
   getCachedHomePromoBanners,
   getCachedHomeDiscoverBanners,
@@ -24,6 +25,7 @@ import {
   getCachedHomepageConfig,
   getCachedHomeSiteContent,
   getCachedHomeSettings,
+  type HomeCategoryShelfResolved,
   type HomeShelfProduct,
 } from '@/lib/home-cache';
 import {
@@ -122,14 +124,16 @@ async function getData() {
     ]);
 
     const shelvesConfig = homepageConfig.shelvesConfig;
-    const featuredProducts = await getFeaturedProductsByIds(
-      shelvesConfig.featuredProductIds,
-    );
+    const [featuredProducts, categoryShelves] = await Promise.all([
+      getFeaturedProductsByIds(shelvesConfig.featuredProductIds),
+      getCategoryShelvesForHome(shelvesConfig.categoryShelves),
+    ]);
 
     return {
       newestProducts,
       flashDeals,
       featuredProducts,
+      categoryShelves,
       heroBanners,
       promoBanners,
       discoverBanners,
@@ -148,6 +152,7 @@ async function getData() {
       newestProducts: [] as HomeShelfProduct[],
       flashDeals: [] as HomeShelfProduct[],
       featuredProducts: [] as HomeShelfProduct[],
+      categoryShelves: [] as HomeCategoryShelfResolved[],
       heroBanners: [],
       promoBanners: [],
       discoverBanners: [],
@@ -219,6 +224,28 @@ function CtaBanner({ data }: { data: CtaBannerData | null }) {
   );
 }
 
+function renderCategoryShelf(shelf: HomeCategoryShelfResolved): ReactNode {
+  if (shelf.products.length === 0) return null;
+
+  return (
+    <ProductShelf
+      key={`shelf-category-${shelf.categoryId}`}
+      listId={`home-category-${shelf.slug}`}
+      badge={shelf.badge || shelf.name}
+      badgeColor="yellow"
+      title={shelf.title}
+      subtitle={shelf.subtitle || undefined}
+      products={shelf.products}
+      viewAllHref={`/categoria/${shelf.slug}`}
+      viewAllLabel={`Ver todo en ${shelf.name}`}
+      viewAllShortLabel="Ver todos"
+      theme="light"
+      maxItems={8}
+      priorityFirstItems={0}
+    />
+  );
+}
+
 function renderShelf(opts: {
   key: HomeShelfKey;
   config: HomepageShelvesConfig;
@@ -253,6 +280,7 @@ const HomePage = async () => {
     newestProducts,
     flashDeals,
     featuredProducts,
+    categoryShelves,
     heroBanners,
     promoBanners,
     discoverBanners,
@@ -277,7 +305,7 @@ const HomePage = async () => {
     featured: featuredProducts,
   };
 
-  const shelfSlots = shelvesConfig.order.map((key) => {
+  const builtInSlots = shelvesConfig.order.map((key) => {
     const settingsRow = shelvesConfig.shelves[key];
     const products = settingsRow.enabled ? productByShelf[key] : [];
     return {
@@ -286,6 +314,14 @@ const HomePage = async () => {
       node: renderShelf({ key, config: shelvesConfig, products }),
     };
   });
+
+  const categorySlots = categoryShelves.map((shelf) => ({
+    key: `category:${shelf.categoryId}`,
+    hasProducts: shelf.products.length > 0,
+    node: renderCategoryShelf(shelf),
+  }));
+
+  const shelfSlots = [...builtInSlots, ...categorySlots];
 
   const midSections = buildHomeShelfSections({
     shelves: shelfSlots,

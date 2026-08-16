@@ -99,8 +99,8 @@ const ProductCard = ({
       className="group block h-full"
       data-testid={`product-card-${product.id}`}
     >
-      <div className="card-interactive relative flex h-full flex-col overflow-hidden shadow-soft focus-within:ring-2 focus-within:ring-navy active:scale-[0.99] motion-reduce:active:scale-100">
-        <div className="relative aspect-square overflow-hidden bg-white">
+      <div className="card-interactive relative flex h-full flex-col overflow-hidden shadow-soft focus-within:ring-2 focus-within:ring-navy">
+        <div className="relative aspect-[4/5] sm:aspect-square overflow-hidden bg-white">
           <Image
             src={product.image}
             alt={product.name}
@@ -109,7 +109,7 @@ const ProductCard = ({
             fetchPriority={priority ? 'high' : undefined}
             sizes="(max-width: 640px) 44vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 16vw"
             quality={75}
-            className="object-contain p-3 sm:p-4 lg:p-5 transition-transform duration-500 drop-shadow-[0_4px_12px_rgba(11,18,32,0.08)] group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+            className="object-contain p-1.5 sm:p-4 lg:p-5 transition-transform duration-500 drop-shadow-[0_4px_12px_rgba(11,18,32,0.08)] group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
           />
 
           <div className="absolute top-2 left-2 flex flex-col gap-1 items-start max-w-[60%]">
@@ -154,18 +154,18 @@ const ProductCard = ({
           )}
         </div>
 
-        <div className="p-2.5 sm:p-4 flex flex-col flex-grow gap-1 sm:gap-1.5">
+        <div className="px-2 pt-1.5 pb-2 sm:p-4 flex flex-col flex-grow gap-0.5 sm:gap-1.5">
           {brandLabel ? (
             <span className="chip-brand w-fit max-w-full truncate">
               {brandLabel}
             </span>
           ) : null}
 
-          <h3 className="text-[12px] sm:text-sm font-semibold text-navy leading-snug line-clamp-2 transition-colors min-h-[2.4rem]">
+          <h3 className="text-[12px] sm:text-sm font-semibold text-navy leading-[1.6] line-clamp-2 break-words min-h-[3.2em] flex-shrink-0">
             <Link
               href={`/product/${product.slug ?? product.id}`}
               onClick={handleSelectItem}
-              className="focus:outline-none focus-visible:ring-2 focus-visible:ring-navy/40 after:absolute after:inset-0 after:content-[''] after:rounded-2xl"
+              className="focus:outline-none focus-visible:ring-2 focus-visible:ring-navy/40 after:absolute after:inset-0 after:z-[1] after:content-[''] after:rounded-2xl"
             >
               {product.name}
             </Link>
@@ -180,7 +180,7 @@ const ProductCard = ({
             </div>
           ) : null}
 
-          <div className="mt-auto pt-1.5 sm:pt-3">
+          <div className="mt-auto pt-1 sm:pt-3">
             <div className="flex items-baseline gap-1.5 flex-wrap">
               <span className="text-[1.15rem] sm:text-[1.45rem] font-bold text-navy tracking-tight nums leading-none">
                 {formatUSD(product.price)}
@@ -221,8 +221,8 @@ const ProductCard = ({
               type="button"
               onClick={handleCart}
               disabled={isOut}
-              className={`relative z-10 mt-2 sm:mt-3 w-full inline-flex items-center justify-center gap-1 min-h-[44px] rounded-full
-                          text-[11px] sm:text-[13px] font-bold transition-all duration-200 border px-2
+              className={`relative z-10 mt-1.5 sm:mt-3 w-full inline-flex items-center justify-center gap-0.5 sm:gap-1 min-h-[32px] sm:min-h-[44px] rounded-full
+                          text-[10px] sm:text-[13px] font-bold transition-all duration-200 border px-1.5 sm:px-2
                           active:scale-[0.97] motion-reduce:active:scale-100
                           disabled:opacity-50 disabled:cursor-not-allowed
                           ${
@@ -233,12 +233,12 @@ const ProductCard = ({
             >
               {justAdded ? (
                 <>
-                  <Check size={15} aria-hidden="true" />
+                  <Check className="size-3 sm:size-[15px]" aria-hidden="true" />
                   <span className="whitespace-nowrap">¡En el carrito!</span>
                 </>
               ) : (
                 <>
-                  <ShoppingCart size={14} aria-hidden="true" />
+                  <ShoppingCart className="size-3 sm:size-3.5" aria-hidden="true" />
                   <span className="whitespace-nowrap">
                     {isOut ? 'Agotado' : 'Añadir al carrito'}
                   </span>

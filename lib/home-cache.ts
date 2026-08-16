@@ -14,8 +14,10 @@ import { PRODUCT_CARD_SELECT } from '@/lib/product-select';
 import { readSiteContent } from '@/lib/site-content';
 import { readSettings } from '@/lib/data-store';
 import {
+  MAX_CATEGORY_SHELVES,
   normalizeHomepageFreeShipping,
   normalizeHomepageShelves,
+  type HomeCategoryShelf,
   type HomepageFreeShippingConfig,
   type HomepageShelvesConfig,
 } from '@/lib/homepage-config';
@@ -190,6 +192,71 @@ export const getCachedHomeDiscoverBanners = unstable_cache(
     }),
   ['home-discover-banners'],
   { tags: ['banners'], revalidate: REVALIDATE },
+);
+
+export type HomeCategoryShelfResolved = HomeCategoryShelf & {
+  slug: string;
+  name: string;
+  products: HomeShelfProduct[];
+};
+
+/**
+ * Estanterías por categoría: hasta 8 productos activos con stock por cada
+ * categoría seleccionada en el Gestor Home. Omite categorías ausentes.
+ */
+export async function getCategoryShelvesForHome(
+  categoryShelves: HomeCategoryShelf[],
+): Promise<HomeCategoryShelfResolved[]> {
+  const enabled = categoryShelves
+    .filter((shelf) => shelf.enabled)
+    .slice(0, MAX_CATEGORY_SHELVES);
+
+  if (enabled.length === 0) return [];
+
+  return getCachedCategoryShelfProducts(enabled);
+}
+
+const getCachedCategoryShelfProducts = unstable_cache(
+  async (
+    shelves: HomeCategoryShelf[],
+  ): Promise<HomeCategoryShelfResolved[]> => {
+    const ids = shelves.map((s) => s.categoryId);
+    const categories = await prisma.category.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true, slug: true },
+    });
+    const byId = new Map(categories.map((c) => [c.id, c]));
+
+    const resolved = await Promise.all(
+      shelves.map(async (shelf) => {
+        const category = byId.get(shelf.categoryId);
+        if (!category) return null;
+
+        const rows = await prisma.product.findMany({
+          where: {
+            ...ACTIVE_IN_STOCK,
+            category: { equals: category.name, mode: 'insensitive' },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 8,
+          select: PRODUCT_CARD_SELECT,
+        });
+
+        return {
+          ...shelf,
+          name: category.name,
+          slug: category.slug,
+          products: rows.map(toHomeShelfProduct),
+        };
+      }),
+    );
+
+    return resolved.filter((row): row is HomeCategoryShelfResolved =>
+      Boolean(row),
+    );
+  },
+  ['home-category-shelf-products'],
+  { tags: ['catalog', 'homepage-config', 'categories'], revalidate: REVALIDATE },
 );
 
 export const getCachedHomeFeaturedCategories = unstable_cache(

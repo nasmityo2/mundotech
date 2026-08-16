@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { logError } from '@/lib/safe-logger';
 import { z } from 'zod';
 import { requireUser } from '@/lib/api-auth';
-import { rejectInvalidMutationOrigin } from '@/lib/security';
+import { rejectInvalidMutationOrigin, safeZodIssues } from '@/lib/security';
 import { mergeCart } from '@/lib/cart';
 
 const bodySchema = z.object({
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ items: merged });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Datos inválidos.', details: error.issues }, { status: 400 });
+      return NextResponse.json({ error: 'Datos inválidos.', details: safeZodIssues(error.issues) }, { status: 400 });
     }
     logError('cart_merge_failed', error, { route: '/api/cart/merge' });
     return NextResponse.json({ error: 'Error al fusionar el carrito.' }, { status: 500 });

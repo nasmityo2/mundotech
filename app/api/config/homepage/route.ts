@@ -178,6 +178,42 @@ export async function PUT(request: Request) {
       }
     }
 
+    let previousCategoryIds = new Set<string>();
+    if (previousRow?.value) {
+      try {
+        previousCategoryIds = new Set(
+          normalizeHomepageShelves(JSON.parse(previousRow.value)).categoryShelves
+            .map((shelf) => shelf.categoryId),
+        );
+      } catch {
+        previousCategoryIds = new Set();
+      }
+    }
+
+    const newlyAddedCategoryIds = parsed.data.categoryShelves
+      .map((shelf) => shelf.categoryId)
+      .filter((id) => !previousCategoryIds.has(id));
+
+    if (newlyAddedCategoryIds.length > 0) {
+      const categories = await prisma.category.findMany({
+        where: { id: { in: newlyAddedCategoryIds } },
+        select: { id: true },
+      });
+      const found = new Set(categories.map((c) => c.id));
+      const missingCategories = newlyAddedCategoryIds.filter(
+        (id) => !found.has(id),
+      );
+      if (missingCategories.length > 0) {
+        return NextResponse.json(
+          {
+            error: 'Una o más categorías nuevas no existen.',
+            missingCategories,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
     valueToStore = parsed.data;
   } else if (key === 'homepage_free_shipping') {
     const parsed = parseHomepageFreeShippingForSave(body.value);

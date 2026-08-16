@@ -276,7 +276,8 @@
     @apply card-elevated transition-all duration-300;
   }
 
-  @media (prefers-reduced-motion: no-preference) {
+  /* Solo con hover real: :hover en táctil aplica al tocar y cancela el scroll. */
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
     .card-interactive:hover {
       @apply -translate-y-0.5 shadow-card-hover;
     }

@@ -5,6 +5,7 @@ import { createHash, timingSafeEqual } from 'crypto';
 import { isIP } from 'node:net';
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
+import type { ZodIssue } from 'zod';
 
 /**
  * SHA-256 hex de un token. Los tokens de un solo uso (reset de contraseña)
@@ -161,6 +162,20 @@ export function rejectInvalidMutationOrigin(request: Request): NextResponse | nu
     { error: 'Origen no permitido.' },
     { status: 403 },
   );
+}
+
+/**
+ * Detalle de validación Zod SOLO fuera de producción. `issues` describe el
+ * schema completo (nombres de campos, tipos, reglas) — en producción no debe
+ * viajar al cliente, ni siquiera en errores 400 de rutas públicas.
+ */
+export function safeZodIssues(issues: ZodIssue[]): ZodIssue[] | undefined {
+  return process.env.NODE_ENV === 'production' ? undefined : issues;
+}
+
+/** Igual que safeZodIssues, para el shape de `ZodError.flatten()`. */
+export function safeZodFlatten<T>(flattened: T): T | undefined {
+  return process.env.NODE_ENV === 'production' ? undefined : flattened;
 }
 
 export function verifyBearerSecret(

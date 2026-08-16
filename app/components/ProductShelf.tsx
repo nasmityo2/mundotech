@@ -146,7 +146,7 @@ const ProductShelf = ({
       <div className="-mx-4 sm:mx-0">
         {/* Móvil: ~44vw, snap mandatory, padding lateral, sin overflow de página */}
         <div
-          className="flex gap-3 overflow-x-auto overscroll-x-contain touch-pan-x scrollbar-hide snap-x snap-mandatory scroll-px-4 px-4 pb-2 sm:hidden"
+          className="flex gap-3 overflow-x-auto overscroll-x-contain touch-[pan-x_pan-y] scrollbar-hide snap-x snap-mandatory scroll-px-4 px-4 pb-2 sm:hidden"
           data-testid="product-shelf-carousel"
         >
           {slice.map((product, index) => (

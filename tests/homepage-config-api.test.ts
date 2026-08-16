@@ -4,6 +4,7 @@ import { DEFAULT_HOMEPAGE_SHELVES } from '@/lib/homepage-config';
 
 const findUnique = vi.fn();
 const findManyProducts = vi.fn();
+const findManyCategories = vi.fn();
 const upsert = vi.fn();
 
 vi.mock('@/lib/admin-access-server', () => ({
@@ -23,6 +24,9 @@ vi.mock('@/lib/prisma', () => ({
     },
     product: {
       findMany: (...args: unknown[]) => findManyProducts(...args),
+    },
+    category: {
+      findMany: (...args: unknown[]) => findManyCategories(...args),
     },
   },
 }));
@@ -56,6 +60,7 @@ describe('PUT /api/config/homepage', () => {
     } as never);
     findUnique.mockResolvedValue(null);
     findManyProducts.mockResolvedValue([]);
+    findManyCategories.mockResolvedValue([]);
     upsert.mockResolvedValue({});
   });
 
@@ -161,5 +166,94 @@ describe('PUT /api/config/homepage', () => {
   it('IDs duplicados rechazados', async () => {
     const res = await putShelves(['a', 'a']);
     expect(res.status).toBe(400);
+  });
+
+  it('categoría nueva existente se acepta', async () => {
+    findManyCategories.mockResolvedValue([{ id: 'cat-1' }]);
+    const req = new Request('http://localhost/api/config/homepage', {
+      method: 'PUT',
+      body: JSON.stringify({
+        key: 'homepage_shelves',
+        value: {
+          ...DEFAULT_HOMEPAGE_SHELVES,
+          categoryShelves: [
+            {
+              categoryId: 'cat-1',
+              enabled: true,
+              title: 'Cocina',
+              badge: 'Cocina',
+              subtitle: '',
+            },
+          ],
+        },
+      }),
+    });
+    const res = await PUT(req);
+    expect(res.status).toBe(200);
+    expect(findManyCategories).toHaveBeenCalled();
+  });
+
+  it('categoría nueva inexistente se rechaza', async () => {
+    findManyCategories.mockResolvedValue([]);
+    const req = new Request('http://localhost/api/config/homepage', {
+      method: 'PUT',
+      body: JSON.stringify({
+        key: 'homepage_shelves',
+        value: {
+          ...DEFAULT_HOMEPAGE_SHELVES,
+          categoryShelves: [
+            {
+              categoryId: 'missing-cat',
+              enabled: true,
+              title: 'Cocina',
+              badge: '',
+              subtitle: '',
+            },
+          ],
+        },
+      }),
+    });
+    const res = await PUT(req);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.missingCategories).toContain('missing-cat');
+  });
+
+  it('categoría guardada previamente y luego ausente se conserva', async () => {
+    findUnique.mockResolvedValue({
+      value: JSON.stringify({
+        ...DEFAULT_HOMEPAGE_SHELVES,
+        categoryShelves: [
+          {
+            categoryId: 'old-cat',
+            enabled: true,
+            title: 'Cocina',
+            badge: '',
+            subtitle: '',
+          },
+        ],
+      }),
+    });
+    const req = new Request('http://localhost/api/config/homepage', {
+      method: 'PUT',
+      body: JSON.stringify({
+        key: 'homepage_shelves',
+        value: {
+          ...DEFAULT_HOMEPAGE_SHELVES,
+          categoryShelves: [
+            {
+              categoryId: 'old-cat',
+              enabled: true,
+              title: 'Cocina',
+              badge: '',
+              subtitle: '',
+            },
+          ],
+        },
+      }),
+    });
+    const res = await PUT(req);
+    expect(res.status).toBe(200);
+    expect(findManyCategories).not.toHaveBeenCalled();
   });
 });

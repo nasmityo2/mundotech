@@ -276,7 +276,11 @@ export default function HomeManagerPage() {
       {tab === 'categories' && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-gray-600">Marca hasta <strong>5 categorías</strong> como destacadas para mostrarlas en la Home.</p>
+            <p className="text-sm text-gray-600">
+              Marca categorías como destacadas para la fila de portadas.
+              Para mostrar <strong>sus productos</strong> como estantería (igual que Novedades),
+              usa la pestaña <strong>Estanterías de productos</strong>.
+            </p>
             <button type="button" onClick={handleSync} disabled={syncing}
               className="flex items-center gap-2 text-xs font-bold px-4 py-2.5 bg-navy text-white rounded-xl hover:bg-navy/90 transition-colors disabled:opacity-50">
               {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}

@@ -23,6 +23,15 @@ describe('ShelvesEditor featured sin detalles', () => {
             json: async () => ({ products: [] }),
           } as Response;
         }
+        if (url.includes('/api/categories')) {
+          return {
+            ok: true,
+            json: async () => [
+              { id: 'cat-1', name: 'Cocina', slug: 'cocina', productCount: 4 },
+              { id: 'cat-2', name: 'Gadgets', slug: 'gadgets', productCount: 2 },
+            ],
+          } as Response;
+        }
         return {
           ok: true,
           json: async () => ({ success: true }),
@@ -63,6 +72,31 @@ describe('ShelvesEditor featured sin detalles', () => {
       expect(screen.queryByText('Producto no disponible')).toBeNull();
       expect(
         screen.getByText(/Aún no hay productos destacados/i),
+      ).toBeTruthy();
+    });
+  });
+
+  it('permite agregar y quitar una estantería por categoría', async () => {
+    render(<ShelvesEditor initial={DEFAULT_HOMEPAGE_SHELVES} loading={false} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Cocina')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Agregar' })[0]!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('category-shelf-cat-1')).toBeTruthy();
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Quitar estantería Cocina/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('category-shelf-cat-1')).toBeNull();
+      expect(
+        screen.getByText(/Aún no hay categorías seleccionadas/i),
       ).toBeTruthy();
     });
   });
