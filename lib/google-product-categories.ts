@@ -39,6 +39,21 @@ export const GOOGLE_CATEGORY_FALLBACK = 222; // Electronics
  * IDs verified against the official Google taxonomy (en-US, v2021-09-21).
  */
 const CATEGORY_MAP: Record<string, number> = {
+  // ── Categorías de tienda (nombre exacto normalizado) ───────────────────────
+  // IDs oficiales: taxonomy-with-ids.en-US.txt (2021-09-21)
+  'belleza':            2915, // Health & Beauty > Personal Care
+  'salud':               491, // Health & Beauty > Health Care
+  'automotriz':          888, // Vehicles & Parts
+  'sonido':              223, // Electronics > Audio
+  'hogar':               536, // Home & Garden
+  'equipo de oficina':   922, // Office Supplies
+  'accesorios':         2082, // Electronics > Electronics Accessories
+  'computacion':         278, // Electronics > Computers
+  'herramientas':       1167, // Hardware > Tools
+  'deportivo':           988, // Sporting Goods
+  'seguridad':           359, // Home & Garden > Business & Home Security
+  'mascotas':              2, // Animals & Pet Supplies > Pet Supplies
+
   // ── Telefonía ──────────────────────────────────────────────────────────────
   // Electronics > Communications > Telephony > Mobile Phones (267)
   'celular':        267,

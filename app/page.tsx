@@ -240,7 +240,7 @@ function renderCategoryShelf(shelf: HomeCategoryShelfResolved): ReactNode {
       viewAllLabel={`Ver todo en ${shelf.name}`}
       viewAllShortLabel="Ver todos"
       theme="light"
-      maxItems={8}
+      maxItems={18}
       priorityFirstItems={0}
     />
   );

@@ -78,7 +78,7 @@ const ProductShelf = ({
 }: ProductShelfProps) => {
   if (products.length === 0) return null;
 
-  const cap = Math.min(Math.max(1, maxItems), 8);
+  const cap = Math.min(Math.max(1, maxItems), 18);
   const slice = products.slice(0, cap);
   const isDark = theme === 'dark';
   const analyticsListId = listId || slugify(title);

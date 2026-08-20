@@ -201,7 +201,7 @@ export type HomeCategoryShelfResolved = HomeCategoryShelf & {
 };
 
 /**
- * Estanterías por categoría: hasta 8 productos activos con stock por cada
+ * Estanterías por categoría: hasta 18 productos activos con stock por cada
  * categoría seleccionada en el Gestor Home. Omite categorías ausentes.
  */
 export async function getCategoryShelvesForHome(
@@ -238,7 +238,7 @@ const getCachedCategoryShelfProducts = unstable_cache(
             category: { equals: category.name, mode: 'insensitive' },
           },
           orderBy: { createdAt: 'desc' },
-          take: 8,
+          take: 18,
           select: PRODUCT_CARD_SELECT,
         });
 

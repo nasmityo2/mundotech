@@ -52,13 +52,28 @@ describe('AddProductModal — categoría', () => {
       message: 'ok',
       category: { name: 'Accesorios', created: false },
     });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/api/categories')) {
+          return {
+            ok: true,
+            json: async () =>
+              existingCategories.map((name) => ({ name, slug: name.toLowerCase() })),
+          } as Response;
+        }
+        return { ok: true, json: async () => ({}) } as Response;
+      }),
+    );
   });
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
 
-  it('muestra categorías existentes en el datalist', () => {
+  it('muestra categorías existentes al abrir el selector', async () => {
     render(
       <AddProductModal
         isOpen
@@ -67,10 +82,12 @@ describe('AddProductModal — categoría', () => {
         categories={existingCategories}
       />,
     );
-    const options = Array.from(
-      document.querySelectorAll('#category-options option'),
-    ).map((o) => (o as HTMLOptionElement).value);
-    expect(options).toEqual(expect.arrayContaining(['Accesorios', 'Audio']));
+    fireEvent.focus(screen.getByRole('combobox', { name: /Categoría/i }));
+    await waitFor(() => {
+      const list = screen.getByTestId('category-options');
+      expect(list.textContent).toContain('Accesorios');
+      expect(list.textContent).toContain('Audio');
+    });
   });
 
   it('permite escribir una nueva y muestra Se creará la categoría', () => {
@@ -82,7 +99,7 @@ describe('AddProductModal — categoría', () => {
         categories={existingCategories}
       />,
     );
-    const input = screen.getByLabelText(/Categoría/i) as HTMLInputElement;
+    const input = screen.getByRole('combobox', { name: /Categoría/i }) as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'Cuidado personal' } });
     expect(screen.getByTestId('category-will-create').textContent).toContain(
       'Se creará la categoría: Cuidado personal',
@@ -99,7 +116,7 @@ describe('AddProductModal — categoría', () => {
         categories={existingCategories}
       />,
     );
-    const input = screen.getByLabelText(/Categoría/i);
+    const input = screen.getByRole('combobox', { name: /Categoría/i });
     fireEvent.change(input, { target: { value: 'Nueva cat' } });
     fireEvent.blur(input);
     expect(createProductActionMock).not.toHaveBeenCalled();
@@ -120,7 +137,7 @@ describe('AddProductModal — categoría', () => {
     );
 
     fillRequiredFields(container);
-    fireEvent.change(screen.getByLabelText(/Categoría/i), {
+    fireEvent.change(screen.getByRole('combobox', { name: /Categoría/i }), {
       target: { value: 'Cuidado personal' },
     });
     // Costo + margen mínimos para pasar validación del formulario HTML
@@ -161,7 +178,7 @@ describe('AddProductModal — categoría', () => {
         categories={existingCategories}
       />,
     );
-    expect((screen.getByLabelText(/Categoría/i) as HTMLInputElement).value).toBe('Accesorios');
+    expect((screen.getByRole('combobox', { name: /Categoría/i }) as HTMLInputElement).value).toBe('Accesorios');
 
     rerender(
       <AddProductModal
@@ -171,10 +188,10 @@ describe('AddProductModal — categoría', () => {
         categories={existingCategories}
       />,
     );
-    expect((screen.getByLabelText(/Categoría/i) as HTMLInputElement).value).toBe('');
+    expect((screen.getByRole('combobox', { name: /Categoría/i }) as HTMLInputElement).value).toBe('');
   });
 
-  it('al editar conserva la categoría actual aunque no esté en la lista', () => {
+  it('al editar conserva la categoría actual aunque no esté en la lista', async () => {
     render(
       <AddProductModal
         isOpen
@@ -192,11 +209,33 @@ describe('AddProductModal — categoría', () => {
         categories={existingCategories}
       />,
     );
-    const input = screen.getByLabelText(/Categoría/i) as HTMLInputElement;
+    const input = screen.getByRole('combobox', { name: /Categoría/i }) as HTMLInputElement;
     expect(input.value).toBe('Huérfana Legacy');
-    const options = Array.from(
-      document.querySelectorAll('#category-options option'),
-    ).map((o) => (o as HTMLOptionElement).value);
-    expect(options).toContain('Huérfana Legacy');
+    fireEvent.focus(input);
+    await waitFor(() => {
+      expect(screen.getByTestId('category-options').textContent).toContain(
+        'Huérfana Legacy',
+      );
+    });
+  });
+
+  it('al elegir una categoría de la lista la asigna al campo', async () => {
+    render(
+      <AddProductModal
+        isOpen
+        onClose={vi.fn()}
+        product={null}
+        categories={existingCategories}
+      />,
+    );
+    fireEvent.focus(screen.getByRole('combobox', { name: /Categoría/i }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Audio' })).toBeTruthy();
+    });
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Audio' }));
+    expect((screen.getByRole('combobox', { name: /Categoría/i }) as HTMLInputElement).value).toBe(
+      'Audio',
+    );
+    expect(screen.queryByTestId('category-will-create')).toBeNull();
   });
 });

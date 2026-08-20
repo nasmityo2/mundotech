@@ -9,7 +9,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { createProductAction, updateProductAction } from '@/app/actions/productActions';
 import { calcSellingPriceUsd, roundUpToStep, DEFAULT_PROFIT_MARGIN_PCT, DEFAULT_BCV_BINANCE_FACTOR } from '@/lib/pricing-formula';
 import { getPricingParams, getMarginPresets, updateMarginPresets } from '@/app/actions/configActions';
-import { X, GripVertical, ImagePlus, Star, Camera, Plus, Trash2, Video, Play } from 'lucide-react';
+import { X, GripVertical, ImagePlus, Star, Camera, Plus, Trash2, Video, Play, ChevronDown } from 'lucide-react';
 import { deriveLegacyImagesFromSlots, type ProductGalleryItem } from '@/lib/product-media';
 import { parseProductSpecs, type ProductSpec } from '@/lib/definitions';
 
@@ -67,6 +67,127 @@ const MAX_VIDEO_BYTES = 95 * 1024 * 1024;
 const inputCls = "appearance-none border border-gray-200 bg-gray-50 w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-1 focus:ring-navy/30 focus:border-navy rounded-md";
 const labelCls = "block text-gray-700 text-sm font-bold mb-1";
 
+function normalizeCategoryLabel(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+function CategoryCombobox({
+  id,
+  value,
+  onChange,
+  options,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const listId = `${id}-listbox`;
+  const query = normalizeCategoryLabel(value).toLowerCase();
+  const filtered = query
+    ? options.filter((c) => c.toLowerCase().includes(query))
+    : options;
+  const exactMatch = options.some(
+    (c) => normalizeCategoryLabel(c).toLowerCase() === query,
+  );
+  const willCreate = normalizeCategoryLabel(value).length > 0 && !exactMatch;
+
+  useEffect(() => {
+    const onDocDown = (event: MouseEvent) => {
+      if (!wrapRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocDown);
+    return () => document.removeEventListener('mousedown', onDocDown);
+  }, []);
+
+  const pick = (name: string) => {
+    onChange(name);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <input
+        list={undefined}
+        name="category"
+        id={id}
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        autoComplete="off"
+        required
+        value={value}
+        placeholder="Selecciona una existente o escribe una nueva"
+        className={`${inputCls} pr-9`}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') setOpen(false);
+        }}
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label="Mostrar lista"
+        onClick={() => setOpen((prev) => !prev)}
+        className="absolute right-1.5 top-1/2 -translate-y-1/2 min-h-[32px] min-w-[32px] inline-flex items-center justify-center text-gray-500"
+      >
+        <ChevronDown size={16} aria-hidden />
+      </button>
+      {open ? (
+        <ul
+          id={listId}
+          role="listbox"
+          data-testid="category-options"
+          className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg"
+        >
+          {filtered.map((c) => (
+            <li key={c} role="option" aria-selected={normalizeCategoryLabel(c).toLowerCase() === query}>
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-navy/5"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(c);
+                }}
+              >
+                {c}
+              </button>
+            </li>
+          ))}
+          {willCreate ? (
+            <li role="option" aria-selected>
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm font-semibold text-navy hover:bg-navy/5"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  pick(normalizeCategoryLabel(value));
+                }}
+              >
+                Crear «{normalizeCategoryLabel(value)}»
+              </button>
+            </li>
+          ) : null}
+          {filtered.length === 0 && !willCreate ? (
+            <li className="px-3 py-2 text-sm text-gray-400">
+              No hay categorías. Escribe un nombre para crear una.
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 type SessionVideo = { url: string; posterUrl?: string };
 
 function deleteOrphanVideo(url: string, posterUrl?: string, keepalive = false): void {
@@ -104,6 +225,7 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
   const [discountPct, setDiscountPct] = useState('');
   const [saleAmount, setSaleAmount] = useState('');
   const [categoryInput, setCategoryInput] = useState('');
+  const [fetchedCategories, setFetchedCategories] = useState<string[]>([]);
   const [pricing, setPricing] = useState({ marginPct: DEFAULT_PROFIT_MARGIN_PCT, factor: DEFAULT_BCV_BINANCE_FACTOR });
   // Scroll lock y focus trap compartidos
   useBodyScrollLock(isOpen);
@@ -115,6 +237,30 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
   useEffect(() => {
     if (!isOpen) return;
     getPricingParams().then(setPricing).catch(() => {});
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await fetch('/api/categories');
+        const d = await r.json();
+        if (cancelled || !Array.isArray(d)) return;
+        setFetchedCategories(
+          d
+            .map((c: { name?: unknown }) =>
+              typeof c.name === 'string' ? c.name : '',
+            )
+            .filter(Boolean),
+        );
+      } catch {
+        if (!cancelled) setFetchedCategories([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   useEffect(() => {
@@ -402,16 +548,21 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
   );
 
   const categoryOptions = useMemo(() => {
-    const opts = [...categories];
-    if (product?.category) {
-      const currentKey = product.category.trim().replace(/\s+/g, ' ').toLowerCase();
-      const exists = opts.some(
-        (c) => c.trim().replace(/\s+/g, ' ').toLowerCase() === currentKey,
-      );
-      if (!exists) opts.unshift(product.category);
-    }
+    const opts: string[] = [];
+    const seen = new Set<string>();
+    const add = (name: string) => {
+      const normalized = normalizeCategoryLabel(name);
+      if (!normalized) return;
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      opts.push(normalized);
+    };
+    for (const c of fetchedCategories) add(c);
+    for (const c of categories) add(c);
+    if (product?.category) add(product.category);
     return opts;
-  }, [categories, product]);
+  }, [categories, fetchedCategories, product]);
 
   const normalizedCategoryInput = categoryInput.trim().replace(/\s+/g, ' ');
   const categoryMatchesExisting = categoryOptions.some(
@@ -901,22 +1052,14 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
                 {/* Categoría */}
                 <div>
                   <label htmlFor="category" className={labelCls}>Categoría <span className="text-red-500">*</span></label>
-                  <input
-                    list="category-options"
-                    name="category"
+                  <CategoryCombobox
                     id="category"
-                    className={inputCls}
-                    autoComplete="off"
-                    placeholder="Selecciona una existente o escribe una nueva"
-                    required
                     value={categoryInput}
-                    onChange={(e) => setCategoryInput(e.target.value)}
+                    onChange={setCategoryInput}
+                    options={categoryOptions}
                   />
-                  <datalist id="category-options">
-                    {categoryOptions.map((c) => <option key={c} value={c} />)}
-                  </datalist>
                   <p className="text-[11px] text-gray-400 mt-1">
-                    Si escribes una categoría que no existe, se creará automáticamente al guardar el producto.
+                    Haz clic para ver las categorías creadas. Si escribes una que no existe, se creará al guardar el producto.
                   </p>
                   {willCreateCategory ? (
                     <p className="text-[11px] text-navy/80 mt-1 font-medium" data-testid="category-will-create">

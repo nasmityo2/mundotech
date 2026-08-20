@@ -389,7 +389,9 @@ export default function ShelvesEditor({
           <p className="text-xs text-purple-600 mt-0.5">
             Activa, reordena y edita Ofertas, Recién llegados y Destacados.
             También puedes elegir categorías para mostrar sus productos como
-            estanterías en el home. Máximo 8 productos por fila.
+            estanterías en el home. Ofertas, Recién llegados y Destacados
+            muestran hasta 8 productos; las estanterías de categoría muestran
+            hasta 18.
           </p>
         </div>
       </div>
