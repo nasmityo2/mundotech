@@ -7,6 +7,7 @@ import React, {
   useEffect,
   useRef,
   useCallback,
+  useMemo,
   ReactNode,
 } from 'react';
 import { useSession } from 'next-auth/react';
@@ -41,12 +42,51 @@ interface CartContextType {
   announcement: string;
 }
 
+/**
+ * PERF-2026-08 — Separación estado / acciones.
+ *
+ * `CartContext` cambia de identidad cada vez que cambia CUALQUIER parte del
+ * estado del carrito (cart, isCartOpen, itemAdded, notification, announcement).
+ * Como `ProductCard` consumía `useCart()` solo para obtener `addToCart`, cada
+ * apertura del drawer o cada alta re-renderizaba TODAS las tarjetas del home.
+ *
+ * `CartActionsContext` expone únicamente funciones de identidad estable, así
+ * que sus consumidores NO se re-renderizan por cambios de estado del carrito.
+ * Memoizar el value original no bastaba: el value cambia legítimamente con el
+ * estado; lo que hace falta es que las tarjetas no dependan del estado.
+ */
+export interface CartActions {
+  addToCart: (product: Product, quantity?: number) => void;
+  removeFromCart: (productId: string) => void;
+  updateQuantity: (productId: string, quantity: number) => void;
+  clearCart: () => void;
+  getCartTotal: () => number;
+  refreshCart: () => Promise<void>;
+  openCart: () => void;
+  closeCart: () => void;
+  silentAddToCart: (product: Product, quantity?: number) => void;
+  showNotification: (message: string, type: 'success' | 'error') => void;
+}
+
 const CartContext = createContext<CartContextType | undefined>(undefined);
+const CartActionsContext = createContext<CartActions | undefined>(undefined);
 
 export const useCart = () => {
   const context = useContext(CartContext);
   if (!context) {
     throw new Error('useCart must be used within a CartProvider');
+  }
+  return context;
+};
+
+/**
+ * Acceso solo-acciones al carrito. Preferir sobre `useCart()` en componentes
+ * que no necesitan leer el estado (botones de añadir, tarjetas de producto…).
+ */
+export const useCartActions = () => {
+  const context = useContext(CartActionsContext);
+  if (!context) {
+    throw new Error('useCartActions must be used within a CartProvider');
   }
   return context;
 };
@@ -142,10 +182,10 @@ export const CartProvider = ({ children }: CartProviderProps) => {
   const lastRefreshRef = useRef(0);
   const refreshingRef = useRef(false);
 
-  const showNotification = (message: string, type: 'success' | 'error') => {
+  const showNotification = useCallback((message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
-  };
+  }, []);
 
   // ── 1. Carga inicial desde localStorage ───────────────────────────────────
   useEffect(() => {
@@ -350,21 +390,21 @@ export const CartProvider = ({ children }: CartProviderProps) => {
     pendingQtyRef.current.delete(productId);
   };
 
-  const dbRemoveItem = (productId: string) => {
+  const dbRemoveItem = useCallback((productId: string) => {
     cancelPendingSync(productId);
     if (!isAuthedRef.current) return;
     fetch(`/api/cart/items/${productId}`, {
       method: 'DELETE',
     }).catch((err) => console.error('[CartContext] Error sync remove:', err));
-  };
+  }, []);
 
-  const dbClearCart = () => {
+  const dbClearCart = useCallback(() => {
     for (const id of [...syncTimersRef.current.keys()]) cancelPendingSync(id);
     if (!isAuthedRef.current) return;
     fetch('/api/cart', {
       method: 'DELETE',
     }).catch((err) => console.error('[CartContext] Error sync clear:', err));
-  };
+  }, []);
 
   // ── Operaciones del carrito (UI optimista + sync BD) ──────────────────────
 
@@ -391,7 +431,7 @@ export const CartProvider = ({ children }: CartProviderProps) => {
     [dbUpsertItem],
   );
 
-  const addToCart = (product: Product, quantity: number = 1) => {
+  const addToCart = useCallback((product: Product, quantity: number = 1) => {
     const prevItem = cartRef.current.find((i) => i.id === product.id);
     if (prevItem) {
       const newQty = prevItem.quantity + quantity;
@@ -413,13 +453,13 @@ export const CartProvider = ({ children }: CartProviderProps) => {
       value: Math.round(product.price * quantity * 100) / 100,
       items: [toGa4Item({ ...product, quantity })],
     });
-  };
+  }, [announce, applyAdd, openCart]);
 
-  const silentAddToCart = (product: Product, quantity: number = 1) => {
+  const silentAddToCart = useCallback((product: Product, quantity: number = 1) => {
     applyAdd(product, quantity);
-  };
+  }, [applyAdd]);
 
-  const removeFromCart = (productId: string) => {
+  const removeFromCart = useCallback((productId: string) => {
     const itemToRemove = cartRef.current.find((i) => i.id === productId);
     setCart((prevItems) => prevItems.filter((i) => i.id !== productId));
     dbRemoveItem(productId);
@@ -432,9 +472,9 @@ export const CartProvider = ({ children }: CartProviderProps) => {
         items: [toGa4Item(itemToRemove)],
       });
     }
-  };
+  }, [announce, showNotification, dbRemoveItem]);
 
-  const updateQuantity = (productId: string, quantity: number) => {
+  const updateQuantity = useCallback((productId: string, quantity: number) => {
     const item = cartRef.current.find((i) => i.id === productId);
     if (quantity <= 0) {
       removeFromCart(productId);
@@ -453,17 +493,49 @@ export const CartProvider = ({ children }: CartProviderProps) => {
         return { ...i, quantity: capped };
       }),
     );
-  };
+  }, [announce, removeFromCart, dbUpsertItem]);
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setCart([]);
     dbClearCart();
-  };
+  }, [dbClearCart]);
 
-  const getCartTotal = () =>
-    cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  /* Lee del ref: mantiene la identidad estable sin depender del estado. */
+  const getCartTotal = useCallback(
+    () => cartRef.current.reduce((acc, item) => acc + item.price * item.quantity, 0),
+    [],
+  );
+
+  /* Identidad estable: todas las dependencias son useCallback estables. */
+  const actions = useMemo<CartActions>(
+    () => ({
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      getCartTotal,
+      refreshCart,
+      openCart,
+      closeCart,
+      silentAddToCart,
+      showNotification,
+    }),
+    [
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      getCartTotal,
+      refreshCart,
+      openCart,
+      closeCart,
+      silentAddToCart,
+      showNotification,
+    ],
+  );
 
   return (
+    <CartActionsContext.Provider value={actions}>
     <CartContext.Provider
       value={{
         cart,
@@ -486,5 +558,6 @@ export const CartProvider = ({ children }: CartProviderProps) => {
     >
       {children}
     </CartContext.Provider>
+    </CartActionsContext.Provider>
   );
 };

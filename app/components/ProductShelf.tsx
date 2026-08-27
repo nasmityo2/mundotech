@@ -143,16 +143,27 @@ const ProductShelf = ({
         </Link>
       </div>
 
+      {/*
+        PERF-2026-08 — Render único.
+        Antes existían TRES subárboles simultáneos (carrusel móvil + grid tablet
+        + grid desktop) y dos se ocultaban por CSS: 37 productos generaban 114
+        ProductCard montados (3,08×), de los cuales 76 nunca eran visibles pero
+        sí se hidrataban. Ahora la colección se recorre UNA sola vez y los
+        breakpoints se resuelven con CSS (flex+snap en móvil → grid en sm+),
+        conservando exactamente el mismo aspecto y comportamiento.
+      */}
       <div className="-mx-4 sm:mx-0">
-        {/* Móvil: ~44vw, snap mandatory, padding lateral, sin overflow de página */}
         <div
-          className="flex gap-3 overflow-x-auto overscroll-x-contain touch-[pan-x_pan-y] scrollbar-hide snap-x snap-mandatory scroll-px-4 px-4 pb-2 sm:hidden"
+          className="flex gap-3 overflow-x-auto overscroll-x-contain touch-[pan-x_pan-y] scrollbar-hide snap-x snap-mandatory scroll-px-4 px-4 pb-2
+                     sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-x-visible sm:snap-none sm:px-0 sm:pb-0
+                     md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6"
           data-testid="product-shelf-carousel"
         >
           {slice.map((product, index) => (
             <div
               key={product.id}
-              className="flex-shrink-0 w-[44vw] min-w-[150px] max-w-[178px] snap-start"
+              className="flex-shrink-0 w-[44vw] min-w-[150px] max-w-[178px] snap-start
+                         sm:w-auto sm:min-w-0 sm:max-w-none sm:flex-shrink"
               data-testid="product-card"
               data-product-id={product.id}
             >
@@ -165,9 +176,10 @@ const ProductShelf = ({
               />
             </div>
           ))}
+          {/* Tarjeta final "Ver todo": solo existe en el carrusel móvil. */}
           <Link
             href={viewAllHref}
-            className={`flex-shrink-0 w-[72px] snap-start flex flex-col items-center justify-center gap-2 rounded-2xl border text-[11px] font-semibold min-h-[140px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy/40 ${
+            className={`flex-shrink-0 w-[72px] snap-start flex flex-col items-center justify-center gap-2 rounded-2xl border text-[11px] font-semibold min-h-[140px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy/40 sm:hidden ${
               isDark
                 ? 'border-white/15 bg-[#151515] text-white'
                 : 'border-slate-200 bg-white text-navy shadow-sm'
@@ -177,41 +189,8 @@ const ProductShelf = ({
             Ver todo
           </Link>
         </div>
-
-        <div className="hidden sm:grid sm:grid-cols-2 md:grid-cols-3 gap-4 lg:hidden">
-          {slice.map((product, index) => (
-            <div
-              key={product.id}
-              data-testid="product-card"
-              data-product-id={product.id}
-            >
-              <ProductCard
-                product={toCardProduct(product)}
-                analyticsListId={analyticsListId}
-                analyticsListName={title}
-                analyticsIndex={index}
-              />
-            </div>
-          ))}
-        </div>
-
-        <div className="hidden lg:grid grid-cols-4 xl:grid-cols-6 gap-4">
-          {slice.map((product, index) => (
-            <div
-              key={product.id}
-              data-testid="product-card"
-              data-product-id={product.id}
-            >
-              <ProductCard
-                product={toCardProduct(product)}
-                analyticsListId={analyticsListId}
-                analyticsListName={title}
-                analyticsIndex={index}
-              />
-            </div>
-          ))}
-        </div>
       </div>
+
     </section>
   );
 };

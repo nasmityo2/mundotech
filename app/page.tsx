@@ -48,6 +48,13 @@ const Promotions = dynamic(() => import('@/app/components/Promotions'));
 // PRD-140 — ISR: 5 min máximo de obsolescencia para precio/stock visibles.
 export const revalidate = 300;
 
+/**
+ * Nº de tarjetas de la primera estantería que se cargan con prioridad alta
+ * (priority → fetchpriority="high" + preload + sin lazy). Dos cubren el
+ * elemento LCP en móvil (~2,2 tarjetas visibles a 44vw) sin saturar la red.
+ */
+const LCP_PRIORITY_ITEMS = 2;
+
 export const metadata: Metadata = {
   title: { absolute: 'MundoTech Barquisimeto | Tecnología, gadgets y variedades' },
   description:
@@ -224,7 +231,10 @@ function CtaBanner({ data }: { data: CtaBannerData | null }) {
   );
 }
 
-function renderCategoryShelf(shelf: HomeCategoryShelfResolved): ReactNode {
+function renderCategoryShelf(
+  shelf: HomeCategoryShelfResolved,
+  priorityFirstItems: number,
+): ReactNode {
   if (shelf.products.length === 0) return null;
 
   return (
@@ -241,7 +251,7 @@ function renderCategoryShelf(shelf: HomeCategoryShelfResolved): ReactNode {
       viewAllShortLabel="Ver todos"
       theme="light"
       maxItems={18}
-      priorityFirstItems={0}
+      priorityFirstItems={priorityFirstItems}
     />
   );
 }
@@ -250,6 +260,7 @@ function renderShelf(opts: {
   key: HomeShelfKey;
   config: HomepageShelvesConfig;
   products: HomeShelfProduct[];
+  priorityFirstItems: number;
 }): ReactNode {
   const settings = opts.config.shelves[opts.key];
   if (!settings.enabled) return null;
@@ -270,7 +281,7 @@ function renderShelf(opts: {
       viewAllShortLabel={view.shortLabel}
       theme="light"
       maxItems={8}
-      priorityFirstItems={0}
+      priorityFirstItems={opts.priorityFirstItems}
     />
   );
 }
@@ -305,20 +316,61 @@ const HomePage = async () => {
     featured: featuredProducts,
   };
 
-  const builtInSlots = shelvesConfig.order.map((key) => {
+  /*
+   * PERF-2026-08 — Descubrimiento del recurso LCP.
+   * Lighthouse (móvil) identificó como elemento LCP la PRIMERA imagen de la
+   * primera estantería con productos; se servía con loading="lazy" y sin
+   * fetchpriority, produciendo 617 ms de "resource load delay".
+   * Damos prioridad alta únicamente a las 2 primeras tarjetas de esa
+   * estantería (no a todas: ver docs/, evita competencia de red).
+   * `buildHomeShelfSections` respeta este orden, así que la primera con
+   * productos es la primera que se pinta.
+   */
+  /*
+   * PERF-2026-08 — Descubrimiento del recurso LCP.
+   * Lighthouse (móvil) identificó como elemento LCP la PRIMERA imagen de la
+   * primera estantería con productos; se servía con loading="lazy" y sin
+   * fetchpriority, produciendo 617 ms de "resource load delay".
+   * Damos prioridad alta únicamente a las 2 primeras tarjetas de esa
+   * estantería (no a todas: evita competencia de red — ver docs/).
+   * `buildHomeShelfSections` respeta este orden, así que la primera con
+   * productos es la primera que se pinta.
+   */
+  const builtInDescriptors = shelvesConfig.order.map((key) => {
     const settingsRow = shelvesConfig.shelves[key];
     const products = settingsRow.enabled ? productByShelf[key] : [];
     return {
       key,
+      products,
       hasProducts: settingsRow.enabled && products.length > 0,
-      node: renderShelf({ key, config: shelvesConfig, products }),
     };
   });
 
-  const categorySlots = categoryShelves.map((shelf) => ({
+  const categoryDescriptors = categoryShelves.map((shelf) => ({
     key: `category:${shelf.categoryId}`,
+    shelf,
     hasProducts: shelf.products.length > 0,
-    node: renderCategoryShelf(shelf),
+  }));
+
+  /** Clave de la primera estantería que realmente pinta productos (o null). */
+  const lcpShelfKey =
+    [...builtInDescriptors, ...categoryDescriptors].find((d) => d.hasProducts)?.key ?? null;
+
+  const builtInSlots = builtInDescriptors.map((d) => ({
+    key: d.key,
+    hasProducts: d.hasProducts,
+    node: renderShelf({
+      key: d.key,
+      config: shelvesConfig,
+      products: d.products,
+      priorityFirstItems: d.key === lcpShelfKey ? LCP_PRIORITY_ITEMS : 0,
+    }),
+  }));
+
+  const categorySlots = categoryDescriptors.map((d) => ({
+    key: d.key,
+    hasProducts: d.hasProducts,
+    node: renderCategoryShelf(d.shelf, d.key === lcpShelfKey ? LCP_PRIORITY_ITEMS : 0),
   }));
 
   const shelfSlots = [...builtInSlots, ...categorySlots];

@@ -9,6 +9,8 @@ const trackMock = vi.fn<(...args: unknown[]) => boolean>(() => true);
 
 vi.mock('@/context/CartContext', () => ({
   useCart: () => ({ addToCart }),
+  // PERF-2026-08: ProductCard consume solo acciones (identidad estable).
+  useCartActions: () => ({ addToCart }),
 }));
 
 vi.mock('@/context/WishlistContext', () => ({

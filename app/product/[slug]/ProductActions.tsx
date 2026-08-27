@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { ShoppingCart, Zap, Minus, Plus, Heart, Check, Bell, BellOff, Loader2 } from 'lucide-react';
-import { useCart } from '@/context/CartContext';
+import { useCartActions } from '@/context/CartContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -22,7 +22,7 @@ export default function ProductActions({
    *  debe forzar login. En modo full sí lo exige, igual que /checkout. */
   isWhatsAppCheckout: boolean;
 }) {
-  const { addToCart, silentAddToCart } = useCart();
+  const { addToCart, silentAddToCart } = useCartActions();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const router = useRouter();
   const { data: session, status } = useSession();

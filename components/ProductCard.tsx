@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { ShoppingCart, Heart, Check, Truck } from 'lucide-react';
-import { useCart } from '../context/CartContext';
+import { useCartActions } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useState } from 'react';
 import type { Product } from '../context/ProductContext';
@@ -45,7 +45,9 @@ const ProductCard = ({
   analyticsListName,
   analyticsIndex,
 }: ProductCardProps) => {
-  const { addToCart } = useCart();
+  // PERF-2026-08: solo acciones (identidad estable). Consumir `useCart()`
+  // aquí re-renderizaba las ~38 tarjetas en cada cambio de estado del carrito.
+  const { addToCart } = useCartActions();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const { rate, stale } = useExchangeRate();
   const [justAdded, setJustAdded] = useState(false);

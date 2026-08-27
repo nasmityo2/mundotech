@@ -5,12 +5,12 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { Heart, ShoppingCart, X, ArrowRight, ChevronRight, Check } from 'lucide-react';
 import { useWishlist } from '../../context/WishlistContext';
-import { useCart }     from '../../context/CartContext';
+import { useCartActions } from '../../context/CartContext';
 import { formatCurrency } from '@/lib/utils';
 
 const WishlistClient = () => {
   const { wishlist, removeFromWishlist } = useWishlist();
-  const { addToCart } = useCart();
+  const { addToCart } = useCartActions();
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
 
   const handleAddToCart = (product: (typeof wishlist)[number]) => {

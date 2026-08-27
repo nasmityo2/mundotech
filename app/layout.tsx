@@ -209,9 +209,18 @@ export default async function RootLayout({
               {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
               n.callMethod.apply(n,arguments):n.queue.push(arguments)};
               if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-              n.queue=[];t=b.createElement(e);t.async=!0;
+              n.queue=[];
+              /* PERF-2026-08: el stub queda disponible de forma SÍNCRONA (fbq
+                 existe y encola en n.queue), pero la descarga de fbevents.js
+                 (~105 KiB, ~460 ms de hilo principal) se aplaza a tiempo ocioso.
+                 Al cargar, el propio SDK vacía n.queue: no se pierde ningún
+                 evento, y el pixel no puede emitir nada antes del consentimiento
+                 (arranca en 'revoke'). */
+              var l=function(){t=b.createElement(e);t.async=!0;
               t.src=v;s=b.getElementsByTagName(e)[0];
-              s.parentNode.insertBefore(t,s)}(window, document,'script',
+              s.parentNode.insertBefore(t,s)};
+              'requestIdleCallback' in f?f.requestIdleCallback(l,{timeout:4000}):setTimeout(l,2500)
+              }(window, document,'script',
               'https://connect.facebook.net/en_US/fbevents.js');
               fbq('consent', 'revoke');
               fbq('init', '${META_PIXEL_ID}');
