@@ -16,7 +16,6 @@ import ProductGallery from './ProductGallery';
 import { firstCardImage, productToGalleryItems } from '@/lib/product-media';
 import ProductTabs from './ProductTabs';
 import PaymentMethods from './PaymentMethods';
-import PaymentLogos from './PaymentLogos';
 import ProductShare from './ProductShare';
 import ProductAboutHighlights from './ProductAboutHighlights';
 import { formatCurrency, isGenericBrand } from '@/lib/utils';
@@ -465,8 +464,6 @@ export default async function ProductDetailPage({ params }: PageProps) {
               );
             })}
           </div>
-
-          <PaymentLogos />
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { Wallet, Banknote, Bitcoin, DollarSign, type LucideIcon } from 'lucide-react';
+import { Wallet, Banknote, Bitcoin, DollarSign, Send, CreditCard, type LucideIcon } from 'lucide-react';
 import { readSeoLocal } from '@/lib/seo-local';
 
 interface PaymentChip {
@@ -6,10 +6,18 @@ interface PaymentChip {
   icon: LucideIcon;
 }
 
+/*
+ * Respaldo cuando `seo.paymentAccepted` viene vacío. La lista REAL que se muestra
+ * la controla el admin en /admin/settings/seo-local — este componente nunca la
+ * inventa. Zelle y Cashea se soportan aquí y en `mapPaymentLabel` para que, en
+ * cuanto el admin los añada, rendericen con el mismo diseño de chip.
+ */
 const STATIC_METHODS: PaymentChip[] = [
   { label: 'Pago Móvil', icon: Wallet },
-  { label: 'Transferencia', icon: Banknote },
+  { label: 'Zelle', icon: Send },
   { label: 'Binance', icon: Bitcoin },
+  { label: 'Cashea', icon: CreditCard },
+  { label: 'Transferencia', icon: Banknote },
   { label: 'Efectivo USD/Bs', icon: DollarSign },
 ];
 
@@ -24,6 +32,12 @@ function mapPaymentLabel(raw: string): PaymentChip | null {
   }
   if (v.includes('binance')) {
     return { label: 'Binance', icon: Bitcoin };
+  }
+  if (v.includes('zelle')) {
+    return { label: 'Zelle', icon: Send };
+  }
+  if (v.includes('cashea')) {
+    return { label: 'Cashea', icon: CreditCard };
   }
   if (v === 'cash' || v.includes('efectivo')) {
     return { label: 'Efectivo USD/Bs', icon: DollarSign };
