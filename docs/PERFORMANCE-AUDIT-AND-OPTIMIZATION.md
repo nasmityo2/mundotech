@@ -704,44 +704,183 @@ del worktree.
 
 ---
 
-## 13. Hallazgo separado — `/payments/*.png` devuelven 404
+## 13. Bug independiente corregido — bloque de métodos de pago duplicado y roto
 
-**No causado por este trabajo. Preexistente.**
+> **No es una optimización de Core Web Vitals.** Es un bug de producto preexistente,
+> descubierto durante la auditoría y corregido por separado (commit `e5655f6`).
 
-`app/product/[slug]/PaymentLogos.tsx` referencia seis imágenes:
+### Lo que realmente ocurría
 
-```
-/payments/pago-movil.png   /payments/zelle.png      /payments/binance.png
-/payments/cashea.png       /payments/transferencia.png  /payments/efectivo.png
-```
+La hipótesis inicial era "faltan seis imágenes". La causa real resultó ser peor: la
+ficha de producto renderizaba **DOS bloques de métodos de pago**.
 
-**El directorio `public/payments/` no existe y nunca estuvo versionado en git.** Las
-seis peticiones devuelven 400/404 en cada carga de ficha de producto, y quedan
-registradas como error en `journalctl`:
+| Línea | Componente | Estado |
+|---|---|---|
+| 419 | `PaymentMethods` | Server Component correcto. Chips de texto con icono, alimentados por `seo.paymentAccepted` (configurable en `/admin/settings/seo-local`). Rótulo "Pagas como quieras". |
+| 469 | `PaymentLogos` | Client Component que pedía seis PNG de `/payments/*`. Rótulo "Métodos de pago". |
+
+`public/payments/` **no existe y nunca estuvo versionado en git**. Cada visita a una
+ficha lanzaba **18 peticiones fallidas** (6 logos × `src` + `srcSet` 1x/2x) y las
+registraba como error en el log del servidor:
 
 ```
 ⨯ The requested resource isn't a valid image for /payments/zelle.png received null
 ```
 
-`PaymentLogoItem` tiene un `onError` que oculta cada logo, así que **el efecto visual
-actual es un encabezado "MÉTODOS DE PAGO" seguido de una fila vacía**.
+Como `PaymentLogoItem` ocultaba cada logo con `onError`, el resultado visible era un
+encabezado **"MÉTODOS DE PAGO" sobre una fila vacía**, justo debajo de un bloque que
+sí funcionaba. Es decir: información duplicada, de la cual una copia estaba rota y era
+invisible.
 
-**No se ha corregido**, de acuerdo con la instrucción de no fabricar imágenes falsas y
-determinar primero la solución visual correcta. La decisión depende de información que
-no está en el repositorio:
+### Corrección aplicada
 
-| Opción | Ventaja | Inconveniente |
-|---|---|---|
-| A. Añadir los PNG reales a `public/payments/` | Mantiene el diseño previsto | Requiere los assets de marca; hay que revisar derechos de uso de logos de terceros |
-| B. Sustituir por chips de texto | Cero assets, mejor a11y, sin peticiones fallidas | **Cambia el aspecto**: texto en lugar de logotipos |
-| C. Ocultar el bloque entero si no carga ninguno | Elimina el encabezado huérfano | Se pierde información útil para el comprador |
+- **Eliminado** `app/product/[slug]/PaymentLogos.tsx` y su uso en `page.tsx`
+  (2 líneas: el import y `<PaymentLogos />`).
+- `PaymentMethods` queda como **única fuente de verdad**. Ya era Server Component,
+  no usa JavaScript de cliente, y su lista la controla el admin.
+- Se añadió soporte de **Zelle** y **Cashea** en `STATIC_METHODS` y en
+  `mapPaymentLabel`, para que rendericen con el mismo diseño de chip (iconos `Send`
+  y `CreditCard`) en cuanto el admin los añada.
 
-**Recomendación:** opción **A** si se dispone de los logotipos; **B** en caso contrario
-—para un comprador venezolano, saber que se acepta Pago Móvil, Zelle o Cashea es
-información de conversión valiosa y no debería desaparecer—. Como B altera el aspecto,
-requiere aprobación explícita.
+**No se crearon imágenes, placeholders ni imitaciones de logotipos. No se modificó
+ningún dato.**
+
+### Por qué NO se añadió un segundo bloque de chips
+
+La instrucción original pedía sustituir los logos rotos por chips de texto. Al
+descubrir que ya existía un bloque de chips funcional 50 líneas más arriba, añadir
+otro habría **duplicado la información de pago** en la misma pantalla. La corrección
+correcta era eliminar el duplicado roto.
+
+### Nota sobre qué métodos se muestran
+
+El bloque superviviente muestra hoy **4 chips** — Efectivo USD/Bs, Transferencia,
+Pago Móvil, Binance — porque eso es lo que contiene `seo.paymentAccepted` en la base
+de datos. **Zelle y Cashea no aparecerán hasta que se añadan desde
+`/admin/settings/seo-local`.**
+
+Esto NO es una pérdida de información visible: antes de esta corrección, Zelle y
+Cashea solo existían como texto `alt` de imágenes rotas que **nunca se pintaban**.
+El código ya está preparado; falta únicamente el dato, que es una decisión del
+propietario y no una modificación que corresponda hacer desde una auditoría.
+
+### Verificación (móvil 390px y desktop 1440px)
+
+| Comprobación | Resultado |
+|---|---|
+| Peticiones a `/payments/*` | **0** |
+| 404 / 400 relacionados | **0** |
+| Errores de `next/image` | **0** |
+| Imágenes rotas en la ficha | **0** |
+| Errores de consola | **0** |
+| Bloque visible y renderizado | **Sí** |
+| CLS introducido | **0.0000** (móvil) |
+| Nodos DOM de la ficha | 777 |
+
+### Impacto en rendimiento — A/B pareado (`0b3e4e7` vs `e5655f6`)
+
+Medido back-to-back en la misma máquina para que la deriva afectara por igual:
+
+| Métrica | A (solo perf) | B (perf + fix) | Δ |
+|---|---:|---:|---|
+| Performance | 63 | 64 | +1 |
+| LCP | 3996 ms | 3712 ms | −284 ms |
+| TBT | 1249 ms | 1307 ms | +58 ms (ruido) |
+| CLS | 0 | 0 | = |
+| Long tasks | 20 | 18 | −2 |
+| Long tasks (total) | 3273 ms | 3158 ms | −115 ms |
+| JS transferido | 447,2 KiB | 446,9 KiB | −0,3 KiB |
+
+**Sin regresión.** Las diferencias caben dentro del ruido de la máquina: las tres
+ejecuciones de la propia rama A dieron TBT de 1108, 1249 y 1905 ms.
 
 ---
+
+## 13.b Validaciones de cierre (post-optimización)
+
+### Checkout — PASS (sin crear ningún pedido)
+
+Verificado en móvil (390px) y desktop (1440px), con carrito anónimo sembrado desde el
+home (solo `localStorage`, cero escrituras en BD). **Nunca se pulsó "Realizar compra".**
+
+| Comprobación | Resultado |
+|---|---|
+| Carga de `/checkout` | 200, `h1` = "MundoTech — Pedido por WhatsApp" |
+| Campos de formulario | 9 inputs / 8 labels / 4 radios |
+| Métodos de pago presentes | Pago Móvil, Zelle, Binance, Efectivo, Transferencia, Cashea |
+| Envío / retiro | ambos presentes |
+| Transportistas | MRW, Zoom, Tealca |
+| Selección de sede | presente (retiro en tienda) |
+| Selección de los 4 métodos de envío | `tienda`, `mrw`, `zoom`, `tealca` — todos seleccionables sin error |
+| Precios | USD (`$10.00`) y Bs (`Bs. 7.913,25`) coherentes con la tasa |
+| Total | presente |
+| Overflow horizontal | **ninguno** en móvil ni desktop |
+| Errores 4xx/5xx | **0** |
+| Errores de consola | **0** |
+
+*Instalación:* no aparece en este flujo con el producto de prueba; el servicio de
+instalación es condicional por producto y no se pudo ejercitar sin elegir un artículo
+que lo ofrezca. Queda **sin verificar**.
+
+### Admin — PASS (read-only, con limitación declarada)
+
+| Ruta | Resultado |
+|---|---|
+| `/admin`, `/admin/products`, `/admin/orders`, `/admin/settings`, `/admin/stats`, `/admin/banners`, `/admin/categories`, `/admin/home-manager` | **307 → `/login`** |
+
+El guard de autenticación funciona en todas; **ningún 500**. `git diff` confirma que
+**no se modificó ni un solo fichero de `/admin`, `components/admin` o `/api/admin`**.
+
+**Limitación honesta:** sin credenciales no se pudo renderizar el interior del panel.
+Crear un usuario administrador habría sido una mutación de datos, expresamente
+prohibida. Lo verificado es: routing, guard de auth, compilación en el build de
+producción y ausencia de cambios en ficheros de admin. **El render interno del panel
+queda sin verificar.**
+
+### SEO — PASS
+
+| Elemento | Home | Ficha de producto |
+|---|---|---|
+| `<title>` | "MundoTech Barquisimeto \| Tecnología, gadgets y variedades" | "Set de Termo… \| MundoTech" (plantilla aplicada) |
+| `description` | presente | presente |
+| `canonical` | `https://mundotechve.com` | `https://mundotechve.com/product/<slug>` |
+| `robots` | `index, follow` | `index, follow` |
+| Open Graph | 7 tags | 6 tags |
+| JSON-LD | 3 bloques: WebSite, LocalBusiness, Organization | 6 bloques: + Product, BreadcrumbList, FAQPage |
+
+`robots.txt` correcto (`/admin`, `/api`, `/checkout`, `/account`, `/cart`, `/wishlist`
+en Disallow; GPTBot bloqueado). `sitemap.xml`: **259 URLs**.
+
+Lighthouse SEO: **100** en home y en ficha de producto.
+**Ningún fichero de metadata, JSON-LD, sitemap o robots fue modificado.**
+
+### Accesibilidad — PASS (sin regresión)
+
+axe-core (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`), viewport móvil:
+
+| Página | Violaciones |
+|---|---|
+| Home | **0** |
+| /productos | **0** |
+| /cart | **0** |
+| /checkout | **0** |
+| /login | **0** |
+| Ficha de producto | 1 (`color-contrast`, 2 nodos) |
+
+Lighthouse por categoría: **home a11y 100 / SEO 100 / Best Practices 100** — idéntico
+al baseline que aportó el propietario. Ficha de producto: a11y 97.
+
+Las dos violaciones de contraste son **preexistentes y ajenas a este trabajo**, en
+`app/product/[slug]/page.tsx`:
+
+- línea 397 — `text-slate-400 line-through` sobre el precio tachado (contraste 2,56)
+- línea 402 — `bg-rose-50 text-rose-600` en la píldora "Ahorra 23%" (contraste 4,27)
+
+El `git diff` de ese fichero son **exactamente dos líneas eliminadas** (el import y el
+uso de `PaymentLogos`); las líneas 397 y 402 no se tocaron. Solo aparecen en productos
+con descuento, razón por la que el baseline de "Accessibility 100" —medido sobre el
+home— nunca las detectó. **No se corrigieron**: cambiar esos colores altera la
+identidad visual y requiere aprobación. Anotadas en Future Optimization Opportunities.
 
 ## 14. Future Optimization Opportunities
 
@@ -785,6 +924,14 @@ Lighthouse sigue reportando `forced-reflow-insight` con score 0, pero atribuye e
 tiempo a **`[unattributed]`**: no señala fichero ni función. Sin una causa identificada
 no se tocó nada — corregir a ciegas contradice el principio de no trabajar por
 adivinación. Requiere un perfilado manual con la pestaña Performance de DevTools.
+
+### 14.5.b Contraste en la ficha de producto (WCAG AA)
+
+**Beneficio:** accesibilidad (a11y 97 → 100 en fichas con descuento).
+**Dificultad:** trivial. **Riesgo:** visual — cambia colores de marca.
+`text-slate-400` → `text-slate-500` en el precio tachado y `text-rose-600` →
+`text-rose-700` en la píldora de descuento bastarían. **Requiere aprobación** por ser
+un cambio de diseño. Preexistente, no introducido por esta auditoría.
 
 ### 14.6 Legacy JavaScript — 12 KiB
 
