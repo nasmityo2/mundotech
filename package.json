@@ -27,6 +27,9 @@
     "test:e2e": "npx playwright test",
     "test:e2e:ui": "npx playwright test --ui",
     "db:e2e:reset": "tsx scripts/e2e-reset-db.ts",
+    "perf:seed": "node scripts/perf-seed.mjs",
+    "verify:dashboard-revenue": "tsx scripts/verify-dashboard-revenue.mts",
+    "verify:inventory-scale": "tsx scripts/verify-admin-inventory-scale.mts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

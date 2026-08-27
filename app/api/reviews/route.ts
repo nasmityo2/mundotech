@@ -9,8 +9,17 @@ import { VALID_REVIEW_STATUSES, type ReviewStatus } from '@/lib/definitions';
  * GET /api/reviews?status=PENDING|APPROVED|REJECTED|all&page=1&pageSize=50
  * Listado admin.
  * PRD-163: soporta paginación (`page` ≥ 1, `pageSize` 1–300) y devuelve
- * `total`/`page`/`pageSize`. Sin parámetros mantiene el comportamiento previo
- * (primeras 300) para no romper la UI admin actual (propiedad del segmento 05).
+ * `total`/`page`/`pageSize`.
+ *
+ * Auditoría de rendimiento (RC-09): el default sin parámetros era 300 reseñas
+ * completas por respuesta, y la UI admin no enviaba `page`, así que ése era el
+ * comportamiento real. La UI ya pagina (25 por página); el default sin
+ * parámetros baja a 50 para que ninguna llamada futura vuelva a arrastrar
+ * cientos de filas por descuido. `pageSize` explícito sigue admitiendo hasta
+ * 300 para usos puntuales.
+ *
+ * Los contadores (`counts`) salen de un `groupBy` sobre TODAS las reseñas, no
+ * de la página devuelta: pendientes/aprobadas/rechazadas siguen siendo totales.
  */
 export async function GET(request: Request) {
   const auth = await requirePermission('REVIEWS');
@@ -31,11 +40,10 @@ export async function GET(request: Request) {
     const sizeParam = Number.parseInt(searchParams.get('pageSize') ?? '', 10);
     const paginated = Number.isFinite(pageParam) && pageParam >= 1;
     const page = paginated ? pageParam : 1;
+    const DEFAULT_PAGE_SIZE = 50;
     const pageSize = Number.isFinite(sizeParam)
       ? Math.min(300, Math.max(1, sizeParam))
-      : paginated
-        ? 50
-        : 300;
+      : DEFAULT_PAGE_SIZE;
 
     const [reviews, total, counts, autoApprove] = await Promise.all([
       prisma.review.findMany({

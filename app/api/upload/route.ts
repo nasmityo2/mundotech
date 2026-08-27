@@ -7,8 +7,19 @@ import { detectImageMimeFromBuffer, isAllowedAdminUploadMime } from '@/lib/detec
 import { processImage } from '@/lib/image-processing';
 import { buildKey, uploadToR2, type R2Folder } from '@/lib/r2';
 import { logError } from '@/lib/safe-logger';
+import { MAX_UPLOAD_IMAGE_BYTES, formatBytesMb } from '@/lib/upload-limits';
 
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+/**
+ * Límite POR ARCHIVO (nunca agregado sobre una selección múltiple).
+ *
+ * Antes eran 5 MB fijos aquí. Como el modal de producto subía el File original
+ * sin normalizar, ese número era el techo real del panel: una foto de cámara de
+ * 7–12 MB devolvía 413 aunque se pudiera optimizar a menos de 1 MB. El cliente
+ * normaliza ahora a ≤5 MB (lib/client-image-normalize.ts) y este límite queda
+ * como barrera de servidor con margen para los GIF animados, que no se
+ * rasterizan para no perder los fotogramas. Ver lib/upload-limits.ts.
+ */
+const MAX_BYTES = MAX_UPLOAD_IMAGE_BYTES;
 
 /** PRD-047: enum estricto de destinos — un purpose libre permitía elegir folder arbitrario. */
 const purposeSchema = z.enum([
@@ -58,10 +69,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No se proporcionó archivo.' }, { status: 400 });
     }
 
-    // Validar tamaño antes de leer el buffer completo
+    // Validar tamaño antes de leer el buffer completo. Es un límite por
+    // archivo: subir varias imágenes cuya suma exceda este valor es válido,
+    // porque cada una viaja en su propia petición.
     if (file.size > MAX_BYTES) {
       return NextResponse.json(
-        { error: `El archivo supera el tamaño máximo permitido (${MAX_BYTES / (1024 * 1024)} MB).` },
+        {
+          error:
+            `Esta imagen (${formatBytesMb(file.size)}) supera el tamaño máximo por archivo ` +
+            `(${formatBytesMb(MAX_BYTES)}). El límite es por imagen, no por selección.`,
+        },
         { status: 413 }
       );
     }

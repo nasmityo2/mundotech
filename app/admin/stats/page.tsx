@@ -50,48 +50,84 @@ export default function AdminStatsPage() {
   const [productCosts, setProductCosts] = useState<Record<string, number>>({});
   const [loadError, setLoadError] = useState(false);
 
+  // Estadísticas del período. Una respuesta lenta de un período anterior no
+  // debe pisar la del período que el operador acaba de seleccionar.
   useEffect(() => {
-    fetch(`/api/admin/stats?range=${period}&tz=America/Caracas`)
+    const controller = new AbortController();
+    setLoading(true);
+    fetch(`/api/admin/stats?range=${period}&tz=America/Caracas`, { signal: controller.signal })
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(data => {
         // Validate DTO shape
         if (data && typeof data === 'object' && 'summary' in data) {
           setStats(data as AdminStatsDTO);
+          setLoadError(false);
         } else {
           setLoadError(true);
         }
         setLoading(false);
       })
       .catch(err => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
         console.error('[admin-stats] error cargando estadísticas:', err);
         setLoadError(true);
         setLoading(false);
       });
+    return () => controller.abort();
+  }, [period]);
 
-    fetch('/api/events/top-viewed')
+  // «Más vistos» NO depende del período: antes se volvía a pedir cada vez que
+  // el operador cambiaba de 7d a 30d, 90d… sin que la respuesta cambiara.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/events/top-viewed', { signal: controller.signal })
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(data => {
         if (Array.isArray(data)) setTopViewed(data);
         setLoadingViews(false);
       })
       .catch(err => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
         console.error('[admin-stats] error cargando más vistos:', err);
         setLoadingViews(false);
       });
-
-    fetch('/api/admin/product-costs')
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then(data => {
-        if (data && typeof data === 'object' && !Array.isArray(data)) setProductCosts(data);
-      })
-      .catch(err => console.error('[admin-stats] error cargando costos:', err));
-  }, [period]);
+    return () => controller.abort();
+  }, []);
 
   const summary = stats?.summary;
   const prevSummary = stats?.previousSummary;
 
   // Wrap derived data in useMemo to avoid dependency changes on every render
   const topProducts = useMemo(() => stats?.topProducts ?? [], [stats?.topProducts]);
+
+  // Costes SOLO de los productos que aparecen en la estadística (≤20).
+  // Antes se descargaba el mapa de costes del catálogo completo, y además se
+  // repetía en cada cambio de período.
+  const topProductIds = useMemo(
+    () => topProducts.map(p => p.productId).filter(Boolean),
+    [topProducts],
+  );
+  const topProductIdsKey = topProductIds.join(',');
+
+  useEffect(() => {
+    if (!topProductIdsKey) {
+      setProductCosts({});
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`/api/admin/product-costs?ids=${encodeURIComponent(topProductIdsKey)}`, {
+      signal: controller.signal,
+    })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(data => {
+        if (data && typeof data === 'object' && !Array.isArray(data)) setProductCosts(data);
+      })
+      .catch(err => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        console.error('[admin-stats] error cargando costos:', err);
+      });
+    return () => controller.abort();
+  }, [topProductIdsKey]);
 
   const sortedProducts = useMemo(() => {
     const sorted = [...topProducts];

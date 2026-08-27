@@ -50,6 +50,21 @@ model Product {
 
   @@index([category])
   @@index([isActive])
+  /// Auditoría de rendimiento del Panel Admin — el inventario ordena siempre por
+  /// ("createdAt" DESC, id DESC) y pagina con keyset sobre esa misma tupla.
+  @@index([createdAt, id])
+  /// Filtro por categoría + el mismo orden keyset (evita el top-N sort de todo
+  /// el catálogo cuando el operador filtra por categoría).
+  @@index([category, createdAt, id])
+  /// Filtros «agotados» / «stock bajo» y los contadores COUNT(*) FILTER del
+  /// encabezado del inventario.
+  @@index([stock, createdAt])
+  /// Buscador de productos del Gestor Home (`/api/admin/products/search`), que
+  /// ordena por updatedAt DESC.
+  @@index([updatedAt])
+  /// NOTA: el índice GIN pg_trgm de búsqueda admin (name+sku+brand) es una
+  /// expresión y no se puede declarar aquí; vive en la migración SQL
+  /// `add_admin_performance_indexes` (igual que product_search_trgm_idx).
 }
 
 model ProductMedia {
@@ -439,6 +454,10 @@ model Review {
   @@index([productId, status])
   @@index([status])
   @@index([createdAt])
+  /// Moderación admin: pestañas Pendientes/Aprobadas/Rechazadas ordenadas por
+  /// fecha. Sin este compuesto la lista paginada filtraba tras recorrer el
+  /// índice de createdAt.
+  @@index([status, createdAt])
 }
 
 model Coupon {

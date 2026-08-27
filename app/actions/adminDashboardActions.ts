@@ -8,9 +8,13 @@
  * y TODOS los pedidos con PII vía GET /api/orders (PRD-225 — mismo OOM que
  * PRD-195). Aquí solo viajan contadores, sumas y dos listas mínimas.
  */
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requirePermissionAction } from '@/lib/admin-access-server';
-import { VALIDATED_REVENUE_STATUSES } from '@/lib/analytics-orders';
+import {
+  VALIDATED_REVENUE_STATUSES,
+  type ValidatedRevenueTotals,
+} from '@/lib/analytics-orders';
 import type { OrderStatus } from '@/lib/definitions';
 import { d, dn } from '@/lib/decimal';
 import { roundMoney2 } from '@/lib/exchange-rate';
@@ -67,12 +71,90 @@ export interface AdminDashboardData {
 /** La tasa BCV se considera vieja si su fecha tiene más de 2 días hábiles (~72 h). */
 const BCV_STALE_MS = 72 * 60 * 60 * 1000;
 
+const VALIDATED_STATUS_LIST = Prisma.join(VALIDATED_REVENUE_STATUSES);
+
+/**
+ * Ingresos validados agregados en PostgreSQL.
+ *
+ * ANTES (RC-07 de la auditoría de rendimiento): el dashboard hacía
+ *
+ *     prisma.order.findMany({
+ *       where: { status: { in: VALIDATED_REVENUE_STATUSES } },
+ *       select: { total: true, exchangeRateUsdBs: true },
+ *     })
+ *
+ * y sumaba en Node. Con 20 000 pedidos ya son ~10 000 filas y ~500 KB movidos
+ * desde Postgres en cada carga del dashboard, sólo para producir tres números.
+ * Con 100 000 pedidos el patrón es una bomba de memoria (mismo fallo que el
+ * PRD-195/225 que este archivo dice haber cerrado).
+ *
+ * AHORA: una sola fila agregada. La semántica se preserva literalmente respecto
+ * de `accumulateValidatedRevenue()` (lib/analytics-orders.ts), que sigue siendo
+ * la implementación de referencia usada por los tests de equivalencia:
+ *
+ *  • Pedido CON tasa (> 0): aporta ROUND(total / tasa, 2) a los ingresos USD y
+ *    `total` completo a los ingresos Bs. El redondeo es POR PEDIDO, igual que
+ *    en el bucle original — no se redondea sólo al final.
+ *  • Pedido SIN tasa (legado): `total` ya está en USD; aporta tal cual a USD,
+ *    nada a Bs, y marca `hasLegacyUsdRevenue`.
+ *  • Estados válidos: exactamente VALIDATED_REVENUE_STATUSES.
+ *
+ * `ROUND(numeric, 2)` de PostgreSQL redondea medio hacia arriba para valores
+ * positivos, igual que `Math.round(n * 100) / 100`, y opera sobre aritmética
+ * decimal exacta en lugar de coma flotante binaria.
+ */
+async function fetchValidatedRevenueTotals(): Promise<ValidatedRevenueTotals> {
+  const rows = await prisma.$queryRaw<
+    Array<{
+      revenue_usd: string | number | null;
+      revenue_bs: string | number | null;
+      legacy_count: number | bigint;
+    }>
+  >(Prisma.sql`
+    SELECT
+      COALESCE(SUM(
+        CASE
+          WHEN o."exchangeRateUsdBs" IS NOT NULL AND o."exchangeRateUsdBs" > 0
+            THEN ROUND(o."total" / o."exchangeRateUsdBs", 2)
+          ELSE o."total"
+        END
+      ), 0)::float8 AS revenue_usd,
+      COALESCE(SUM(
+        CASE
+          WHEN o."exchangeRateUsdBs" IS NOT NULL AND o."exchangeRateUsdBs" > 0
+            THEN o."total"
+          ELSE 0
+        END
+      ), 0)::float8 AS revenue_bs,
+      COUNT(*) FILTER (
+        WHERE o."exchangeRateUsdBs" IS NULL OR o."exchangeRateUsdBs" <= 0
+      )::int AS legacy_count
+    FROM "Order" o
+    WHERE o.status IN (${VALIDATED_STATUS_LIST})
+  `);
+
+  const row = rows[0];
+  return {
+    revenueUsd: roundMoney2(Number(row?.revenue_usd ?? 0)),
+    revenueBs: roundMoney2(Number(row?.revenue_bs ?? 0)),
+    hasLegacyUsdRevenue: Number(row?.legacy_count ?? 0) > 0,
+  };
+}
+
+/** Número de categorías distintas presentes en el catálogo (un solo escalar). */
+async function countDistinctProductCategories(): Promise<number> {
+  const rows = await prisma.$queryRaw<Array<{ total: bigint | number }>>(
+    Prisma.sql`SELECT COUNT(DISTINCT category) AS total FROM "Product"`,
+  );
+  return Number(rows[0]?.total ?? 0);
+}
+
 export async function getAdminDashboardData(): Promise<AdminDashboardData> {
   await requirePermissionAction('DASHBOARD');
 
   const [
     totalProducts,
-    categoryRows,
+    totalCategories,
     lowStock,
     outOfStock,
     lowStockProducts,
@@ -81,12 +163,14 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     binancePendingOrders,
     inProcessOrders,
     shippedOrders,
-    validatedRevenueRows,
+    revenueTotals,
     recentOrders,
     opsConfigRows,
   ] = await Promise.all([
     prisma.product.count(),
-    prisma.product.findMany({ distinct: ['category'], select: { category: true } }),
+    // Antes: findMany({ distinct: ['category'] }) sólo para hacer `.length`.
+    // Con muchas categorías traía una fila por cada una; ahora es un escalar.
+    countDistinctProductCategories(),
     prisma.product.count({ where: { stock: { gt: 0, lt: LOW_STOCK_THRESHOLD } } }),
     prisma.product.count({ where: { stock: 0 } }),
     prisma.product.findMany({
@@ -108,10 +192,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     }),
     prisma.order.count({ where: { status: 'En Proceso' satisfies OrderStatus } }),
     prisma.order.count({ where: { status: 'Enviado' satisfies OrderStatus } }),
-    prisma.order.findMany({
-      where:  { status: { in: [...VALIDATED_REVENUE_STATUSES] } },
-      select: { total: true, exchangeRateUsdBs: true },
-    }),
+    fetchValidatedRevenueTotals(),
     prisma.order.findMany({
       orderBy: { createdAt: 'desc' },
       take:    8,
@@ -133,22 +214,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
     }),
   ]);
 
-  let revenueUsd = 0;
-  let revenueBs = 0;
-  let hasLegacyUsdRevenue = false;
-  for (const row of validatedRevenueRows) {
-    const total = d(row.total);
-    const rate = dn(row.exchangeRateUsdBs);
-    if (rate != null && rate > 0) {
-      revenueUsd += roundMoney2(total / rate); // total en Bs → USD
-      revenueBs += total;                       // Bs congelado
-    } else {
-      revenueUsd += total;                      // legado: total ya está en USD
-      hasLegacyUsdRevenue = true;
-    }
-  }
-  revenueUsd = roundMoney2(revenueUsd);
-  revenueBs = roundMoney2(revenueBs);
+  const { revenueUsd, revenueBs, hasLegacyUsdRevenue } = revenueTotals;
 
   const opsMap = new Map(opsConfigRows.map((r) => [r.key, r.value]));
   const bankingConfigured = opsMap.has('store_settings');
@@ -163,7 +229,7 @@ export async function getAdminDashboardData(): Promise<AdminDashboardData> {
 
   return {
     totalProducts,
-    totalCategories: categoryRows.length,
+    totalCategories,
     lowStock,
     outOfStock,
     lowStockProducts,

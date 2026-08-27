@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Star, Check, X, Trash2, AlertCircle, ShieldCheck, MessageSquare, Loader2, Eye,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
 import { TouchIconButton } from '@/components/admin/TouchIconButton';
@@ -10,6 +11,17 @@ import { Stars } from '@/components/reviews/Stars';
 import type { Review, ReviewStatus } from '@/lib/definitions';
 
 type Tab = ReviewStatus | 'all';
+
+/**
+ * Reseñas por página.
+ *
+ * ANTES (RC-09 de la auditoría de rendimiento): la página llamaba a
+ * `/api/reviews?status=${tab}` SIN parámetros de paginación. El endpoint ya
+ * soportaba `page`/`pageSize` pero, sin ellos, devolvía hasta 300 reseñas
+ * completas (texto, fotos, producto) en una sola respuesta — y las 300 se
+ * renderizaban de golpe, además duplicadas por el bug de DataTable.
+ */
+const PAGE_SIZE = 25;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'PENDING', label: 'Pendientes' },
@@ -26,10 +38,13 @@ function formatDate(iso: string): string {
 
 export default function AdminReviewsPage() {
   const [tab, setTab] = useState<Tab>('PENDING');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({ PENDING: 0, APPROVED: 0, REJECTED: 0 });
   const [autoApprove, setAutoApprove] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [replyFor, setReplyFor] = useState<Review | null>(null);
   const [detailFor, setDetailFor] = useState<Review | null>(null);
@@ -39,22 +54,45 @@ export default function AdminReviewsPage() {
     setTimeout(() => setFeedback(null), 3500);
   };
 
+  // Guardia de concurrencia: sólo la última petición puede escribir el estado.
+  const requestSeq = useRef(0);
+  const hasLoadedOnce = useRef(false);
+
   const fetchReviews = useCallback(async () => {
-    setLoading(true);
+    const seq = ++requestSeq.current;
+    if (hasLoadedOnce.current) setRefreshing(true);
+    else setLoading(true);
     try {
-      const res = await fetch(`/api/reviews?status=${tab}`);
-      if (res.ok) {
-        const data = await res.json();
-        setReviews(data.reviews ?? []);
-        setCounts(data.counts ?? { PENDING: 0, APPROVED: 0, REJECTED: 0 });
-        setAutoApprove(!!data.autoApprove);
-      }
+      const res = await fetch(
+        `/api/reviews?status=${tab}&page=${page}&pageSize=${PAGE_SIZE}`,
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      if (seq !== requestSeq.current) return;
+      setReviews(data.reviews ?? []);
+      // Los contadores vienen de un groupBy sobre TODAS las reseñas, no de la
+      // página visible: siguen siendo correctos con paginación.
+      setCounts(data.counts ?? { PENDING: 0, APPROVED: 0, REJECTED: 0 });
+      setAutoApprove(!!data.autoApprove);
+      setTotal(Number(data.total ?? 0));
+      // Si al moderar/eliminar se vació la última página, retrocede una.
+      if ((data.reviews ?? []).length === 0 && page > 1) setPage(p => Math.max(1, p - 1));
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) {
+        hasLoadedOnce.current = true;
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, [tab]);
+  }, [tab, page]);
 
   useEffect(() => { fetchReviews(); }, [fetchReviews]);
+
+  /** Cambiar de pestaña vuelve siempre a la primera página. */
+  const selectTab = useCallback((next: Tab) => {
+    setTab(next);
+    setPage(1);
+  }, []);
 
   const moderate = async (r: Review, status: ReviewStatus) => {
     const res = await fetch(`/api/reviews/${r.id}`, {
@@ -194,7 +232,7 @@ export default function AdminReviewsPage() {
           <button
             key={t.id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => selectTab(t.id)}
             className={`min-h-[40px] px-3.5 rounded-xl text-sm font-semibold whitespace-nowrap transition ${
               tab === t.id ? 'bg-navy text-white' : 'bg-gray-100 text-gray-600 active:bg-gray-200'
             }`}
@@ -225,6 +263,7 @@ export default function AdminReviewsPage() {
         columns={columns}
         rowKey={r => r.id}
         loading={loading}
+        refreshing={refreshing}
         emptyState="No hay reseñas en esta categoría."
         actions={r => (
           <>
@@ -265,6 +304,47 @@ export default function AdminReviewsPage() {
           </>
         )}
       />
+
+      {/* Paginación — misma disposición en móvil y escritorio */}
+      {(total > PAGE_SIZE || page > 1) && (
+        <nav
+          aria-label="Paginación de reseñas"
+          className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2 mt-3"
+        >
+          <button
+            type="button"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1 || refreshing}
+            aria-label="Página anterior"
+            className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 active:bg-gray-100 disabled:opacity-40"
+          >
+            <ChevronLeft size={16} />
+            <span className="hidden sm:inline">Anterior</span>
+          </button>
+
+          <p className="text-[11px] sm:text-xs text-gray-600 text-center tabular-nums" aria-live="polite">
+            <span className="font-semibold text-navy">
+              {total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{(page - 1) * PAGE_SIZE + reviews.length}
+            </span>
+            <span className="mx-1">de</span>
+            <span className="font-semibold text-navy">{total}</span>
+            <span className="block sm:inline sm:ml-2 text-gray-400">
+              Página {page} de {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+            </span>
+          </p>
+
+          <button
+            type="button"
+            onClick={() => setPage(p => p + 1)}
+            disabled={page * PAGE_SIZE >= total || refreshing}
+            aria-label="Página siguiente"
+            className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 active:bg-gray-100 disabled:opacity-40"
+          >
+            <span className="hidden sm:inline">Siguiente</span>
+            <ChevronRight size={16} />
+          </button>
+        </nav>
+      )}
 
       {replyFor && (
         <ReplyDialog

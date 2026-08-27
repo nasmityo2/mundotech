@@ -6,13 +6,17 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdminUsersPage() {
   const access = await requireAdminPageSuperAdmin();
-  const [users, auditLog] = await Promise.all([
+  // Sólo la primera página: la tabla `User` puede tener decenas de miles de
+  // filas de clientes y esta pantalla nunca necesita más de 25 a la vez.
+  const [firstPage, auditLog] = await Promise.all([
     listAdminUsers(),
     listPermissionAuditLog(),
   ]);
   return (
     <UsersClient
-      users={users}
+      users={firstPage.users}
+      total={firstPage.total}
+      pageSize={firstPage.pageSize}
       auditLog={auditLog}
       currentUserId={access.userId}
     />

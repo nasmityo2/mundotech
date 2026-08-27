@@ -14,7 +14,15 @@ import { parseProductSpecs } from '@/lib/definitions';
 import { saveSlugRedirect } from '@/lib/slug-redirects';
 import { d, dn } from '@/lib/decimal';
 import { normalizeCsvFreeShipping, parseFreeShippingFormValue } from '@/lib/csv-free-shipping';
-import { PRODUCT_CARD_SELECT, PRODUCT_ADMIN_SELECT } from '@/lib/product-select';
+import { PRODUCT_CARD_SELECT, PRODUCT_ADMIN_DETAIL_SELECT } from '@/lib/product-select';
+import {
+  ADMIN_LOW_STOCK_THRESHOLD,
+  ADMIN_PRODUCTS_PAGE_SIZE,
+  queryAdminProducts,
+  type AdminProductListParams,
+  type AdminProductListResult,
+} from '@/lib/products/admin-product-query';
+import { getCachedAdminCategoryNames } from '@/lib/categories/admin-categories';
 import { deleteFromR2, isR2PublicUrl, keyFromR2PublicUrl } from '@/lib/r2';
 import { calcSellingPriceUsd, roundUpToStep } from '@/lib/pricing-formula';
 import { getPricingParams } from '@/app/actions/configActions';
@@ -970,90 +978,81 @@ export async function quickUpdatePriceAction(productId: string, price: number) {
   }
 }
 
-export async function getProductsAdmin(params: {
-  search?:       string;
-  category?:     string;
-  minPrice?:     number;
-  maxPrice?:     number;
-  stockFilter?:  'all' | 'low' | 'out';
-  lowThreshold?: number;
-}) {
+/**
+ * Una página del inventario admin.
+ *
+ * ANTES (auditoría de rendimiento, RC-01/RC-02/RC-04): esta acción hacía
+ * `findMany` sin `take` con `PRODUCT_ADMIN_SELECT` (descripción, specs, coste,
+ * margen y media de TODOS los productos) y, además, resolvía las categorías con
+ * dos consultas extra en CADA llamada — es decir, en cada pulsación del buscador
+ * con debounce y tras cada guardado.
+ *
+ * AHORA: paginación keyset (cursor) con un DTO de fila, y las categorías se
+ * piden por separado vía `getAdminProductCategories()` (cacheada por tag).
+ */
+export async function getProductsAdmin(
+  params: AdminProductListParams,
+): Promise<AdminProductListResult> {
   // Las Server Actions son endpoints invocables directamente: la protección
   // del layout /admin NO aplica aquí. Sin este check, cualquiera podía
   // descargar el inventario completo (sku, specs, timestamps).
   await verifyAdminSession();
 
-  const { search, category, minPrice, maxPrice, stockFilter = 'all', lowThreshold = 3 } = params;
+  return queryAdminProducts({
+    ...params,
+    lowThreshold: params.lowThreshold ?? ADMIN_LOW_STOCK_THRESHOLD,
+    pageSize: params.pageSize ?? ADMIN_PRODUCTS_PAGE_SIZE,
+  });
+}
 
-  const where: Record<string, unknown> = {};
+/**
+ * Categorías para los selectores del panel (filtro del inventario y combobox
+ * del modal). Cacheada e invalidada por el tag `categories`, que ya disparan
+ * todas las mutaciones de producto/categoría: dejan de recalcularse en cada
+ * búsqueda del inventario.
+ */
+export async function getAdminProductCategories(): Promise<string[]> {
+  await verifyAdminSession();
+  return getCachedAdminCategoryNames();
+}
 
-  if (search) {
-    where.OR = [
-      { name:  { contains: search, mode: 'insensitive' } },
-      { sku:   { contains: search, mode: 'insensitive' } },
-      { brand: { contains: search, mode: 'insensitive' } },
-    ];
+/** Producto completo para el modal de edición (`media` incluida y ordenada). */
+export type AdminProductDetail = NonNullable<Awaited<ReturnType<typeof getAdminProductById>>>;
+
+/**
+ * Detalle completo de UN producto. Sustituye al antiguo modelo en el que el
+ * listado ya traía todos los campos de edición de todos los productos.
+ */
+export async function getAdminProductById(productId: string) {
+  await verifyAdminSession();
+
+  if (typeof productId !== 'string' || productId.length === 0 || productId.length > 128) {
+    return null;
   }
-  if (category) where.category = category;
-  if (minPrice !== undefined || maxPrice !== undefined) {
-    where.price = {
-      ...(minPrice !== undefined ? { gte: minPrice } : {}),
-      ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
-    };
-  }
-  if (stockFilter === 'out')  where.stock = 0;
-  if (stockFilter === 'low')  where.stock = { gt: 0, lte: lowThreshold };
 
-  const products = await prisma.product.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    select: PRODUCT_ADMIN_SELECT,
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: PRODUCT_ADMIN_DETAIL_SELECT,
   });
 
-  // Fuente principal: registros reales de Category (incluye vacías).
-  // Defensivo: combina huérfanas de Product.category sin registro Category.
-  const [categoryRows, productCategoryRows] = await Promise.all([
-    prisma.category.findMany({
-      select: { name: true },
-      orderBy: [{ order: 'asc' }, { name: 'asc' }],
-    }),
-    prisma.product.findMany({
-      distinct: ['category'],
-      select: { category: true },
-    }),
-  ]);
+  if (!product) return null;
 
-  const seen = new Set<string>();
-  const allCategories: string[] = [];
-
-  for (const row of categoryRows) {
-    const name = normalizeCategoryName(row.name);
-    if (!name) continue;
-    const key = name.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    allCategories.push(name);
-  }
-
-  const orphans = productCategoryRows
-    .map((p) => normalizeCategoryName(p.category))
-    .filter((name) => name.length > 0 && !seen.has(name.toLowerCase()))
-    .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
-
-  for (const name of orphans) {
-    const key = name.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    allCategories.push(name);
-  }
-
-  const normalizedProducts = products.map((p) => ({
-    ...p,
-    price: d(p.price),
-    originalPrice: dn(p.originalPrice),
-  }));
-
-  return { products: normalizedProducts, categories: allCategories };
+  // PRD-204: normalizar Decimal → number en la frontera servidor→cliente.
+  return {
+    ...product,
+    price: d(product.price),
+    originalPrice: dn(product.originalPrice),
+    cost: dn(product.cost),
+    profitMarginPct: dn(product.profitMarginPct),
+    createdAt: product.createdAt.toISOString(),
+    media: product.media.map((m) => ({
+      id: m.id,
+      type: m.type,
+      url: m.url,
+      posterUrl: m.posterUrl,
+      sortOrder: m.sortOrder,
+    })),
+  };
 }
 
 /**
@@ -1061,6 +1060,9 @@ export async function getProductsAdmin(params: {
  * Con costo: costo × (1 + margenGuardado/100) × factor. Sin costo (precio manual):
  * escala por razón de tasas (factor / priceBaseFactor). Ofertas conservan su % de descuento.
  */
+/** Filas por sentencia en el recálculo masivo de precios. */
+const RECALC_BATCH_SIZE = 500;
+
 export async function recalculateAllProductPrices() {
   try {
     await verifyAdminSession();
@@ -1080,10 +1082,19 @@ export async function recalculateAllProductPrices() {
     let updated = 0;
     let skipped = 0;
 
-    // RUN-04 (AUDITORIA-2026-07): acumular las escrituras y aplicarlas en UNA
-    // transacción — antes un fallo a mitad del bucle dejaba el catálogo con
-    // precios mixtos (parte reescalada, parte vieja) y priceBaseFactor inconsistente.
-    const writes: ReturnType<typeof prisma.product.update>[] = [];
+    // RUN-04 (AUDITORIA-2026-07): las escrituras se aplican en UNA transacción —
+    // un fallo a mitad del bucle dejaba el catálogo con precios mixtos (parte
+    // reescalada, parte vieja) y priceBaseFactor inconsistente.
+    //
+    // Auditoría de rendimiento (RC-11): antes se acumulaba UN `prisma.product.update`
+    // por producto y se pasaban todos a `prisma.$transaction([...])`. Con 10 000
+    // productos eso son 10 000 sentencias en una sola transacción: agota el
+    // timeout por defecto de Prisma y mantiene bloqueadas las filas durante todo
+    // el proceso. Ahora se agrupan en sentencias `UPDATE … FROM (VALUES …)` por
+    // lotes, dentro de la misma transacción: mismo resultado y misma atomicidad
+    // con dos órdenes de magnitud menos de round-trips.
+    const priceWrites: { id: string; price: number; originalPrice: number | null }[] = [];
+    const calibrateOnlyIds: string[] = [];
 
     for (const p of products) {
       const curPrice = Number(p.price);
@@ -1100,12 +1111,7 @@ export async function recalculateAllProductPrices() {
         if (base != null && base > 0) {
           newNormal = roundUpToStep(curNormal * (factor / base));
         } else {
-          writes.push(
-            prisma.product.update({
-              where: { id: p.id },
-              data: { priceBaseFactor: factor },
-            }),
-          );
+          calibrateOnlyIds.push(p.id);
           skipped++;
           continue;
         }
@@ -1124,17 +1130,44 @@ export async function recalculateAllProductPrices() {
         newOriginal = newNormal;
       }
 
-      writes.push(
-        prisma.product.update({
-          where: { id: p.id },
-          data: { price: newPrice, originalPrice: newOriginal, priceBaseFactor: factor },
-        }),
-      );
+      priceWrites.push({ id: p.id, price: newPrice, originalPrice: newOriginal });
       updated++;
     }
 
-    if (writes.length > 0) {
-      await prisma.$transaction(writes);
+    if (priceWrites.length > 0 || calibrateOnlyIds.length > 0) {
+      await prisma.$transaction(
+        async (tx) => {
+          for (let i = 0; i < priceWrites.length; i += RECALC_BATCH_SIZE) {
+            const batch = priceWrites.slice(i, i + RECALC_BATCH_SIZE);
+            const values = Prisma.join(
+              batch.map(
+                (w) =>
+                  Prisma.sql`(${w.id}::text, ${w.price}::numeric(12,2), ${w.originalPrice}::numeric(12,2))`,
+              ),
+            );
+            await tx.$executeRaw(Prisma.sql`
+              UPDATE "Product" AS p
+              SET price = v.price,
+                  "originalPrice" = v.original_price,
+                  "priceBaseFactor" = ${factor}::numeric(6,2),
+                  "updatedAt" = NOW()
+              FROM (VALUES ${values}) AS v(id, price, original_price)
+              WHERE p.id = v.id
+            `);
+          }
+
+          for (let i = 0; i < calibrateOnlyIds.length; i += RECALC_BATCH_SIZE) {
+            const batch = calibrateOnlyIds.slice(i, i + RECALC_BATCH_SIZE);
+            await tx.product.updateMany({
+              where: { id: { in: batch } },
+              data: { priceBaseFactor: factor },
+            });
+          }
+        },
+        // Recalcular el catálogo entero es una operación explícitamente masiva:
+        // el timeout por defecto de Prisma (5 s) no da para miles de filas.
+        { timeout: 120_000, maxWait: 15_000 },
+      );
     }
 
     revalidatePath('/admin/products');

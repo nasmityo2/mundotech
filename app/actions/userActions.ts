@@ -64,33 +64,113 @@ function isPrismaSerializationError(error: unknown): boolean {
 // LISTAR USUARIOS ADMIN (solo Superadmin)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function listAdminUsers(): Promise<AdminUser[]> {
+/**
+ * Usuarios por página en /admin/settings/users.
+ * No se exporta: los archivos `'use server'` sólo pueden exportar funciones
+ * async (y tipos). El cliente recibe el valor en `AdminUsersPage.pageSize`.
+ */
+const ADMIN_USERS_PAGE_SIZE = 25;
+
+export interface AdminUsersPage {
+  users: AdminUser[];
+  /** Total de usuarios que cumplen el filtro (no sólo la página). */
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface ListAdminUsersParams {
+  /** Filtra por nombre o email (contains, sin distinguir mayúsculas). */
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  /** Sólo cuentas con acceso administrativo (superadmin, rol admin o permisos). */
+  onlyStaff?: boolean;
+}
+
+/**
+ * Listado paginado de usuarios.
+ *
+ * ANTES (RC-10 de la auditoría de rendimiento): devolvía la tabla `User`
+ * ENTERA —clientes incluidos— con un subconsulta `_count: { orders: true }` por
+ * fila, y la página `/admin/settings/users` la renderizaba de golpe desde el
+ * servidor. Es la pantalla del panel que peor escala con el crecimiento del
+ * negocio: 50 000 clientes ⇒ 50 000 filas con PII y 50 000 subconsultas COUNT
+ * en cada visita.
+ *
+ * AHORA: página de 25 con búsqueda por nombre/email y filtro opcional «sólo
+ * personal». El conteo de pedidos se conserva, pero se calcula sólo para las
+ * 25 filas visibles.
+ */
+export async function listAdminUsers(
+  params: ListAdminUsersParams = {},
+): Promise<AdminUsersPage> {
   await requireSuperAdminAction();
-  const rows = await prisma.user.findMany({
-    orderBy: [{ isSuperAdmin: 'desc' }, { role: 'asc' }, { createdAt: 'desc' }],
-    select: {
-      id:                   true,
-      email:                true,
-      name:                 true,
-      role:                 true,
-      isSuperAdmin:         true,
-      adminPermissions:     true,
-      permissionsUpdatedAt: true,
-      createdAt:            true,
-      _count: { select: { orders: true } },
-    },
-  });
-  return rows.map(r => ({
-    id:                   r.id,
-    email:                r.email,
-    name:                 r.name,
-    role:                 r.role,
-    isSuperAdmin:         r.isSuperAdmin,
-    adminPermissions:     normalizeAdminPermissions(r.adminPermissions),
-    permissionsUpdatedAt: r.permissionsUpdatedAt?.toISOString() ?? null,
-    createdAt:            r.createdAt.toISOString(),
-    orderCount:           r._count.orders,
-  }));
+
+  const page = Number.isFinite(params.page) && (params.page as number) >= 1
+    ? Math.floor(params.page as number)
+    : 1;
+  const pageSize = Number.isFinite(params.pageSize)
+    ? Math.min(100, Math.max(1, Math.floor(params.pageSize as number)))
+    : ADMIN_USERS_PAGE_SIZE;
+  const search = (params.search ?? '').trim().slice(0, 120);
+
+  const where: Prisma.UserWhereInput = {};
+  if (search) {
+    where.OR = [
+      { email: { contains: search, mode: 'insensitive' } },
+      { name:  { contains: search, mode: 'insensitive' } },
+    ];
+  }
+  if (params.onlyStaff) {
+    where.AND = [
+      {
+        OR: [
+          { isSuperAdmin: true },
+          { role: { in: ['ADMIN', 'admin'] } },
+          { adminPermissions: { isEmpty: false } },
+        ],
+      },
+    ];
+  }
+
+  const [rows, total] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      orderBy: [{ isSuperAdmin: 'desc' }, { role: 'asc' }, { createdAt: 'desc' }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id:                   true,
+        email:                true,
+        name:                 true,
+        role:                 true,
+        isSuperAdmin:         true,
+        adminPermissions:     true,
+        permissionsUpdatedAt: true,
+        createdAt:            true,
+        _count: { select: { orders: true } },
+      },
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  return {
+    page,
+    pageSize,
+    total,
+    users: rows.map(r => ({
+      id:                   r.id,
+      email:                r.email,
+      name:                 r.name,
+      role:                 r.role,
+      isSuperAdmin:         r.isSuperAdmin,
+      adminPermissions:     normalizeAdminPermissions(r.adminPermissions),
+      permissionsUpdatedAt: r.permissionsUpdatedAt?.toISOString() ?? null,
+      createdAt:            r.createdAt.toISOString(),
+      orderCount:           r._count.orders,
+    })),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

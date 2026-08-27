@@ -1,6 +1,7 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useMemo } from 'react';
+import { useIsDesktop } from '@/hooks/useIsDesktop';
 
 export interface DataTableColumn<T> {
   key: string;
@@ -37,6 +38,12 @@ export interface DataTableProps<T> {
   onSelectionChange?: (ids: string[]) => void;
   emptyState?: ReactNode;
   loading?: boolean;
+  /**
+   * Refresco en segundo plano: mantiene visibles los datos actuales y sólo
+   * atenúa la tabla. Evita el parpadeo de esqueleto completo en cada pulsación
+   * del buscador (a diferencia de `loading`, que sí sustituye el contenido).
+   */
+  refreshing?: boolean;
   /** Acentúa la fila/card según un criterio (warning, danger). */
   rowAccent?: (row: T) => 'default' | 'warning' | 'danger' | 'success';
   /** Indicador a la izquierda de la card móvil (avatar/icono). */
@@ -57,6 +64,20 @@ const ACCENT_BORDER: Record<NonNullable<ReturnType<NonNullable<DataTableProps<un
   success: 'border-green-200',
 };
 
+/**
+ * Tabla responsive del Panel Admin.
+ *
+ * RC-03 (auditoría de rendimiento): esta tabla renderizaba SIEMPRE los dos
+ * árboles — `<ul className="md:hidden">` con un `data.map(...)` y
+ * `<div className="hidden md:block">` con OTRO `data.map(...)` — y ocultaba uno
+ * con Tailwind. Ocultar por CSS no evita que React construya el árbol ni que el
+ * navegador cree los nodos: con 500 registros se generaban ~1 000
+ * representaciones y el doble de nodos DOM, listeners y closures.
+ *
+ * Ahora se monta una sola representación, elegida con `useIsDesktop()`
+ * (`useSyncExternalStore` + `matchMedia`, seguro para hidratación). El aspecto
+ * visual es idéntico: las mismas clases, los mismos breakpoints.
+ */
 export function DataTable<T>({
   data,
   columns,
@@ -68,11 +89,30 @@ export function DataTable<T>({
   onSelectionChange,
   emptyState,
   loading,
+  refreshing,
   rowAccent,
   mobileLeading,
 }: DataTableProps<T>) {
-  const desktopColumns = columns.filter(c => !c.hideOnDesktop);
-  const mobileColumns = columns.filter(c => !c.hideOnMobile && c.mobileLabel !== null);
+  const isDesktop = useIsDesktop();
+
+  const desktopColumns = useMemo(() => columns.filter(c => !c.hideOnDesktop), [columns]);
+  const mobileColumns = useMemo(
+    () => columns.filter(c => !c.hideOnMobile && c.mobileLabel !== null),
+    [columns],
+  );
+
+  // Antes cada fila hacía `selectedIds.includes(id)` — O(n) por fila, O(n²) por
+  // render. Con un Set es O(1) por fila.
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  // El reparto primary/secondary/otros de la card móvil era idéntico para todas
+  // las filas pero se recalculaba dentro del `map` (3 `find`/`filter` por fila).
+  const mobileLayout = useMemo(() => ({
+    primary: mobileColumns.find(c => c.primary),
+    secondary: mobileColumns.find(c => c.secondary),
+    others: mobileColumns.filter(c => !c.primary && !c.secondary),
+  }), [mobileColumns]);
+
   const allSelected = data.length > 0 && selectedIds.length === data.length;
 
   const toggleAll = () => {
@@ -82,7 +122,7 @@ export function DataTable<T>({
 
   const toggleOne = (id: string) => {
     if (!onSelectionChange) return;
-    if (selectedIds.includes(id)) onSelectionChange(selectedIds.filter(x => x !== id));
+    if (selectedSet.has(id)) onSelectionChange(selectedIds.filter(x => x !== id));
     else onSelectionChange([...selectedIds, id]);
   };
 
@@ -110,16 +150,21 @@ export function DataTable<T>({
     );
   }
 
-  return (
-    <>
-      {/* ─── Mobile: cards apiladas ─── */}
-      <ul className="md:hidden space-y-3">
+  const refreshCls = refreshing ? 'opacity-60 transition-opacity' : 'transition-opacity';
+
+  // ─── Móvil: cards apiladas ───
+  if (!isDesktop) {
+    const { primary, secondary, others } = mobileLayout;
+    return (
+      <ul
+        data-testid="datatable-cards"
+        className={`space-y-3 ${refreshCls}`}
+        aria-busy={refreshing || undefined}
+      >
         {data.map(row => {
           const id = rowKey(row);
           const accent = rowAccent?.(row) ?? 'default';
-          const primary = mobileColumns.find(c => c.primary);
-          const secondary = mobileColumns.find(c => c.secondary);
-          const others = mobileColumns.filter(c => !c.primary && !c.secondary);
+          const isSelected = selectedSet.has(id);
 
           const interactive = Boolean(onRowClick);
           const Wrapper = interactive ? 'button' : ('div' as const);
@@ -131,7 +176,7 @@ export function DataTable<T>({
                 onClick={interactive ? () => onRowClick?.(row) : undefined}
                 className={`w-full text-left bg-white border rounded-2xl shadow-sm p-3.5 ${ACCENT_BORDER[accent]} ${ACCENT_BG[accent]} touch-manipulation select-none ${
                   interactive ? 'active:bg-gray-50' : ''
-                } ${selectedIds.includes(id) ? 'ring-2 ring-brand-yellow' : ''}`}
+                } ${isSelected ? 'ring-2 ring-brand-yellow' : ''}`}
               >
                 <div className="flex items-start gap-2 sm:gap-3">
                   {selectable && (
@@ -141,7 +186,7 @@ export function DataTable<T>({
                     >
                       <input
                         type="checkbox"
-                        checked={selectedIds.includes(id)}
+                        checked={isSelected}
                         onChange={() => toggleOne(id)}
                         className="w-6 h-6 sm:w-5 sm:h-5 rounded border-gray-300 text-navy focus:ring-navy"
                       />
@@ -189,79 +234,86 @@ export function DataTable<T>({
           );
         })}
       </ul>
+    );
+  }
 
-      {/* ─── Desktop: tabla densa ─── */}
-      <div className="hidden md:block bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                {selectable && (
-                  <th className="px-4 py-3 w-12">
-                    <input
-                      type="checkbox"
-                      checked={allSelected}
-                      onChange={toggleAll}
-                      className="w-4 h-4 rounded border-gray-300 text-navy focus:ring-navy"
-                    />
-                  </th>
-                )}
-                {desktopColumns.map(col => (
-                  <th
-                    key={col.key}
-                    className={`px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider ${
-                      col.align ? ALIGN_CLS[col.align] : 'text-left'
-                    } ${col.width ?? ''}`}
-                  >
-                    {col.header}
-                  </th>
-                ))}
-                {actions && <th className="px-4 py-3 w-24" />}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {data.map(row => {
-                const id = rowKey(row);
-                const accent = rowAccent?.(row) ?? 'default';
-                return (
-                  <tr
-                    key={id}
-                    className={`${ACCENT_BG[accent]} ${
-                      onRowClick ? 'cursor-pointer hover:bg-blue-50/40' : 'hover:bg-gray-50/50'
-                    } ${selectedIds.includes(id) ? 'bg-amber-50/40' : ''} transition-colors`}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  >
-                    {selectable && (
-                      <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(id)}
-                          onChange={() => toggleOne(id)}
-                          className="w-4 h-4 rounded border-gray-300 text-navy focus:ring-navy"
-                        />
-                      </td>
-                    )}
-                    {desktopColumns.map(col => (
-                      <td
-                        key={col.key}
-                        className={`px-4 py-2.5 ${col.align ? ALIGN_CLS[col.align] : ''}`}
-                      >
-                        {col.cell(row)}
-                      </td>
-                    ))}
-                    {actions && (
-                      <td className="px-4 py-2.5 text-right" onClick={e => e.stopPropagation()}>
-                        <div className="inline-flex items-center gap-1">{actions(row)}</div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+  // ─── Desktop: tabla densa ───
+  return (
+    <div
+      data-testid="datatable-table"
+      className={`bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden ${refreshCls}`}
+      aria-busy={refreshing || undefined}
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-gray-50 border-b border-gray-200">
+            <tr>
+              {selectable && (
+                <th className="px-4 py-3 w-12">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    className="w-4 h-4 rounded border-gray-300 text-navy focus:ring-navy"
+                  />
+                </th>
+              )}
+              {desktopColumns.map(col => (
+                <th
+                  key={col.key}
+                  className={`px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider ${
+                    col.align ? ALIGN_CLS[col.align] : 'text-left'
+                  } ${col.width ?? ''}`}
+                >
+                  {col.header}
+                </th>
+              ))}
+              {actions && <th className="px-4 py-3 w-24" />}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {data.map(row => {
+              const id = rowKey(row);
+              const accent = rowAccent?.(row) ?? 'default';
+              const isSelected = selectedSet.has(id);
+              return (
+                <tr
+                  key={id}
+                  className={`${ACCENT_BG[accent]} ${
+                    onRowClick ? 'cursor-pointer hover:bg-blue-50/40' : 'hover:bg-gray-50/50'
+                  } ${isSelected ? 'bg-amber-50/40' : ''} transition-colors`}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                >
+                  {selectable && (
+                    <td className="px-4 py-2.5" onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleOne(id)}
+                        className="w-4 h-4 rounded border-gray-300 text-navy focus:ring-navy"
+                      />
+                    </td>
+                  )}
+                  {desktopColumns.map(col => (
+                    <td
+                      key={col.key}
+                      className={`px-4 py-2.5 ${col.align ? ALIGN_CLS[col.align] : ''}`}
+                    >
+                      {col.cell(row)}
+                    </td>
+                  ))}
+                  {actions && (
+                    <td className="px-4 py-2.5 text-right" onClick={e => e.stopPropagation()}>
+                      <div className="inline-flex items-center gap-1">{actions(row)}</div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-    </>
+    </div>
   );
 }
 

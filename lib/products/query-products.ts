@@ -230,8 +230,12 @@ export async function queryCatalogProducts(
       OFFSET ${skip}
       LIMIT ${query.pageSize}
     `),
+    // DISTINCT en Postgres, no en JS: `extractFacets` deduplicaba después de
+    // haber traído UNA FILA POR PRODUCTO que cumpliera el filtro. Con 5 000
+    // productos activos eran ~160 KB por carga de /productos para construir dos
+    // listas de unas decenas de valores. El resultado es idéntico.
     prisma.$queryRaw<Array<{ category: string; brand: string | null }>>(Prisma.sql`
-      SELECT category, brand
+      SELECT DISTINCT category, brand
       FROM "Product"
       WHERE ${facetWhere}
     `),

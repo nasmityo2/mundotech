@@ -171,3 +171,59 @@ export function revenuePeriodWhere(bounds: StatsPeriodBounds): Prisma.OrderWhere
     ],
   };
 }
+
+// ── Ingresos validados del dashboard ────────────────────────────────────────
+
+export interface ValidatedRevenueRow {
+  /** Total tal como está guardado: Bs si hay tasa, USD si es legado. */
+  total: number;
+  /** Tasa Bs/USD congelada al crear el pedido. Null/0 = pedido legado en USD. */
+  exchangeRateUsdBs: number | null;
+}
+
+export interface ValidatedRevenueTotals {
+  /** Ingresos validados expresados en USD. */
+  revenueUsd: number;
+  /** Suma en Bs de los pedidos con tasa congelada (excluye legado USD). */
+  revenueBs: number;
+  /** True si hay pedidos validados legado guardados en USD (sin equivalente Bs). */
+  hasLegacyUsdRevenue: boolean;
+}
+
+/**
+ * Implementación de REFERENCIA de los ingresos del dashboard, fila a fila.
+ *
+ * Es exactamente lo que hacía `getAdminDashboardData()` en memoria después de
+ * traerse TODOS los pedidos validados con `findMany`. Se conserva exportada
+ * porque:
+ *   1. documenta sin ambigüedad la semántica que debe respetar la agregación
+ *      en SQL (qué se redondea, cuándo, y qué cuenta como legado); y
+ *   2. los tests de equivalencia la comparan contra el resultado agregado.
+ *
+ * No usarla para calcular el KPI en producción: obliga a materializar N filas.
+ */
+export function accumulateValidatedRevenue(
+  rows: readonly ValidatedRevenueRow[],
+): ValidatedRevenueTotals {
+  let revenueUsd = 0;
+  let revenueBs = 0;
+  let hasLegacyUsdRevenue = false;
+
+  for (const row of rows) {
+    const total = row.total;
+    const rate = row.exchangeRateUsdBs;
+    if (rate != null && rate > 0) {
+      revenueUsd += roundMoney2(total / rate); // total en Bs → USD
+      revenueBs += total;                       // Bs congelado
+    } else {
+      revenueUsd += total;                      // legado: total ya está en USD
+      hasLegacyUsdRevenue = true;
+    }
+  }
+
+  return {
+    revenueUsd: roundMoney2(revenueUsd),
+    revenueBs: roundMoney2(revenueBs),
+    hasLegacyUsdRevenue,
+  };
+}

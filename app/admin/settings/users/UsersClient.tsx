@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useTransition, useRef, useEffect } from 'react';
+import { useState, useTransition, useRef, useEffect, useCallback } from 'react';
 import {
   Users, Plus, KeyRound, Trash2, Loader2, X, Check, AlertCircle,
-  UserCircle, SlidersHorizontal, Crown, ChevronDown,
+  UserCircle, SlidersHorizontal, Crown, ChevronDown, Search,
+  ChevronLeft, ChevronRight, ShieldCheck,
 } from 'lucide-react';
 import {
   type AdminUser,
@@ -15,6 +16,7 @@ import {
 } from '@/app/actions/userActions';
 import { DataTable, type DataTableColumn } from '@/components/admin/DataTable';
 import { TouchIconButton } from '@/components/admin/TouchIconButton';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { isAdminRole } from '@/lib/is-admin-role';
 import {
   ADMIN_PERMISSIONS,
@@ -25,7 +27,11 @@ import {
 } from '@/lib/admin-permissions';
 
 interface UsersClientProps {
+  /** Primera página renderizada en servidor. */
   users:       AdminUser[];
+  /** Total de usuarios existentes (no sólo los de la página). */
+  total:       number;
+  pageSize:    number;
   auditLog:    PermissionAuditEntry[];
   currentUserId: string;
 }
@@ -58,8 +64,19 @@ function PermissionChips({ permissions }: { permissions: AdminPermission[] }) {
 
 // ─── Componente principal ────────────────────────────────────────────────────
 
-export default function UsersClient({ users: initial, auditLog: initialLog, currentUserId }: UsersClientProps) {
+export default function UsersClient({
+  users: initial,
+  total: initialTotal,
+  pageSize,
+  auditLog: initialLog,
+  currentUserId,
+}: UsersClientProps) {
   const [users, setUsers]               = useState(initial);
+  const [total, setTotal]               = useState(initialTotal);
+  const [page, setPage]                 = useState(1);
+  const [searchInput, setSearchInput]   = useState('');
+  const [onlyStaff, setOnlyStaff]       = useState(false);
+  const [refreshing, setRefreshing]     = useState(false);
   const [auditLog, setAuditLog]         = useState(initialLog);
   const [createOpen, setCreateOpen]     = useState(false);
   const [permUser, setPermUser]         = useState<AdminUser | null>(null);
@@ -67,15 +84,50 @@ export default function UsersClient({ users: initial, auditLog: initialLog, curr
   const [deleteConfirm, setDeleteConfirm] = useState<AdminUser | null>(null);
   const [feedback, setFeedback]         = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
+  const search = useDebouncedValue(searchInput, 300);
+
   const flash = (type: 'success' | 'error', msg: string) => {
     setFeedback({ type, msg });
     setTimeout(() => setFeedback(null), 4500);
   };
 
+  /** Guardia de concurrencia: sólo la respuesta más reciente escribe estado. */
+  const requestSeq = useRef(0);
+
+  const loadUsers = useCallback(async () => {
+    const seq = ++requestSeq.current;
+    setRefreshing(true);
+    try {
+      const { listAdminUsers } = await import('@/app/actions/userActions');
+      const result = await listAdminUsers({ search, page, pageSize, onlyStaff });
+      if (seq !== requestSeq.current) return;
+      setUsers(result.users);
+      setTotal(result.total);
+      if (result.users.length === 0 && page > 1) setPage(p => Math.max(1, p - 1));
+    } finally {
+      if (seq === requestSeq.current) setRefreshing(false);
+    }
+  }, [search, page, pageSize, onlyStaff]);
+
+  // La primera página ya viene del servidor; no se vuelve a pedir al montar.
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    void loadUsers();
+  }, [loadUsers]);
+
+  // Volver a la primera página al cambiar de filtro.
+  const filterKey = `${search}|${onlyStaff}`;
+  const lastFilterKey = useRef(filterKey);
+  useEffect(() => {
+    if (lastFilterKey.current === filterKey) return;
+    lastFilterKey.current = filterKey;
+    setPage(1);
+  }, [filterKey]);
+
   const refresh = async () => {
-    const { listAdminUsers, listPermissionAuditLog } = await import('@/app/actions/userActions');
-    const [newUsers, newLog] = await Promise.all([listAdminUsers(), listPermissionAuditLog()]);
-    setUsers(newUsers);
+    const { listPermissionAuditLog } = await import('@/app/actions/userActions');
+    const [, newLog] = await Promise.all([loadUsers(), listPermissionAuditLog()]);
     setAuditLog(newLog);
   };
 
@@ -186,10 +238,39 @@ export default function UsersClient({ users: initial, auditLog: initialLog, curr
         </div>
       )}
 
+      {/* Búsqueda y filtro — evitan tener que listar toda la tabla `User` */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col sm:flex-row sm:items-center gap-2 px-3 py-2.5">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <Search size={15} className="text-gray-400 flex-shrink-0" />
+          <input
+            type="search"
+            placeholder="Buscar por nombre o email…"
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            className="flex-1 min-w-0 text-base sm:text-sm bg-transparent outline-none placeholder:text-gray-400"
+          />
+          {refreshing && <Loader2 size={14} className="text-gray-400 animate-spin flex-shrink-0" aria-hidden />}
+        </div>
+        <button
+          type="button"
+          onClick={() => setOnlyStaff(v => !v)}
+          aria-pressed={onlyStaff}
+          className={`min-h-[40px] px-3 inline-flex items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold transition ${
+            onlyStaff
+              ? 'bg-navy text-white border-navy'
+              : 'bg-white text-gray-600 border-gray-200 active:bg-gray-100'
+          }`}
+        >
+          <ShieldCheck size={14} /> Solo personal
+        </button>
+      </div>
+
       {/* Tabla de usuarios */}
       <DataTable<AdminUser>
         data={users}
         columns={columns}
+        refreshing={refreshing}
+        emptyState="No hay usuarios que coincidan con la búsqueda."
         rowKey={u => u.id}
         mobileLeading={u => (
           <span className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -235,6 +316,45 @@ export default function UsersClient({ users: initial, auditLog: initialLog, curr
         )}
       />
 
+      {/* Paginación */}
+      {(total > pageSize || page > 1) && (
+        <nav
+          aria-label="Paginación de usuarios"
+          className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-xl shadow-sm px-3 py-2"
+        >
+          <button
+            type="button"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1 || refreshing}
+            aria-label="Página anterior"
+            className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 active:bg-gray-100 disabled:opacity-40"
+          >
+            <ChevronLeft size={16} />
+            <span className="hidden sm:inline">Anterior</span>
+          </button>
+          <p className="text-[11px] sm:text-xs text-gray-600 text-center tabular-nums" aria-live="polite">
+            <span className="font-semibold text-navy">
+              {total === 0 ? 0 : (page - 1) * pageSize + 1}–{(page - 1) * pageSize + users.length}
+            </span>
+            <span className="mx-1">de</span>
+            <span className="font-semibold text-navy">{total}</span>
+            <span className="block sm:inline sm:ml-2 text-gray-400">
+              Página {page} de {Math.max(1, Math.ceil(total / pageSize))}
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={() => setPage(p => p + 1)}
+            disabled={page * pageSize >= total || refreshing}
+            aria-label="Página siguiente"
+            className="min-h-[44px] min-w-[44px] px-3 inline-flex items-center justify-center gap-1 rounded-lg border border-gray-200 text-sm font-semibold text-gray-700 active:bg-gray-100 disabled:opacity-40"
+          >
+            <span className="hidden sm:inline">Siguiente</span>
+            <ChevronRight size={16} />
+          </button>
+        </nav>
+      )}
+
       {/* Superadmin notice */}
       {users.some(u => u.isSuperAdmin) && (
         <p className="text-xs text-gray-400 px-1">
@@ -251,7 +371,7 @@ export default function UsersClient({ users: initial, auditLog: initialLog, curr
       {createOpen && (
         <CreateUserDialog
           onClose={() => setCreateOpen(false)}
-          onCreated={() => { setCreateOpen(false); refresh(); flash('success', 'Usuario creado. Asigna sus permisos.'); }}
+          onCreated={() => { setCreateOpen(false); setSearchInput(''); setPage(1); refresh(); flash('success', 'Usuario creado. Asigna sus permisos.'); }}
         />
       )}
       {permUser && (

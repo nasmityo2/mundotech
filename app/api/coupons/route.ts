@@ -5,17 +5,38 @@ import { requirePermission } from '@/lib/admin-access-server';
 import { couponInputSchema, couponToClient, normalizeCouponCode } from '@/lib/coupons';
 import { rejectInvalidMutationOrigin } from '@/lib/security';
 
-/** GET /api/coupons — listado admin de todos los cupones. */
+/**
+ * Tope de filas del listado admin de cupones.
+ *
+ * Segunda pasada de la auditoría de rendimiento: era la única pantalla admin
+ * cotidiana que seguía haciendo un `findMany` sin `take`. Los cupones se crean
+ * a mano de uno en uno, así que 500 es un techo que ninguna tienda real alcanza
+ * operando con normalidad; lo que se evita es que un error (o una importación
+ * masiva futura) convierta esta pantalla en una descarga ilimitada.
+ * Si se alcanza, la respuesta lo declara en la cabecera `X-Truncated` y la UI
+ * lo avisa en vez de mentir en silencio.
+ */
+const MAX_COUPONS = 500;
+
+/** GET /api/coupons — listado admin de cupones (acotado, ordenado por fecha). */
 export async function GET() {
   const auth = await requirePermission('PROMOTIONS');
   if (!auth.authorized) return auth.response;
 
   try {
-    const coupons = await prisma.coupon.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
+    const [coupons, total] = await Promise.all([
+      prisma.coupon.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: MAX_COUPONS,
+      }),
+      prisma.coupon.count(),
+    ]);
     return NextResponse.json(coupons.map(couponToClient), {
-      headers: { 'Cache-Control': 'no-store' },
+      headers: {
+        'Cache-Control': 'no-store',
+        'X-Total-Count': String(total),
+        'X-Truncated': total > coupons.length ? '1' : '0',
+      },
     });
   } catch (error) {
     logError('coupons_get_failed', error, { route: '/api/coupons' });

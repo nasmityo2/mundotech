@@ -40,12 +40,22 @@ export default function AdminCouponsPage() {
   const [editing, setEditing] = useState<Coupon | null>(null);
   const [creating, setCreating] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  /** El endpoint acota el listado; si hay más se avisa en vez de ocultarlo. */
+  const [truncatedTotal, setTruncatedTotal] = useState<number | null>(null);
 
   const fetchCoupons = async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/coupons');
-      if (res.ok) setCoupons(await res.json());
+      if (res.ok) {
+        const rows = (await res.json()) as Coupon[];
+        setCoupons(rows);
+        setTruncatedTotal(
+          res.headers.get('X-Truncated') === '1'
+            ? Number(res.headers.get('X-Total-Count') ?? 0)
+            : null,
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -153,6 +163,16 @@ export default function AdminCouponsPage() {
         }`}>
           {feedback.type === 'success' ? <Check size={16} className="mt-0.5" /> : <AlertCircle size={16} className="mt-0.5" />}
           <span>{feedback.msg}</span>
+        </div>
+      )}
+
+      {truncatedTotal != null && (
+        <div className="flex items-start gap-2 px-4 py-3 rounded-xl text-sm bg-amber-50 border border-amber-200 text-amber-800">
+          <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+          <span>
+            Se muestran los {coupons.length} cupones más recientes de {truncatedTotal}.
+            Archiva los que ya no uses para mantener la lista manejable.
+          </span>
         </div>
       )}
 

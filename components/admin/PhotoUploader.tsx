@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import Image from 'next/image';
 import { Camera, ImagePlus, X, Loader2, Check } from 'lucide-react';
 import { normalizeImageForUpload } from '@/lib/client-image-normalize';
+import { CLIENT_IMAGE_TARGET_BYTES } from '@/lib/upload-limits';
 
 interface PhotoUploaderProps {
   /** URL actual (cuando ya hay una foto subida). */
@@ -17,7 +18,10 @@ interface PhotoUploaderProps {
   hint?: string;
   /** Si la subida es opcional, permitir limpiar. */
   optional?: boolean;
-  /** Limitar tamaño antes de subir (KB). Por defecto 8 MB. */
+  /**
+   * Objetivo de tamaño tras normalizar, en MB. Por defecto el compartido en
+   * lib/upload-limits.ts (5 MB), siempre por debajo del límite del servidor.
+   */
   maxSizeMB?: number;
   /** Tamaño visual del preview (Tailwind h-XX). */
   previewHeight?: string;
@@ -39,7 +43,7 @@ export default function PhotoUploader({
   label = 'Foto',
   hint,
   optional = true,
-  maxSizeMB = 8,
+  maxSizeMB = CLIENT_IMAGE_TARGET_BYTES / (1024 * 1024),
   previewHeight = 'h-48',
   className = '',
 }: PhotoUploaderProps) {

@@ -40,8 +40,15 @@ export const PRODUCT_DETAIL_SELECT = {
   media:         { orderBy: { sortOrder: 'asc' as const } },
 } as const satisfies Prisma.ProductSelect;
 
-/** Inventario admin — incluye campos de edición; requiere columna `isActive` migrada. */
-export const PRODUCT_ADMIN_SELECT = {
+/**
+ * Detalle admin — TODOS los campos que necesita el modal de edición.
+ *
+ * Antes se llamaba `PRODUCT_ADMIN_SELECT` y era el select del **listado**: cada
+ * carga de Inventario descargaba `description`, `specs`, `media`, `cost` y
+ * `profitMarginPct` de todos los productos existentes (RC-02 de la auditoría de
+ * rendimiento). Ahora sólo se usa para un producto concreto, al pulsar «Editar».
+ */
+export const PRODUCT_ADMIN_DETAIL_SELECT = {
   id:            true,
   sku:           true,
   slug:          true,
@@ -61,3 +68,9 @@ export const PRODUCT_ADMIN_SELECT = {
   freeShipping:  true,
   media:         { orderBy: { sortOrder: 'asc' as const } },
 } as const satisfies Prisma.ProductSelect;
+
+/**
+ * @deprecated Alias histórico de {@link PRODUCT_ADMIN_DETAIL_SELECT}. El listado
+ * administrativo usa `lib/products/admin-product-query.ts` (DTO ligero).
+ */
+export const PRODUCT_ADMIN_SELECT = PRODUCT_ADMIN_DETAIL_SELECT;

@@ -9,13 +9,24 @@ import { CSS } from '@dnd-kit/utilities';
 import { createProductAction, updateProductAction } from '@/app/actions/productActions';
 import { calcSellingPriceUsd, roundUpToStep, DEFAULT_PROFIT_MARGIN_PCT, DEFAULT_BCV_BINANCE_FACTOR } from '@/lib/pricing-formula';
 import { getPricingParams, getMarginPresets, updateMarginPresets } from '@/app/actions/configActions';
-import { X, GripVertical, ImagePlus, Star, Camera, Plus, Trash2, Video, Play, ChevronDown } from 'lucide-react';
+import { X, GripVertical, ImagePlus, Star, Camera, Plus, Trash2, Video, Play, ChevronDown, Loader2, AlertCircle, Check } from 'lucide-react';
 import { deriveLegacyImagesFromSlots, type ProductGalleryItem } from '@/lib/product-media';
 import { parseProductSpecs, type ProductSpec } from '@/lib/definitions';
+import {
+  completedUrlsInOrder,
+  uploadProductImages,
+  UPLOAD_CONCURRENCY,
+  type UploadItemState,
+} from '@/lib/products/upload-product-images';
 
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
+/**
+ * Detalle admin del producto. Compatible estructuralmente con
+ * `AdminProductDetail` (app/actions/productActions.ts), que es lo que devuelve
+ * `getAdminProductById(id)`. `brand` y `description` son nullable en la BD.
+ */
 interface Product {
   id:          string;
   name:        string;
@@ -26,8 +37,8 @@ interface Product {
   profitMarginPct?: number | null;
   stock:       number;
   images:      string[];
-  brand:       string;
-  description: string;
+  brand:       string | null;
+  description: string | null;
   sku?:        string | null;
   /** Elegible para envío gratis exclusivamente por MRW (no implica ZOOM/TEALCA gratis). */
   freeShipping?: boolean;
@@ -57,7 +68,18 @@ interface AddProductModalProps {
   onClose:     () => void;
   /** Recarga listas tras un guardado exitoso (productos + categorías). */
   onSaved?:    () => void | Promise<void>;
+  /**
+   * Detalle COMPLETO del producto a editar, o null al crear.
+   *
+   * El listado ya no lo trae: se pide con `getAdminProductById(id)` al pulsar
+   * «Editar». Mientras llega, el modal se abre con `detailLoading` en true y
+   * muestra un esqueleto sobre el formulario en lugar de congelar la interfaz.
+   */
   product:     Product | null;
+  /** true mientras se está cargando el detalle del producto a editar. */
+  detailLoading?: boolean;
+  /** Mensaje si el detalle no se pudo cargar. */
+  detailError?: string | null;
   categories:  string[];
 }
 
@@ -199,7 +221,75 @@ function deleteOrphanVideo(url: string, posterUrl?: string, keepalive = false): 
   });
 }
 
-export default function AddProductModal({ isOpen, onClose, onSaved, product, categories }: AddProductModalProps) {
+/**
+ * Estado individual de cada imagen de una selección múltiple.
+ *
+ * Sustituye al `alert()` que interrumpía toda la operación: aquí se ve qué
+ * imagen está procesándose, cuál ya subió y cuál falló y por qué, sin que un
+ * fallo borre las que sí funcionaron.
+ */
+function UploadProgressList({
+  items,
+  busy,
+  onDismiss,
+}: {
+  items: UploadItemState[];
+  busy: boolean;
+  onDismiss: () => void;
+}) {
+  if (items.length === 0) return null;
+
+  const done = items.filter((i) => i.status === 'done').length;
+  const failed = items.filter((i) => i.status === 'error').length;
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50 p-2.5" aria-live="polite">
+      <div className="flex items-center justify-between gap-2 mb-1.5">
+        <p className="text-[11px] font-semibold text-gray-600">
+          {busy
+            ? `Subiendo imágenes… ${done}/${items.length}`
+            : failed > 0
+              ? `${done} de ${items.length} subidas · ${failed} con error`
+              : `${done} de ${items.length} subidas`}
+        </p>
+        {!busy && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            aria-label="Ocultar detalle de subida"
+            className="w-7 h-7 inline-flex items-center justify-center rounded-full active:bg-black/10 text-gray-400"
+          >
+            <X size={13} />
+          </button>
+        )}
+      </div>
+      <ul className="space-y-1">
+        {items.map((item) => (
+          <li key={`${item.index}-${item.name}`} className="flex items-start gap-2 text-[11px]">
+            <span className="mt-0.5 flex-shrink-0">
+              {item.status === 'done' && <Check size={12} className="text-green-600" />}
+              {item.status === 'error' && <AlertCircle size={12} className="text-red-600" />}
+              {(item.status === 'processing' || item.status === 'uploading') && (
+                <Loader2 size={12} className="text-navy animate-spin" />
+              )}
+              {item.status === 'pending' && <span className="block w-3 h-3 rounded-full bg-gray-300" />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium text-gray-700">{item.name}</span>
+              {item.status === 'processing' && <span className="text-gray-500">Optimizando…</span>}
+              {item.status === 'uploading' && <span className="text-gray-500">Subiendo…</span>}
+              {item.status === 'error' && (
+                <span className="text-red-600">{item.error ?? 'No se pudo subir.'}</span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export default function AddProductModal({ isOpen, onClose, onSaved, product, detailLoading = false, detailError = null, categories }: AddProductModalProps) {
   const [isPending, startTransition] = useTransition();
   const formRef        = useRef<HTMLFormElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
@@ -212,6 +302,8 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
   const originalProductVideoUrlsRef = useRef<Set<string>>(new Set());
   const sessionUploadedVideosRef = useRef<SessionVideo[]>([]);
   const [serverUploading, setServerUploading] = useState(false);
+  /** Estado individual de cada imagen de la última selección múltiple. */
+  const [uploadItems, setUploadItems] = useState<UploadItemState[]>([]);
   const [specs, setSpecs] = useState<ProductSpec[]>([]);
   const [cost, setCost] = useState('');
   const [marginPct, setMarginPct] = useState('');
@@ -277,11 +369,17 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
   }, [isOpen, product]);
 
   useEffect(() => {
+    if (!isOpen) return;
+    // Al abrir/cambiar de producto se descarta el estado de la subida anterior.
+    setUploadItems([]);
+  }, [isOpen, product]);
+
+  useEffect(() => {
     if (!formRef.current) return;
     const el = formRef.current.elements as unknown as Record<string, HTMLInputElement | HTMLTextAreaElement>;
     if (product) {
       el.name.value        = product.name;
-      el.description.value = product.description;
+      el.description.value = product.description ?? '';
       setCost(product.cost != null ? String(product.cost) : '');
       const onOffer = product.originalPrice != null && product.originalPrice > product.price;
       setOnSale(onOffer);
@@ -294,7 +392,7 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
       setFreeShipping(product.freeShipping ?? false);
       el.stock.value       = product.stock.toString();
       setCategoryInput(product.category);
-      el.brand.value       = product.brand;
+      el.brand.value       = product.brand ?? '';
       el.sku.value         = product.sku ?? '';
       setSpecs(parseProductSpecs(product.specs));
       originalProductVideoUrlsRef.current = new Set(
@@ -428,36 +526,85 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
     }
   };
 
+  /**
+   * Subida de la galería: cada imagen se normaliza y se sube por separado.
+   *
+   * ANTES: bucle secuencial que subía el File original sin normalizar y hacía
+   * `alert` + `break` al primer fallo, cancelando el resto de la selección. Con
+   * el límite por archivo del servidor, eso se percibía como «no puedo subir
+   * varias fotos si juntas pasan de 5 MB».
+   *
+   * AHORA: `uploadProductImages` normaliza (HEIC→JPEG, EXIF, reescalado,
+   * compresión; GIF intactos), sube con concurrencia limitada y reporta el
+   * estado de cada archivo. Un error afecta sólo a esa imagen.
+   */
   const uploadFilesViaApi = useCallback(async (files: FileList | null) => {
     if (!files?.length) return;
-    const remaining = Math.max(0, MAX_SLOTS - slots.length);
-    const list = Array.from(files).slice(0, remaining);
+    const currentSlots = slotsRef.current;
+    const remaining = Math.max(0, MAX_SLOTS - currentSlots.length);
+    if (remaining === 0) return;
+
+    const selected = Array.from(files);
+    const list = selected.slice(0, remaining);
+    const skipped = selected.length - list.length;
+
+    const title = formRef.current?.elements.namedItem('name') as HTMLInputElement | null;
+    const descriptiveName = title?.value?.trim() || undefined;
+
+    // Base sobre la que se reconstruye la galería en cada progreso: garantiza
+    // que las nuevas imágenes queden en el orden en que se seleccionaron aunque
+    // terminen de subir desordenadas.
+    const baseSlots = currentSlots;
+
+    setUploadItems(
+      list.map((file, index) => ({
+        index,
+        name: file.name || `Imagen ${index + 1}`,
+        status: 'pending' as const,
+      })),
+    );
     setServerUploading(true);
+
     try {
-      const urls: string[] = [];
-      for (const file of list) {
-        if (slots.length + urls.length >= MAX_SLOTS) break;
-        const fd = new FormData();
-        fd.append('file', file);
-        fd.append('purpose', 'product');
-        const title = formRef.current?.elements.namedItem('name') as HTMLInputElement | null;
-        const currentTitle = title?.value?.trim();
-        if (currentTitle) {
-          fd.append('name', currentTitle);
-        }
-        const res = await fetch('/api/upload', { method: 'POST', body: fd });
-        const data = (await res.json()) as { url?: string; error?: string };
-        if (!res.ok || !data.url) {
-          alert(data.error ?? 'No se pudo subir una de las imágenes.');
-          break;
-        }
-        urls.push(data.url);
+      const { failed } = await uploadProductImages({
+        files: list,
+        purpose: 'product',
+        descriptiveName,
+        concurrency: UPLOAD_CONCURRENCY,
+        onProgress: (items) => {
+          setUploadItems(items);
+          const done = completedUrlsInOrder(items);
+          if (done.length === 0) return;
+          setSlots(() => {
+            const existing = new Set(baseSlots.map((s) => s.url));
+            const additions = done
+              .filter((url) => !existing.has(url))
+              .map((url) => ({ type: 'IMAGE' as const, url }));
+            return [...baseSlots, ...additions].slice(0, MAX_SLOTS);
+          });
+        },
+      });
+
+      if (skipped > 0) {
+        setUploadItems((prev) => [
+          ...prev,
+          ...Array.from({ length: skipped }, (_, i) => ({
+            index: list.length + i,
+            name: selected[list.length + i]?.name ?? 'Imagen',
+            status: 'error' as const,
+            error: `Se alcanzó el límite de ${MAX_SLOTS} elementos en la galería.`,
+          })),
+        ]);
       }
-      if (urls.length) addImages(urls);
+      // Los fallos quedan visibles en la lista por archivo; no se usa `alert`
+      // para no bloquear ni ocultar las imágenes que sí se subieron.
+      void failed;
     } finally {
       setServerUploading(false);
     }
-  }, [addImages, slots.length]);
+  }, []);
+
+  const dismissUploadItems = useCallback(() => setUploadItems([]), []);
 
   const uploadVideoViaApi = useCallback(async (file: File) => {
     if (slots.length >= MAX_SLOTS) return;
@@ -642,7 +789,8 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
-      aria-label={product ? 'Editar producto' : 'Nuevo producto'}
+      aria-label={product || detailLoading ? 'Editar producto' : 'Nuevo producto'}
+      aria-busy={detailLoading || undefined}
       className="fixed z-50 inset-0 flex sm:items-center sm:justify-center"
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
@@ -658,7 +806,7 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
           style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.875rem)' }}
         >
           <h3 className="text-base sm:text-lg font-black text-navy">
-            {product ? 'Editar producto' : 'Nuevo producto'}
+            {product || detailLoading ? 'Editar producto' : 'Nuevo producto'}
           </h3>
           <button
             type="button"
@@ -670,7 +818,37 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
           </button>
         </div>
 
-        <div className="flex-1 px-4 sm:px-6 py-4 overflow-y-auto">
+        <div className="relative flex-1 px-4 sm:px-6 py-4 overflow-y-auto">
+          {/*
+            Detalle bajo demanda: el formulario permanece MONTADO (sus efectos
+            de inicialización necesitan el ref del <form>) y encima se pinta un
+            esqueleto. Así el modal se abre al instante en lugar de congelar la
+            interfaz mientras viaja la consulta.
+          */}
+          {detailLoading && (
+            <div className="absolute inset-0 z-20 bg-white/95 px-4 sm:px-6 py-4 overflow-hidden">
+              <div className="animate-pulse space-y-4" role="status" aria-label="Cargando producto">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="aspect-square rounded-xl bg-gray-200" />
+                  <div className="aspect-square rounded-xl bg-gray-100" />
+                  <div className="aspect-square rounded-xl bg-gray-100" />
+                </div>
+                <div className="h-10 rounded-lg bg-gray-200" />
+                <div className="h-24 rounded-lg bg-gray-100" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="h-10 rounded-lg bg-gray-200" />
+                  <div className="h-10 rounded-lg bg-gray-200" />
+                </div>
+                <div className="h-10 rounded-lg bg-gray-100" />
+              </div>
+            </div>
+          )}
+
+          {detailError && (
+            <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+              {detailError}
+            </div>
+          )}
 
             {/* ── Galería de medios ──────────────────────────────── */}
             <div className="mb-5">
@@ -771,9 +949,12 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
                   <p className="text-[11px] text-gray-400 text-center">
                     Video: máx. 95 MB y 3 min. Espera a &ldquo;listo&rdquo; antes de guardar.
                   </p>
-                  {serverUploading && (
-                    <p className="text-xs text-center text-gray-500">Subiendo imagen…</p>
-                  )}
+
+                  <UploadProgressList
+                    items={uploadItems}
+                    busy={serverUploading}
+                    onDismiss={dismissUploadItems}
+                  />
 
                   <div>
                     <p className="text-xs text-gray-500 mb-1">
@@ -796,9 +977,16 @@ export default function AddProductModal({ isOpen, onClose, onSaved, product, cat
               )}
 
               {slots.length >= MAX_SLOTS && (
-                <p className="text-xs text-amber-600 mt-2">
-                  Límite de {MAX_SLOTS} elementos. Elimina uno para añadir otro.
-                </p>
+                <>
+                  <p className="text-xs text-amber-600 mt-2">
+                    Límite de {MAX_SLOTS} elementos. Elimina uno para añadir otro.
+                  </p>
+                  <UploadProgressList
+                    items={uploadItems}
+                    busy={serverUploading}
+                    onDismiss={dismissUploadItems}
+                  />
+                </>
               )}
             </div>
 
